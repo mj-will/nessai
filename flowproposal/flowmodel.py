@@ -15,6 +15,7 @@ from .trainer import Trainer
 from .flows import BatchNormFlow, setup_model
 from .plot import plot_loss, plot_inputs, plot_samples
 
+
 def update_config(d):
     """
     Update the default dictionary for a trainer
@@ -50,7 +51,6 @@ class FlowModel:
     def __init__(self, config=None, output='./'):
         self.intialised = False
         self.output = output
-        trainer_dict = update_config(trainer_dict)
         self._setup_from_input_dict(config)
 
     def save_input(self, attr_dict):
@@ -58,10 +58,11 @@ class FlowModel:
         Save the dictionary used as an inputs as a JSON file
         """
         d = attr_dict.copy()
+        d = update_config(d)
         d['model_dict'] = attr_dict['model_dict'].copy()
         # Pop bilby priors object if present
         d.pop('bilby_priors', None)
-        output_file = self.outdir + "trainer_dict.json"
+        output_file = self.output + "trainer_dict.json"
         for k, v in list(d.items()):
             if type(v) == np.ndarray:
                 d[k] = np.array_str(d[k])
@@ -75,8 +76,8 @@ class FlowModel:
         """
         Setup the trainer from a dictionary
         """
-        if self.outdir is not None:
-            attr_dict.pop('outdir')
+        if self.output is not None:
+            attr_dict.pop('output')
 
         if attr_dict['normalise']:
             if 'prior_bounds' not in attr_dict and cpnest_model is None:
@@ -89,8 +90,8 @@ class FlowModel:
         for key, value in six.iteritems(attr_dict):
             setattr(self, key, value)
         self.n_inputs = self.model_dict["n_inputs"]
-        if not os.path.isdir(self.outdir):
-            os.mkdir(self.outdir)
+        if not os.path.isdir(self.output):
+            os.mkdir(self.output)
         self.save_input(attr_dict)
 
         if 'mask' in self.model_dict.keys():
@@ -211,7 +212,7 @@ class FlowModel:
         logging.info(f"Patience: {patience}")
         history = dict(loss=[], val_loss=[])
 
-        self.weights_file = block_outdir + 'model.pt'
+        self.weights_file = block_output + 'model.pt'
         logging.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
