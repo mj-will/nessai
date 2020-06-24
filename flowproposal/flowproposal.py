@@ -12,11 +12,12 @@ class FlowProposal:
     """
     Object that handles training and proposal points
     """
-    def __init__(self, proposal_config=None, flow_config=None, output='./'):
+    def __init__(self, model, proposal_config=None, flow_config=None, output='./'):
         """
         Intialise
         """
-        self.flow = FlowModel(config=flow_config, output=output)
+        self.flow = None
+        self.intialised = False
 
         self.ndims=None
         self.populated = False
@@ -30,6 +31,14 @@ class FlowProposal:
             from .utils import draw_random_nsphere
             self.draw = draw_random_nsphere
             self.log_prior = self._log_uniform_prior
+
+    def initialise(self):
+        """
+        Intialise the proposal class
+        """
+        self.flow = FlowModel(config=flow_config, output=output)
+        self.flow.intialise()
+        self.intialised = True
 
     def rescale(self, x):
         """

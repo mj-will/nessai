@@ -42,7 +42,7 @@ def setup_model(n_inputs=None,  n_conditional_inputs=None, augment_dim=None,
                                          num_layers=n_layers),
                            BatchNormFlow(n_inputs)]
                 mask = 1 - mask
-            model = FlowSequential(*blocks, prior=prior)
+            model = FlowSequential(*blocks)
         else:
             for n in range(n_blocks):
                 blocks += [AugmentedBlock(n_inputs, augment_dim, n_layers, n_neurons)]
@@ -60,7 +60,7 @@ def setup_model(n_inputs=None,  n_conditional_inputs=None, augment_dim=None,
                 blocks += [JointCouplingLayer(n_inputs, mask, n_neurons=n_neurons, n_layers=n_layers),
                            BatchNormFlow(n_inputs)]
                 mask = 1 - mask
-            model = FlowSequential(*blocks, prior=prior)
+            model = FlowSequential(*blocks)
         else:
             for n in range(n_blocks):
                 blocks += [AugmentedBlock(n_inputs, augment_dim, n_layers, n_neurons)]
@@ -77,7 +77,7 @@ def setup_model(n_inputs=None,  n_conditional_inputs=None, augment_dim=None,
             m = torch.from_numpy(m.astype('float32')).to(device)
             blocks += [JointCouplingLayer(n_inputs, m, n_neurons=n_neurons, n_layers=n_layers),
                        BatchNormFlow(n_inputs)]
-        model = FlowSequential(*blocks, prior=prior)
+        model = FlowSequential(*blocks)
 
     elif ftype == 'maf':
         if augment_dim is None:
