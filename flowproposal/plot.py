@@ -1,6 +1,26 @@
 import numpy as np
+import pandas as pd
 import matplotlib as mpl
 from matplotlib import pyplot as plt
+import seaborn as sns
+sns.set()
+sns.set_style('ticks')
+
+pairplot_kwargs = dict(corner=True, kind='scatter',
+        diag_kws=dict(histtype='step', bins=50, lw=1.5),
+        plot_kws=dict(s=1.0, edgecolor=None))
+
+def plot_live_points(live_points, filename=None, **kwargs):
+    """
+    Plot a set of live points
+    """
+    pairplot_kwargs.update(kwargs)
+
+    df = pd.DataFrame(live_points)
+    fig = sns.pairplot(df, **pairplot_kwargs)
+    if filename is not None:
+        fig.savefig(filename)
+
 
 def plot_chain(x,name=None,filename=None):
     """
@@ -299,6 +319,7 @@ def plot_inputs(samples, output='./', filename='input_samples.png', names=None):
                     ax[i, j].set_axis_off()
     else:
         ax.hist(samples, int(np.sqrt(N)), histtype='step')
+
     plt.tight_layout()
     fig.savefig(output + filename ,bbox_inches='tight')
     plt.close('all')
