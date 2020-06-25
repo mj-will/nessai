@@ -7,7 +7,25 @@ class Model:
 
     names = [] # Names of parameters, e.g. ['p1','p2']
     dims = 0
-    bounds = np.array([])
+    bounds = {}
+    _lower = None
+    _upper = None
+
+    @property
+    def lower_bounds(self):
+        if self._lower is None:
+            bounds_array = np.array(list(self.bounds.values()))
+            self._lower = bounds_array[:, 0]
+            self._upper = bounds_array[:, 1]
+        return self._lower
+
+    @property
+    def upper_bounds(self):
+        if self._upper is None:
+            bounds_array = np.array(list(self.bounds.values()))
+            self._lower = bounds_array[:, 0]
+            self._upper = bounds_array[:, 1]
+        return self._upper
 
     def new_point(self, N=1):
         """
@@ -26,7 +44,7 @@ class Model:
         logP = -np.inf
         while (logP == - np.inf):
             p = numpy_array_to_live_points(
-                    np.random.uniform(self.bounds.T[0], self.bounds.T[1], [1, self.dims]),
+                    np.random.uniform(self.lower_bounds, self.upper_bounds, [1, self.dims]),
                     self.names)
             logP=self.log_prior(p)
         return p
@@ -35,7 +53,7 @@ class Model:
         new_points = np.array([], dtype=[(n, 'f') for n in self.names + ['logP', 'logL']])
         while new_points.size < N:
             p = numpy_array_to_live_points(
-                    np.random.uniform(self.bounds.T[0], self.bounds.T[1], [N, self.dims]).astype(float),
+                    np.random.uniform(self.lower_bounds, self.upper_bounds, [N, self.dims]).astype(float),
                     self.names)
             logP = self.log_prior(p)
             new_points = np.concatenate([new_points, p[np.isfinite(logP)]])
