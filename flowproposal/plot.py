@@ -107,20 +107,32 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None):
     """
     Histogram indices for index insertion tests
     """
-    import random
-    fig = plt.figure()
-    ax  = fig.add_subplot(111)
-    ax.hist(indices, density = True, color='tab:blue', linewidth = 1.25,
-                histtype='step', bins=len(indices)//50, label = 'produced')
-    if u is not None:
-        ax.hist(u, density = True, color='tab:orange', linewidth = 1.25,
-                    histtype='step', bins=len(u)//50, label = 'expected')
-    if nlive is not None:
-        ax.axhline(1 / nlive, color='black', linewidth=1.25, linestyle=':',
-                label='pmf')
+    fig, ax = plt.subplots(1, 2, figsize=(6, 3))
 
-    ax.legend(loc='upper left')
-    ax.set_xlabel('insertion indices')
+    for i in range(len(indices) // nlive):
+        ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
+                histtype='step', density=True, alpha=0.1, color='black', lw=0.5,
+                cumulative=True)
+
+    ax[0].hist(indices, density = True, color='tab:blue', linewidth = 1.25,
+                histtype='step', bins=nlive // 10, label = 'produced')
+    ax[1].hist(indices, density = True, color='tab:blue', linewidth = 1.25,
+                histtype='step', bins=nlive, label = 'produced',
+                cumulative=True)
+
+    if nlive is not None:
+        ax[0].axhline(1 / nlive, color='black', linewidth=1.25, linestyle=':',
+                label='pmf')
+        ax[1].plot([0, nlive], [0, 1], color='black', linewidth=1.25, linestyle=':',
+                label='cmf')
+
+    ax[0].legend(loc='lower right')
+    ax[1].legend(loc='lower right')
+    ax[0].set_xlim([0, nlive])
+    ax[1].set_xlim([0, nlive])
+    ax[0].set_xlabel('Insertion indices')
+    ax[1].set_xlabel('Insertion indices')
+
     if name is not None:
         ax.set_xlabel(name)
         if filename is None:
@@ -319,44 +331,3 @@ def plot_comparison(truth, samples, output='./', filename='sample_comparison.png
     plt.tight_layout()
     fig.savefig(output + filename)
     plt.close('all')
-
-def generate_contour(r, dims, N=1000):
-    """Generate a contour"""
-    x = np.array([np.random.randn(N) for _ in range(dims)])
-    R = np.sqrt(np.sum(x ** 2., axis=0))
-    z = x / R
-    return r * z.T
-
-def plot_contours(contours, output='./', filename='contours.png', names=None):
-    """Plot contours in the latent space and physical space"""
-    d = contours.shape[-1]
-    if names is None:
-        names = list(range(d))
-    latent_names =  [f'z_{n}' for n in range(d)]
-    fig, ax = plt.subplots(d, d, figsize=(d*3, d*3))
-    if d >= 2:
-        for c in contours:
-            for i in range(d):
-                for j in range(d):
-                    if j < i:
-                        ax[i, j].scatter(c[1, :,j], c[1, :,i], s=1.)
-                    elif j == i:
-                        pass
-                    else:
-                        ax[i, j].scatter(c[0, :,j], c[0, :,i], s=1.)
-        for i in range(d):
-            for j in range(d):
-                if j < i:
-                    ax[i, j].set_xlabel(names[j])
-                    ax[i, j].set_ylabel(names[i])
-                elif j == i:
-                    ax[i, j].axis('off')
-                else:
-                    ax[i, j].set_xlabel(latent_names[j])
-                    ax[i, j].set_ylabel(latent_names[i])
-        plt.tight_layout()
-        fig.savefig(output + filename)
-        plt.close('all')
-    else:
-        pass
-
