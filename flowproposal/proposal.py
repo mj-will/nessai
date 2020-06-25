@@ -85,7 +85,7 @@ class FlowProposal(Proposal):
     """
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
-            latent_prior='gaussian', fuzz=1.0, **kwargs):
+            normalise=False, latent_prior='gaussian', fuzz=1.0, **kwargs):
         """
         Initialise
         """
@@ -103,6 +103,7 @@ class FlowProposal(Proposal):
         self.poolsize = poolsize
         self.fuzz = fuzz
         self.latent_prior = latent_prior
+        self.normalise = normalise
 
         flow_config = update_config(flow_config)
         flow_config['model_config']['n_inputs'] = self.dims
@@ -117,12 +118,38 @@ class FlowProposal(Proposal):
             self.draw_latent_prior = draw_random_nsphere
             self.log_latent_prior = self._log_uniform_prior
 
+        if self.normalise:
+            self.rescale = self._rescale_with_bounds
+            self.inverse_rescale = self._inverse_rescale_with_bounds
+
     def initialise(self):
         """
         Initialise the proposal class
         """
         self.flow.initialise()
         self.initialised = True
+
+
+    def _rescale_with_bounds(self, x):
+        """
+        Rescale the inputs to [-1, 1] using the bounds as the min and max
+        """
+        x_prime = 2 * ((x - self.model.bounds.T[0]) \
+                / (self.model.bounds.T[1] - self.model.bounds.T[0])) - 1
+        log_J = np.sum(np.log(2) - np.log(self.model.bounds.T[1] \
+                - self.model.bounds.T[0]))
+        return x_prime, log_J
+
+    def _inverse_rescale_with_bounds(self, x_prime):
+        """
+        Rescale the inputs from the prime space to the phyiscal space
+        using the model bounds
+        """
+        x = (self.model.bounds.T[1] - self.model.bounds.T[0]) \
+                * ((x_prime + 1) / 2) + self.model.bounds.T[0]
+        log_J = np.sum(np.log(self.model.bounds.T[1] - self.model.bounds.T[0]) \
+                - np.log(2))
+        return x, log_J
 
     def rescale(self, x):
         """
@@ -148,6 +175,8 @@ class FlowProposal(Proposal):
         # TODO: weights resets
         block_output = self.output + f'/block_{self.training_count}/'
         data, log_J = self.rescale(x)
+        # TODO: flag for weight reset
+        self.flow.reset_model()
         self.flow.train(data, output=block_output)
         self.training_count += 1
 

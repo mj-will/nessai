@@ -134,6 +134,7 @@ class NestedSampler:
                  poolsize=10000, fuzz=1.0, latent_prior='gaussian', train_on_empty=True,
                  cooldown=100, memory=False, acceptance_threshold=0.1, analytic_priors = False,
                  maximum_uninformed=1000, training_frequency=1000, uninformed_proposal=None,
+                 normalise=False,
                  flow_proposal_kwargs={}, uninformed_proposal_kwargs={}, seed=1234):
         """
         Initialise all necessary arguments and
@@ -185,13 +186,13 @@ class NestedSampler:
 
         if flow_class is not None:
             self._flow_proposal = flow_class(model, poolsize=poolsize, fuzz=fuzz,
-                    latent_prior=latent_prior, flow_config=flow_config, output=output,
-                    **flow_proposal_kwargs)
+                    normalise=normalise, latent_prior=latent_prior, flow_config=flow_config,
+                    output=output, **flow_proposal_kwargs)
         else:
             from .proposal import FlowProposal
             self._flow_proposal = FlowProposal(model, poolsize=poolsize, fuzz=fuzz,
-                    latent_prior=latent_prior, flow_config=flow_config, output=output,
-                    **flow_proposal_kwargs)
+                    normalise=normalise, latent_prior=latent_prior, flow_config=flow_config,
+                    output=output, **flow_proposal_kwargs)
 
 
         # Uninformed proposal is used for prior sampling
