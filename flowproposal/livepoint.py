@@ -25,32 +25,3 @@ def numpy_array_to_live_points(array, names):
     array = np.concatenate([array, np.zeros([array.shape[0], 2])], axis=-1).astype('float32')
     return array.ravel().view(
             dtype=[(n, 'f') for n in names + ['logP', 'logL']])
-
-
-class OrderedLivePoints:
-
-    def __init__(self, live_points):
-        """
-        Initlaise the ordered live points.
-        """
-        self.live_points = np.sort(live_points, order='logL')
-
-    def insert_live_point(self, live_point):
-        """
-        Insert a live point
-        """
-        # This is the index including the current worst point, so final index
-        # is one less, otherwise index=0 would never be possible
-        index = np.searchsorted(self.live_points['logL'], live_point['logL'])
-        # Concatentate is complied C code, so it is much faster than np.insert
-        # it also allows for simultaneous removal of the worst point
-        # and insertion of the new live point
-        self.live_points = np.concatenate([self.live_points[1:i], live_point,
-            self.live_points[i:]])
-        return index - 1
-
-    def tolist(self):
-        """
-        Convert the set of live points to a list
-        """
-        return self.live_points.tolist()
