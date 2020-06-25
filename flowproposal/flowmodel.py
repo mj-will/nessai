@@ -184,8 +184,6 @@ class FlowModel:
         else:
             os.makedirs(output, exist_ok=True)
 
-        plot_inputs(samples, output=output, filename='input_samples.png')
-
         if val_size is None:
             val_size = self.val_size
 
