@@ -269,6 +269,6 @@ class FlowProposal(Proposal):
         new_sample = self.x[index]
         if not self.indices:
             self.populated = False
-            logging.debug('Proposal pool is empty')
+            logger.debug('Proposal pool is empty')
         # make live point and return
         return new_sample
