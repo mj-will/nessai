@@ -6,16 +6,13 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.model_selection import train_test_split
-from scipy import stats as stats
-
 import matplotlib.pyplot as plt
 
-from .trainer import Trainer
 from .flows import BatchNormFlow, setup_model
 from .plot import plot_loss, plot_inputs, plot_samples
 
 logger = logging.getLogger(__name__)
+
 
 def update_config(d):
     """
@@ -24,18 +21,22 @@ def update_config(d):
     default_model = dict(n_inputs=None, n_neurons=32, n_blocks=4, n_layers=2,
             ftype='RealNVP', mask=None)
 
+    if 'model_config' in d.keys():
+        default_model.update(d['model_config'])
+
     default = dict(lr=0.0001,                  # learning rate
                    batch_size=100,             # batch size
                    val_size=0.1,               # validation per cent (0.1 = 10%)
                    max_epochs=500,             # maximum number of training epochs
                    patience=20,                # stop after n epochs with no improvement
-                   device_tag="cuda",          # device for training
-                   model_config=default_model)
+                   device_tag="cuda")          # device for training
 
     if not isinstance(d, dict):
         raise TypeError('Must pass a dictionary to update the default trainer settings')
     else:
         default.update(d)
+        default['model_config'] = default_model
+
     return default
 
 
@@ -73,7 +74,8 @@ class FlowModel:
         Setup the trainer from a dictionary
         """
         config = update_config(config)
-        for key, value in six.iteritems(config):
+        logger.debug(f'Flow configuration: {config}')
+        for key, value in config.items():
             setattr(self, key, value)
         self.save_input(config)
         # TODO: mask
@@ -94,7 +96,7 @@ class FlowModel:
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-6)
         self.initialised = True
 
-    def _prep_data(self, samples):
+    def _prep_data(self, samples, val_size):
         """
         Prep data and return dataloaders for training
         """
@@ -104,7 +106,8 @@ class FlowModel:
         logger.debug("N input samples: {}".format(len(samples)))
 
         # setup data loading
-        x_train, x_val = train_test_split(samples, test_size=self.val_size, shuffle=False)
+        n = int(val_size * samples.shape[0])
+        x_train, x_val = samples[:n], samples[n:]
         train_tensor = torch.from_numpy(x_train.astype(np.float32))
         train_dataset = torch.utils.data.TensorDataset(train_tensor)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
@@ -167,7 +170,8 @@ class FlowModel:
 
         return val_loss / len(loader)
 
-    def train(self, samples, max_epochs=None, patience=None, output=None):
+    def train(self, samples, max_epochs=None, patience=None, output=None,
+            val_size=None):
         """
         Train the flow on samples
         """
@@ -180,7 +184,10 @@ class FlowModel:
         else:
             os.makedirs(output, exist_ok=True)
 
-        train_loader, val_loader = self._prep_data(samples)
+        if val_size is None:
+            val_size = self.val_size
+
+        train_loader, val_loader = self._prep_data(samples, val_size=val_size)
 
         # train
         if max_epochs is None:
