@@ -1,27 +1,17 @@
-from __future__ import division, print_function
-import sys
 import os
-import bisect
 import pickle
 import logging
 import numpy as np
-import multiprocessing as mp
+from tqdm import tqdm
 from numpy import logaddexp, exp
 from numpy import inf
 from math import isnan
 from scipy.stats import ksone
-try:
-    from queue import Empty
-except ImportError:
-    from Queue import Empty # For python 2 compatibility
-import types
+
 from . import nest2pos
 from .nest2pos import logsubexp
-from operator import attrgetter
-
 from .livepoint import live_points_to_array
 
-from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +161,6 @@ class NestedSampler:
         self.nested_samples = []
         self.logZ           = None
         self.state          = _NSintegralState(self.nlive)
-        sys.stdout.flush()
         self.output_folder  = output
         self.output_file,self.evidence_file,self.resume_file = self.setup_output(output)
         header              = open(os.path.join(output,'header.txt'),'w')
@@ -252,15 +241,12 @@ class NestedSampler:
         return output_file, evidence_file, resume_file
 
 
-    def write_chain_to_file(self):
+    def write_nested_samples_to_file(self):
         """
-        Outputs a `cpnest.parameter.LivePoint` to the
-        output_file
+        Writes the nested samples to a text file
         """
-        with open(self.output_file,"w") as f:
-            f.write('{0:s}\n'.format(self.model.header().rstrip()))
-            for ns in self.nested_samples:
-                f.write('{0:s}\n'.format(self.model.strsample(ns).rstrip()))
+        np.savetxt(self.output_file, self.nested_samples,
+                header='\t'.join(self.live_points.dtype.names))
 
     def write_evidence_to_file(self):
         """
@@ -486,7 +472,7 @@ class NestedSampler:
             for i in range(self.nlive):
                 self.nested_samples = self.params.copy()
                 #self.nested_samples.append(self.params[i])
-            self.write_chain_to_file()
+            self.write_nested_samples_to_file()
             self.write_evidence_to_file()
             self.logLmin = np.inf
             self.logLmin = np.inf
@@ -506,7 +492,6 @@ class NestedSampler:
 
 
         # final adjustments
-        #self.params.sort(key=attrgetter('logL'))
         for i, p in enumerate(self.live_points):
             self.state.increment(p['logL'], nlive=self.nlive-i)
             self.nested_samples.append(p)
@@ -515,7 +500,7 @@ class NestedSampler:
         self.state.finalise()
         self.logZ = self.state.logZ
         # output the chain and evidence
-        self.write_chain_to_file()
+        self.write_nested_samples_to_file()
         self.write_evidence_to_file()
 
         logger.critical('Final evidence: {0:0.2f}'.format(self.state.logZ))
