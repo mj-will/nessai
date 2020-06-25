@@ -5,6 +5,7 @@ import torch
 
 from .flowmodel import FlowModel, update_config
 from .livepoint import live_points_to_array, numpy_array_to_live_points
+from .plot import plot_live_points
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ class FlowProposal(Proposal):
     """
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
-            normalise=False, latent_prior='gaussian', fuzz=1.0, **kwargs):
+            rescale_parameters=False, latent_prior='gaussian', fuzz=1.0, **kwargs):
         """
         Initialise
         """
@@ -99,15 +100,14 @@ class FlowProposal(Proposal):
         self.populated_count = 0
 
         self.output = output
-        self.dims = model.dims
         self.poolsize = poolsize
+        self.dims = self.model.dims
+        self.rescaled_dims = self.dims
         self.fuzz = fuzz
         self.latent_prior = latent_prior
-        self.normalise = normalise
+        self.rescale_parameters = rescale_parameters
 
-        flow_config = update_config(flow_config)
-        flow_config['model_config']['n_inputs'] = self.dims
-        self.flow = FlowModel(config=flow_config, output=output)
+        self.flow_config = update_config(flow_config)
 
         if self.latent_prior == 'gaussian':
             from .utils import draw_truncated_gaussian
@@ -118,26 +118,58 @@ class FlowProposal(Proposal):
             self.draw_latent_prior = draw_random_nsphere
             self.log_latent_prior = self._log_uniform_prior
 
-        if self.normalise:
-            self.rescale = self._rescale_with_bounds
-            self.inverse_rescale = self._inverse_rescale_with_bounds
-
     def initialise(self):
         """
         Initialise the proposal class
         """
+        self.set_rescaling()
+        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+        self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
         self.initialised = True
 
+    def set_rescaling(self):
+        """
+        Set function and parameter names for rescaling
+        """
+        self.names = self.model.names.copy()
+        self.rescaled_names = self.names.copy()
+        self.x_dtype = [(n, 'f') for n in self.model.names + ['logP', 'logL']]
+        # if rescale, update names
+        if self.rescale_parameters:
+            # if rescale is a list, there are the parameters to rescale
+            # else all parameters are rescale
+            if not isinstance(self.rescale_parameters, list):
+                self.rescale_parameters = self.names
+            for i, rn in enumerate(self.rescaled_names):
+                if rn in self.rescale_parameters:
+                    self.rescaled_names[i] += '_prime'
+            self.rescale = self._rescale_with_bounds
+            self.inverse_rescale = self._inverse_rescale_with_bounds
+
+        self.x_prime_dtype = [(n, 'f') for n in self.rescaled_names + ['logP', 'logL']]
+        self.rescaled_dims = len(self.rescaled_names)
+        logger.info(f'x space parameters: {self.names}')
+        logger.info(f'parameters to rescale {self.rescale_parameters}')
+        logger.info(f'x prime space parameters: {self.rescaled_names}')
 
     def _rescale_with_bounds(self, x):
         """
         Rescale the inputs to [-1, 1] using the bounds as the min and max
         """
-        x_prime = 2 * ((x - self.model.bounds.T[0]) \
-                / (self.model.bounds.T[1] - self.model.bounds.T[0])) - 1
-        log_J = np.sum(np.log(2) - np.log(self.model.bounds.T[1] \
-                - self.model.bounds.T[0]))
+        x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
+        log_J = 0.
+        for n, rn in zip(self.names, self.rescaled_names):
+            if n in self.rescale_parameters:
+                x_prime[rn] = 2 * ((x[n] - self.model.bounds[n][0]) \
+                    / (self.model.bounds[n][1] - self.model.bounds[n][0])) - 1
+
+                log_J += np.log(2) - np.log(self.model.bounds[n][1] \
+                        - self.model.bounds[n][0])
+            else:
+                x_prime[rn] = x[n]
+        x_prime['logP'] = x['logP']
+        x_prime['logL'] = x['logL']
         return x_prime, log_J
 
     def _inverse_rescale_with_bounds(self, x_prime):
@@ -145,10 +177,18 @@ class FlowProposal(Proposal):
         Rescale the inputs from the prime space to the phyiscal space
         using the model bounds
         """
-        x = (self.model.bounds.T[1] - self.model.bounds.T[0]) \
-                * ((x_prime + 1) / 2) + self.model.bounds.T[0]
-        log_J = np.sum(np.log(self.model.bounds.T[1] - self.model.bounds.T[0]) \
-                - np.log(2))
+        x = np.zeros([x_prime.size], dtype=self.x_dtype)
+        log_J = 0.
+        for n, rn in zip(self.names, self.rescaled_names):
+            if n in self.rescale_parameters:
+                x[n] = (self.model.bounds[n][1] - self.model.bounds[n][0]) \
+                        * ((x_prime[rn] + 1) / 2) + self.model.bounds[n][0]
+                log_J += np.log(self.model.bounds[n][1] - self.model.bounds[n][0]) \
+                        - np.log(2)
+            else:
+                x[n] = x_prime[rn]
+        x['logP'] = x_prime['logP']
+        x['logL'] = x_prime['logL']
         return x, log_J
 
     def rescale(self, x):
@@ -171,13 +211,18 @@ class FlowProposal(Proposal):
         """
         Train the normalising flow given the live points
         """
-        # TODO: plots
-        # TODO: weights resets
         block_output = self.output + f'/block_{self.training_count}/'
-        data, log_J = self.rescale(x)
+        # TODO: weights resets
+        plot_live_points(x, filename=block_output + 'x_samples.png')
+        x_prime, log_J = self.rescale(x)
+        if self.rescale_parameters:
+            plot_live_points(x_prime, filename=block_output + 'x_prime_samples.png')
+        # Convert to numpy array for training and remove likelihoods and priors
+        # Since the names of parameters may have changes, pull names from flows
+        x_prime = live_points_to_array(x_prime, self.rescaled_names)
         # TODO: flag for weight reset
         self.flow.reset_model()
-        self.flow.train(data, output=block_output)
+        self.flow.train(x_prime, output=block_output)
         self.training_count += 1
 
     def forward_pass(self, x, rescale=True):
@@ -186,6 +231,7 @@ class FlowProposal(Proposal):
         if rescale:
             x, log_J_rescale = self.rescale(x)
             log_J += log_J_rescale
+        x = live_points_to_array(x, names=self.rescaled_names)
         x_tensor = torch.Tensor(x.astype(np.float32)).to(self.flow.device)
         with torch.no_grad():
             z, log_J_tensor = self.flow.model(x_tensor, mode='direct')
@@ -200,9 +246,9 @@ class FlowProposal(Proposal):
             theta, log_J = self.flow.model(z_tensor, mode='inverse')
         x = theta.detach().cpu().numpy()
         log_J = log_J.detach().cpu().numpy()
+        x = numpy_array_to_live_points(x, self.rescaled_names)
         if rescale:
             x, log_J_rescale = self.inverse_rescale(x)
-            # TODO: add jacobian here
             log_J += log_J_rescale
         return x, np.squeeze(log_J)
 
@@ -244,7 +290,6 @@ class FlowProposal(Proposal):
 
     def populate(self, worst_point, N=10000):
         """Populate a pool of latent points"""
-        worst_point = live_points_to_array(worst_point, self.model.names)
         worst_z, _ = self.forward_pass(worst_point, rescale=True)
         r = self.radius(worst_z)
         logger.debug("Populating proposal")
@@ -258,7 +303,6 @@ class FlowProposal(Proposal):
                     break
 
             x, log_J = self.backward_pass(z, rescale=True)
-            x = numpy_array_to_live_points(x, names=self.model.names)
             # rescale given priors used intially, need for priors
             log_w = self.compute_weights(x, z, log_J)
             log_u = np.log(np.random.rand(x.shape[0]))
