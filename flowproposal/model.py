@@ -53,7 +53,7 @@ class Model:
         new_points = np.array([], dtype=[(n, 'f') for n in self.names + ['logP', 'logL']])
         while new_points.size < N:
             p = numpy_array_to_live_points(
-                    np.random.uniform(self.lower_bounds, self.upper_bounds, [N, self.dims]).astype(float),
+                    np.random.uniform(self.lower_bounds, self.upper_bounds, [N, self.dims]).astype('float32'),
                     self.names)
             logP = self.log_prior(p)
             new_points = np.concatenate([new_points, p[np.isfinite(logP)]])
