@@ -171,7 +171,7 @@ class FlowModel:
         return val_loss / len(loader)
 
     def train(self, samples, max_epochs=None, patience=None, output=None,
-            val_size=None):
+            val_size=None, plot=True):
         """
         Train the flow on samples
         """
@@ -226,6 +226,9 @@ class FlowModel:
 
         self.model.load_state_dict(best_model.state_dict())
         self.model.eval()
+
+        if plot:
+            plot_loss(epoch, history, output=output)
 
     def load_weights(self, weights_file):
         """
