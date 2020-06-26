@@ -62,3 +62,31 @@ def replace_in_list(target_list, targets, replacements):
     for t, r in zip(targets, replacements):
         i = target_list.index(t)
         target_list[i] = r
+
+
+def rescale_zero_to_one(x, xmin, xmax):
+    """
+    Rescale a value to 0 to 1 and return logJ
+    """
+    return (x - xmin ) / (xmax - xmin), -np.log(xmax - xmin)
+
+
+def inverse_rescale_zero_to_one(y, xmin, xmax):
+    """
+    Rescale from 0 to 1 to xmin to xmax
+    """
+    return (xmax - xmin) * y + xmin, np.log(xmax - xmin)
+
+
+def rescale_minus_one_to_one(x, xmin, xmax):
+    """
+    Rescale a value to -1 to 1
+    """
+    return (2. * (x - xmin ) / (xmax - xmin)) - 1, np.log(2) - np.log(xmax - xmin)
+
+
+def inverse_rescale_minus_one_to_one(y, xmin, xmax):
+    """
+    Rescale from -1 to 1 to xmin to xmax
+    """
+    return (xmax - xmin) * ((y + 1) / 2.) + xmin, np.log(xmax - xmin) - np.log(2)
