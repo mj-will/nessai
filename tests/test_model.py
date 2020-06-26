@@ -8,15 +8,15 @@ def model():
     class TestModel(Model):
 
         def __init__(self):
-            self.bounds = np.array([[-5, 5], [-5, 5]])
+            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
             self.dims = 2
             self.names = ['x', 'y']
 
         def log_prior(self, x):
             log_p = 0.
-            for i, n in enumerate(self.names):
-                log_p += ((x[n] >= self.bounds[i][0]) & (x[n] <= self.bounds[i][1])) \
-                        / (self.bounds[i][1] - self.bounds[i][0])
+            for n in self.names:
+                log_p += ((x[n] >= self.bounds[n][0]) & (x[n] <= self.bounds[n][1])) \
+                        / (self.bounds[n][1] - self.bounds[n][0])
             return log_p
     return TestModel()
 
