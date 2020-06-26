@@ -302,12 +302,18 @@ class FlowProposal(Proposal):
         log_q_z = self.log_latent_prior(z)
         return log_q_z - log_J
 
+    def log_prior(self, x):
+        """
+        Compute the prior probability
+        """
+        return self.model.log_prior(x)
+
     def compute_weights(self, x, z, log_J):
         """
         Compute the weight for a given set of samples
         """
         log_q = self.log_proposal_prob(z, log_J)
-        log_p = self.model.log_prior(x)
+        log_p = self.log_prior(x)
         log_w = log_p - log_q
         log_w -= np.max(log_w)
         return log_w
@@ -318,7 +324,7 @@ class FlowProposal(Proposal):
         r = self.radius(worst_z)
         logger.debug("Populating proposal")
 
-        self.x = np.array([], dtype=[(n, 'f') for n in self.model.names + ['logL', 'logP']])
+        self.x = np.array([], dtype=[(n, 'f') for n in self.model.names + ['logP', 'logL']])
         self.z = np.empty([0, self.dims])
         while len(self.x) < N:
             while True:
@@ -338,6 +344,7 @@ class FlowProposal(Proposal):
                 logger.warning('Rejection sampling accepted less than 1 percent of samples!')
             else:
                 # array of indices to take random draws from
+                x = x[list(self.x.dtype.names)]
                 self.x = np.concatenate([self.x, x[indices]], axis=0)
                 self.z = np.concatenate([self.z, z[indices]], axis=0)
 
@@ -345,6 +352,7 @@ class FlowProposal(Proposal):
         self.z = self.z[:N]
         self.indices = np.random.permutation(N).tolist()
         self.populated = True
+        logger.debug(f'Proposal populated with {len(indices)} samples')
 
     def evaluate_likelihoods(self):
         """
