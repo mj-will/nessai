@@ -14,10 +14,11 @@ class Proposal:
     def __init__(self, model):
         self.model = model
         self.populated = True
+        self.intialised = False
 
     def initialise(self):
         """Initialise"""
-        pass
+        self.intialised = True
 
     def draw(self, old_param):
         return None
@@ -98,11 +99,11 @@ class FlowProposal(Proposal):
         self.populated = False
         self.training_count = 0
         self.populated_count = 0
+        self.names = []
+        self.rescaled_names = []
 
         self.output = output
         self.poolsize = poolsize
-        self.dims = self.model.dims
-        self.rescaled_dims = self.dims
         self.fuzz = fuzz
         self.latent_prior = latent_prior
         self.rescale_parameters = rescale_parameters
@@ -117,6 +118,26 @@ class FlowProposal(Proposal):
             from .utils import draw_random_nsphere
             self.draw_latent_prior = draw_random_nsphere
             self.log_latent_prior = self._log_uniform_prior
+
+    @property
+    def dims(self):
+        """Return the number of dimensions"""
+        return len(self.names)
+
+    @property
+    def rescaled_dims(self):
+        """Return the number of rescaled dimensions"""
+        return len(self.rescaled_names)
+
+    @property
+    def x_dtype(self):
+        """Return the dtype for the x space"""
+        return [(n, 'f') for n in self.names + ['logP', 'logL']]
+
+    @property
+    def x_prime_dtype(self):
+        """Return the dtype for the x prime space"""
+        return [(n, 'f') for n in self.rescaled_names + ['logP', 'logL']]
 
     def initialise(self):
         """
@@ -134,7 +155,6 @@ class FlowProposal(Proposal):
         """
         self.names = self.model.names.copy()
         self.rescaled_names = self.names.copy()
-        self.x_dtype = [(n, 'f') for n in self.model.names + ['logP', 'logL']]
         # if rescale, update names
         if self.rescale_parameters:
             # if rescale is a list, there are the parameters to rescale
@@ -147,8 +167,6 @@ class FlowProposal(Proposal):
             self.rescale = self._rescale_with_bounds
             self.inverse_rescale = self._inverse_rescale_with_bounds
 
-        self.x_prime_dtype = [(n, 'f') for n in self.rescaled_names + ['logP', 'logL']]
-        self.rescaled_dims = len(self.rescaled_names)
         logger.info(f'x space parameters: {self.names}')
         logger.info(f'parameters to rescale {self.rescale_parameters}')
         logger.info(f'x prime space parameters: {self.rescaled_names}')
@@ -221,9 +239,14 @@ class FlowProposal(Proposal):
         # Since the names of parameters may have changes, pull names from flows
         x_prime = live_points_to_array(x_prime, self.rescaled_names)
         # TODO: flag for weight reset
-        self.flow.reset_model()
         self.flow.train(x_prime, output=block_output)
         self.training_count += 1
+
+    def reset_flow_model(self):
+        """
+        Reset the flows weights
+        """
+        self.flow.reset_model()
 
     def forward_pass(self, x, rescale=True):
         """Pass a vector of points through the model"""
@@ -233,6 +256,7 @@ class FlowProposal(Proposal):
             log_J += log_J_rescale
         x = live_points_to_array(x, names=self.rescaled_names)
         x_tensor = torch.Tensor(x.astype(np.float32)).to(self.flow.device)
+        self.flow.model.eval()
         with torch.no_grad():
             z, log_J_tensor = self.flow.model(x_tensor, mode='direct')
         z = z.detach().cpu().numpy()
@@ -242,6 +266,7 @@ class FlowProposal(Proposal):
     def backward_pass(self, z, rescale=True):
         """A backwards pass from the model (latent -> real)"""
         z_tensor = torch.Tensor(z.astype(np.float32)).to(self.flow.device)
+        self.flow.model.eval()
         with torch.no_grad():
             theta, log_J = self.flow.model(z_tensor, mode='inverse')
         x = theta.detach().cpu().numpy()
@@ -270,13 +295,12 @@ class FlowProposal(Proposal):
 
     def log_proposal_prob(self, z, log_J):
         """
-        Compute the proposal probaility for a given point assuming the latent
-        distribution is a unit gaussian
+        Compute the proposal probaility for a given point
 
-        q(theta)  = q(z)|dz/dtheta|
         """
+        # Since the Jacobian is for Z -> X, we use the inverse
         log_q_z = self.log_latent_prior(z)
-        return log_q_z + log_J
+        return log_q_z - log_J
 
     def compute_weights(self, x, z, log_J):
         """
