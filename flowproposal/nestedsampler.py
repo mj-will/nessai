@@ -166,8 +166,8 @@ class NestedSampler:
         self.nested_samples = []
         self.logZ           = None
         self.state          = _NSintegralState(self.nlive)
-        self.output_folder  = output
         self.output_file,self.evidence_file,self.resume_file = self.setup_output(output)
+        self.output = output
         header              = open(os.path.join(output,'header.txt'),'w')
         header.write('\t'.join(self.model.names))
         header.write('\tlogL\n')
@@ -178,8 +178,12 @@ class NestedSampler:
         self.train_on_empty = train_on_empty
         self.cooldown = cooldown
         self.memory = memory
-        self.training_frequency = training_frequency
         self.reset_weights = float(reset_weights)
+        if training_frequency in [None, 'inf', 'None']:
+            logger.warning('Proposal will only train when empty')
+            self.training_frequency = np.inf
+        else:
+            self.training_frequency = training_frequency
 
         self.max_count = 0
 
@@ -221,7 +225,7 @@ class NestedSampler:
             self.maximum_uninformed = maximum_uninformed
 
 
-    def setup_output(self,output):
+    def setup_output(self, output):
         """
         Set up the output folder
 
@@ -236,6 +240,8 @@ class NestedSampler:
                 evidence_file: file where the evidence will be written
                 resume_file:   file used for checkpointing the algorithm
         """
+        if not os.path.exists(output):
+            os.makedirs(output, exist_ok=True)
         chain_filename = "chain_"+str(self.nlive)+"_"+str(self.seed)+".txt"
         output_file   = os.path.join(output,chain_filename)
         evidence_file = os.path.join(output,chain_filename+"_evidence.txt")
@@ -292,7 +298,7 @@ class NestedSampler:
 
         if filename is not None:
             np.savetxt(os.path.join(
-                self.output_folder, filename),
+                self.output, filename),
                 self.insertion_indices,
                 newline='\n',delimiter=' ')
 
@@ -317,8 +323,7 @@ class NestedSampler:
                 if (1 / counter) < self.acceptance_threshold:
                     self.max_count += 1
                     break
-
-            yield 1 / counter, oldparam
+            yield counter, oldparam
 
     def insert_live_point(self, live_point):
         """
@@ -350,11 +355,10 @@ class NestedSampler:
         # Make sure we are mixing the chains
         self.iteration += 1
         self.block_iteration += 1
-        loops = 0
-        updated = False # Flag to prevent flow from being updated multiple times
+        count = 0
         while(True):
-            loops += 1
-            acc, proposed = next(self.yield_sample(worst))
+            c, proposed = next(self.yield_sample(worst))
+            count += c
 
             if proposed['logL'] > self.logLmin:
                 # Assuming point was proposed
@@ -362,7 +366,7 @@ class NestedSampler:
                 index = self.insert_live_point(proposed)
                 self.insertion_indices.append(index)
                 self.accepted += 1
-                self.block_acceptance += acc
+                self.block_acceptance += 1 / count
                 break
             else:
                 self.rejected += 1
@@ -377,8 +381,8 @@ class NestedSampler:
         if self.verbose:
             logger.info(("{0:5d}: n: {1:3d} NS_acc: {2:.3f} b_acc: {3:.3f} "
             "sub_acc: {4:.3f} H: {5:.2f} logL: {6:.5f} --> {7:.5f} dZ: {8:.3f} "
-            "logZ: {9:.3f} logLmax: {10:.2f}").format(self.iteration, int(1 / acc),
-                self.acceptance, self.mean_block_acceptance, acc, self.state.info,
+            "logZ: {9:.3f} logLmax: {10:.2f}").format(self.iteration, count,
+                self.acceptance, self.mean_block_acceptance, 1 / count, self.state.info,
                 self.logLmin, proposed['logL'], self.condition, self.state.logZ,
                 self.logLmax))
 
@@ -393,7 +397,7 @@ class NestedSampler:
         with tqdm(total=self.nlive, disable= not self.verbose, desc='Drawing live points') as pbar:
             while i < self.nlive:
                 while i < self.nlive:
-                    acceptance, live_point = next(self.yield_sample(self.model.new_point()))
+                    count, live_point = next(self.yield_sample(self.model.new_point()))
                     if np.isnan(live_point['logL']):
                         logger.warning("Likelihood function returned NaN for live_points " + str(live_points[i]))
                         logger.warning("You may want to check your likelihood function")
@@ -463,7 +467,7 @@ class NestedSampler:
 
         if train:
             if self.iteration - self.last_updated < self.cooldown and not force:
-                logger.info('Not training, still cooling down!')
+                logger.debug('Not training, still cooling down!')
             else:
                 if self.reset_weights and not (self.proposal.training_count % self.reset_weights):
                     self.proposa.reset_model_weights()
@@ -539,7 +543,7 @@ class NestedSampler:
 
         # Some diagnostics
         if self.verbose>1 :
-            self.state.plot(os.path.join(self.output_folder,'logXlogL.png'))
+            self.state.plot(os.path.join(self.output,'logXlogL.png'))
         return self.state.logZ, self.nested_samples
 
 
