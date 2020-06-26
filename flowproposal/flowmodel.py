@@ -242,5 +242,6 @@ class FlowModel:
         """
         Reset the weights and optimiser
         """
+        logger.debug('Reseting model weights and optimiser')
         self.model.apply(weight_reset)
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-6)

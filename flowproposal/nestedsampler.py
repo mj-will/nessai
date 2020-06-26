@@ -134,7 +134,7 @@ class NestedSampler:
                  poolsize=10000, fuzz=1.0, latent_prior='gaussian', train_on_empty=True,
                  cooldown=100, memory=False, acceptance_threshold=0.1, analytic_priors = False,
                  maximum_uninformed=1000, training_frequency=1000, uninformed_proposal=None,
-                 rescale_parameters=False,
+                 rescale_parameters=False, reset_weights=False,
                  flow_proposal_kwargs={}, uninformed_proposal_kwargs={}, seed=1234):
         """
         Initialise all necessary arguments and
@@ -148,8 +148,13 @@ class NestedSampler:
         self.acceptance     = 1.0
         self.accepted       = 0
         self.rejected       = 1
+        self.last_updated = 0
+        self.iteration      = 0
+        self.block_acceptance = 1.
+        self.mean_block_acceptance = 1.
+        self.block_iteration = 0
         self.nlive          = nlive
-        self.params         = [None] * self.nlive
+        self.live_points = None
         self.insertion_indices = []
         self.rolling_p      = []
         self.n_periodic_checkpoint = None
@@ -158,7 +163,6 @@ class NestedSampler:
         self.worst          = 0
         self.logLmin        = -np.inf
         self.logLmax        = -np.inf
-        self.iteration      = 0
         self.nested_samples = []
         self.logZ           = None
         self.state          = _NSintegralState(self.nlive)
@@ -169,19 +173,17 @@ class NestedSampler:
         header.write('\tlogL\n')
 
         header.close()
-        self.block_acceptance = 1.
-        self.block_iteration = 0
-        self.block_jumps = 0
+
         self.acceptance_threshold = acceptance_threshold
         self.train_on_empty = train_on_empty
         self.cooldown = cooldown
         self.memory = memory
         self.training_frequency = training_frequency
+        self.reset_weights = float(reset_weights)
 
         self.max_count = 0
 
         self.initialised    = False
-        self.last_updated = 0
 
 
         if flow_class is not None:
@@ -360,18 +362,25 @@ class NestedSampler:
                 index = self.insert_live_point(proposed)
                 self.insertion_indices.append(index)
                 self.accepted += 1
-                #if self.trainer:
-                #    self.block_jumps += self.jumps
+                self.block_acceptance += acc
                 break
             else:
                 self.rejected += 1
                 self.check_state(rejected=True)
+                # if retrained in whilst proposing a sample then update the
+                # iteration count since will be zero otherwise
+                if not self.block_iteration:
+                    self.block_iteration += 1
 
-        self.acceptance = float(self.accepted)/float(self.accepted + self.rejected)
+        self.acceptance = self.accepted / (self.accepted + self.rejected)
+        self.mean_block_acceptance = self.block_acceptance / self.block_iteration
         if self.verbose:
-            logger.info("{0:d}: n:{1:4d} NS_acc:{2:.3f} sub_acc:{3:.3f} H: {4:.2f} logL {5:.5f} --> {6:.5f} dZ: {7:.3f} logZ: {8:.3f} logLmax: {9:.2f}"\
-            .format(self.iteration, int(1/acc), self.acceptance, acc, self.state.info,\
-              self.logLmin, proposed['logL'], self.condition, self.state.logZ, self.logLmax))
+            logger.info(("{0:5d}: n: {1:3d} NS_acc: {2:.3f} b_acc: {3:.3f} "
+            "sub_acc: {4:.3f} H: {5:.2f} logL: {6:.5f} --> {7:.5f} dZ: {8:.3f} "
+            "logZ: {9:.3f} logLmax: {10:.2f}").format(self.iteration, int(1 / acc),
+                self.acceptance, self.mean_block_acceptance, acc, self.state.info,
+                self.logLmin, proposed['logL'], self.condition, self.state.logZ,
+                self.logLmax))
 
     def populate_live_points(self):
         """
@@ -396,18 +405,27 @@ class NestedSampler:
 
         self.live_points= np.sort(live_points, order='logL')
 
-    def initialise(self):
+    def initialise(self, live_points=True):
         """
         Initialise the nested sampler
         """
-        self._flow_proposal.initialise()
-        self._uninformed_proposal.initialise()
+        flags = [False] * 3
+        if not self._flow_proposal.intialised:
+            self._flow_proposal.initialise()
+            flags[0] = True
+
+        if not self._uninformed_proposal.intialised:
+            self._uninformed_proposal.initialise()
+            flags[1] = True
 
         self.proposal = self._uninformed_proposal
 
-        self.populate_live_points()
+        if live_points and self.live_points is None:
+            self.populate_live_points()
+            flags[2] = True
 
-        self.initialised = True
+        if all(flags):
+            self.initialised = True
 
     def check_state(self, force=False, rejected=False):
         """
@@ -421,23 +439,34 @@ class NestedSampler:
                 logger.warning('Switching to FlowProposal')
                 self.proposal = self._flow_proposal
                 self.uninformed_sampling = False
-
+        # Should the proposal be trained
         train = False
+        # General overide
         if force:
             train = True
-        elif rejected and self.acceptance < self.acceptance_threshold:
+            logger.debug('Training flow (force)')
+        elif self.mean_block_acceptance < self.acceptance_threshold:
+            train = True
+            logger.debug('Training flow (acceptance)')
+        elif rejected and self.mean_block_acceptance < self.acceptance_threshold:
+            logger.debug('Training flow (rejected + acceptance)')
             train = True
         elif not self.proposal.populated:
             if self.train_on_empty:
                 train = True
+                logger.debug('Training flow (proposal empty)')
+
         elif not (self.iteration - self.last_updated) % self.training_frequency:
             if not self.uninformed_sampling:
                 train = True
+                logger.debug('Training flow (iteration)')
 
         if train:
             if self.iteration - self.last_updated < self.cooldown and not force:
-                logger.info('Not retraining, still cooling down!')
+                logger.info('Not training, still cooling down!')
             else:
+                if self.reset_weights and not (self.proposal.training_count % self.reset_weights):
+                    self.proposa.reset_model_weights()
                 training_data = self.live_points.copy()
                 if self.memory:
                     if len(self.nested_samples):
@@ -445,6 +474,8 @@ class NestedSampler:
                             training_data = np.concatenate([training_data, self.nested_samples[-self.memory].copy()])
                 self.proposal.train(training_data)
                 self.last_updated = self.iteration
+                self.block_iteration = 0
+                self.block_acceptance = 1.0
 
     def update_state(self):
         """
