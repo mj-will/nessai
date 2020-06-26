@@ -20,6 +20,7 @@ def plot_live_points(live_points, filename=None, **kwargs):
     fig = sns.pairplot(df, **pairplot_kwargs)
     if filename is not None:
         fig.savefig(filename)
+    plt.close()
 
 
 def plot_chain(x,name=None,filename=None):
