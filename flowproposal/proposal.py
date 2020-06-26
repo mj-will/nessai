@@ -225,21 +225,34 @@ class FlowProposal(Proposal):
         log_J = 0.
         return x_prime, log_J
 
-    def train(self, x):
+    def train(self, x, plot=True):
         """
         Train the normalising flow given the live points
         """
         block_output = self.output + f'/block_{self.training_count}/'
-        # TODO: weights resets
-        plot_live_points(x, filename=block_output + 'x_samples.png')
+        if not os.path.exists(block_output):
+            os.makedirs(block_output, exist_ok=True)
+
+        if plot:
+            plot_live_points(x, filename=block_output + 'x_samples.png')
+
         x_prime, log_J = self.rescale(x)
-        if self.rescale_parameters:
+
+        if self.rescale_parameters and plot:
             plot_live_points(x_prime, filename=block_output + 'x_prime_samples.png')
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
         x_prime = live_points_to_array(x_prime, self.rescaled_names)
-        # TODO: flag for weight reset
         self.flow.train(x_prime, output=block_output)
+
+        if plot:
+            z = np.random.randn(5000, self.rescaled_dims)
+            x_prime, log_J = self.backward_pass(z, rescale=False)
+            plot_live_points(x_prime, filename=block_output + 'x_prime_generated.png')
+            x, log_J = self.inverse_rescale(x_prime)
+            plot_live_points(x, filename=block_output + 'x_generated.png')
+
+        self.populated = False
         self.training_count += 1
 
     def reset_flow_model(self):
@@ -352,7 +365,7 @@ class FlowProposal(Proposal):
         self.z = self.z[:N]
         self.indices = np.random.permutation(N).tolist()
         self.populated = True
-        logger.debug(f'Proposal populated with {len(indices)} samples')
+        logger.debug(f'Proposal populated with {len(self.indices)} samples')
 
     def evaluate_likelihoods(self):
         """
