@@ -225,6 +225,7 @@ class FlowModel:
                 break
 
         self.model.load_state_dict(best_model.state_dict())
+        torch.save(self.model.state_dict(), self.weights_file)
         self.model.eval()
 
         if plot:
@@ -241,6 +242,12 @@ class FlowModel:
         self.model.load_state_dict(torch.load(weights_file))
         self.model.eval()
 
+    def reload_weights(self):
+        """
+        Load weights for the model
+        """
+        self.load_weights(self.weights_file)
+
     def reset_model(self):
         """
         Reset the weights and optimiser
@@ -248,3 +255,11 @@ class FlowModel:
         logger.debug('Reseting model weights and optimiser')
         self.model.apply(weight_reset)
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-6)
+
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['initialised'] = False
+        del state['optimiser']
+        del state['model']
+        return state
