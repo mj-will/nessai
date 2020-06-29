@@ -6,10 +6,13 @@ from .livepoint import parameters_to_live_point, numpy_array_to_live_points
 class Model:
 
     names = [] # Names of parameters, e.g. ['p1','p2']
-    dims = 0
     bounds = {}
     _lower = None
     _upper = None
+
+    @property
+    def dims(self):
+        return len(self.names)
 
     @property
     def lower_bounds(self):
