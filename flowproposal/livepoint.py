@@ -13,7 +13,7 @@ def parameters_to_live_point(parameters, names):
     Take a list or array of parameters for a single live point
     and converts them to a live point
     """
-    return np.array([(*parameters, 0. , 0.)],
+    return np.array((*parameters, 0. , 0.),
             dtype=[(n, 'f') for n in names + ['logP', 'logL']])
 
 
@@ -31,10 +31,15 @@ def dict_to_live_points(d):
     """
     Convert a dictionary with parameters names as keys to live points
     """
-    array = np.zeros(len(list(d.values())[0]), dtype=[(n, 'f') for n in d.keys()])
-    for k, v in d.items():
-        array[k] = v
-    array = rfn.append_fields(array, ['logP', 'logL'], data=[*np.zeros([array.size, 2]).T],
-            dtypes=['f', 'f'], usemask=False)
-    return array
+    N = len(list(d.values())[0])
+    if N == 1:
+        return np.array((*list(d.values()), 0. , 0.),
+            dtype=[(n, 'f') for n in list(d.keys()) + ['logP', 'logL']])
+    else:
+        array = np.zeros(N, dtype=[(n, 'f') for n in d.keys()])
+        for k, v in d.items():
+            array[k] = v
+        array = rfn.append_fields(array, ['logP', 'logL'], data=[*np.zeros([array.size, 2]).T],
+                dtypes=['f', 'f'], usemask=False)
+        return array
 
