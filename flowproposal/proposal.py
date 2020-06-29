@@ -23,8 +23,14 @@ class Proposal:
     def draw(self, old_param):
         return None
 
-    def train(self, x):
+    def train(self, x, **kwargs):
         logger.info('This proposal method cannot be trained')
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['initialised'] = False
+        del state['model']
+        return state
 
 
 class AnalyticProposal(Proposal):
@@ -33,7 +39,7 @@ class AnalyticProposal(Proposal):
         """
         Draw directly from the analytic priors
         """
-        return self.model.sample()
+        return self.model.new_point()
 
 
 class RejectionProposal(Proposal):
@@ -88,7 +94,7 @@ class FlowProposal(Proposal):
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
             rescale_parameters=False, latent_prior='gaussian', fuzz=1.0,
-            keep_samples=False, exact_poolsize=True, **kwargs):
+            keep_samples=False, exact_poolsize=True, plot=True, **kwargs):
         """
         Initialise
         """
@@ -251,7 +257,7 @@ class FlowProposal(Proposal):
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
         x_prime = live_points_to_array(x_prime, self.rescaled_names)
-        self.flow.train(x_prime, output=block_output)
+        self.flow.train(x_prime, output=block_output, plot=plot)
 
         if plot:
             z = np.random.randn(5000, self.rescaled_dims)
@@ -335,6 +341,8 @@ class FlowProposal(Proposal):
         """
         log_q = self.log_proposal_prob(z, log_J)
         log_p = self.log_prior(x)
+        x['logP'] = log_p
+        x['logL'] = log_q
         log_w = log_p - log_q
         log_w -= np.max(log_w)
         return log_w
@@ -365,7 +373,6 @@ class FlowProposal(Proposal):
                 logger.warning('Rejection sampling accepted less than 1 percent of samples!')
             else:
                 # array of indices to take random draws from
-                x = x[list(self.x.dtype.names)]
                 self.x = np.concatenate([self.x, x[indices]], axis=0)
                 self.z = np.concatenate([self.z, z[indices]], axis=0)
 
