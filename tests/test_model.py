@@ -9,7 +9,6 @@ def model():
 
         def __init__(self):
             self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.dims = 2
             self.names = ['x', 'y']
 
         def log_prior(self, x):
