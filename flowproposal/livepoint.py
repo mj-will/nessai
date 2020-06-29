@@ -25,3 +25,16 @@ def numpy_array_to_live_points(array, names):
     array = np.concatenate([array, np.zeros([array.shape[0], 2])], axis=-1).astype('float32')
     return array.ravel().view(
             dtype=[(n, 'f') for n in names + ['logP', 'logL']])
+
+
+def dict_to_live_points(d):
+    """
+    Convert a dictionary with parameters names as keys to live points
+    """
+    array = np.zeros(len(list(d.values())[0]), dtype=[(n, 'f') for n in d.keys()])
+    for k, v in d.items():
+        array[k] = v
+    array = rfn.append_fields(array, ['logP', 'logL'], data=[*np.zeros([array.size, 2]).T],
+            dtypes=['f', 'f'], usemask=False)
+    return array
+
