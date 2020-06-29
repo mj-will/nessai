@@ -3,13 +3,10 @@ import pickle
 import logging
 import numpy as np
 from tqdm import tqdm
-from numpy import logaddexp, exp
-from numpy import inf
-from math import isnan
 from scipy.stats import ksone
+import torch
 
-from . import nest2pos
-from .nest2pos import logsubexp
+from .posterior import logsubexp, log_integrate_log_trap
 from .livepoint import live_points_to_array
 
 
@@ -28,12 +25,12 @@ class _NSintegralState(object):
     Reset the sampler to its initial state at logZ = -infinity
     """
     self.iteration=0
-    self.logZ=-inf
-    self.oldZ=-inf
+    self.logZ=-np.inf
+    self.oldZ=-np.inf
     self.logw=0
     self.info=0
     # Start with a dummy sample enclosing the whole prior
-    self.logLs=[-inf] # Likelihoods sampled
+    self.logLs=[-np.inf] # Likelihoods sampled
     self.log_vols=[0.0] # Volumes enclosed by contours
   def increment(self, logL, nlive=None):
     """
@@ -47,11 +44,11 @@ class _NSintegralState(object):
     oldZ = self.logZ
     logt=-1.0/nlive
     Wt = self.logw + logL + logsubexp(0,logt)
-    self.logZ = logaddexp(self.logZ,Wt)
+    self.logZ = np.logaddexp(self.logZ,Wt)
     # Update information estimate
     if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
         self.info = np.exp(Wt - self.logZ)*logL + np.exp(oldZ - self.logZ)*(self.info + oldZ) - self.logZ
-        if isnan(self.info):
+        if np.isnan(self.info):
             self.info=0
 
     # Update history
@@ -66,7 +63,7 @@ class _NSintegralState(object):
     """
     from scipy import integrate
     # Trapezoidal rule
-    self.logZ=nest2pos.log_integrate_log_trap(np.array(self.logLs),np.array(self.log_vols))
+    self.logZ = log_integrate_log_trap(np.array(self.logLs),np.array(self.log_vols))
     return self.logZ
   def plot(self,filename):
     """
@@ -133,8 +130,9 @@ class NestedSampler:
                  stopping=0.1, flow_class=None, flow_config={}, train_on_empty=True,
                  cooldown=100, memory=False, acceptance_threshold=0.05, analytic_priors = False,
                  maximum_uninformed=1000, training_frequency=1000, uninformed_proposal=None,
-                 reset_weights=False, checkpointing=True,
-                 flowproposal_kwargs={}, uninformed_proposal_kwargs={}, seed=1234):
+                 reset_weights=False, checkpointing=True, resume_file=None,
+                 uninformed_proposal_kwargs={}, seed=1234, plot=True,
+                 **kwargs):
         """
         Initialise all necessary arguments and
         variables for the algorithm
@@ -165,13 +163,16 @@ class NestedSampler:
         self.nested_samples = []
         self.logZ           = None
         self.state          = _NSintegralState(self.nlive)
-        self.output_file,self.evidence_file,self.resume_file = self.setup_output(output)
+        self.output_file, self.evidence_file, self.resume_file = \
+                self.setup_output(output, resume_file)
         self.output = output
         header              = open(os.path.join(output,'header.txt'),'w')
         header.write('\t'.join(self.model.names))
         header.write('\tlogL\n')
 
         header.close()
+
+        self.plot = plot
 
         self.acceptance_threshold = acceptance_threshold
         self.train_on_empty = train_on_empty
@@ -188,15 +189,15 @@ class NestedSampler:
 
         self.initialised    = False
 
-
+        logger.info(f'Parsing kwargs to FlowProposal: {kwargs}')
         proposal_output = self.output + '/proposal/'
         if flow_class is not None:
             self._flow_proposal = flow_class(model, flow_config=flow_config,
-                    output=propoal_output, **flowproposal_kwargs)
+                    output=propoal_output, plot=plot, **kwargs)
         else:
             from .proposal import FlowProposal
             self._flow_proposal = FlowProposal(model, flow_config=flow_config,
-                    output=proposal_output, **flowproposal_kwargs)
+                    output=proposal_output, plot=plot, **kwargs)
 
 
         # Uninformed proposal is used for prior sampling
@@ -223,7 +224,7 @@ class NestedSampler:
             self.maximum_uninformed = maximum_uninformed
 
 
-    def setup_output(self, output):
+    def setup_output(self, output, resume_file=None):
         """
         Set up the output folder
 
@@ -243,7 +244,10 @@ class NestedSampler:
         chain_filename = "chain_"+str(self.nlive)+"_"+str(self.seed)+".txt"
         output_file   = os.path.join(output,chain_filename)
         evidence_file = os.path.join(output,chain_filename+"_evidence.txt")
-        resume_file  = os.path.join(output,"nested_sampler_resume.pkl")
+        if resume_file is None:
+            resume_file  = os.path.join(output,"nested_sampler_resume.pkl")
+        else:
+            resume_file  = os.path.join(output, resume_file)
 
         return output_file, evidence_file, resume_file
 
@@ -268,6 +272,7 @@ class NestedSampler:
         """
         self.seed = seed
         np.random.seed(seed=self.seed)
+        torch.manual_seed(self.seed)
 
     def check_insertion_indices(self, rolling=True, filename=None):
         """
@@ -346,7 +351,7 @@ class NestedSampler:
         self.state.increment(worst['logL'])
         self.nested_samples.append(worst)
 
-        self.condition = logaddexp(self.state.logZ,
+        self.condition = np.logaddexp(self.state.logZ,
                 self.logLmax - self.iteration/(float(self.nlive))) - self.state.logZ
 
         # Replace the points we just consumed with the next acceptable ones
@@ -420,7 +425,10 @@ class NestedSampler:
             self._uninformed_proposal.initialise()
             flags[1] = True
 
-        self.proposal = self._uninformed_proposal
+        if self.iteration < self.maximum_uninformed:
+            self.proposal = self._uninformed_proposal
+        else:
+            self.proposal = self._flow_proposal
 
         if live_points and self.live_points is None:
             self.populate_live_points()
@@ -474,7 +482,7 @@ class NestedSampler:
                     if len(self.nested_samples):
                         if len(self.nested_samples) >= self.memory:
                             training_data = np.concatenate([training_data, self.nested_samples[-self.memory].copy()])
-                self.proposal.train(training_data)
+                self.proposal.train(training_data, plot=self.plot)
                 self.last_updated = self.iteration
                 self.block_iteration = 0
                 self.block_acceptance = 1.0
@@ -496,7 +504,7 @@ class NestedSampler:
         with open(self.resume_file,"wb") as f:
             pickle.dump(self, f)
 
-    def nested_sampling_loop(self):
+    def nested_sampling_loop(self, save=True):
         """
         main nested sampling loop
         """
@@ -507,10 +515,9 @@ class NestedSampler:
             for i in range(self.nlive):
                 self.nested_samples = self.params.copy()
                 #self.nested_samples.append(self.params[i])
-            self.write_nested_samples_to_file()
-            self.write_evidence_to_file()
-            self.logLmin = np.inf
-            self.logLmin = np.inf
+            if save:
+                self.write_nested_samples_to_file()
+                self.write_evidence_to_file()
             logger.warning("Nested Sampling process {0!s}, exiting".format(os.getpid()))
             return 0
 
@@ -526,32 +533,23 @@ class NestedSampler:
         for i, p in enumerate(self.live_points):
             self.state.increment(p['logL'], nlive=self.nlive-i)
             self.nested_samples.append(p)
+        self.nested_samples = np.array(self.nested_samples)
 
         # Refine evidence estimate
         self.state.finalise()
         self.logZ = self.state.logZ
         # output the chain and evidence
-        self.write_nested_samples_to_file()
-        self.write_evidence_to_file()
+        if save:
+            self.write_nested_samples_to_file()
+            self.write_evidence_to_file()
 
         logger.critical('Final evidence: {0:0.2f}'.format(self.state.logZ))
         logger.critical('Information: {0:.2f}'.format(self.state.info))
 
-        # Some diagnostics
-        if self.verbose>1 :
-            self.state.plot(os.path.join(self.output,'logXlogL.png'))
         return self.state.logZ, self.nested_samples
 
-
-    def run(self):
-        """
-        Run the nested sampler
-        """
-        self.initialise()
-        self.nested_sampling_loop()
-
     @classmethod
-    def resume(cls, filename, usermodel):
+    def resume(cls, filename, model):
         """
         Resumes the interrupted state from a
         checkpoint pickle file.
@@ -559,9 +557,11 @@ class NestedSampler:
         logger.critical('Resuming NestedSampler from ' + filename)
         with open(filename,"rb") as f:
             obj = pickle.load(f)
-        obj.model = usermodel
+        obj.model = model
         obj._flow_proposal.flow.reload_weights()
-        return(obj)
+        obj._flow_proposal.model = model
+        obj._uninformed_proposal.model = model
+        return obj
 
     def __getstate__(self):
         state = self.__dict__.copy()
