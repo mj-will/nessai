@@ -22,6 +22,44 @@ def plot_live_points(live_points, filename=None, **kwargs):
         fig.savefig(filename)
     plt.close()
 
+def plot_indices(indices, nlive=None, u=None, name=None, filename=None):
+    """
+    Histogram indices for index insertion tests
+    """
+    fig, ax = plt.subplots(1, 2, figsize=(6, 3))
+
+    for i in range(len(indices) // nlive):
+        ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
+                histtype='step', density=True, alpha=0.1, color='black', lw=0.5,
+                cumulative=True)
+
+    ax[0].hist(indices, density = True, color='tab:blue', linewidth = 1.25,
+                histtype='step', bins=nlive // 10, label = 'produced')
+    ax[1].hist(indices, density = True, color='tab:blue', linewidth = 1.25,
+                histtype='step', bins=nlive, label = 'produced',
+                cumulative=True)
+
+    if nlive is not None:
+        ax[0].axhline(1 / nlive, color='black', linewidth=1.25, linestyle=':',
+                label='pmf')
+        ax[1].plot([0, nlive], [0, 1], color='black', linewidth=1.25, linestyle=':',
+                label='cmf')
+
+    ax[0].legend(loc='lower right')
+    ax[1].legend(loc='lower right')
+    ax[0].set_xlim([0, nlive])
+    ax[1].set_xlim([0, nlive])
+    ax[0].set_xlabel('Insertion indices')
+    ax[1].set_xlabel('Insertion indices')
+
+    if name is not None:
+        ax.set_xlabel(name)
+        if filename is None:
+            filename=name+'_hist.pdf'
+    if filename is not None:
+        plt.savefig(filename, bbox_inches='tight')
+    plt.close()
+
 
 def plot_chain(x,name=None,filename=None):
     """
@@ -75,103 +113,6 @@ def plot_proposal_stats(path):
     plt.ylabel('Count')
     plt.legend()
     plt.savefig(path + 'proposal_likelihood_evalutions.png', bbox_inches='tight')
-    plt.close(fig)
-
-def plot_corner_samples(samples, filename=None, cmap=True):
-    """
-    Make a corner plot showing all of the nested_samples
-    """
-    samples_list = []
-    for n in samples.dtype.names:
-        samples_list.append(samples[n])
-    samples = np.array(samples_list).T
-    samples = samples[:, :-2]
-    N = samples.shape[0]
-    d = samples.shape[-1]
-    if cmap:
-        c = plt.cm.plasma(np.linspace(0, 1, N))
-        c_hist = 'tab:purple'
-    else:
-        c = 'tab:blue'
-        c_hist = c
-
-    fig,ax = plt.subplots(d, d, figsize=(4*d, 4*d))
-    for i in range(d):
-        for j in range(d):
-            if j < i:
-                ax[i, j].scatter(samples[:,j], samples[:,i], c=c, marker='.', s=0.5)
-            elif j == i:
-                ax[i, j].hist(samples[:, j], bins=int(np.sqrt(N)), color=c_hist)
-            else:
-                ax[i, j].set_axis_off()
-    plt.tight_layout()
-    if filename is not None:
-        plt.savefig(filename,bbox_inches='tight')
-    plt.close(fig)
-
-def plot_hist(x,name=None,filename=None):
-    """
-    Produce a histogram
-    """
-    fig=plt.figure(figsize=(4,3))
-    plt.hist(x, density = True, facecolor = '0.5', bins=int(len(x)/20))
-    plt.ylabel('probability density')
-    if name is not None:
-        plt.xlabel(name)
-        if filename is None:
-            filename=name+'_hist.png'
-    if filename is not None:
-        plt.savefig(filename,bbox_inches='tight')
-    plt.close(fig)
-
-def plot_indices(indices, nlive=None, u=None, name=None, filename=None):
-    """
-    Histogram indices for index insertion tests
-    """
-    fig, ax = plt.subplots(1, 2, figsize=(6, 3))
-
-    for i in range(len(indices) // nlive):
-        ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
-                histtype='step', density=True, alpha=0.1, color='black', lw=0.5,
-                cumulative=True)
-
-    ax[0].hist(indices, density = True, color='tab:blue', linewidth = 1.25,
-                histtype='step', bins=nlive // 10, label = 'produced')
-    ax[1].hist(indices, density = True, color='tab:blue', linewidth = 1.25,
-                histtype='step', bins=nlive, label = 'produced',
-                cumulative=True)
-
-    if nlive is not None:
-        ax[0].axhline(1 / nlive, color='black', linewidth=1.25, linestyle=':',
-                label='pmf')
-        ax[1].plot([0, nlive], [0, 1], color='black', linewidth=1.25, linestyle=':',
-                label='cmf')
-
-    ax[0].legend(loc='lower right')
-    ax[1].legend(loc='lower right')
-    ax[0].set_xlim([0, nlive])
-    ax[1].set_xlim([0, nlive])
-    ax[0].set_xlabel('Insertion indices')
-    ax[1].set_xlabel('Insertion indices')
-
-    if name is not None:
-        ax.set_xlabel(name)
-        if filename is None:
-            filename=name+'_hist.pdf'
-    if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
-    plt.close()
-
-def plot_corner(xs,filename=None,**kwargs):
-    """
-    Produce a corner plot
-    """
-    import corner
-    fig=plt.figure(figsize=(10,10))
-    mask = [i for i in range(xs.shape[-1]) if not all(xs[:,i]==xs[0,i]) ]
-    corner.corner(xs[:,mask],**kwargs)
-    if filename is not None:
-        plt.savefig(filename,bbox_inches='tight')
     plt.close(fig)
 
 def plot_flows(model, n_inputs, N=1000, inputs=None, cond_inputs=None, mode='inverse', output='./'):
