@@ -130,12 +130,11 @@ class NestedSampler:
     """
 
     def __init__(self, model, nlive=1000, output=None, prior_sampling=False,
-                 stopping=0.1, flow_class=None, flow_config={},
-                 poolsize=10000, fuzz=1.0, latent_prior='gaussian', train_on_empty=True,
-                 cooldown=100, memory=False, acceptance_threshold=0.1, analytic_priors = False,
+                 stopping=0.1, flow_class=None, flow_config={}, train_on_empty=True,
+                 cooldown=100, memory=False, acceptance_threshold=0.05, analytic_priors = False,
                  maximum_uninformed=1000, training_frequency=1000, uninformed_proposal=None,
-                 rescale_parameters=False, reset_weights=False,
-                 flow_proposal_kwargs={}, uninformed_proposal_kwargs={}, seed=1234):
+                 reset_weights=False, checkpointing=True,
+                 flowproposal_kwargs={}, uninformed_proposal_kwargs={}, seed=1234):
         """
         Initialise all necessary arguments and
         variables for the algorithm
@@ -157,7 +156,7 @@ class NestedSampler:
         self.live_points = None
         self.insertion_indices = []
         self.rolling_p      = []
-        self.n_periodic_checkpoint = None
+        self.checkpointing = checkpointing
         self.tolerance      = stopping
         self.condition      = np.inf
         self.worst          = 0
@@ -190,15 +189,14 @@ class NestedSampler:
         self.initialised    = False
 
 
+        proposal_output = self.output + '/proposal/'
         if flow_class is not None:
-            self._flow_proposal = flow_class(model, poolsize=poolsize, fuzz=fuzz,
-                    rescale_parameters=rescale_parameters, latent_prior=latent_prior, flow_config=flow_config,
-                    output=output, **flow_proposal_kwargs)
+            self._flow_proposal = flow_class(model, flow_config=flow_config,
+                    output=propoal_output, **flowproposal_kwargs)
         else:
             from .proposal import FlowProposal
-            self._flow_proposal = FlowProposal(model, poolsize=poolsize, fuzz=fuzz,
-                    rescale_parameters=rescale_parameters, latent_prior=latent_prior, flow_config=flow_config,
-                    output=output, **flow_proposal_kwargs)
+            self._flow_proposal = FlowProposal(model, flow_config=flow_config,
+                    output=proposal_output, **flowproposal_kwargs)
 
 
         # Uninformed proposal is used for prior sampling
@@ -480,6 +478,8 @@ class NestedSampler:
                 self.last_updated = self.iteration
                 self.block_iteration = 0
                 self.block_acceptance = 1.0
+                if self.checkpointing:
+                    self.checkpoint()
 
     def update_state(self):
         """
@@ -522,10 +522,6 @@ class NestedSampler:
 
             self.update_state()
 
-            if self.n_periodic_checkpoint is not None and i % self.n_periodic_checkpoint == 1:
-                self.checkpoint()
-
-
         # final adjustments
         for i, p in enumerate(self.live_points):
             self.state.increment(p['logL'], nlive=self.nlive-i)
@@ -547,32 +543,28 @@ class NestedSampler:
         return self.state.logZ, self.nested_samples
 
 
+    def run(self):
+        """
+        Run the nested sampler
+        """
+        self.initialise()
+        self.nested_sampling_loop()
+
     @classmethod
-    def resume(cls, filename, manager, usermodel):
+    def resume(cls, filename, usermodel):
         """
         Resumes the interrupted state from a
         checkpoint pickle file.
         """
-        logger.critical('Resuming NestedSampler from '+filename)
+        logger.critical('Resuming NestedSampler from ' + filename)
         with open(filename,"rb") as f:
             obj = pickle.load(f)
-        obj.manager = manager
-        obj.logLmin = obj.manager.logLmin
-        obj.logLmin.value = obj.llmin
-        obj.logLmax = obj.manager.logLmax
-        obj.logLmax.value = obj.llmax
         obj.model = usermodel
-        del obj.__dict__['llmin']
+        obj._flow_proposal.flow.reload_weights()
         return(obj)
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state['llmin']=self.logLmin.value
-        state['llmax'] = self.logLmax.value
-        # Remove the unpicklable entries.
-        del state['logLmin']
-        del state['logLmax']
-        del state['manager']
         del state['model']
         return state
 
