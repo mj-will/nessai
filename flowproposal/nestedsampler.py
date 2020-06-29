@@ -7,7 +7,7 @@ from scipy.stats import ksone
 import torch
 
 from .posterior import logsubexp, log_integrate_log_trap
-from .livepoint import live_points_to_array
+from .livepoint import live_points_to_array, get_dtype
 
 
 logger = logging.getLogger(__name__)
@@ -396,7 +396,7 @@ class NestedSampler:
         """
         # send all live points to the samplers for start
         i = 0
-        live_points = np.array([], dtype=[(n, 'f') for n in self.model.names + ['logP', 'logL']])
+        live_points = np.array([], dtype=get_dtype(self.model.names, 'f8'))
         with tqdm(total=self.nlive, disable= not self.verbose, desc='Drawing live points') as pbar:
             while i < self.nlive:
                 while i < self.nlive:

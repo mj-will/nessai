@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from .livepoint import parameters_to_live_point, numpy_array_to_live_points
+from .livepoint import parameters_to_live_point, numpy_array_to_live_points, get_dtype
 
 class Model:
 
@@ -53,10 +53,10 @@ class Model:
         return p
 
     def _multiple_new_points(self, N):
-        new_points = np.array([], dtype=[(n, 'f') for n in self.names + ['logP', 'logL']])
+        new_points = np.array([], dtype=get_dtype(self.names, 'f8'))
         while new_points.size < N:
             p = numpy_array_to_live_points(
-                    np.random.uniform(self.lower_bounds, self.upper_bounds, [N, self.dims]).astype('float32'),
+                    np.random.uniform(self.lower_bounds, self.upper_bounds, [N, self.dims]),
                     self.names)
             logP = self.log_prior(p)
             new_points = np.concatenate([new_points, p[np.isfinite(logP)]])

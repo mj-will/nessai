@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 from .flowmodel import FlowModel, update_config
-from .livepoint import live_points_to_array, numpy_array_to_live_points
+from .livepoint import live_points_to_array, numpy_array_to_live_points, get_dtype
 from .plot import plot_live_points
 
 logger = logging.getLogger(__name__)
@@ -144,12 +144,12 @@ class FlowProposal(Proposal):
     @property
     def x_dtype(self):
         """Return the dtype for the x space"""
-        return [(n, 'f') for n in self.names + ['logP', 'logL']]
+        return get_dtype(self.names, 'f8')
 
     @property
     def x_prime_dtype(self):
         """Return the dtype for the x prime space"""
-        return [(n, 'f') for n in self.rescaled_names + ['logP', 'logL']]
+        return get_dtype(self.rescaled_names, 'f8')
 
     def initialise(self):
         """
@@ -286,8 +286,8 @@ class FlowProposal(Proposal):
         self.flow.model.eval()
         with torch.no_grad():
             z, log_J_tensor = self.flow.model(x_tensor, mode='direct')
-        z = z.detach().cpu().numpy()
-        log_J += log_J_tensor.detach().cpu().numpy()
+        z = z.detach().cpu().numpy().astype('f8')
+        log_J += log_J_tensor.detach().cpu().numpy().astype('f8')
         return z, np.squeeze(log_J)
 
     def backward_pass(self, z, rescale=True):
@@ -296,8 +296,8 @@ class FlowProposal(Proposal):
         self.flow.model.eval()
         with torch.no_grad():
             theta, log_J = self.flow.model(z_tensor, mode='inverse')
-        x = theta.detach().cpu().numpy()
-        log_J = log_J.detach().cpu().numpy()
+        x = theta.detach().cpu().numpy().astype('f8')
+        log_J = log_J.detach().cpu().numpy().astype('f8')
         x = numpy_array_to_live_points(x, self.rescaled_names)
         if rescale:
             x, log_J_rescale = self.inverse_rescale(x)
@@ -353,7 +353,7 @@ class FlowProposal(Proposal):
         r = self.radius(worst_z)
         logger.debug("Populating proposal")
         if not self.keep_samples or not self.indices:
-            self.x = np.array([], dtype=[(n, 'f') for n in self.model.names + ['logP', 'logL']])
+            self.x = np.array([], dtype=self.x_dtype)
             self.z = np.empty([0, self.dims])
         while len(self.x) < N:
             while True:
