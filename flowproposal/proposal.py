@@ -87,7 +87,8 @@ class FlowProposal(Proposal):
     """
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
-            rescale_parameters=False, latent_prior='gaussian', fuzz=1.0, **kwargs):
+            rescale_parameters=False, latent_prior='gaussian', fuzz=1.0,
+            keep_samples=False, exact_poolsize=True, **kwargs):
         """
         Initialise
         """
@@ -97,9 +98,12 @@ class FlowProposal(Proposal):
         self.flow = None
         self.initialised = False
         self.populated = False
+        self.indices = []
         self.training_count = 0
         self.populated_count = 0
         self.names = []
+        self.x = None
+        self.z = None
         self.rescaled_names = []
 
         self.output = output
@@ -107,6 +111,8 @@ class FlowProposal(Proposal):
         self.fuzz = fuzz
         self.latent_prior = latent_prior
         self.rescale_parameters = rescale_parameters
+        self.keep_samples = keep_samples
+        self.exact_poolsize = exact_poolsize
 
         self.flow_config = update_config(flow_config)
 
@@ -143,6 +149,8 @@ class FlowProposal(Proposal):
         """
         Initialise the proposal class
         """
+        if not os.path.exists(self.output):
+            os.makedirs(self.output, exist_ok=True)
         self.set_rescaling()
         self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
         self.flow = FlowModel(config=self.flow_config, output=self.output)
@@ -229,7 +237,7 @@ class FlowProposal(Proposal):
         """
         Train the normalising flow given the live points
         """
-        block_output = self.output + f'/block_{self.training_count}/'
+        block_output = self.output + f'/training/block_{self.training_count}/'
         if not os.path.exists(block_output):
             os.makedirs(block_output, exist_ok=True)
 
@@ -331,14 +339,14 @@ class FlowProposal(Proposal):
         log_w -= np.max(log_w)
         return log_w
 
-    def populate(self, worst_point, N=10000):
+    def populate(self, worst_point, N=10000, plot=True):
         """Populate a pool of latent points"""
         worst_z, _ = self.forward_pass(worst_point, rescale=True)
         r = self.radius(worst_z)
         logger.debug("Populating proposal")
-
-        self.x = np.array([], dtype=[(n, 'f') for n in self.model.names + ['logP', 'logL']])
-        self.z = np.empty([0, self.dims])
+        if not self.keep_samples or not self.indices:
+            self.x = np.array([], dtype=[(n, 'f') for n in self.model.names + ['logP', 'logL']])
+            self.z = np.empty([0, self.dims])
         while len(self.x) < N:
             while True:
                 z = self.draw_latent_prior(self.dims, r, N, fuzz=self.fuzz)
@@ -361,9 +369,15 @@ class FlowProposal(Proposal):
                 self.x = np.concatenate([self.x, x[indices]], axis=0)
                 self.z = np.concatenate([self.z, z[indices]], axis=0)
 
-        self.x = self.x[:N]
-        self.z = self.z[:N]
-        self.indices = np.random.permutation(N).tolist()
+        if self.exact_poolsize:
+            self.x = self.x[:N]
+            self.z = self.z[:N]
+
+        if plot:
+            plot_live_points(self.x,
+                    filename=f'{self.output}/pool_{self.populated_count}.png')
+
+        self.indices = np.random.permutation(self.x.size).tolist()
         self.populated = True
         logger.debug(f'Proposal populated with {len(self.indices)} samples')
 
