@@ -90,3 +90,51 @@ def inverse_rescale_minus_one_to_one(y, xmin, xmax):
     Rescale from -1 to 1 to xmin to xmax
     """
     return (xmax - xmin) * ((y + 1) / 2.) + xmin, np.log(xmax - xmin) - np.log(2)
+
+
+def setup_logger(output=None, label=None, log_level='INFO'):
+    """
+    Setup logger
+
+    Based on the implementation in Bilby: https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
+
+    """
+    if type(log_level) is str:
+        try:
+            level = getattr(logging, log_level.upper())
+        except AttributeError:
+            raise ValueError('log_level {} not understood'.format(log_level))
+    else:
+        level = int(log_level)
+
+
+    logger = logging.getLogger('flowproposal')
+    logger.propagate = False
+    logger.setLevel(level)
+
+    if any([type(h) == logging.StreamHandler for h in logger.handlers]) is False:
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(name)s %(levelname)-8s: %(message)s', datefmt='%m-%d %H:%M'))
+        stream_handler.setLevel(level)
+        logger.addHandler(stream_handler)
+
+    if any([type(h) == logging.FileHandler for h in logger.handlers]) is False:
+        if label:
+            if output:
+                if not os.path.exists(output):
+                    os.makedirs(output, exist_ok=True)
+            else:
+                output = '.'
+            log_file = '{}/{}.log'.format(output, label)
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setFormatter(logging.Formatter(
+                '%(asctime)s %(levelname)-8s: %(message)s', datefmt='%H:%M'))
+
+            file_handler.setLevel(level)
+            logger.addHandler(file_handler)
+
+    for handler in logger.handlers:
+        handler.setLevel(level)
+
+    return logger
