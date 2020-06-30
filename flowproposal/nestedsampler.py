@@ -8,6 +8,7 @@ import torch
 
 from .posterior import logsubexp, log_integrate_log_trap
 from .livepoint import live_points_to_array, get_dtype
+from .plot import plot_indices
 
 
 logger = logging.getLogger(__name__)
@@ -131,7 +132,7 @@ class NestedSampler:
                  cooldown=100, memory=False, acceptance_threshold=0.05, analytic_priors = False,
                  maximum_uninformed=1000, training_frequency=1000, uninformed_proposal=None,
                  reset_weights=False, checkpointing=True, resume_file=None,
-                 uninformed_proposal_kwargs={}, seed=1234, plot=True,
+                 uninformed_proposal_kwargs={}, seed=None, plot=True,
                  **kwargs):
         """
         Initialise all necessary arguments and
@@ -241,7 +242,7 @@ class NestedSampler:
         """
         if not os.path.exists(output):
             os.makedirs(output, exist_ok=True)
-        chain_filename = "chain_"+str(self.nlive)+"_"+str(self.seed)+".txt"
+        chain_filename = "chain_" + str(self.nlive) + ".txt"
         output_file   = os.path.join(output,chain_filename)
         evidence_file = os.path.join(output,chain_filename+"_evidence.txt")
         if resume_file is None:
@@ -266,13 +267,14 @@ class NestedSampler:
         with open(self.evidence_file,"w") as f:
             f.write('{0:.5f} {1:.5f} {2:.5f}\n'.format(self.state.logZ, self.logLmax, self.state.info))
 
-    def setup_random_seed(self,seed):
+    def setup_random_seed(self, seed):
         """
         initialise the random seed
         """
         self.seed = seed
-        np.random.seed(seed=self.seed)
-        torch.manual_seed(self.seed)
+        if self.seed is not None:
+            np.random.seed(seed=self.seed)
+            torch.manual_seed(self.seed)
 
     def check_insertion_indices(self, rolling=True, filename=None):
         """
@@ -347,7 +349,7 @@ class NestedSampler:
         Replace a sample for single thread
         """
         worst = self.live_points[0]    # Should this be a copy?
-        self.logLmin = np.float128(worst['logL'])
+        self.logLmin = worst['logL']
         self.state.increment(worst['logL'])
         self.nested_samples.append(worst)
 
@@ -495,6 +497,10 @@ class NestedSampler:
         """
         if not (self.iteration % self.nlive):
             self.check_insertion_indices()
+            if self.plot:
+                plot_indices(self.insertion_indices, self.nlive,
+                        plot_breakdown=False,
+                        filename=f'{self.output}/insertion_indices_{self.iteration}.png')
 
     def checkpoint(self):
         """

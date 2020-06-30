@@ -22,16 +22,17 @@ def plot_live_points(live_points, filename=None, **kwargs):
         fig.savefig(filename)
     plt.close()
 
-def plot_indices(indices, nlive=None, u=None, name=None, filename=None):
+def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
+        plot_breakdown=True):
     """
     Histogram indices for index insertion tests
     """
     fig, ax = plt.subplots(1, 2, figsize=(6, 3))
-
-    for i in range(len(indices) // nlive):
-        ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
-                histtype='step', density=True, alpha=0.1, color='black', lw=0.5,
-                cumulative=True)
+    if plot_breakdown:
+        for i in range(len(indices) // nlive):
+            ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
+                    histtype='step', density=True, alpha=0.1, color='black', lw=0.5,
+                    cumulative=True)
 
     ax[0].hist(indices, density = True, color='tab:blue', linewidth = 1.25,
                 histtype='step', bins=nlive // 10, label = 'produced')
