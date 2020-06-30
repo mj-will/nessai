@@ -106,8 +106,10 @@ class FlowModel:
         logger.debug("N input samples: {}".format(len(samples)))
 
         # setup data loading
-        n = int(val_size * samples.shape[0])
+        n = int((1 - val_size) * samples.shape[0])
         x_train, x_val = samples[:n], samples[n:]
+        logger.debug(f'{x_train.shape[0]} training samples')
+        logger.debug(f'{x_val.shape[0]} validation samples')
         train_tensor = torch.from_numpy(x_train.astype(np.float32))
         train_dataset = torch.utils.data.TensorDataset(train_tensor)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
