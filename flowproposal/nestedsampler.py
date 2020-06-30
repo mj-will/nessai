@@ -476,7 +476,7 @@ class NestedSampler:
                 logger.debug('Not training, still cooling down!')
             else:
                 if self.reset_weights and not (self.proposal.training_count % self.reset_weights):
-                    self.proposa.reset_model_weights()
+                    self.proposal.reset_model_weights()
                 training_data = self.live_points.copy()
                 if self.memory:
                     if len(self.nested_samples):
