@@ -269,7 +269,7 @@ class FlowProposal(Proposal):
         self.populated = False
         self.training_count += 1
 
-    def reset_flow_model(self):
+    def reset_model_weights(self):
         """
         Reset the flows weights
         """
