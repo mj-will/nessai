@@ -193,7 +193,7 @@ class NestedSampler:
         proposal_output = self.output + '/proposal/'
         if flow_class is not None:
             self._flow_proposal = flow_class(model, flow_config=flow_config,
-                    output=propoal_output, plot=plot, **kwargs)
+                    output=proposal_output, plot=plot, **kwargs)
         else:
             from .proposal import FlowProposal
             self._flow_proposal = FlowProposal(model, flow_config=flow_config,
