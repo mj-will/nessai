@@ -93,8 +93,9 @@ class FlowProposal(Proposal):
     """
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
-            rescale_parameters=False, latent_prior='gaussian', fuzz=1.0,
-            keep_samples=False, exact_poolsize=True, plot=True, **kwargs):
+            rescale_parameters=False, latent_prior='truncated_gaussian', fuzz=1.0,
+            keep_samples=False, exact_poolsize=True, plot=True, fixed_radius=False,
+            **kwargs):
         """
         Initialise
         """
@@ -122,14 +123,28 @@ class FlowProposal(Proposal):
 
         self.flow_config = update_config(flow_config)
 
-        if self.latent_prior == 'gaussian':
+        if self.latent_prior == 'truncated_gaussian':
             from .utils import draw_truncated_gaussian
             self.draw_latent_prior = draw_truncated_gaussian
+            self.log_latent_prior = self._log_gaussian_prior
+        if self.latent_prior == 'gaussian':
+            logger.warning('Using a gaussian latent prior WITHOUT truncation')
+            from .utils import draw_gaussian
+            self.draw_latent_prior = draw_gaussian
             self.log_latent_prior = self._log_gaussian_prior
         elif self.latent_prior == 'uniform':
             from .utils import draw_random_nsphere
             self.draw_latent_prior = draw_random_nsphere
             self.log_latent_prior = self._log_uniform_prior
+
+        if fixed_radius:
+            try:
+                self.fixed_radius = float(fixed_radius)
+            except ValueError:
+                logger.error('Fixed radius enabled but could not be converted to a float. Setting fixed_radius=False')
+                self.fixed_radius = False
+        else:
+            self.fixed_radius = False
 
     @property
     def dims(self):
@@ -264,7 +279,8 @@ class FlowProposal(Proposal):
             x_prime, log_J = self.backward_pass(z, rescale=False)
             plot_live_points(x_prime, filename=block_output + 'x_prime_generated.png')
             x, log_J = self.inverse_rescale(x_prime)
-            plot_live_points(x, filename=block_output + 'x_generated.png')
+            if self.rescale_parameters:
+                plot_live_points(x, filename=block_output + 'x_generated.png')
 
         self.populated = False
         self.training_count += 1
@@ -306,7 +322,7 @@ class FlowProposal(Proposal):
 
     def radius(self, z):
         """Calculate the radius of a latent_point"""
-        return np.sqrt(np.sum(z ** 2., axis=-1))
+        return np.squeeze(np.sqrt(np.sum(z ** 2., axis=-1)))
 
     def _log_uniform_prior(self, z):
         """
@@ -349,9 +365,13 @@ class FlowProposal(Proposal):
 
     def populate(self, worst_point, N=10000, plot=True):
         """Populate a pool of latent points"""
-        worst_z, _ = self.forward_pass(worst_point, rescale=True)
-        r = self.radius(worst_z)
-        logger.debug("Populating proposal")
+        if self.fixed_radius:
+            r = self.fixed_radius
+        else:
+            worst_z, _ = self.forward_pass(worst_point, rescale=True)
+            r = self.radius(worst_z)
+        logger.debug(f'Populating proposal with lantent radius: {r:.5}')
+        warn = True
         if not self.keep_samples or not self.indices:
             self.x = np.array([], dtype=self.x_dtype)
             self.z = np.empty([0, self.dims])
@@ -370,7 +390,9 @@ class FlowProposal(Proposal):
                 logger.error('Rejection sampling produced zero samples!')
                 raise RuntimeError('Rejection sampling produced zero samples!')
             if len(indices) / N < 0.01:
-                logger.warning('Rejection sampling accepted less than 1 percent of samples!')
+                if warn:
+                    logger.warning('Rejection sampling accepted less than 1 percent of samples!')
+                    warn = False
             else:
                 # array of indices to take random draws from
                 self.x = np.concatenate([self.x, x[indices]], axis=0)

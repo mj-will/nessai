@@ -26,6 +26,12 @@ def draw_random_nsphere(dims, r=1, N=1000, fuzz=1.0):
     z = R ** (1 / self.dims) * x.T
     return fuzz * r * z.T
 
+def draw_gaussian(dims, r, N=1000, fuzz=1.0):
+    """
+    Draw N points from a gaussian
+    """
+    return np.random.randn(N, dims)
+
 
 def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0):
     """
