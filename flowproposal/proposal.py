@@ -406,7 +406,9 @@ class FlowProposal(Proposal):
             plot_live_points(self.x,
                     filename=f'{self.output}/pool_{self.populated_count}.png')
 
-        self.indices = np.random.permutation(self.x.size).tolist()
+        self.samples = self.x[self.model.names + ['logP', 'logL']]
+
+        self.indices = np.random.permutation(self.samples.size).tolist()
         self.populated = True
         logger.debug(f'Proposal populated with {len(self.indices)} samples')
 
@@ -427,7 +429,7 @@ class FlowProposal(Proposal):
         # new sample is drawn randomly from proposed points
         # popping from right end is faster
         index = self.indices.pop()
-        new_sample = self.x[index]
+        new_sample = self.samples[index]
         if not self.indices:
             self.populated = False
             logger.debug('Proposal pool is empty')
