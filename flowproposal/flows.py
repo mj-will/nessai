@@ -624,7 +624,7 @@ class FlowSequential(nn.Sequential):
                 inputs, logdet = module(inputs, cond_inputs, mode)
                 logdets += logdet
 
-        return inputs, logdets.flatten()
+        return inputs, logdets
 
     def _gaussian_prior(self, u):
         return (-0.5 * u.pow(2) - 0.5 * math.log(2 * math.pi)).sum(
