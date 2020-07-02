@@ -78,20 +78,35 @@ class FlowModel:
         for key, value in config.items():
             setattr(self, key, value)
         self.save_input(config)
-        # TODO: mask
 
-    def get_mask(self, mask):
+    def update_mask(self):
         """
         Get a the mask
         """
-        return None
+        if self.model_config['mask'] is None:
+            if self.model_config['ftype'] == 'realnvp_mixer':
+                if self.model_config['n_blocks'] % 2:
+                    raise RuntimeError('Number of blocks must be even to use mixer')
+                masks = np.zeros([self.model_config['n_blocks'],
+                    self.model_config['n_inputs']])
+
+                masks[0] = np.mod(np.arange(0, masks.shape[1]), 2)
+                masks[1] = 1 - masks[0]
+                for n in range(2, masks.shape[0], 2):
+                    masks[n] = np.random.permutation(masks[n-2])
+                    masks[n + 1] = 1 - masks[n]
+
+                logger.debug(f'Made mask: {masks}')
+                self.model_config['mask'] = masks
+        else:
+            logger.debug('Mask already set')
 
     def initialise(self):
         """
         Initialise the model and optimiser
         """
         self.device = torch.device(self.device_tag)
-        #self.model_config['mask'] = self.get_mask(self.mask)
+        self.update_mask()
         self.model = setup_model(**self.model_config, device=self.device)
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-6)
         self.initialised = True
@@ -108,8 +123,8 @@ class FlowModel:
         # setup data loading
         n = int((1 - val_size) * samples.shape[0])
         x_train, x_val = samples[:n], samples[n:]
-        logger.debug(f'{x_train.shape[0]} training samples')
-        logger.debug(f'{x_val.shape[0]} validation samples')
+        logger.debug(f'{x_train.shape} training samples')
+        logger.debug(f'{x_val.shape} validation samples')
         train_tensor = torch.from_numpy(x_train.astype(np.float32))
         train_dataset = torch.utils.data.TensorDataset(train_tensor)
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
