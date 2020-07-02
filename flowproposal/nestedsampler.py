@@ -165,6 +165,7 @@ class NestedSampler:
         self.nested_samples = []
         self.logZ           = None
         self.state          = _NSintegralState(self.nlive)
+        self.plot = plot
         self.output_file, self.evidence_file, self.resume_file = \
                 self.setup_output(output, resume_file)
         self.output = output
@@ -174,7 +175,6 @@ class NestedSampler:
 
         header.close()
 
-        self.plot = plot
 
         self.acceptance_threshold = acceptance_threshold
         self.train_on_empty = train_on_empty
@@ -250,6 +250,9 @@ class NestedSampler:
             resume_file  = os.path.join(output,"nested_sampler_resume.pkl")
         else:
             resume_file  = os.path.join(output, resume_file)
+
+        if self.plot:
+            os.makedirs(output + '/diagnostics/', exist_ok=True)
 
         return output_file, evidence_file, resume_file
 
@@ -388,13 +391,12 @@ class NestedSampler:
 
         self.acceptance = self.accepted / (self.accepted + self.rejected)
         self.mean_block_acceptance = self.block_acceptance / self.block_iteration
-        if self.verbose:
-            logger.info((f"{self.iteration:5d}: n: {count:3d} "
-                f"NS_acc: {self.acceptance:.3f} m_acc: {self.mean_acceptance:.3f} "
-                f"b_acc: {self.mean_block_acceptance:.3f} sub_acc: {1 / count:.3f} "
-                f"H: {self.state.info:.2f} logL: {self.logLmin:.5f} --> "
-                f"{proposed['logL']:.5f} dZ: {self.condition:.3f} "
-                f"logZ: {self.state.logZ:.3f} logLmax: {self.logLmax:.2f}"))
+        logger.info((f"{self.iteration:5d}: n: {count:3d} "
+            f"NS_acc: {self.acceptance:.3f} m_acc: {self.mean_acceptance:.3f} "
+            f"b_acc: {self.mean_block_acceptance:.3f} sub_acc: {1 / count:.3f} "
+            f"H: {self.state.info:.2f} logL: {self.logLmin:.5f} --> "
+            f"{proposed['logL']:.5f} dZ: {self.condition:.3f} "
+            f"logZ: {self.state.logZ:.3f} logLmax: {self.logLmax:.2f}"))
 
     def populate_live_points(self):
         """
@@ -515,7 +517,7 @@ class NestedSampler:
             if self.plot:
                 plot_indices(self.insertion_indices[-self.nlive:], self.nlive,
                         plot_breakdown=False,
-                        filename=f'{self.output}/insertion_indices_{self.iteration}.png')
+                        filename=f'{self.output}/diagnostics/insertion_indices_{self.iteration}.png')
             if self.uninformed_sampling:
                 self.block_acceptance = 0.
                 self.block_iteration = 0
