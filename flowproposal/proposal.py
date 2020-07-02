@@ -15,6 +15,7 @@ class Proposal:
         self.model = model
         self.populated = True
         self.intialised = False
+        self.training_count = 0
 
     def initialise(self):
         """Initialise"""
@@ -303,7 +304,7 @@ class FlowProposal(Proposal):
         with torch.no_grad():
             z, log_J_tensor = self.flow.model(x_tensor, mode='direct')
         z = z.detach().cpu().numpy().astype('f8')
-        log_J += log_J_tensor.detach().cpu().numpy().astype('f8')
+        log_J += log_J_tensor.detach().cpu().numpy().astype('f8').flatten()
         return z, np.squeeze(log_J)
 
     def backward_pass(self, z, rescale=True):
@@ -313,7 +314,7 @@ class FlowProposal(Proposal):
         with torch.no_grad():
             theta, log_J = self.flow.model(z_tensor, mode='inverse')
         x = theta.detach().cpu().numpy().astype('f8')
-        log_J = log_J.detach().cpu().numpy().astype('f8')
+        log_J = log_J.detach().cpu().numpy().astype('f8').flatten()
         x = numpy_array_to_live_points(x, self.rescaled_names)
         if rescale:
             x, log_J_rescale = self.inverse_rescale(x)
