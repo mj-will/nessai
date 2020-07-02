@@ -3,6 +3,7 @@ import pickle
 import logging
 import numpy as np
 from tqdm import tqdm
+from collections import deque
 from scipy.stats import ksone
 import torch
 
@@ -131,7 +132,7 @@ class NestedSampler:
                  stopping=0.1, flow_class=None, flow_config={}, train_on_empty=True,
                  cooldown=100, memory=False, acceptance_threshold=0.05, analytic_priors = False,
                  maximum_uninformed=1000, training_frequency=1000, uninformed_proposal=None,
-                 reset_weights=False, checkpointing=True, resume_file=None,
+                 reset_weights=True, checkpointing=True, resume_file=None,
                  uninformed_proposal_kwargs={}, seed=None, plot=True,
                  **kwargs):
         """
@@ -143,11 +144,11 @@ class NestedSampler:
         self.prior_sampling = prior_sampling
         self.setup_random_seed(seed)
         self.verbose        = 3
-        self.acceptance     = 1.0
         self.accepted       = 0
         self.rejected       = 1
         self.last_updated = 0
         self.iteration      = 0
+        self.acceptance_history = deque(maxlen=nlive//10)
         self.block_acceptance = 1.
         self.mean_block_acceptance = 1.
         self.block_iteration = 0
@@ -328,6 +329,9 @@ class NestedSampler:
                 if (1 / counter) < self.acceptance_threshold:
                     self.max_count += 1
                     break
+
+                if not self.proposal.populated:
+                    break
             yield counter, oldparam
 
     def insert_live_point(self, live_point):
@@ -372,6 +376,7 @@ class NestedSampler:
                 self.insertion_indices.append(index)
                 self.accepted += 1
                 self.block_acceptance += 1 / count
+                self.acceptance_history.append(1 / count)
                 break
             else:
                 self.rejected += 1
@@ -384,12 +389,12 @@ class NestedSampler:
         self.acceptance = self.accepted / (self.accepted + self.rejected)
         self.mean_block_acceptance = self.block_acceptance / self.block_iteration
         if self.verbose:
-            logger.info(("{0:5d}: n: {1:3d} NS_acc: {2:.3f} b_acc: {3:.3f} "
-            "sub_acc: {4:.3f} H: {5:.2f} logL: {6:.5f} --> {7:.5f} dZ: {8:.3f} "
-            "logZ: {9:.3f} logLmax: {10:.2f}").format(self.iteration, count,
-                self.acceptance, self.mean_block_acceptance, 1 / count, self.state.info,
-                self.logLmin, proposed['logL'], self.condition, self.state.logZ,
-                self.logLmax))
+            logger.info((f"{self.iteration:5d}: n: {count:3d} "
+                f"NS_acc: {self.acceptance:.3f} m_acc: {self.mean_acceptance:.3f} "
+                f"b_acc: {self.mean_block_acceptance:.3f} sub_acc: {1 / count:.3f} "
+                f"H: {self.state.info:.2f} logL: {self.logLmin:.5f} --> "
+                f"{proposed['logL']:.5f} dZ: {self.condition:.3f} "
+                f"logZ: {self.state.logZ:.3f} logLmax: {self.logLmax:.2f}"))
 
     def populate_live_points(self):
         """
@@ -439,6 +444,14 @@ class NestedSampler:
         if all(flags):
             self.initialised = True
 
+
+    @property
+    def mean_acceptance(self):
+        """
+        Mean acceptance of the last nlive // 10 points
+        """
+        return np.mean(self.acceptance_history)
+
     def check_state(self, force=False, rejected=False):
         """
         Check if state should be updated prior to drawing a new sample
@@ -446,11 +459,14 @@ class NestedSampler:
         Force will overide the cooldown mechanism, rejected will not
         """
         if self.uninformed_sampling:
-            if (rejected and self.acceptance < self.acceptance_threshold) or \
-                    self.iteration >= self.maximum_uninformed:
+            if (self.mean_acceptance < self.acceptance_threshold) or \
+                    (self.iteration >= self.maximum_uninformed):
                 logger.warning('Switching to FlowProposal')
                 self.proposal = self._flow_proposal
                 self.uninformed_sampling = False
+            # If using uninformed sampling, don't check training
+            else:
+                return
         # Should the proposal be trained
         train = False
         # General overide
@@ -469,9 +485,8 @@ class NestedSampler:
                 logger.debug('Training flow (proposal empty)')
 
         elif not (self.iteration - self.last_updated) % self.training_frequency:
-            if not self.uninformed_sampling:
-                train = True
-                logger.debug('Training flow (iteration)')
+            train = True
+            logger.debug('Training flow (iteration)')
 
         if train:
             if self.iteration - self.last_updated < self.cooldown and not force:
@@ -487,7 +502,7 @@ class NestedSampler:
                 self.proposal.train(training_data, plot=self.plot)
                 self.last_updated = self.iteration
                 self.block_iteration = 0
-                self.block_acceptance = 1.0
+                self.block_acceptance = 0.
                 if self.checkpointing:
                     self.checkpoint()
 
@@ -498,9 +513,12 @@ class NestedSampler:
         if not (self.iteration % self.nlive):
             self.check_insertion_indices()
             if self.plot:
-                plot_indices(self.insertion_indices, self.nlive,
+                plot_indices(self.insertion_indices[-self.nlive:], self.nlive,
                         plot_breakdown=False,
                         filename=f'{self.output}/insertion_indices_{self.iteration}.png')
+            if self.uninformed_sampling:
+                self.block_acceptance = 0.
+                self.block_iteration = 0
 
     def checkpoint(self):
         """
