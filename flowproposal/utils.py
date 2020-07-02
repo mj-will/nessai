@@ -105,6 +105,7 @@ def setup_logger(output=None, label=None, log_level='INFO'):
     Based on the implementation in Bilby: https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
 
     """
+    import os
     if type(log_level) is str:
         try:
             level = getattr(logging, log_level.upper())
