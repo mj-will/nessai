@@ -111,6 +111,7 @@ class CPnestFlowProposal(Proposal):
         self.names = []
         self.x = None
         self.z = None
+        self.samples = None
         self.rescaled_names = []
 
         self.output = output
@@ -462,6 +463,7 @@ class FlowProposal(Proposal):
         self.names = []
         self.x = None
         self.z = None
+        self.samples = None
         self.rescaled_names = []
 
         self.output = output
@@ -717,6 +719,7 @@ class FlowProposal(Proposal):
                 # array of indices to take random draws from
                 self.x = np.concatenate([self.x, x[indices]], axis=0)
                 self.z = np.concatenate([self.z, z[indices]], axis=0)
+            logger.debug(f'Accepted {self.x.size} / {N} points')
 
         if self.exact_poolsize:
             self.x = self.x[:N]
@@ -765,8 +768,6 @@ class FlowProposal(Proposal):
         del state['model']
         del state['flow_config']
         del state['flow']
-        del state['rescale']
-        del state['inverse_rescale']
         del state['x']
         del state['z']
         del state['indices']
