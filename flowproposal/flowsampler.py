@@ -9,26 +9,26 @@ from .posterior import draw_posterior_samples
 logger = logging.getLogger(__name__)
 
 
-class FlowProposal:
+class FlowSampler:
     """
     Main class to handle running the nested sampler
     """
 
     def __init__(self, model, output='./', resume=True,
-            resume_file='nested_sampler_resume.pkl', **kwargs):
+            resume_file='nested_sampler_resume.pkl', weights_file=None, **kwargs):
 
         self.output = output
         if resume and os.path.exists(output + resume_file):
             try:
-                self.ns = NestedSampler.resume(output +  resume_file, model)
+                self.ns = NestedSampler.resume(output +  resume_file, model,
+                        kwargs['flow_config'], weights_file)
             except EOFError:
                 logger.error('Could not resume from pickle file')
                 logger.error('Restarting run')
                 self.ns = NestedSampler(model, output=output, resume_file=resume_file,
                         **kwargs)
             except Exception as e:
-                logger.error(f'Resume raised error: {e}')
-                return
+                raise RuntimeError(f'Could not resume sampler with error: {e}')
         else:
             self.ns = NestedSampler(model, output=output, resume_file=resume_file,
                     **kwargs)
