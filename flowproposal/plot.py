@@ -10,7 +10,7 @@ pairplot_kwargs = dict(corner=True, kind='scatter',
         diag_kws=dict(histtype='step', bins=50, lw=1.5),
         plot_kws=dict(s=1.0, edgecolor=None))
 
-def plot_live_points(live_points, filename=None, **kwargs):
+def plot_live_points(live_points, filename=None, bounds=None, **kwargs):
     """
     Plot a set of live points
     """
@@ -18,6 +18,14 @@ def plot_live_points(live_points, filename=None, **kwargs):
 
     df = pd.DataFrame(live_points)
     fig = sns.pairplot(df, **pairplot_kwargs)
+
+
+    if bounds is not None:
+        n = len(list(bounds.keys()))
+        for i, v in enumerate(bounds.values()):
+            fig.axes[i, i].axvline(v[0], ls=':', alpha=0.5, color='k')
+            fig.axes[i, i].axvline(v[1], ls=':', alpha=0.5, color='k')
+
     if filename is not None:
         fig.savefig(filename)
     plt.close()
@@ -27,18 +35,19 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
     """
     Histogram indices for index insertion tests
     """
-    fig, ax = plt.subplots(1, 2, figsize=(6, 3))
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     if plot_breakdown:
         for i in range(len(indices) // nlive):
             ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
                     histtype='step', density=True, alpha=0.1, color='black', lw=0.5,
-                    cumulative=True)
+                    cumulative=True, range=(0, nlive-1))
 
     ax[0].hist(indices, density = True, color='tab:blue', linewidth = 1.25,
-                histtype='step', bins=nlive // 10, label = 'produced')
+                histtype='step', bins=nlive // 50, label = 'produced',
+                range=(0, nlive-1))
     ax[1].hist(indices, density = True, color='tab:blue', linewidth = 1.25,
                 histtype='step', bins=nlive, label = 'produced',
-                cumulative=True)
+                cumulative=True, range=(0, nlive-1))
 
     if nlive is not None:
         ax[0].axhline(1 / nlive, color='black', linewidth=1.25, linestyle=':',
@@ -48,8 +57,8 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
 
     ax[0].legend(loc='lower right')
     ax[1].legend(loc='lower right')
-    ax[0].set_xlim([0, nlive])
-    ax[1].set_xlim([0, nlive])
+    ax[0].set_xlim([0, nlive-1])
+    ax[1].set_xlim([0, nlive-1])
     ax[0].set_xlabel('Insertion indices')
     ax[1].set_xlabel('Insertion indices')
 
