@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+from numpy.lib import recfunctions as rfn
 from scipy.stats import chi
 
 from ..proposal import FlowProposal
@@ -28,9 +29,10 @@ class GWFlowProposal(FlowProposal):
         """
         Set the relevant reparamterisation flags
         """
-        defaults = dict(q_inversion=True, flip=False, reduced_quaternions=True,
+        defaults = dict(mass_inversion=True, flip=False, reduced_quaternions=True,
                 distance_rescaling=False, norm_quaternions=False, rescale_angles=True,
-                euler_convention='ZYZ', angular_decomposition=True)
+                euler_convention='ZYZ', angular_decomposition=True,
+                minus_one_to_one=True)
         defaults.update(reparameterisations)
         logger.info('Reparameterisations:')
         for k, v in defaults.items():
@@ -62,6 +64,7 @@ class GWFlowProposal(FlowProposal):
         """
         self.names = self.model.names.copy()
         self.rescaled_names = self.names.copy()
+        self.default_rescaling = []
 
         if self.angular_decomposition:
             if all(p in self.names for p in['ra', 'dec']):
@@ -72,7 +75,7 @@ class GWFlowProposal(FlowProposal):
                     self.rescaled_names.append('sky_z')
                 else:
                     self.distance = 'luminosity_distance'
-                    replace_in_list(self.rescaaled_names, [self.distance],
+                    replace_in_list(self.rescaled_names, [self.distance],
                                 ['sky_z'])
                 self._reparameterisations.append('sky')
 
@@ -91,6 +94,7 @@ class GWFlowProposal(FlowProposal):
             # the bounds will then be +/- duration/2
             self.time_offset = self.model.bounds[self.time][0] \
                     + np.ptp(self.model.bounds[self.time]) / 2
+            logger.debug(f'Time offset: {self.time_offset}')
             # Save the bounds since we're using different bounds
             self.time_bounds = self.model.bounds[self.time] - self.time_offset
             self._reparameterisations.append('time')
@@ -120,6 +124,26 @@ class GWFlowProposal(FlowProposal):
                 if a in self.names:
                     self.setup_angle(a, scale=1.0)
 
+        if self.mass_inversion:
+            if 'mass_ratio' in self.names:
+                self._reparameterisations.append('mass_inversion')
+                replace_in_list(self.rescaled_names, ['mass_ratio'],
+                        ['mass_ratio_inv'])
+            elif all(m in self.names for m in ['mass_1', 'mass_2']):
+                self._reparameterisations.append('component_masses')
+                replace_in_list(self.rescaled_names, ['mass_1', 'mass_2'],
+                        ['mass_1_dbl', 'mass_2_dbl'])
+            else:
+                # Disable mass inversion
+                self.mass_inversion = False
+
+
+        # Default -1 to 1 rescaling
+        if self.minus_one_to_one:
+            self.default_rescaling += list(set(self.names) & set(self.rescaled_names))
+            replace_in_list(self.rescaled_names, self.default_rescaling,
+                    [d + '_prime' for d in self.default_rescaling])
+
         self.rescale_parameters = 'all'
         logger.info(f'x space parameters: {self.names}')
         logger.info(f'parameters to rescale {self.rescale_parameters}')
@@ -130,7 +154,17 @@ class GWFlowProposal(FlowProposal):
         Rescale from the x space to the x prime space
         """
         x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
-        log_J = 0.
+        log_J = np.zeros(x_prime.size)
+
+        x_prime['logP'] = x['logP']
+        x_prime['logL'] = x['logL']
+
+        if self.default_rescaling:
+            for n in self.default_rescaling:
+                x_prime[n + '_prime'], lj = rescale_minus_one_to_one(x[n],
+                        xmin=self.model.bounds[n][0],
+                        xmax=self.model.bounds[n][1])
+                log_J += lj
 
         if 'sky' in self._reparameterisations:
             if self.distance == 'luminosity_distance':
@@ -167,8 +201,47 @@ class GWFlowProposal(FlowProposal):
 
                 log_J += lj
 
-        x_prime['logP'] = x['logP']
-        x_prime['logL'] = x['logL']
+        if self.mass_inversion:
+            if 'mass_ratio' in self.names:
+                x_prime['mass_ratio_inv'] = np.log(x['mass_ratio'])
+                x_prime_inv = x_prime.copy()
+                x_prime_inv['mass_ratio_inv'] *= -1
+                log_J -= np.log(x['mass_ratio'])
+
+            elif 'component_masses' in self._reparameterisations:
+                x['mass_1'], lj = rescale_minus_one_to_one(x['mass_1'],
+                        xmin=self.model.bounds['mass_1'][0],
+                        xmax=self.model.bounds['mass_1'][1])
+                log_J += lj
+                x['mass_2'], lj = rescale_minus_one_to_one(x['mass_2'],
+                        xmin=self.model.bounds['mass_2'][0],
+                        xmax=self.model.bounds['mass_2'][1])
+                log_J += lj
+                x_prime_inv = x_prime.copy()
+                x_prime[['mass_1_dbl', 'mass_2_dbl']] = x[['mass_1', 'mass_2']]
+                x_prime_inv[['mass_1_dbl', 'mass_2_dbl']] = x[['mass_2', 'mass_1']]
+
+            # flip the phase
+            if 'phase' in self._search_angles:
+                s = self._search_angles['phase']
+                x_prime_inv[a['x']] *= -1
+                x_prime_inv[a['y']] *= -1
+
+            if all(t in self._search_angles for t in ['tilt_1', 'tilt_2']):
+                t1 = self._search_angles['tilt_1']
+                t2 = self._search_angles['tilt_2']
+                x_prime_inv[[t1['x'], t1['y']]] = \
+                        x_prime[[t2['x'], t2['y']]].copy()
+                x_prime_inv[[t2['x'], t2['y']]] = \
+                        x_prime[[t1['x'], t1['y']]].copy()
+
+            elif any(t in self._search_angles for t in ['tilt_1', 'tilt_2']):
+                raise RuntimeError('Cannot use q-inversion with only one tilt angle')
+
+            x_prime = np.concatenate([x_prime, x_prime_inv])
+            # Absolute value means jacobian is the same for either
+            log_J = np.concatenate([log_J, log_J])
+
 
         return x_prime, log_J
 
@@ -177,7 +250,55 @@ class GWFlowProposal(FlowProposal):
         Rescale from the x prime  space to the x space
         """
         x = np.zeros([x_prime.size], dtype=self.x_dtype)
-        log_J = 0.
+        log_J = np.zeros(x_prime.size)
+
+        x['logP'] = x_prime['logP']
+        x['logL'] = x_prime['logL']
+
+
+        # Sort mass ratio first so that phase, tilt angles and magntiude
+        # are correct before applying other rescaling
+        if self.mass_inversion:
+            if 'mass_ratio' in self.names:
+                # Find `inverted` part
+                inv = x_prime['mass_ratio_inv'] > 0.
+                x['mass_ratio'][~inv] = np.exp(x_prime['mass_ratio_inv'][~inv])
+                x['mass_ratio'][inv] = np.exp(-x_prime['mass_ratio_inv'][inv])
+                # for q_inv < 0 conversion is exp(q_inv) for q_inv > 0 exp(-q_inv)
+                # so Jacobian is log(exp(+/-q_inv))
+                # i.e. q_inv and - q_inv respectively
+                log_J[~inv] += x_prime['mass_ratio_inv'][~inv]
+                log_J[inv] -= x_prime['mass_ratio_inv'][inv]
+
+            elif 'component_masses' in self._reparameterisations:
+                inv = x_prime['mass_1_dbl'] < x_prime['mass_2_dbl']
+                x_prime[['mass_1_dbl', 'mass_2_dbl']][inv] = \
+                        x_prime[['mass_2_dbl', 'mass_1_dbl']][inv]
+                x['mass_1'], lj = inverse_rescale_minus_one_to_one(
+                        x_prime['mass_1_dbl'],
+                        xmin=self.model.bounds['mass_1'][0],
+                        xmax=self.model.bounds['mass_1'][1])
+                log_J += lj
+                x['mass_2'], lj = inverse_rescale_minus_one_to_one(
+                        x_prime['mass_2_dbl'],
+                        xmin=self.model.bounds['mass_2'][0],
+                        xmax=self.model.bounds['mass_2'][1])
+                log_J += lj
+
+            if 'phase' in self._search_angles:
+                a = self._search_angles['phase']
+                x_prime[a['x']][inv] *= -1
+                x_prime[a['y']][inv] *= -1
+
+            if all(t in self._search_angles for t in ['tilt_1', 'tilt_2']):
+                t1 = self._search_angles['tilt_1']
+                t2 = self._search_angles['tilt_2']
+                x_prime[[t1['x'], t1['y'], t2['x'], t2['y']]][inv] = \
+                    x_prime[[t2['x'], t2['y'], t1['x'], t1['y']]][inv]
+
+
+            elif any(t in self._search_angles for t in ['tilt_1', 'tilt_2']):
+                raise RuntimeError('Cannot use q-inversion with only one tilt angle')
 
         if 'sky' in self._reparameterisations:
             x['ra'], x['dec'], r, lj = cartesian_to_sky(x_prime['sky_x'],
@@ -206,13 +327,17 @@ class GWFlowProposal(FlowProposal):
                 # if the radial parameter is defined in the model
                 # rescale it using the bounds
                 if (n := a['radial']) in self.model.names:
-                    r, lj = inverse_resacle_zero_to_one(r,
-                        self.model.bounds[n][0], self.model.bounds[n][0])
+                    r, lj = inverse_rescale_zero_to_one(r,
+                        self.model.bounds[n][0], self.model.bounds[n][1])
                     log_J += lj
                 x[a['radial']] = r
 
-        x['logP'] = x_prime['logP']
-        x['logL'] = x_prime['logL']
+        if self.default_rescaling:
+            for n in self.default_rescaling:
+                x[n], lj = inverse_rescale_minus_one_to_one(x_prime[n + '_prime'],
+                        xmin=self.model.bounds[n][0],
+                        xmax=self.model.bounds[n][1])
+                log_J += lj
 
         return x, log_J
 
@@ -225,9 +350,13 @@ class GWFlowProposal(FlowProposal):
         if 'sky' in self._reparameterisations:
             if self.distance == 'sky_radial':
                 log_p += chi.logpdf(x[self.distance], 3)
-        #if self.angle_indices:
-        #    for i in self.angle_indices:
-        #        if not i[2]:
-        #            log_p + chi.logpdf(radial_components[:, i[1]-self.base_dim], 2)
+        if self._search_angles:
+            for a in self._search_angles.values():
+                if not (n := a['radial']) in self.model.names:
+                    log_p += chi.logpdf(x[n], 2)
         return log_p
+
+    def radius(self, z):
+        """Calculate the radius of a latent_point"""
+        return np.max(np.sqrt(np.sum(z ** 2., axis=-1)))
 
