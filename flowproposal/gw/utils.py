@@ -24,9 +24,8 @@ def sky_to_cartesian(ra, dec, dL=None):
     """
     Decompose an angle into a real and imaginary part
     """
-    N = ra.size
     if dL is None:
-        dL = stats.chi.rvs(3, size=N)
+        dL = stats.chi.rvs(3, size=ra.size)
     # amplitudes
     x = dL * np.cos(dec) * np.cos(ra)
     y = dL * np.cos(dec) * np.sin(ra)
