@@ -202,6 +202,47 @@ class CPnestFlowProposal(Proposal):
         logger.info(f'parameters to rescale {self.rescale_parameters}')
         logger.info(f'x prime space parameters: {self.rescaled_names}')
 
+    def _rescale_min_max(self, x):
+        """
+        Rescale the inputs to [-1, 1] using the current minima and
+        maxima
+        """
+        self._min = {n: np.min(x[n]) for n in self.names}
+        self._max = {n: np.max(x[n]) for n in self.names}
+        x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
+        for n, rn in zip(self.names, self.rescaled_names):
+            if n in self.rescale_parameters:
+                x_prime[rn] = 2 * ((x[n] - self._min[n]) \
+                    / (self._max[n] - self._min[n])) - 1
+
+                log_J += np.log(2) - np.log(self._max[n] \
+                        - self._min[n])
+            else:
+                x_prime[rn] = x[n]
+        x_prime['logP'] = x['logP']
+        x_prime['logL'] = x['logL']
+        return x_prime, log_J
+
+    def _inverse_rescale_min_max(self, x_prime):
+        """
+        Rescale the inputs from the prime space to the phyiscal space
+        using the model bounds
+        """
+        x = np.zeros([x_prime.size], dtype=self.x_dtype)
+        log_J = 0.
+        for n, rn in zip(self.names, self.rescaled_names):
+            if n in self.rescale_parameters:
+                x[n] = (self._max[n] - self._min[n]) \
+                        * ((x_prime[rn] + 1) / 2) + self._min[n]
+
+                log_J += np.log(self._max[n] - self._min[n]) \
+                        - np.log(2)
+            else:
+                x[n] = x_prime[rn]
+        x['logP'] = x_prime['logP']
+        x['logL'] = x_prime['logL']
+        return x, log_J
+
     def _rescale_with_bounds(self, x):
         """
         Rescale the inputs to [-1, 1] using the bounds as the min and max
@@ -447,7 +488,7 @@ class FlowProposal(Proposal):
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
             rescale_parameters=False, latent_prior='truncated_gaussian', fuzz=1.0,
             keep_samples=False, exact_poolsize=True, plot=True, fixed_radius=False,
-            **kwargs):
+            rescale_min_max=False, **kwargs):
         """
         Initialise
         """
@@ -473,6 +514,7 @@ class FlowProposal(Proposal):
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
         self.exact_poolsize = exact_poolsize
+        self.rescale_min_max = rescale_min_max
 
         self.flow_config = update_config(flow_config)
 
@@ -544,12 +586,68 @@ class FlowProposal(Proposal):
             for i, rn in enumerate(self.rescaled_names):
                 if rn in self.rescale_parameters:
                     self.rescaled_names[i] += '_prime'
-            self.rescale = self._rescale_with_bounds
-            self.inverse_rescale = self._inverse_rescale_with_bounds
+            if self.rescale_min_max:
+                raise NotImplementedError(('Rescaling with minimum and maximum '
+                    'of the last batch of training data is not implemnted yet '
+                    'because values outside [-1, 1] range produce errors when '
+                    'applying the inverse rescaling and the worst point '
+                    'produces a NaN radius'))
+                logger.info('Rescaling will use min and max of training data')
+                self.rescale = self._rescale_min_max
+                self.inverse_rescale = self._inverse_rescale_min_max
+                self._min = None
+                self._max = None
+            else:
+                logger.info('Rescaling will use prior bounds')
+                self.rescale = self._rescale_min_max
+                self.rescale = self._rescale_with_bounds
+                self.inverse_rescale = self._inverse_rescale_with_bounds
 
         logger.info(f'x space parameters: {self.names}')
         logger.info(f'parameters to rescale {self.rescale_parameters}')
         logger.info(f'x prime space parameters: {self.rescaled_names}')
+
+    def _rescale_min_max(self, x):
+        """
+        Rescale the inputs to [-1, 1] using the current minima and
+        maxima
+        """
+        self._min = {n: np.min(x[n]) for n in self.names}
+        self._max = {n: np.max(x[n]) for n in self.names}
+        log_J = 0
+        x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
+        for n, rn in zip(self.names, self.rescaled_names):
+            if n in self.rescale_parameters:
+                x_prime[rn] = 2 * ((x[n] - self._min[n]) \
+                    / (self._max[n] - self._min[n])) - 1
+
+                log_J += np.log(2) - np.log(self._max[n] \
+                        - self._min[n])
+            else:
+                x_prime[rn] = x[n]
+        x_prime['logP'] = x['logP']
+        x_prime['logL'] = x['logL']
+        return x_prime, log_J
+
+    def _inverse_rescale_min_max(self, x_prime):
+        """
+        Rescale the inputs from the prime space to the phyiscal space
+        using the model bounds
+        """
+        x = np.zeros([x_prime.size], dtype=self.x_dtype)
+        log_J = 0.
+        for n, rn in zip(self.names, self.rescaled_names):
+            if n in self.rescale_parameters:
+                x[n] = (self._max[n] - self._min[n]) \
+                        * ((x_prime[rn] + 1) / 2) + self._min[n]
+
+                log_J += np.log(self._max[n] - self._min[n]) \
+                        - np.log(2)
+            else:
+                x[n] = x_prime[rn]
+        x['logP'] = x_prime['logP']
+        x['logL'] = x_prime['logL']
+        return x, log_J
 
     def _rescale_with_bounds(self, x):
         """
@@ -666,7 +764,7 @@ class FlowProposal(Proposal):
 
     def radius(self, z):
         """Calculate the radius of a latent_point"""
-        return np.squeeze(np.sqrt(np.sum(z ** 2., axis=-1)))
+        return np.max(np.sqrt(np.sum(z ** 2., axis=-1)))
 
     def log_prior(self, x):
         """
@@ -732,6 +830,7 @@ class FlowProposal(Proposal):
         self.samples = self.x[self.model.names + ['logP', 'logL']]
 
         self.indices = np.random.permutation(self.samples.size).tolist()
+        self.populated_count += 1
         self.populated = True
         logger.debug(f'Proposal populated with {len(self.indices)} samples')
 
@@ -748,7 +847,6 @@ class FlowProposal(Proposal):
         if not self.populated:
             while not self.populated:
                 self.populate(worst_point, N=self.poolsize)
-            self.populated_count += 1
         # new sample is drawn randomly from proposed points
         # popping from right end is faster
         index = self.indices.pop()
