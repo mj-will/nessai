@@ -6,16 +6,16 @@ Other classes
 """
 
 import math
-import types
+import logging
 
 import numpy as np
-import scipy as sp
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from nflows.flows import SimpleRealNVP, MaskedAutoregressiveFlow
 
+logger = logging.getLogger(__name__)
 
 def cpnest_setup_model(n_inputs=None,  n_conditional_inputs=None, augment_dim=None,
         n_neurons=128, n_layers=2, n_blocks=4, ftype='RealNVP', device='cpu',
@@ -132,6 +132,8 @@ def setup_model(config):
             device = torch.device('cpu')
             logger.warning(('Could not send the normailising flow to the specified'
                 f"device {config['device']} send to CPU instead. Error raised: {e}"))
+    logger.debug('Flow model:')
+    logger.debug(model)
 
     model.device = device
 
