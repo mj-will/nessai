@@ -1,4 +1,6 @@
 import os
+import time
+import datetime
 import pickle
 import logging
 import numpy as np
@@ -175,6 +177,10 @@ class NestedSampler:
 
         header.close()
 
+        self.training_time = 0
+        self.likelihood_evaluations = []
+        self.likelihood_calls = 0
+
 
         self.acceptance_threshold = acceptance_threshold
         self.train_on_empty = train_on_empty
@@ -312,6 +318,13 @@ class NestedSampler:
                 newline='\n',delimiter=' ')
 
 
+    def log_likelihood(self, x):
+        """
+        Wrapper for the model likelihood so evaluations are counted
+        """
+        self.likelihood_calls += 1
+        return self.model.log_likelihood(x)
+
     def yield_sample(self, oldparam):
         """
         Draw points and applying rejection sampling
@@ -324,7 +337,7 @@ class NestedSampler:
                 newparam['logP'] = self.model.log_prior(newparam)
 
                 if newparam['logP'] != -np.inf:
-                    newparam['logL'] = self.model.log_likelihood(newparam)
+                    newparam['logL'] = self.log_likelihood(newparam)
                     if newparam['logL'] > self.logLmin:
                         self.logLmax= max(self.logLmax, newparam['logL'])
                         oldparam = newparam.copy()
@@ -501,12 +514,17 @@ class NestedSampler:
                     if len(self.nested_samples):
                         if len(self.nested_samples) >= self.memory:
                             training_data = np.concatenate([training_data, self.nested_samples[-self.memory].copy()])
+                st = time.time()
                 self.proposal.train(training_data, plot=self.plot)
+                self.training_time += (time.time() - st)
                 self.last_updated = self.iteration
                 self.block_iteration = 0
                 self.block_acceptance = 0.
                 if self.checkpointing:
                     self.checkpoint()
+
+        #if not self.proposal.populated:
+            #self.proposal.populate(self.live_points[:10], N=self.proposal.poolsize)
 
     def update_state(self):
         """
@@ -514,6 +532,7 @@ class NestedSampler:
         """
         if not (self.iteration % self.nlive):
             self.check_insertion_indices()
+            self.likelihood_evaluations.append(self.likelihood_calls)
             if self.plot:
                 plot_indices(self.insertion_indices[-self.nlive:], self.nlive,
                         plot_breakdown=False,
@@ -571,6 +590,12 @@ class NestedSampler:
 
         logger.critical('Final evidence: {0:0.2f}'.format(self.state.logZ))
         logger.critical('Information: {0:.2f}'.format(self.state.info))
+
+        self.check_insertion_indices(rolling=False)
+
+        logger.info(('Total training time: '
+            f'{datetime.timedelta(seconds=self.training_time)}'))
+        logger.info(f'Total likelihood evaluations: {self.likelihood_calls:3d}')
 
         return self.state.logZ, self.nested_samples
 
