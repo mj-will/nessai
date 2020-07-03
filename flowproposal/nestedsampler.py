@@ -426,11 +426,11 @@ class NestedSampler:
         Initialise the nested sampler
         """
         flags = [False] * 3
-        if not self._flow_proposal.intialised:
+        if not self._flow_proposal.initialised:
             self._flow_proposal.initialise()
             flags[0] = True
 
-        if not self._uninformed_proposal.intialised:
+        if not self._uninformed_proposal.initialised:
             self._uninformed_proposal.initialise()
             flags[1] = True
 
@@ -575,7 +575,7 @@ class NestedSampler:
         return self.state.logZ, self.nested_samples
 
     @classmethod
-    def resume(cls, filename, model):
+    def resume(cls, filename, model, flow_config={}, weights_file=None):
         """
         Resumes the interrupted state from a
         checkpoint pickle file.
@@ -584,9 +584,13 @@ class NestedSampler:
         with open(filename,"rb") as f:
             obj = pickle.load(f)
         obj.model = model
-        obj._flow_proposal.flow.reload_weights()
-        obj._flow_proposal.model = model
         obj._uninformed_proposal.model = model
+        obj._flow_proposal.model = model
+        obj._flow_proposal.flow_config = flow_config
+        obj._flow_proposal.initialise()
+        if weights_file is None:
+            weights_file = obj._flow_proposal.weights_file
+        obj._flow_proposal.flow.reload_weights(weights_file)
         return obj
 
     def __getstate__(self):
