@@ -1,13 +1,14 @@
 import numpy as np
 from numpy.lib import recfunctions as rfn
 
+logL_type = 'f8'
 
 def get_dtype(names, array_dtype='f8'):
     """
     Get a list of the dtypes for the structed array
     """
     return [(n, array_dtype) for n in names] + [('logP', array_dtype),
-            ('logL', 'f16')]
+            ('logL', logL_type)]
 
 def live_points_to_array(live_points, names):
     """
@@ -31,7 +32,7 @@ def numpy_array_to_live_points(array, names):
     """
     array = array.ravel().view(dtype=[(n, 'f8') for n in names])
     array = rfn.append_fields(array, ['logP', 'logL'], data=[*np.zeros([array.size, 2]).T],
-                dtypes=['f8', 'f16'], usemask=False)
+                dtypes=['f8', logL_type], usemask=False)
     return array
 
 
@@ -48,6 +49,6 @@ def dict_to_live_points(d):
         for k, v in d.items():
             array[k] = v
         array = rfn.append_fields(array, ['logP', 'logL'], data=[*np.zeros([array.size, 2]).T],
-                dtypes=['f8', 'f16'], usemask=False)
+                dtypes=['f8', logL_type], usemask=False)
         return array
 
