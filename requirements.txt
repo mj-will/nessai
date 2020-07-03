@@ -5,3 +5,4 @@ seaborn
 scipy>=0.16
 torch
 tqdm
+nflows
