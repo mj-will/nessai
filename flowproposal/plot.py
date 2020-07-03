@@ -64,12 +64,21 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
 
     if name is not None:
         ax.set_xlabel(name)
-        if filename is None:
-            filename=name+'_hist.pdf'
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
     plt.close()
 
+def plot_likelihood_evaluations(evaluations, nlive, filename=None):
+
+    its = np.arange(-1, len(evaluations)) * nlive
+    evaluations.insert(0, 0)
+    fig = plt.figure()
+    plt.plot(its, evaluations, '.')
+    plt.xlabel('Iteration')
+    plt.ylabel('Number of likelihood evaluations')
+
+    if filename is not None:
+        plt.savefig(filename, bbox_inches='tight')
 
 def plot_chain(x,name=None,filename=None):
     """
