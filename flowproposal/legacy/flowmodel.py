@@ -7,8 +7,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from .flows import setup_model
-from .plot import plot_loss, plot_inputs, plot_samples
+from .flows import BatchNormFlow, setup_model
+from ..plot import plot_loss, plot_inputs, plot_samples
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ def update_config(d):
     Update the default dictionary for a trainer
     """
     default_model = dict(n_inputs=None, n_neurons=32, n_blocks=4, n_layers=2,
-            ftype='RealNVP', device_tag='cpu', kwargs={})
+            ftype='RealNVP', device_tag='cpu', mask=None, kwargs={})
 
     if 'model_config' in d.keys():
         default_model.update(d['model_config'])
@@ -27,6 +27,7 @@ def update_config(d):
                    batch_size=100,             # batch size
                    val_size=0.1,               # validation per cent (0.1 = 10%)
                    max_epochs=500,             # maximum number of training epochs
+                   device_tag='cpu',
                    patience=20)                # stop after n epochs with no improvement
 
     if not isinstance(d, dict):
@@ -58,7 +59,6 @@ class FlowModel:
         """
         Save the dictionary used as an inputs as a JSON file
         """
-        config = copy.deepcopy(config)
         output_file = self.output + "flow_config.json"
         for k, v in list(config.items()):
             if type(v) == np.ndarray:
@@ -66,9 +66,6 @@ class FlowModel:
         for k, v in list(config['model_config'].items()):
             if type(v) == np.ndarray:
                 config['model_config'][k] = np.array_str(config['model_config'][k])
-
-        if 'flow' in config['model_config']:
-            config['model_config']['flow'] = str(config['model_config']['flow'])
 
         with open(output_file, "w") as f:
             json.dump(config, f, indent=4)
@@ -109,9 +106,9 @@ class FlowModel:
         """
         Initialise the model and optimiser
         """
-        #self.update_mask()
-        self.model_config = update_config(self.model_config)
-        self.model, self.device = setup_model(self.model_config)
+        self.device = torch.device(self.device_tag)
+        self.update_mask()
+        self.model = setup_model(**self.model_config, device=self.device)
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-6)
         self.initialised = True
 
@@ -154,10 +151,21 @@ class FlowModel:
         for idx, data in enumerate(loader):
             data = (data[0] + noise_scale * torch.randn_like(data[0])).to(self.device)
             self.optimiser.zero_grad()
-            loss = -model.log_prob(data).mean()
+            loss = -model.log_probs(data).mean()
             train_loss += loss.item()
             loss.backward()
             self.optimiser.step()
+
+            for module in model.modules():
+                if isinstance(module, BatchNormFlow):
+                    module.momentum = 0
+
+            with torch.no_grad():
+                model(loader.dataset.tensors[0].to(data.device))
+
+            for module in model.modules():
+                if isinstance(module, BatchNormFlow):
+                    module.momentum = 1
 
         return train_loss / len(loader)
 
@@ -176,7 +184,7 @@ class FlowModel:
         for idx, data in enumerate(loader):
             data = data[0].to(self.device)
             with torch.no_grad():
-                val_loss += -model.log_prob(data).mean().item()
+                val_loss += -model.log_probs(data).mean().item()
 
         return val_loss / len(loader)
 
@@ -267,49 +275,9 @@ class FlowModel:
         self.model.apply(weight_reset)
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-6)
 
-    def forward_and_log_prob(self, x):
-        """
-        Foward pass through the model
-        """
-        x = torch.Tensor(x.astype(np.float32)).to(self.device)
-        self.model.eval()
-        with torch.no_grad():
-            z, log_J = self.model._transform(x, None)
-            log_prob = self.model._distribution.log_prob(z, None)
-            log_prob += log_J
-
-        z = z.detach().cpu().numpy()
-        log_prob = log_prob.detach().cpu().numpy()
-        return z, log_prob
-
-    def sample_and_log_prob(self, N=1, z=None):
-        """
-        Generate samples from samples drawn from the distribution or
-        from provided noise samples
-
-        Returns
-        -------
-        samples, log_prob
-        """
-        self.model.eval()
-        if z is None:
-            with torch.no_grad():
-                x, log_prob = self.model.sample_and_log_prob(N)
-        else:
-            with torch.no_grad():
-                z = torch.Tensor(z.astype(np.float32)).to(self.device)
-                log_prob = self.model._distribution.log_prob(z)
-                x, log_J = self.model._transform.inverse(z, None)
-                log_prob -= log_J
-
-        x = x.detach().cpu().numpy()
-        log_prob = log_prob.detach().cpu().numpy()
-        return x, log_prob
-
     def __getstate__(self):
         state = self.__dict__.copy()
         state['initialised'] = False
         del state['optimiser']
         del state['model']
-        del state['model_config']
         return state

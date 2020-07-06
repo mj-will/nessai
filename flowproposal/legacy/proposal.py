@@ -3,91 +3,15 @@ import logging
 import numpy as np
 import torch
 
+from ..proposal import Proposal
 from .flowmodel import FlowModel, update_config
-from .livepoint import live_points_to_array, numpy_array_to_live_points, get_dtype
-from .plot import plot_live_points
+from ..livepoint import live_points_to_array, numpy_array_to_live_points, get_dtype
+from ..plot import plot_live_points
 
 logger = logging.getLogger(__name__)
 
-class Proposal:
 
-    def __init__(self, model):
-        self.model = model
-        self.populated = True
-        self.initialised = False
-        self.training_count = 0
-
-    def initialise(self):
-        """Initialise"""
-        self.initialised = True
-
-    def draw(self, old_param):
-        return None
-
-    def train(self, x, **kwargs):
-        logger.info('This proposal method cannot be trained')
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        del state['model']
-        return state
-
-
-class AnalyticProposal(Proposal):
-
-    def draw(self, old_param):
-        """
-        Draw directly from the analytic priors
-        """
-        return self.model.new_point()
-
-
-class RejectionProposal(Proposal):
-
-    def __init__(self, model, poolsize=1000):
-        super(RejectionProposal, self).__init__(model)
-        self.poolsize=poolsize
-        self.populated = False
-
-    def draw_proposal(self):
-        """Draw from the proposal distribution"""
-        return self.model.new_point(N=self.poolsize)
-
-    def log_proposal(self, x):
-        """Proposal probability"""
-        return self.model.log_prior(x)
-
-    def get_weights(self, x):
-        """Get weights for the samples"""
-        log_p = self.model.log_prior(x)
-        log_q = self.log_proposal(x)
-        log_w = log_p - log_q
-        log_w -= np.max(log_w)
-        return log_w
-
-    def populate(self):
-        """Populate"""
-        x = self.draw_proposal()
-        log_w = self.get_weights(x)
-        log_u = np.log(np.random.rand(self.poolsize))
-        indices = np.where((log_w - log_u) >= 0)[0]
-        self.samples = x[indices]
-        self.indices = np.random.permutation(self.samples.shape[0]).tolist()
-        self.populated = True
-
-    def draw(self, old_sample):
-        """Propose a new sample"""
-        if not self.populated:
-            self.populate()
-        # get new sample
-        index = self.indices.pop()
-        new_sample = self.samples[index]
-        if not self.indices:
-            self.populated = False
-        return new_sample
-
-
-class FlowProposal(Proposal):
+class CPNestFlowProposal(Proposal):
     """
     Object that handles training and proposal points
     """
@@ -95,11 +19,11 @@ class FlowProposal(Proposal):
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
             rescale_parameters=False, latent_prior='truncated_gaussian', fuzz=1.0,
             keep_samples=False, exact_poolsize=True, plot=True, fixed_radius=False,
-            rescale_min_max=False, drawsize=10000, **kwargs):
+            **kwargs):
         """
         Initialise
         """
-        super(FlowProposal, self).__init__(model)
+        super(CPNestFlowProposal, self).__init__(model)
         logger.debug('Initialising FlowProposal')
 
         self.flow = None
@@ -116,26 +40,27 @@ class FlowProposal(Proposal):
 
         self.output = output
         self.poolsize = poolsize
-        self.drawsize = drawsize
         self.fuzz = fuzz
         self.latent_prior = latent_prior
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
         self.exact_poolsize = exact_poolsize
-        self.rescale_min_max = rescale_min_max
 
         self.flow_config = update_config(flow_config)
 
         if self.latent_prior == 'truncated_gaussian':
-            from .utils import draw_truncated_gaussian
+            from ..utils import draw_truncated_gaussian
             self.draw_latent_prior = draw_truncated_gaussian
+            self.log_latent_prior = self._log_gaussian_prior
         if self.latent_prior == 'gaussian':
             logger.warning('Using a gaussian latent prior WITHOUT truncation')
-            from .utils import draw_gaussian
+            from ..utils import draw_gaussian
             self.draw_latent_prior = draw_gaussian
+            self.log_latent_prior = self._log_gaussian_prior
         elif self.latent_prior == 'uniform':
-            from .utils import draw_random_nsphere
+            from ..utils import draw_random_nsphere
             self.draw_latent_prior = draw_random_nsphere
+            self.log_latent_prior = self._log_uniform_prior
 
         if fixed_radius:
             try:
@@ -194,22 +119,8 @@ class FlowProposal(Proposal):
             for i, rn in enumerate(self.rescaled_names):
                 if rn in self.rescale_parameters:
                     self.rescaled_names[i] += '_prime'
-            if self.rescale_min_max:
-                raise NotImplementedError(('Rescaling with minimum and maximum '
-                    'of the last batch of training data is not implemnted yet '
-                    'because values outside [-1, 1] range produce errors when '
-                    'applying the inverse rescaling and the worst point '
-                    'produces a NaN radius'))
-                logger.info('Rescaling will use min and max of training data')
-                self.rescale = self._rescale_min_max
-                self.inverse_rescale = self._inverse_rescale_min_max
-                self._min = None
-                self._max = None
-            else:
-                logger.info('Rescaling will use prior bounds')
-                self.rescale = self._rescale_min_max
-                self.rescale = self._rescale_with_bounds
-                self.inverse_rescale = self._inverse_rescale_with_bounds
+            self.rescale = self._rescale_with_bounds
+            self.inverse_rescale = self._inverse_rescale_with_bounds
 
         logger.info(f'x space parameters: {self.names}')
         logger.info(f'parameters to rescale {self.rescale_parameters}')
@@ -222,7 +133,6 @@ class FlowProposal(Proposal):
         """
         self._min = {n: np.min(x[n]) for n in self.names}
         self._max = {n: np.max(x[n]) for n in self.names}
-        log_J = 0
         x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
         for n, rn in zip(self.names, self.rescaled_names):
             if n in self.rescale_parameters:
@@ -355,24 +265,52 @@ class FlowProposal(Proposal):
             x, log_J_rescale = self.rescale(x)
             log_J += log_J_rescale
         x = live_points_to_array(x, names=self.rescaled_names)
-        z, log_prob = self.flow.forward_and_log_prob(x)
-        return z, log_prob + log_J
+        x_tensor = torch.Tensor(x.astype(np.float32)).to(self.flow.device)
+        self.flow.model.eval()
+        with torch.no_grad():
+            z, log_J_tensor = self.flow.model(x_tensor, mode='direct')
+        z = z.detach().cpu().numpy().astype('f8')
+        log_J += log_J_tensor.detach().cpu().numpy().astype('f8').flatten()
+        return z, np.squeeze(log_J)
 
     def backward_pass(self, z, rescale=True):
         """A backwards pass from the model (latent -> real)"""
-        # Compute the log probability
-        x, log_prob = self.flow.sample_and_log_prob(z=z)
-        x = numpy_array_to_live_points(x.astype('f8'), self.rescaled_names)
-        # Apply rescaling in rescale=True
+        z_tensor = torch.Tensor(z.astype(np.float32)).to(self.flow.device)
+        self.flow.model.eval()
+        with torch.no_grad():
+            theta, log_J = self.flow.model(z_tensor, mode='inverse')
+        x = theta.detach().cpu().numpy().astype('f8')
+        log_J = log_J.detach().cpu().numpy().astype('f8').flatten()
+        x = numpy_array_to_live_points(x, self.rescaled_names)
         if rescale:
-            x, log_J = self.inverse_rescale(x)
-            # Include Jacobian for the rescaling
-            log_prob -= log_J
-        return x, log_prob
+            x, log_J_rescale = self.inverse_rescale(x)
+            log_J += log_J_rescale
+        return x, np.squeeze(log_J)
 
     def radius(self, z):
         """Calculate the radius of a latent_point"""
-        return np.max(np.sqrt(np.sum(z ** 2., axis=-1)))
+        return np.squeeze(np.sqrt(np.sum(z ** 2., axis=-1)))
+
+    def _log_uniform_prior(self, z):
+        """
+        Uniform prior for use with points drawn uniformly with an n-shpere
+        """
+        return 0.0
+
+    def _log_gaussian_prior(self, z):
+        """
+        Gaussian prior
+        """
+        return np.sum(-0.5 * (z ** 2.) - 0.5 * np.log(2. * np.pi), axis=-1)
+
+    def log_proposal_prob(self, z, log_J):
+        """
+        Compute the proposal probaility for a given point
+
+        """
+        # Since the Jacobian is for Z -> X, we use the inverse
+        log_q_z = self.log_latent_prior(z)
+        return log_q_z - log_J
 
     def log_prior(self, x):
         """
@@ -380,10 +318,11 @@ class FlowProposal(Proposal):
         """
         return self.model.log_prior(x)
 
-    def compute_weights(self, x, log_q):
+    def compute_weights(self, x, z, log_J):
         """
         Compute the weight for a given set of samples
         """
+        log_q = self.log_proposal_prob(z, log_J)
         log_p = self.log_prior(x)
         x['logP'] = log_p
         x['logL'] = log_q
@@ -403,37 +342,27 @@ class FlowProposal(Proposal):
         if not self.keep_samples or not self.indices:
             self.x = np.array([], dtype=self.x_dtype)
             self.z = np.empty([0, self.dims])
-        counter = 0
         while len(self.x) < N:
             while True:
-                z = self.draw_latent_prior(self.dims, r, self.drawsize, fuzz=self.fuzz)
+                z = self.draw_latent_prior(self.dims, r, N, fuzz=self.fuzz)
                 if z.size:
                     break
 
-            x, log_q = self.backward_pass(z, rescale=True)
-            # rescale given priors used initially, need for priors
-            log_w = self.compute_weights(x, log_q)
+            x, log_J = self.backward_pass(z, rescale=True)
+            # rescale given priors used intially, need for priors
+            log_w = self.compute_weights(x, z, log_J)
             log_u = np.log(np.random.rand(x.shape[0]))
             indices = np.where((log_w - log_u) >= 0)[0]
-
-            if not len(indices) or (len(indices) / self.drawsize < 0.001) :
+            if not len(indices):
                 logger.error('Rejection sampling produced zero samples!')
-                counter += 1
-                if counter == 10:
-                    r *= 0.99
-                    self.x = np.array([], dtype=self.x_dtype)
-                    self.z = np.empty([0, self.dims])
-                    logger.debug('Reducing radius by one percent to improve efficieny')
-            if len(indices) / self.drawsize < 0.01:
+                raise RuntimeError('Rejection sampling produced zero samples!')
+            if len(indices) / N < 0.01:
                 if warn:
-                    logger.warning(('Rejection sampling accepted less than 1 percent of samples!'
-                        f'({len(indices) / self.drawsize})'))
+                    logger.warning('Rejection sampling accepted less than 1 percent of samples!')
                     warn = False
-
             # array of indices to take random draws from
             self.x = np.concatenate([self.x, x[indices]], axis=0)
             self.z = np.concatenate([self.z, z[indices]], axis=0)
-            logger.debug(f'Accepted {self.x.size} / {N} points')
 
         if self.exact_poolsize:
             self.x = self.x[:N]
@@ -446,7 +375,6 @@ class FlowProposal(Proposal):
         self.samples = self.x[self.model.names + ['logP', 'logL']]
 
         self.indices = np.random.permutation(self.samples.size).tolist()
-        self.populated_count += 1
         self.populated = True
         logger.debug(f'Proposal populated with {len(self.indices)} samples')
 
@@ -463,6 +391,7 @@ class FlowProposal(Proposal):
         if not self.populated:
             while not self.populated:
                 self.populate(worst_point, N=self.poolsize)
+            self.populated_count += 1
         # new sample is drawn randomly from proposed points
         # popping from right end is faster
         index = self.indices.pop()
@@ -472,21 +401,3 @@ class FlowProposal(Proposal):
             logger.debug('Proposal pool is empty')
         # make live point and return
         return new_sample
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        state['initialised'] = False
-        state['weights_file'] = state['flow'].weights_file
-        # user provides model and config for resume
-        # flow can be reconstructed from resume
-        del state['model']
-        del state['flow_config']
-        del state['flow']
-        del state['x']
-        del state['z']
-        del state['indices']
-        del state['samples']
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__ = state
