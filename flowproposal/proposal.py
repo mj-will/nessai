@@ -795,9 +795,10 @@ class FlowProposal(Proposal):
         if not self.keep_samples or not self.indices:
             self.x = np.array([], dtype=self.x_dtype)
             self.z = np.empty([0, self.dims])
+        counter = 0
         while len(self.x) < N:
             while True:
-                z = self.draw_latent_prior(self.dims, r, 10 * N, fuzz=self.fuzz)
+                z = self.draw_latent_prior(self.dims, r, N, fuzz=self.fuzz)
                 if z.size:
                     break
 
@@ -806,17 +807,24 @@ class FlowProposal(Proposal):
             log_w = self.compute_weights(x, log_q)
             log_u = np.log(np.random.rand(x.shape[0]))
             indices = np.where((log_w - log_u) >= 0)[0]
-            if not len(indices):
+
+            if not len(indices) or (len(indices) / N < 0.001) :
                 logger.error('Rejection sampling produced zero samples!')
-                raise RuntimeError('Rejection sampling produced zero samples!')
+                counterer += 1
+                if counter == 10:
+                    r *= 0.99
+                    self.x = np.array([], dtype=self.x_dtype)
+                    self.z = np.empty([0, self.dims])
+                    logger.debug('Reducing radius by one percent to improve efficieny')
             if len(indices) / N < 0.01:
                 if warn:
-                    logger.warning('Rejection sampling accepted less than 1 percent of samples!')
+                    logger.warning(('Rejection sampling accepted less than 1 percent of samples!'
+                        f'({len(indices) / N})'))
                     warn = False
-            else:
-                # array of indices to take random draws from
-                self.x = np.concatenate([self.x, x[indices]], axis=0)
-                self.z = np.concatenate([self.z, z[indices]], axis=0)
+
+            # array of indices to take random draws from
+            self.x = np.concatenate([self.x, x[indices]], axis=0)
+            self.z = np.concatenate([self.z, z[indices]], axis=0)
             logger.debug(f'Accepted {self.x.size} / {N} points')
 
         if self.exact_poolsize:
