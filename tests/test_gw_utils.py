@@ -6,10 +6,12 @@ def test_sky_to_cartesian_to_sky():
     """
     Test the conversion from ra, dec and dl to x, y, z and back
     """
-    sky = np.random.uniform((0, -np.pi / 2, 100), (2 * np.pi, np.pi / 2, 100000))
+    sky = np.random.uniform((0, -np.pi / 2, 100),
+            (2 * np.pi, np.pi / 2, 10000), [1000, 3]).T
     cart = utils.sky_to_cartesian(*sky)
     sky_out = utils.cartesian_to_sky(*cart[:3])
     assert_allclose(sky, sky_out[:3])
+    assert_allclose(cart[3], -sky_out[3])
 
 
 def test_cartesian_to_sky_to_cartesian():
@@ -21,3 +23,4 @@ def test_cartesian_to_sky_to_cartesian():
     sky = utils.cartesian_to_sky(*cart)
     cart_out = utils.sky_to_cartesian(*sky[:3])
     assert_allclose(cart, cart_out[:3])
+    assert_allclose(sky[3], -cart_out[3])
