@@ -18,7 +18,7 @@ def update_config(d):
     Update the default dictionary for a trainer
     """
     default_model = dict(n_inputs=None, n_neurons=32, n_blocks=4, n_layers=2,
-            ftype='RealNVP', device_tag='cpu', kwargs={})
+            ftype='RealNVP', device_tag='cpu', mask=None, kwargs={})
 
     if 'model_config' in d.keys():
         default_model.update(d['model_config'])
@@ -109,7 +109,7 @@ class FlowModel:
         """
         Initialise the model and optimiser
         """
-        #self.update_mask()
+        self.update_mask()
         self.model_config = update_config(self.model_config)
         self.model, self.device = setup_model(self.model_config)
         self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=1e-6)
@@ -247,6 +247,7 @@ class FlowModel:
 
         Model is loaded in evaluation mode (model.eval())
         """
+        self.weights_file = weights_file
         if not self.initialised:
             self.initialise()
         self.model.load_state_dict(torch.load(weights_file))

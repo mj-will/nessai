@@ -1,9 +1,11 @@
 import os
+import json
 import logging
 import numpy as np
 
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
+from .utils import NumpyEncoder
 
 
 logger = logging.getLogger(__name__)
@@ -22,17 +24,13 @@ class FlowSampler:
             try:
                 self.ns = NestedSampler.resume(output +  resume_file, model,
                         kwargs['flow_config'], weights_file)
-            except EOFError:
-                logger.error('Could not resume from pickle file')
-                logger.error('Restarting run')
-                self.ns = NestedSampler(model, output=output, resume_file=resume_file,
-                        **kwargs)
             except Exception as e:
                 raise RuntimeError(f'Could not resume sampler with error: {e}')
         else:
             self.ns = NestedSampler(model, output=output, resume_file=resume_file,
                     **kwargs)
 
+        self.save_kwargs(kwargs)
 
     def run(self, resume=False, plot=True, save=True):
         """
@@ -66,4 +64,19 @@ class FlowSampler:
                     filename=f'{self.output}/insertion_indices.png')
 
             self.ns.state.plot(f'{self.output}/logXlogL.png')
+
+    def save_kwargs(self, kwargs):
+        """
+        Save the key-word arguments used
+        """
+        d = kwargs.copy()
+        with open(f'{self.output}/config.json', 'w') as wf:
+            try:
+                json.dump(d, wf, indent=4, cls=NumpyEncoder)
+            except TypeError:
+                d['flow_class'] = str(d['flow_class'])
+                json.dump(d, wf, indent=4, cls=NumpyEncoder)
+            except Exception as e:
+                raise e
+
 

@@ -477,15 +477,16 @@ class FlowProposal(Proposal):
         state = self.__dict__.copy()
         state['initialised'] = False
         state['weights_file'] = state['flow'].weights_file
+        # Mask may be generate via permutation, so must be saved
+        state['mask']  = state['flow'].model_config['mask']
         # user provides model and config for resume
         # flow can be reconstructed from resume
         del state['model']
         del state['flow_config']
         del state['flow']
-        del state['x']
-        del state['z']
-        del state['indices']
-        del state['samples']
+        for a in ['x', 'z', 'indices', 'samples']:
+            if a in state:
+                del state[a]
         return state
 
     def __setstate__(self, state):
