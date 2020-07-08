@@ -255,9 +255,10 @@ class FlowModel:
 
         Model is loaded in evaluation mode (model.eval())
         """
+        self.weights_file = weights_file
         if not self.initialised:
             self.initialise()
-        self.model.load_state_dict(torch.load(weights_file))
+        self.model.load_state_dict(torch.load(self.weights_file))
         self.model.eval()
 
     def reload_weights(self, weights_file):
