@@ -135,7 +135,7 @@ class NestedSampler:
                  cooldown=100, memory=False, acceptance_threshold=0.05, analytic_priors = False,
                  maximum_uninformed=1000, training_frequency=1000, uninformed_proposal=None,
                  reset_weights=True, checkpointing=True, resume_file=None,
-                 uninformed_proposal_kwargs={}, seed=None, plot=True,
+                 uninformed_proposal_kwargs={}, seed=None, plot=True, force_train=True,
                  **kwargs):
         """
         Initialise all necessary arguments and
@@ -184,6 +184,7 @@ class NestedSampler:
 
         self.acceptance_threshold = acceptance_threshold
         self.train_on_empty = train_on_empty
+        self.force_train = True
         self.cooldown = cooldown
         self.memory = memory
         self.reset_weights = float(reset_weights)
@@ -267,7 +268,8 @@ class NestedSampler:
         """
         Writes the nested samples to a text file
         """
-        np.savetxt(self.output_file, self.nested_samples,
+        ns = np.array(self.nested_samples)
+        np.savetxt(self.output_file, ns,
                 header='\t'.join(self.live_points.dtype.names))
 
     def write_evidence_to_file(self):
@@ -459,7 +461,6 @@ class NestedSampler:
         if all(flags):
             self.initialised = True
 
-
     @property
     def mean_acceptance(self):
         """
@@ -497,6 +498,8 @@ class NestedSampler:
         elif not self.proposal.populated:
             if self.train_on_empty:
                 train = True
+                if self.force_train:
+                    force = True
                 logger.debug('Training flow (proposal empty)')
 
         elif not (self.iteration - self.last_updated) % self.training_frequency:
@@ -578,7 +581,8 @@ class NestedSampler:
         for i, p in enumerate(self.live_points):
             self.state.increment(p['logL'], nlive=self.nlive-i)
             self.nested_samples.append(p)
-        self.nested_samples = np.array(self.nested_samples)
+
+        #self.nested_samples_numpy = np.array(self.nested_samples)
 
         # Refine evidence estimate
         self.state.finalise()
@@ -593,11 +597,14 @@ class NestedSampler:
 
         self.check_insertion_indices(rolling=False)
 
+        if self.checkpointing:
+            self.checkpoint()
+
         logger.info(('Total training time: '
             f'{datetime.timedelta(seconds=self.training_time)}'))
         logger.info(f'Total likelihood evaluations: {self.likelihood_calls:3d}')
 
-        return self.state.logZ, self.nested_samples
+        return self.state.logZ, np.array(self.nested_samples)
 
     @classmethod
     def resume(cls, filename, model, flow_config={}, weights_file=None):
@@ -612,6 +619,8 @@ class NestedSampler:
         obj._uninformed_proposal.model = model
         obj._flow_proposal.model = model
         obj._flow_proposal.flow_config = flow_config
+        if (m := obj._flow_proposal.mask is not None):
+            obj._flow_proposal.flow_config['mask'] = np.array(m)
         obj._flow_proposal.initialise()
         if weights_file is None:
             weights_file = obj._flow_proposal.weights_file
