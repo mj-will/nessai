@@ -1,3 +1,4 @@
+import json
 import logging
 import numpy as np
 from scipy.stats import chi
@@ -145,3 +146,10 @@ def setup_logger(output=None, label=None, log_level='INFO'):
         handler.setLevel(level)
 
     return logger
+
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
