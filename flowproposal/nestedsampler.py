@@ -619,8 +619,11 @@ class NestedSampler:
         obj._uninformed_proposal.model = model
         obj._flow_proposal.model = model
         obj._flow_proposal.flow_config = flow_config
-        if (m := obj._flow_proposal.mask is not None):
-            obj._flow_proposal.flow_config['mask'] = np.array(m)
+        print(flow_config)
+        if (m := obj._flow_proposal.mask) is not None:
+            if isinstance(m, list):
+                m = np.array(m)
+            obj._flow_proposal.flow_config['model_config']['kwargs']['mask'] = m
         obj._flow_proposal.initialise()
         if weights_file is None:
             weights_file = obj._flow_proposal.weights_file

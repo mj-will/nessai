@@ -8,7 +8,8 @@ import torch
 import torch.nn as nn
 
 from .flows import setup_model
-from .plot import plot_loss, plot_inputs, plot_samples
+from .plot import plot_loss
+from .utils import NumpyEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ def update_config(d):
     Update the default dictionary for a trainer
     """
     default_model = dict(n_inputs=None, n_neurons=32, n_blocks=4, n_layers=2,
-            ftype='RealNVP', device_tag='cpu', mask=None, kwargs={})
+            ftype='RealNVP', device_tag='cpu', kwargs={})
 
     if 'model_config' in d.keys():
         default_model.update(d['model_config'])
@@ -71,7 +72,7 @@ class FlowModel:
             config['model_config']['flow'] = str(config['model_config']['flow'])
 
         with open(output_file, "w") as f:
-            json.dump(config, f, indent=4)
+            json.dump(config, f, indent=4, cls=NumpyEncoder)
 
     def _setup_from_input_dict(self, config):
         """
@@ -87,23 +88,22 @@ class FlowModel:
         """
         Get a the mask
         """
-        if self.model_config['mask'] is None:
-            if self.model_config['ftype'] == 'realnvp_mixer':
+        if 'mask' in self.model_config['kwargs'] and \
+                self.model_config['kwargs']['mask'] is not None:
+            if 'perm' in self.model_config['kwargs']['mask']:
                 if self.model_config['n_blocks'] % 2:
                     raise RuntimeError('Number of blocks must be even to use mixer')
-                masks = np.zeros([self.model_config['n_blocks'],
+                masks = np.ones([self.model_config['n_blocks'],
                     self.model_config['n_inputs']])
 
-                masks[0] = np.mod(np.arange(0, masks.shape[1]), 2)
-                masks[1] = 1 - masks[0]
+                masks[0, ::2] = -1
+                masks[1] = masks[0] * -1
                 for n in range(2, masks.shape[0], 2):
                     masks[n] = np.random.permutation(masks[n-2])
-                    masks[n + 1] = 1 - masks[n]
+                    masks[n + 1] = masks[n] * -1
 
-                logger.debug(f'Made mask: {masks}')
-                self.model_config['mask'] = masks
-        else:
-            logger.debug('Mask already set')
+                self.model_config['kwargs']['mask'] = masks
+            logger.debug(f"Mask : {self.model_config['kwargs']['mask']}")
 
     def initialise(self):
         """
