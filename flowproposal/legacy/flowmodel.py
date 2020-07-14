@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 
 from .flows import BatchNormFlow, setup_model
-from ..plot import plot_loss, plot_inputs, plot_samples
+from ..plot import plot_loss
 
 logger = logging.getLogger(__name__)
 

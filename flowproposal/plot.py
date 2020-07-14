@@ -10,18 +10,20 @@ pairplot_kwargs = dict(corner=True, kind='scatter',
         diag_kws=dict(histtype='step', bins=50, lw=1.5),
         plot_kws=dict(s=1.0, edgecolor=None))
 
-def plot_live_points(live_points, filename=None, bounds=None, **kwargs):
+def plot_live_points(live_points, filename=None, bounds=None, c=None, **kwargs):
     """
     Plot a set of live points
     """
     pairplot_kwargs.update(kwargs)
 
     df = pd.DataFrame(live_points)
-    fig = sns.pairplot(df, **pairplot_kwargs)
-
+    if c is not None:
+        df['c'] = c
+        fig = sns.pairplot(df, hue='c', diag_kind=None, **pairplot_kwargs)
+    else:
+        fig = sns.pairplot(df, **pairplot_kwargs)
 
     if bounds is not None:
-        n = len(list(bounds.keys()))
         for i, v in enumerate(bounds.values()):
             fig.axes[i, i].axvline(v[0], ls=':', alpha=0.5, color='k')
             fig.axes[i, i].axvline(v[1], ls=':', alpha=0.5, color='k')
@@ -29,6 +31,23 @@ def plot_live_points(live_points, filename=None, bounds=None, **kwargs):
     if filename is not None:
         fig.savefig(filename)
     plt.close()
+
+
+def plot_posterior(live_points, filename=None, **kwargs):
+    """
+    Plot a set of live points
+    """
+    pairplot_kwargs.update(kwargs)
+
+    df = pd.DataFrame(live_points)
+    fig = sns.PairGrid(df)
+    fig.map_diag(sns.kdeplot)
+    fig.map_offdiag(sns.kdeplot, n_levels=6);
+
+    if filename is not None:
+        fig.savefig(filename)
+    plt.close()
+
 
 def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
         plot_breakdown=True):
@@ -96,43 +115,6 @@ def plot_chain(x,name=None,filename=None):
         plt.savefig(filename,bbox_inches='tight')
     plt.close(fig)
 
-def plot_proposal_stats(path):
-    """
-    Plot acceptance and number of proposed points for each chain
-    """
-    import glob
-    files = glob.glob(path + 'proposal*.dat')
-    chains = []
-    for f in files:
-        chains.append(np.loadtxt(f))
-
-    fig = plt.figure(figsize=(10,6))
-    for i, c in enumerate(chains):
-        plt.plot((c[:, 2] / c[:, 1]), '.', label='Chain {}'.format(i))
-    plt.xlabel('Iteration')
-    plt.ylabel('Acceptance ratio')
-    plt.legend()
-    plt.savefig(path + 'proposal_acceptance.png' ,bbox_inches='tight')
-    plt.close(fig)
-
-    fig = plt.figure(figsize=(10,6))
-    for i, c in enumerate(chains):
-        plt.plot(c[:, 1], '.', label='Chain {} proposed'.format(i))
-        plt.plot(c[:, 2], '.', label='Chain {} accepted'.format(i))
-    plt.xlabel('Iteration')
-    plt.ylabel('Count')
-    plt.legend()
-    plt.savefig(path + 'proposal_counts.png' ,bbox_inches='tight')
-    plt.close(fig)
-
-    fig = plt.figure(figsize=(10,6))
-    for i, c in enumerate(chains):
-        plt.plot(np.cumsum(c[:, 1]), label='Chain {}'.format(i))
-    plt.xlabel('Iteration')
-    plt.ylabel('Count')
-    plt.legend()
-    plt.savefig(path + 'proposal_likelihood_evalutions.png', bbox_inches='tight')
-    plt.close(fig)
 
 def plot_flows(model, n_inputs, N=1000, inputs=None, cond_inputs=None, mode='inverse', output='./'):
     """
@@ -210,106 +192,3 @@ def plot_loss(epoch, history, output='./'):
     plt.close('all')
 
 
-def plot_samples(z, samples, output='./', filename='output_samples.png', names=None, c=None):
-    """
-    Plot the samples in the latent space and parameter space
-    """
-    N = samples.shape[0]
-    d = samples.shape[-1]
-
-    latent = True
-    if z.shape[-1] != d:
-        print('Not plotting latent space')
-        latent = False
-
-    if names is None:
-        names = list(range(d))
-    latent_names =  [f'z_{n}' for n in range(d)]
-
-    if c is None:
-        c = 'tab:blue'
-
-    samples = samples[np.isfinite(samples).all(axis=1)]
-
-    fig, ax = plt.subplots(d, d, figsize=(d*3, d*3))
-    if d >= 2:
-        for i in range(d):
-            for j in range(d):
-                if j < i:
-                    ax[i, j].scatter(samples[:,j], samples[:,i], c=c, s=1.)
-                    ax[i, j].set_xlabel(names[j])
-                    ax[i, j].set_ylabel(names[i])
-                elif j == i:
-                    ax[i, j].hist(samples[:, j], int(np.sqrt(N)), histtype='step')
-                    ax[i, j].set_xlabel(names[j])
-                else:
-                    if latent:
-                        ax[i, j].scatter(z[:,j], z[:,i], c=c, s=1.)
-                        ax[i, j].set_xlabel(latent_names[j])
-                        ax[i, j].set_ylabel(latent_names[i])
-                    else:
-                        ax[i, j].axis('off')
-    else:
-        ax.hist(samples, int(np.sqrt(N)), histtype='step')
-
-    plt.tight_layout()
-    fig.savefig(output + filename)
-    plt.close('all')
-
-def plot_inputs(samples, output='./', filename='input_samples.png', names=None):
-    """
-    Plot n-dimensional input samples
-    """
-    N = samples.shape[0]
-    d = samples.shape[-1]
-    if names is None:
-        names = list(range(d))
-
-    fig, ax = plt.subplots(d, d, figsize=(d*3, d*3))
-    if d > 1:
-        for i in range(d):
-            for j in range(d):
-                if j < i:
-                    ax[i, j].plot(samples[:,j], samples[:,i], marker=',', linestyle='')
-                    ax[i, j].set_xlabel(names[j])
-                    ax[i, j].set_ylabel(names[i])
-                elif j == i:
-                    ax[i, j].hist(samples[:, j], int(np.sqrt(N)), histtype='step')
-                    ax[i, j].set_xlabel(names[j])
-                else:
-                    ax[i, j].set_axis_off()
-    else:
-        ax.hist(samples, int(np.sqrt(N)), histtype='step')
-
-    plt.tight_layout()
-    fig.savefig(output + filename ,bbox_inches='tight')
-    plt.close('all')
-
-def plot_comparison(truth, samples, output='./', filename='sample_comparison.png'):
-    """
-    Plot the samples in the latent space and parameter space
-    """
-    d = samples.shape[-1]
-
-    samples = samples[np.isfinite(samples).all(axis=1)]
-
-    xs = [truth, samples]
-    labels = ['reference', 'flows']
-
-    fig, ax = plt.subplots(d, d, figsize=(12, 12))
-    if d > 1:
-        for i in range(d):
-            for j in range(d):
-                for x, l in zip(xs, labels):
-                    if j < i:
-                        ax[i, j].plot(x[:,j], x[:,i], marker=',', linestyle='')
-                    elif j == i:
-                        ax[i, j].hist(x[:, j], int(np.sqrt(samples.shape[0])), histtype='step', lw=2.0)
-                    else:
-                        ax[i, j].axis('off')
-    else:
-        for x, l in zip(xs, labels):
-            ax.hist(x, int(np.sqrt(samples.shape[0])), histtype='step')
-    plt.tight_layout()
-    fig.savefig(output + filename)
-    plt.close('all')
