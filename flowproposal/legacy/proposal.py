@@ -58,8 +58,8 @@ class CPNestFlowProposal(Proposal):
             self.draw_latent_prior = draw_gaussian
             self.log_latent_prior = self._log_gaussian_prior
         elif self.latent_prior == 'uniform':
-            from ..utils import draw_random_nsphere
-            self.draw_latent_prior = draw_random_nsphere
+            from ..utils import draw_nsphere
+            self.draw_latent_prior = draw_nsphere
             self.log_latent_prior = self._log_uniform_prior
 
         if fixed_radius:
