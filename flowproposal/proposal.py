@@ -134,8 +134,8 @@ class FlowProposal(Proposal):
             from .utils import draw_gaussian
             self.draw_latent_prior = draw_gaussian
         elif self.latent_prior == 'uniform':
-            from .utils import draw_random_nsphere
-            self.draw_latent_prior = draw_random_nsphere
+            from .utils import draw_nsphere
+            self.draw_latent_prior = draw_nsphere
 
         if fixed_radius:
             try:
@@ -355,6 +355,8 @@ class FlowProposal(Proposal):
             x, log_J_rescale = self.rescale(x)
             log_J += log_J_rescale
         x = live_points_to_array(x, names=self.rescaled_names)
+        if x.ndim == 1:
+            x = x[np.newaxis, :]
         z, log_prob = self.flow.forward_and_log_prob(x)
         return z, log_prob + log_J
 
@@ -406,7 +408,8 @@ class FlowProposal(Proposal):
         counter = 0
         while len(self.x) < N:
             while True:
-                z = self.draw_latent_prior(self.dims, r, self.drawsize, fuzz=self.fuzz)
+                z = self.draw_latent_prior(self.dims, r=r, N=self.drawsize,
+                        fuzz=self.fuzz)
                 if z.size:
                     break
 
@@ -478,7 +481,10 @@ class FlowProposal(Proposal):
         state['initialised'] = False
         state['weights_file'] = state['flow'].weights_file
         # Mask may be generate via permutation, so must be saved
-        state['mask']  = state['flow'].model_config['mask']
+        if 'mask' in state['flow'].model_config['kwargs']:
+            state['mask']  = state['flow'].model_config['kwargs']['mask']
+        else:
+            state['mask'] = None
         # user provides model and config for resume
         # flow can be reconstructed from resume
         del state['model']

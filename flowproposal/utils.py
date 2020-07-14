@@ -6,37 +6,101 @@ from scipy.stats import chi
 logger = logging.getLogger(__name__)
 
 
-def random_surface_nsphere(dims, r=1, N=1000):
+def draw_surface_nsphere(dims, r=1, N=1000):
     """
-    Draw N points uniformly on an n-sphere of radius r
+    Draw N points uniformly from  n-1 sphere of radius r using Marsaglia's
+    algorithm. E.g for 3 dimensions returns points on a 'regular' sphere.
 
     See Marsaglia (1972)
+
+    Parameters
+    ----------
+    dims : int
+        Dimension of the n-sphere
+    r : float, optional
+        Radius of the n-sphere, if specified it is used to rescale the samples
+    N : int, optional
+        Number of samples to draw
+
+    Returns
+    -------
+    array_like
+        Array of samples with shape (N, dims)
     """
     x = np.random.randn(N, dims)
-    R = np.sqrt(np.sum(x ** 2., axis=0))
+    R = np.sqrt(np.sum(x ** 2., axis=1))[:, np.newaxis]
     z = x / R
-    return r * z.T
+    return r * z
 
 
-def draw_random_nsphere(dims, r=1, N=1000, fuzz=1.0):
+def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
     """
     Draw N points uniformly within an n-sphere of radius r
-    """
-    x = random_surface_nsphere(dims, r=1, N=N)
-    R = np.random.uniform(0, 1, N)
-    z = R ** (1 / self.dims) * x.T
-    return fuzz * r * z.T
 
-def draw_gaussian(dims, r, N=1000, fuzz=1.0):
+    Parameters
+    ----------
+    dims : int
+        Dimension of the n-sphere
+    r : float, optional
+        Radius of the n-ball
+    N : int, optional
+        Number of samples to draw
+    fuzz : float, optional
+        Fuzz factor by which to increase the radius of the n-ball
+
+    Returns
+    -------
+    array_like
+        Array of samples with shape (N, dims)
     """
-    Draw N points from a gaussian
+    x = draw_surface_nsphere(dims, r=1, N=N)
+    R = np.random.uniform(0, 1, (N, 1))
+    z = R ** (1 / dims) * x
+    return fuzz * r * z
+
+def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
+    """
+    Wrapper for numpy.random.randn that deals with extra input parameters
+    r and fuzz
+
+    Parameters
+    ----------
+    dims : int
+        Dimension of the n-sphere
+    r : float, optional
+        Radius of the n-ball
+    N : int, ignored
+        Number of samples to draw
+    fuzz : float, ignored
+        Fuzz factor by which to increase the radius of the n-ball
+
+    Returns
+    -------
+    array_like
+        Array of samples with shape (N, dims)
     """
     return np.random.randn(N, dims)
 
 
 def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0):
     """
-    Draw N points from a truncated gaussian with a given radius sqaured
+    Draw N points from a truncated gaussian with a given a radius
+
+    Parameters
+    ----------
+    dims : int
+        Dimension of the n-sphere
+    r : float
+        Radius of the truncated Gaussian
+    N : int, ignored
+        Number of samples to draw
+    fuzz : float, ignored
+        Fuzz factor by which to increase the radius of the truncated Gaussian
+
+    Returns
+    -------
+    array_like
+        Array of samples with shape (N, dims)
     """
     r *= fuzz
     p = np.empty([0])
@@ -51,6 +115,15 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0):
 def replace_in_list(target_list, targets, replacements):
     """
     Replace (in place) an entry in a list with a given element
+
+    Parameters
+    ----------
+    target_list : list
+        List to update
+    targets : list
+        List of items to update
+    replacements : list
+        List of replacement items
     """
     if not isinstance(targets, list):
         if isinstance(targets, int):
@@ -73,30 +146,86 @@ def replace_in_list(target_list, targets, replacements):
 
 def rescale_zero_to_one(x, xmin, xmax):
     """
-    Rescale a value to 0 to 1 and return logJ
+    Rescale a value to 0 to 1
+
+    Parameters
+    ----------
+    x : array_like
+        Array of values to rescale
+    xmin, xmax : floats
+        Minimum and maximum values to use for rescaling
+
+    Returns
+    -------
+    array_like
+        Array of rescaled values
+    array_like
+        Array of log determinants of Jacobians for each sample
     """
     return (x - xmin ) / (xmax - xmin), -np.log(xmax - xmin)
 
 
-def inverse_rescale_zero_to_one(y, xmin, xmax):
+def inverse_rescale_zero_to_one(x, xmin, xmax):
     """
     Rescale from 0 to 1 to xmin to xmax
+
+    Parameters
+    ----------
+    x : array_like
+        Array of values to rescale
+    xmin, xmax : floats
+        Minimum and maximum values to use for rescaling
+
+    Returns
+    -------
+    array_like
+        Array of rescaled values
+    array_like
+        Array of log determinants of Jacobians for each sample
     """
-    return (xmax - xmin) * y + xmin, np.log(xmax - xmin)
+    return (xmax - xmin) * x + xmin, np.log(xmax - xmin)
 
 
 def rescale_minus_one_to_one(x, xmin, xmax):
     """
     Rescale a value to -1 to 1
+
+    Parameters
+    ----------
+    x : array_like
+        Array of values to rescale
+    xmin, xmax : floats
+        Minimum and maximum values to use for rescaling
+
+    Returns
+    -------
+    array_like
+        Array of rescaled values
+    array_like
+        Array of log determinants of Jacobians for each sample
     """
     return (2. * (x - xmin ) / (xmax - xmin)) - 1, np.log(2) - np.log(xmax - xmin)
 
 
-def inverse_rescale_minus_one_to_one(y, xmin, xmax):
+def inverse_rescale_minus_one_to_one(x, xmin, xmax):
     """
     Rescale from -1 to 1 to xmin to xmax
+
+    Parameters
+    ----------
+    x : array_like
+        Array of values to rescale
+    xmin, xmax : floats
+        Minimum and maximum values to use for rescaling
+
+    Returns
+    -------
+    array_like
+        Array of rescaled values
+    array_like
+        Array of log determinants of Jacobians for each sample
     """
-    return (xmax - xmin) * ((y + 1) / 2.) + xmin, np.log(xmax - xmin) - np.log(2)
+    return (xmax - xmin) * ((x + 1) / 2.) + xmin, np.log(xmax - xmin) - np.log(2)
 
 
 def setup_logger(output=None, label=None, log_level='INFO'):
@@ -105,6 +234,14 @@ def setup_logger(output=None, label=None, log_level='INFO'):
 
     Based on the implementation in Bilby: https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
 
+    Parameters
+    ----------
+    output : str, optional
+        Path of to output directory
+    label : str, optional
+        Label for this instance of the logger
+    log_level: {'ERROR', 'WARNING', 'INFO', 'DEBUG'}
+        Level of logging parsed to logger
     """
     import os
     if type(log_level) is str:
@@ -149,6 +286,7 @@ def setup_logger(output=None, label=None, log_level='INFO'):
 
 
 class NumpyEncoder(json.JSONEncoder):
+    """Class to encode numpy arrays when saving as json"""
     def default(self, obj):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
