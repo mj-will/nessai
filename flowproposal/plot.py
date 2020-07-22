@@ -191,4 +191,19 @@ def plot_loss(epoch, history, output='./'):
     fig.savefig(output + 'loss.png')
     plt.close('all')
 
+def plot_acceptance(*acceptance, filename=None, labels=None):
 
+    if labels is None:
+        labels = [f'acceptance_{i}' for i in len(acceptance)]
+
+    fig = plt.figure()
+    x = np.arange(len(acceptance[0]))
+    for a, l in zip(acceptance, labels):
+        plt.plot(a, 'o', label=l)
+    plt.xticks(x[::2])
+    plt.ylabel('Acceptance')
+    plt.legend(frameon=False)
+    plt.grid()
+    if filename is not None:
+        plt.savefig(filename,bbox_inches='tight')
+    plt.close(fig)
