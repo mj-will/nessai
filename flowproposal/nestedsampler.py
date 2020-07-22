@@ -339,7 +339,8 @@ class NestedSampler:
                 newparam['logP'] = self.model.log_prior(newparam)
 
                 if newparam['logP'] != -np.inf:
-                    newparam['logL'] = self.log_likelihood(newparam)
+                    if not newparam['logL']:
+                        newparam['logL'] = self.log_likelihood(newparam)
                     if newparam['logL'] > self.logLmin:
                         self.logLmax= max(self.logLmax, newparam['logL'])
                         oldparam = newparam.copy()
@@ -475,7 +476,7 @@ class NestedSampler:
         Force will overide the cooldown mechanism, rejected will not
         """
         if self.uninformed_sampling:
-            if (self.mean_acceptance < self.acceptance_threshold) or \
+            if (self.mean_acceptance < 10 * self.acceptance_threshold) or \
                     (self.iteration >= self.maximum_uninformed):
                 logger.warning('Switching to FlowProposal')
                 self.proposal = self._flow_proposal
@@ -489,22 +490,25 @@ class NestedSampler:
         if force:
             train = True
             logger.debug('Training flow (force)')
-        elif self.mean_block_acceptance < self.acceptance_threshold:
+        elif self.mean_block_acceptance < self.acceptance_threshold and \
+                self.iteration - self.last_updated < self.cooldown:
             train = True
             logger.debug('Training flow (acceptance)')
         elif rejected and self.mean_block_acceptance < self.acceptance_threshold:
             logger.debug('Training flow (rejected + acceptance)')
             train = True
-        elif not self.proposal.populated:
+
+        elif not (self.iteration - self.last_updated) % self.training_frequency:
+            train = True
+            logger.debug('Training flow (iteration)')
+
+        # Check for empty should be independent of other checks
+        if not self.proposal.populated:
             if self.train_on_empty:
                 train = True
                 if self.force_train:
                     force = True
                 logger.debug('Training flow (proposal empty)')
-
-        elif not (self.iteration - self.last_updated) % self.training_frequency:
-            train = True
-            logger.debug('Training flow (iteration)')
 
         if train:
             if self.iteration - self.last_updated < self.cooldown and not force:
