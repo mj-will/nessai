@@ -58,6 +58,13 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
     z = R ** (1 / dims) * x
     return fuzz * r * z
 
+
+def draw_uniform(dims, r=1, N=1000, fuzz=1.0):
+    """
+    Draw
+    """
+    return np.random.uniform(0, 1, (N, dims))
+
 def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
     """
     Wrapper for numpy.random.randn that deals with extra input parameters
