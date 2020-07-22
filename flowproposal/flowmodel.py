@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from .flows import setup_model
+from .flows import setup_model, weight_reset
 from .plot import plot_loss
 from .utils import NumpyEncoder
 
@@ -37,15 +37,6 @@ def update_config(d):
         default['model_config'] = default_model
 
     return default
-
-
-def weight_reset(m):
-    """
-    Reset parameters of a given model
-    """
-    layers = [nn.Conv1d, nn.Conv2d, nn.Linear, nn.BatchNorm1d]
-    if any(isinstance(m, l) for l in layers):
-        m.reset_parameters()
 
 
 class FlowModel:
@@ -197,6 +188,7 @@ class FlowModel:
         if val_size is None:
             val_size = self.val_size
 
+
         train_loader, val_loader = self._prep_data(samples, val_size=val_size)
 
         # train
@@ -298,7 +290,8 @@ class FlowModel:
                 x, log_prob = self.model.sample_and_log_prob(N)
         else:
             with torch.no_grad():
-                z = torch.Tensor(z.astype(np.float32)).to(self.device)
+                if isinstance(z, np.ndarray):
+                    z = torch.Tensor(z.astype(np.float32)).to(self.device)
                 log_prob = self.model._distribution.log_prob(z)
                 x, log_J = self.model._transform.inverse(z, None)
                 log_prob -= log_J
