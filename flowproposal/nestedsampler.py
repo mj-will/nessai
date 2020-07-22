@@ -9,6 +9,11 @@ from collections import deque
 from scipy.stats import ksone
 import torch
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set()
+sns.set_style('ticks')
+
 from .posterior import logsubexp, log_integrate_log_trap
 from .livepoint import live_points_to_array, get_dtype
 from .plot import plot_indices
@@ -179,7 +184,12 @@ class NestedSampler:
 
         self.training_time = 0
         self.likelihood_evaluations = []
+        self.training_iterations = []
         self.likelihood_calls = 0
+        self.min_likelihood = []
+        self.max_likelihood = []
+        self.logZ_history = []
+        self.dZ_history = []
 
 
         self.acceptance_threshold = acceptance_threshold
@@ -524,6 +534,7 @@ class NestedSampler:
                 st = time.time()
                 self.proposal.train(training_data, plot=self.plot)
                 self.training_time += (time.time() - st)
+                self.training_iterations.append(self.iteration)
                 self.last_updated = self.iteration
                 self.block_iteration = 0
                 self.block_acceptance = 0.
@@ -533,17 +544,64 @@ class NestedSampler:
         #if not self.proposal.populated:
             #self.proposal.populate(self.live_points[:10], N=self.proposal.poolsize)
 
-    def update_state(self):
+    def plot_state(self):
+        """
+        Produce plots with the current state of the nested sampling run
+        """
+
+        fig, ax = plt.subplots(4, 1, sharex=True, figsize=(8,8))
+        ax = ax.ravel()
+        it = (np.arange(len(self.min_likelihood)) + 1) * self.nlive
+        it[-1] = self.iteration
+        ax[0].plot(it, self.min_likelihood, label='Min logL', c='lightblue')
+        ax[0].plot(it, self.max_likelihood, label='Max logL', c='darkblue')
+        ax[0].set_ylabel('logL')
+        ax[0].legend(frameon=False)
+
+        ax[1].plot(it, self.likelihood_evaluations, label='Evalutions')
+        ax[1].set_ylabel('logL evaluations')
+
+        ax[2].plot(it, self.logZ_history, label='logZ', c='darkblue')
+        ax[2].set_ylabel('logZ')
+        ax[2].set_xlabel('Iteration')
+        ax[2].legend(frameon=False)
+
+        ax_dz = plt.twinx(ax[2])
+        ax_dz.plot(it, self.dZ_history, label='dZ', c='lightblue')
+        ax_dz.set_ylabel('dZ')
+        ax_dz.legend(frameon=False)
+
+        it = (np.arange(len(self.rolling_p)) + 1) * self.nlive
+        ax[3].plot(it, self.rolling_p, label='p-value')
+        ax[3].set_ylabel('p-value')
+
+        for t in self.training_iterations:
+            for a in ax:
+                a.axvline(t, ls='--', alpha=0.7)
+
+        plt.tight_layout()
+
+        fig.savefig(f'{self.output}/state.png')
+
+    def update_state(self, force=False):
         """
         Update state after replacing a live point
         """
-        if not (self.iteration % self.nlive):
-            self.check_insertion_indices()
+        if not (self.iteration % self.nlive) or force:
+            if not force:
+                self.check_insertion_indices()
             self.likelihood_evaluations.append(self.likelihood_calls)
+            self.min_likelihood.append(self.logLmin)
+            self.max_likelihood.append(self.logLmax)
+            self.logZ_history.append(self.state.logZ)
+            self.dZ_history.append(self.condition)
             if self.plot:
-                plot_indices(self.insertion_indices[-self.nlive:], self.nlive,
-                        plot_breakdown=False,
-                        filename=f'{self.output}/diagnostics/insertion_indices_{self.iteration}.png')
+                if not force:
+                    plot_indices(self.insertion_indices[-self.nlive:], self.nlive,
+                            plot_breakdown=False,
+                            filename=f'{self.output}/diagnostics/insertion_indices_{self.iteration}.png')
+                self.plot_state()
+
             if self.uninformed_sampling:
                 self.block_acceptance = 0.
                 self.block_iteration = 0
@@ -589,6 +647,7 @@ class NestedSampler:
         #self.nested_samples_numpy = np.array(self.nested_samples)
 
         # Refine evidence estimate
+        self.update_state(force=True)
         self.state.finalise()
         self.logZ = self.state.logZ
         # output the chain and evidence
