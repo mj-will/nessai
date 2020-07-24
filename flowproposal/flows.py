@@ -9,6 +9,7 @@ from nflows.distributions.normal import StandardNormal
 from nflows.distributions.uniform import BoxUniform
 from nflows.nn import nets as nets
 from nflows.transforms.base import CompositeTransform
+from nflows import transforms
 from nflows.transforms.coupling import (
     AdditiveCouplingTransform,
     AffineCouplingTransform,
@@ -156,6 +157,7 @@ class FlexibleRealNVP(Flow):
         dropout_probability=0.0,
         batch_norm_within_layers=False,
         batch_norm_between_layers=False,
+        linear_transform=None
     ):
 
         if use_volume_preserving:
@@ -180,6 +182,22 @@ class FlexibleRealNVP(Flow):
                 mask_array[i] = mask
                 mask *= -1
             mask = mask_array
+
+        def create_linear_transform():
+            if linear_transform == 'permutation':
+                return transforms.RandomPermutation(features=features)
+            elif linear_transform == 'lu':
+                return transforms.CompositeTransform([
+                    transforms.RandomPermutation(features=features),
+                    transforms.LULinear(features, identity_init=True)
+                ])
+            elif linear_transform == 'svd':
+                return transforms.CompositeTransform([
+                    transforms.RandomPermutation(features=features),
+                    transforms.SVDLinear(features, num_householder=10, identity_init=True)
+                ])
+            else:
+                raise ValueError
 
         if net.lower() == 'resnet':
             def create_net(in_features, out_features):
@@ -210,12 +228,17 @@ class FlexibleRealNVP(Flow):
 
         layers = []
         for i in range(num_layers):
+            if linear_transform is not None:
+                layers.append(create_linear_transform())
             transform = coupling_constructor(
                 mask=mask[i], transform_net_create_fn=create_net
             )
             layers.append(transform)
             if batch_norm_between_layers:
                 layers.append(BatchNorm(features=features))
+
+        if linear_transform is not None:
+            layers.append(create_linear_transform())
 
         super().__init__(
             transform=CompositeTransform(layers),
@@ -302,8 +325,29 @@ class NeuralSplineFlow(SimpleFlow):
         dropout_probability=0.0,
         batch_norm_within_layers=False,
         batch_norm_between_layers=False,
+        apply_unconditional_transform=True,
+        linear_transform_type='permutation',
         **kwargs
     ):
+        if batch_norm_between_layers:
+            logger.warning('BatchNorm cannot be used with splines')
+            batch_norm_between_layers = False
+
+        def create_linear_transform():
+            if linear_transform_type == 'permutation':
+                return transforms.RandomPermutation(features=features)
+            elif linear_transform_type == 'lu':
+                return transforms.CompositeTransform([
+                    transforms.RandomPermutation(features=features),
+                    transforms.LULinear(features, identity_init=True)
+                ])
+            elif linear_transform_type == 'svd':
+                return transforms.CompositeTransform([
+                    transforms.RandomPermutation(features=features),
+                    transforms.SVDLinear(features, num_householder=10, identity_init=True)
+                ])
+            else:
+                raise ValueError
 
         def create_resnet(in_features, out_features):
             return nets.ResidualNet(
@@ -324,161 +368,20 @@ class NeuralSplineFlow(SimpleFlow):
                     ),
                     transform_net_create_fn=create_resnet,
                     num_bins=num_bins,
-                    apply_unconditional_transform=False,
+                    apply_unconditional_transform=apply_unconditional_transform,
                     **kwargs
                 )
 
 
-        transforms = []
+        transforms_list = []
         for i in range(num_layers):
-            transform = spline_constructor(i)
-            transforms.append(transform)
-            if batch_norm_between_layers:
-                transforms.append(BatchNorm(features=features))
+            transforms_list.append(create_linear_transform())
+            transforms_list.append(spline_constructor(i))
 
-        distribution = TweakedUniform(
-            low=torch.zeros(features),
-            high=torch.ones(features)
-        )
+        transforms_list.append(create_linear_transform())
+        distribution = StandardNormal([features])
 
         super().__init__(
-            transform=CompositeTransform(transforms),
+            transform=CompositeTransform(transforms_list),
             distribution=distribution,
         )
-
-
-#class AugmentedCouplingTransform(Transform):
-#    """A base class for coupling layers. Supports 2D inputs (NxD), as well as 4D inputs for
-#    images (NxCxHxW). For images the splitting is done on the channel dimension, using the
-#    provided 1D mask."""
-#
-#    def __init__(self, features, augmented_features, transform_net_create_fn):
-#        """
-#        Constructor.
-#        Args:
-#            mask: a 1-dim tensor, tuple or list. It indexes inputs as follows:
-#                * If `mask[i] > 0`, `input[i]` will be transformed.
-#                * If `mask[i] <= 0`, `input[i]` will be passed unchanged.
-#        """
-#        mask = torch.as_tensor(mask)
-#        if mask.dim() != 1:
-#            raise ValueError("Mask must be a 1-dim tensor.")
-#        if mask.numel() <= 0:
-#            raise ValueError("Mask can't be empty.")
-#
-#        super().__init__()
-#        self.features = len(mask)
-#        features_vector = torch.arange(self.features)
-#
-#        self.register_buffer(
-#            "identity_features", features_vector.masked_select(mask <= 0)
-#        )
-#        self.register_buffer(
-#            "transform_features", features_vector.masked_select(mask > 0)
-#        )
-#
-#        assert self.num_identity_features + self.num_transform_features == self.features
-#
-#        self.transform_net = transform_net_create_fn(
-#            self.num_identity_features,
-#            self.num_transform_features * self._transform_dim_multiplier(),
-#        )
-#
-#        if unconditional_transform is None:
-#            self.unconditional_transform = None
-#        else:
-#            self.unconditional_transform = unconditional_transform(
-#                features=self.num_identity_features
-#            )
-#
-#    @property
-#    def num_identity_features(self):
-#        return len(self.identity_features)
-#
-#    @property
-#    def num_transform_features(self):
-#        return len(self.transform_features)
-#
-#    def forward(self, inputs, context=None):
-#        if inputs.dim() not in [2, 4]:
-#            raise ValueError("Inputs must be a 2D or a 4D tensor.")
-#
-#        if inputs.shape[1] != self.features:
-#            raise ValueError(
-#                "Expected features = {}, got {}.".format(self.features, inputs.shape[1])
-#            )
-#
-#        identity_split = inputs[:, self.identity_features, ...]
-#        transform_split = inputs[:, self.transform_features, ...]
-#
-#        transform_params = self.transform_net(identity_split, context)
-#        transform_split, logabsdet = self._coupling_transform_forward(
-#            inputs=transform_split, transform_params=transform_params
-#        )
-#
-#        if self.unconditional_transform is not None:
-#            identity_split, logabsdet_identity = self.unconditional_transform(
-#                identity_split, context
-#            )
-#            logabsdet += logabsdet_identity
-#
-#        outputs = torch.empty_like(inputs)
-#        outputs[:, self.identity_features, ...] = identity_split
-#        outputs[:, self.transform_features, ...] = transform_split
-#
-#        return outputs, logabsdet
-#
-#    def inverse(self, inputs, context=None):
-#        if inputs.dim() not in [2, 4]:
-#            raise ValueError("Inputs must be a 2D or a 4D tensor.")
-#
-#        if inputs.shape[1] != self.features:
-#            raise ValueError(
-#                "Expected features = {}, got {}.".format(self.features, inputs.shape[1])
-#            )
-#
-#        identity_split = inputs[:, self.identity_features, ...]
-#        transform_split = inputs[:, self.transform_features, ...]
-#
-#        logabsdet = 0.0
-#        if self.unconditional_transform is not None:
-#            identity_split, logabsdet = self.unconditional_transform.inverse(
-#                identity_split, context
-#            )
-#
-#        transform_params = self.transform_net(identity_split, context)
-#        transform_split, logabsdet_split = self._coupling_transform_inverse(
-#            inputs=transform_split, transform_params=transform_params
-#        )
-#        logabsdet += logabsdet_split
-#
-#        outputs = torch.empty_like(inputs)
-#        outputs[:, self.identity_features] = identity_split
-#        outputs[:, self.transform_features] = transform_split
-#
-#        return outputs, logabsdet
-#
-#    def _transform_dim_multiplier(self):
-#        return 2
-#
-#    def _scale_and_shift(self, transform_params):
-#        unconstrained_scale = transform_params[:, self.num_transform_features :, ...]
-#        shift = transform_params[:, : self.num_transform_features, ...]
-#        # scale = (F.softplus(unconstrained_scale) + 1e-3).clamp(0, 3)
-#        scale = torch.sigmoid(unconstrained_scale + 2) + 1e-3
-#        return scale, shift
-#
-#    def _coupling_transform_forward(self, inputs, transform_params):
-#        scale, shift = self._scale_and_shift(transform_params)
-#        log_scale = torch.log(scale)
-#        outputs = inputs * scale + shift
-#        logabsdet = torchutils.sum_except_batch(log_scale, num_batch_dims=1)
-#        return outputs, logabsdet
-#
-#    def _coupling_transform_inverse(self, inputs, transform_params):
-#        scale, shift = self._scale_and_shift(transform_params)
-#        log_scale = torch.log(scale)
-#        outputs = (inputs - shift) / scale
-#        logabsdet = -torchutils.sum_except_batch(log_scale, num_batch_dims=1)
-#        return outputs, logabsdet
-#
