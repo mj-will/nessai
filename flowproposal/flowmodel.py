@@ -6,6 +6,7 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.nn.utils import clip_grad_norm_
 
 from .flows import setup_model, weight_reset
 from .plot import plot_loss
@@ -25,6 +26,7 @@ def update_config(d):
         default_model.update(d['model_config'])
 
     default = dict(lr=0.0001,                  # learning rate
+                   annealing=False,             # Cosine annealing
                    batch_size=100,             # batch size
                    val_size=0.1,               # validation per cent (0.1 = 10%)
                    max_epochs=500,             # maximum number of training epochs
@@ -148,7 +150,11 @@ class FlowModel:
             loss = -model.log_prob(data).mean()
             train_loss += loss.item()
             loss.backward()
+            clip_grad_norm_(model.parameters(), 5.)
             self.optimiser.step()
+
+        if self.annealing:
+            self.scheduler.step()
 
         return train_loss / len(loader)
 
@@ -194,6 +200,9 @@ class FlowModel:
         # train
         if max_epochs is None:
             max_epochs = self.max_epochs
+        if self.annealing:
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                    self.optimiser, max_epochs)
         if patience is None:
             patience = self.patience
         best_epoch = 0
