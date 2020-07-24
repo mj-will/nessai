@@ -141,6 +141,7 @@ class NestedSampler:
                  maximum_uninformed=1000, training_frequency=1000, uninformed_proposal=None,
                  reset_weights=True, checkpointing=True, resume_file=None,
                  uninformed_proposal_kwargs={}, seed=None, plot=True, force_train=True,
+                 proposal_plots=True,
                  **kwargs):
         """
         Initialise all necessary arguments and
@@ -155,7 +156,8 @@ class NestedSampler:
         self.rejected       = 1
         self.last_updated = 0
         self.iteration      = 0
-        self.acceptance_history = deque(maxlen=nlive//10)
+        self.acceptance_history = deque(maxlen=(nlive // 10))
+        self.mean_acceptance_history = []
         self.block_acceptance = 1.
         self.mean_block_acceptance = 1.
         self.block_iteration = 0
@@ -212,11 +214,11 @@ class NestedSampler:
         proposal_output = self.output + '/proposal/'
         if flow_class is not None:
             self._flow_proposal = flow_class(model, flow_config=flow_config,
-                    output=proposal_output, plot=plot, **kwargs)
+                    output=proposal_output, plot=proposal_plots, **kwargs)
         else:
             from .proposal import FlowProposal
             self._flow_proposal = FlowProposal(model, flow_config=flow_config,
-                    output=proposal_output, plot=plot, **kwargs)
+                    output=proposal_output, plot=proposal_plots, **kwargs)
 
 
         # Uninformed proposal is used for prior sampling
@@ -242,6 +244,12 @@ class NestedSampler:
             self.uninformed_sampling = True
             self.maximum_uninformed = maximum_uninformed
 
+
+        self.store_live_points = False
+        if self.store_live_points:
+            self.live_points_dir = f'{self.output}/live_points/'
+            os.makedirs(self.live_points_dir, exist_ok=True)
+            self.replacement_points = []
 
     def setup_output(self, output, resume_file=None):
         """
@@ -329,12 +337,10 @@ class NestedSampler:
                 self.insertion_indices,
                 newline='\n',delimiter=' ')
 
-
     def log_likelihood(self, x):
         """
         Wrapper for the model likelihood so evaluations are counted
         """
-        self.likelihood_calls += 1
         return self.model.log_likelihood(x)
 
     def yield_sample(self, oldparam):
@@ -350,7 +356,7 @@ class NestedSampler:
 
                 if newparam['logP'] != -np.inf:
                     if not newparam['logL']:
-                        newparam['logL'] = self.log_likelihood(newparam)
+                        newparam['logL'] = self.model.evaluate_log_likelihood(newparam)
                     if newparam['logL'] > self.logLmin:
                         self.logLmax= max(self.logLmax, newparam['logL'])
                         oldparam = newparam.copy()
@@ -415,6 +421,9 @@ class NestedSampler:
                 if not self.block_iteration:
                     self.block_iteration += 1
 
+        if self.store_live_points:
+            self.replacement_points.append(proposed)
+
         self.acceptance = self.accepted / (self.accepted + self.rejected)
         self.mean_block_acceptance = self.block_acceptance / self.block_iteration
         logger.info((f"{self.iteration:5d}: n: {count:3d} "
@@ -446,6 +455,9 @@ class NestedSampler:
                         break
 
         self.live_points= np.sort(live_points, order='logL')
+        if self.store_live_points:
+            np.savetxt(self.live_points_dir + '/intial_live_points.dat', self.live_points,
+                    header='\t'.join(self.live_points.dtype.names))
 
     def initialise(self, live_points=True):
         """
@@ -532,7 +544,7 @@ class NestedSampler:
                         if len(self.nested_samples) >= self.memory:
                             training_data = np.concatenate([training_data, self.nested_samples[-self.memory].copy()])
                 st = time.time()
-                self.proposal.train(training_data, plot=self.plot)
+                self.proposal.train(training_data)
                 self.training_time += (time.time() - st)
                 self.training_iterations.append(self.iteration)
                 self.last_updated = self.iteration
@@ -549,21 +561,20 @@ class NestedSampler:
         Produce plots with the current state of the nested sampling run
         """
 
-        fig, ax = plt.subplots(4, 1, sharex=True, figsize=(8,8))
+        fig, ax = plt.subplots(5, 1, sharex=True, figsize=(10,8))
         ax = ax.ravel()
-        it = (np.arange(len(self.min_likelihood)) + 1) * self.nlive
+        it = (np.arange(len(self.min_likelihood))) * (self.nlive // 10)
         it[-1] = self.iteration
         ax[0].plot(it, self.min_likelihood, label='Min logL', c='lightblue')
         ax[0].plot(it, self.max_likelihood, label='Max logL', c='darkblue')
         ax[0].set_ylabel('logL')
         ax[0].legend(frameon=False)
 
-        ax[1].plot(it, self.likelihood_evaluations, label='Evalutions')
+        ax[1].plot(it, self.likelihood_evaluations, c='darkblue', label='Evalutions')
         ax[1].set_ylabel('logL evaluations')
 
         ax[2].plot(it, self.logZ_history, label='logZ', c='darkblue')
         ax[2].set_ylabel('logZ')
-        ax[2].set_xlabel('Iteration')
         ax[2].legend(frameon=False)
 
         ax_dz = plt.twinx(ax[2])
@@ -571,13 +582,20 @@ class NestedSampler:
         ax_dz.set_ylabel('dZ')
         ax_dz.legend(frameon=False)
 
-        it = (np.arange(len(self.rolling_p)) + 1) * self.nlive
-        ax[3].plot(it, self.rolling_p, label='p-value')
-        ax[3].set_ylabel('p-value')
+        ax[3].plot(it, self.mean_acceptance_history, c='darkblue', label='Mean')
+        ax[3].set_ylabel('Acceptance')
+        ax[3].set_ylim((-0.1, 1.1))
+        ax[3].legend(frameon=False)
+
+        it = (np.arange(len(self.rolling_p))) * self.nlive
+        ax[4].plot(it, self.rolling_p, c='darkblue', label='p-value')
+        ax[4].set_ylabel('p-value')
+
+        ax[-1].set_xlabel('Iteration')
 
         for t in self.training_iterations:
             for a in ax:
-                a.axvline(t, ls='--', alpha=0.7)
+                a.axvline(t, ls='--', alpha=0.7, color='k')
 
         plt.tight_layout()
 
@@ -587,14 +605,18 @@ class NestedSampler:
         """
         Update state after replacing a live point
         """
-        if not (self.iteration % self.nlive) or force:
-            if not force:
-                self.check_insertion_indices()
-            self.likelihood_evaluations.append(self.likelihood_calls)
+        if not (self.iteration % (self.nlive // 10)) or force:
+            self.likelihood_evaluations.append(
+                    self.model.evaluate_log_likelihood.calls)
             self.min_likelihood.append(self.logLmin)
             self.max_likelihood.append(self.logLmax)
             self.logZ_history.append(self.state.logZ)
             self.dZ_history.append(self.condition)
+            self.mean_acceptance_history.append(self.mean_acceptance)
+
+        if not (self.iteration % self.nlive) or force:
+            if not force:
+                self.check_insertion_indices()
             if self.plot:
                 if not force:
                     plot_indices(self.insertion_indices[-self.nlive:], self.nlive,
@@ -605,6 +627,7 @@ class NestedSampler:
             if self.uninformed_sampling:
                 self.block_acceptance = 0.
                 self.block_iteration = 0
+
 
     def checkpoint(self):
         """
@@ -631,6 +654,8 @@ class NestedSampler:
             logger.warning("Nested Sampling process {0!s}, exiting".format(os.getpid()))
             return 0
 
+        self.update_state()
+
         while self.condition > self.tolerance:
 
             self.check_state()
@@ -638,6 +663,12 @@ class NestedSampler:
             self.consume_sample()
 
             self.update_state()
+
+
+        if self.store_live_points:
+            np.savetxt(self.live_points_dir + '/replacement_live_points.dat',
+                    self.replacement_points,
+                    header='\t'.join(self.live_points.dtype.names))
 
         # final adjustments
         for i, p in enumerate(self.live_points):
