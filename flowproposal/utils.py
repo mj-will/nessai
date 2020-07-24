@@ -59,10 +59,16 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
     return fuzz * r * z
 
 
-def draw_uniform(dims, r=1, N=1000, fuzz=1.0):
+def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     """
-    Draw
+    Draw from the
     """
+    #if not dims == len(r):
+    #    raise RuntimeError('Dimensions and bounds for hypercube do not match')
+    #r *= fuzz
+    # Any of the bounds are greater than one, set them to one
+    #r = np.min([r, np.ones(dims)], axis=0)
+    #return np.random.uniform(1-r, r, (N, dims))
     return np.random.uniform(0, 1, (N, dims))
 
 def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
@@ -298,3 +304,12 @@ class NumpyEncoder(json.JSONEncoder):
         if isinstance(obj, np.ndarray):
             return obj.tolist()
         return json.JSONEncoder.default(self, obj)
+
+
+def counter(fn):
+        def wrapper(*args, **kwargs):
+            wrapper.calls += 1
+            return fn(*args, **kwargs)
+        wrapper.calls= 0
+        wrapper.__name__= fn.__name__
+        return wrapper
