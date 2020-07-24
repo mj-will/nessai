@@ -6,9 +6,11 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.nn.utils import clip_grad_norm_
 
-from .flows import setup_model
-from .plot import plot_loss, plot_inputs, plot_samples
+from .flows import setup_model, weight_reset
+from .plot import plot_loss
+from .utils import NumpyEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +20,13 @@ def update_config(d):
     Update the default dictionary for a trainer
     """
     default_model = dict(n_inputs=None, n_neurons=32, n_blocks=4, n_layers=2,
-            ftype='RealNVP', device_tag='cpu', mask=None, kwargs={})
+            ftype='RealNVP', device_tag='cpu', kwargs={})
 
     if 'model_config' in d.keys():
         default_model.update(d['model_config'])
 
     default = dict(lr=0.0001,                  # learning rate
+                   annealing=False,             # Cosine annealing
                    batch_size=100,             # batch size
                    val_size=0.1,               # validation per cent (0.1 = 10%)
                    max_epochs=500,             # maximum number of training epochs
@@ -36,15 +39,6 @@ def update_config(d):
         default['model_config'] = default_model
 
     return default
-
-
-def weight_reset(m):
-    """
-    Reset parameters of a given model
-    """
-    layers = [nn.Conv1d, nn.Conv2d, nn.Linear, nn.BatchNorm1d]
-    if any(isinstance(m, l) for l in layers):
-        m.reset_parameters()
 
 
 class FlowModel:
@@ -71,7 +65,7 @@ class FlowModel:
             config['model_config']['flow'] = str(config['model_config']['flow'])
 
         with open(output_file, "w") as f:
-            json.dump(config, f, indent=4)
+            json.dump(config, f, indent=4, cls=NumpyEncoder)
 
     def _setup_from_input_dict(self, config):
         """
@@ -87,23 +81,22 @@ class FlowModel:
         """
         Get a the mask
         """
-        if self.model_config['mask'] is None:
-            if self.model_config['ftype'] == 'realnvp_mixer':
+        if 'mask' in self.model_config['kwargs'] and \
+                self.model_config['kwargs']['mask'] is not None:
+            if 'perm' in self.model_config['kwargs']['mask']:
                 if self.model_config['n_blocks'] % 2:
                     raise RuntimeError('Number of blocks must be even to use mixer')
-                masks = np.zeros([self.model_config['n_blocks'],
+                masks = np.ones([self.model_config['n_blocks'],
                     self.model_config['n_inputs']])
 
-                masks[0] = np.mod(np.arange(0, masks.shape[1]), 2)
-                masks[1] = 1 - masks[0]
+                masks[0, ::2] = -1
+                masks[1] = masks[0] * -1
                 for n in range(2, masks.shape[0], 2):
                     masks[n] = np.random.permutation(masks[n-2])
-                    masks[n + 1] = 1 - masks[n]
+                    masks[n + 1] = masks[n] * -1
 
-                logger.debug(f'Made mask: {masks}')
-                self.model_config['mask'] = masks
-        else:
-            logger.debug('Mask already set')
+                self.model_config['kwargs']['mask'] = masks
+            logger.debug(f"Mask : {self.model_config['kwargs']['mask']}")
 
     def initialise(self):
         """
@@ -157,7 +150,11 @@ class FlowModel:
             loss = -model.log_prob(data).mean()
             train_loss += loss.item()
             loss.backward()
+            clip_grad_norm_(model.parameters(), 5.)
             self.optimiser.step()
+
+        if self.annealing:
+            self.scheduler.step()
 
         return train_loss / len(loader)
 
@@ -197,11 +194,15 @@ class FlowModel:
         if val_size is None:
             val_size = self.val_size
 
+
         train_loader, val_loader = self._prep_data(samples, val_size=val_size)
 
         # train
         if max_epochs is None:
             max_epochs = self.max_epochs
+        if self.annealing:
+            self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                    self.optimiser, max_epochs)
         if patience is None:
             patience = self.patience
         best_epoch = 0
@@ -298,7 +299,8 @@ class FlowModel:
                 x, log_prob = self.model.sample_and_log_prob(N)
         else:
             with torch.no_grad():
-                z = torch.Tensor(z.astype(np.float32)).to(self.device)
+                if isinstance(z, np.ndarray):
+                    z = torch.Tensor(z.astype(np.float32)).to(self.device)
                 log_prob = self.model._distribution.log_prob(z)
                 x, log_J = self.model._transform.inverse(z, None)
                 log_prob -= log_J

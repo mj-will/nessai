@@ -2,6 +2,7 @@
 import numpy as np
 
 from .livepoint import parameters_to_live_point, numpy_array_to_live_points, get_dtype
+from .utils import counter
 
 class Model:
 
@@ -87,6 +88,10 @@ class Model:
             -np.inf otherwise
         """
         pass
+
+    @counter
+    def evaluate_log_likelihood(self, x):
+        return self.log_likelihood(x)
 
     def header(self):
         """
