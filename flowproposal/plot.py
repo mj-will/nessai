@@ -7,8 +7,9 @@ sns.set()
 sns.set_style('ticks')
 
 pairplot_kwargs = dict(corner=True, kind='scatter',
-        diag_kws=dict(histtype='step', bins=50, lw=1.5),
-        plot_kws=dict(s=1.0, edgecolor=None))
+        diag_kws=dict(histtype='step', bins=50, lw=1.5, density=True,
+            color='teal'),
+        plot_kws=dict(s=1.0, edgecolor=None, palette='viridis', color='teal'))
 
 def plot_live_points(live_points, filename=None, bounds=None, c=None, **kwargs):
     """
@@ -18,8 +19,9 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None, **kwargs):
 
     df = pd.DataFrame(live_points)
     if c is not None:
-        df['c'] = c
-        fig = sns.pairplot(df, hue='c', diag_kind=None, **pairplot_kwargs)
+        fig = sns.PairGrid(df, corner=True, diag_sharey=False)
+        fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
+        fig.map_offdiag(sns.scatterplot, hue=df[c], **pairplot_kwargs['plot_kws'])
     else:
         fig = sns.pairplot(df, **pairplot_kwargs)
 
