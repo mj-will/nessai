@@ -30,7 +30,8 @@ def update_config(d):
                    batch_size=100,             # batch size
                    val_size=0.1,               # validation per cent (0.1 = 10%)
                    max_epochs=500,             # maximum number of training epochs
-                   patience=20)                # stop after n epochs with no improvement
+                   patience=20,                # stop after n epochs with no improvement
+                   noise_scale=0.0)
 
     if not isinstance(d, dict):
         raise TypeError('Must pass a dictionary to update the default trainer settings')
@@ -218,7 +219,7 @@ class FlowModel:
         logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
-            loss = self._train(train_loader)
+            loss = self._train(train_loader, noise_scale=self.noise_scale)
             val_loss = self._validate(val_loader)
             history['loss'].append(loss)
             history['val_loss'].append(val_loss)
