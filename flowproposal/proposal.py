@@ -100,7 +100,7 @@ class FlowProposal(Proposal):
             drawsize=10000, check_acceptance=False,
             truncate=False, zero_reset=100,
             rescale_bounds=[-1, 1], rescale_min_max=False, boundary_inversion=False,
-            inversion_type='split', update_bounds=True,
+            inversion_type='split', update_bounds=True, max_radius=False,
             **kwargs):
         """
         Initialise
@@ -186,6 +186,8 @@ class FlowProposal(Proposal):
                 self.fixed_radius = False
         else:
             self.fixed_radius = False
+
+        self.max_radius = max_radius
 
     @property
     def dims(self):
@@ -483,6 +485,9 @@ class FlowProposal(Proposal):
         else:
             worst_z, worst_q = self.forward_pass(worst_point, rescale=True)
             r, worst_q = self.radius(worst_z, worst_q)
+            if self.max_radius:
+                if r > self.max_radius:
+                    r = self.max_radius
             logger.debug(f'Populating proposal with lantent radius: {r:.5}')
         warn = True
         if not self.keep_samples or not self.indices:
