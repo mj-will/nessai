@@ -1,9 +1,11 @@
+import os
 import logging
 import numpy as np
 from numpy.lib import recfunctions as rfn
-from scipy.stats import chi
+from scipy.stats import chi, norm
 
 from ..proposal import FlowProposal
+from ..flowmodel import FlowModel
 from ..utils import replace_in_list, rescale_zero_to_one, \
         inverse_rescale_zero_to_one, rescale_minus_one_to_one, \
         inverse_rescale_minus_one_to_one
@@ -39,7 +41,7 @@ class GWFlowProposal(FlowProposal):
                 distance_rescaling=False, norm_quaternions=False, rescale_angles=True,
                 euler_convention='ZYZ', angular_decomposition=True,
                 minus_one_to_one=True, log_inversion=False, log_radial=False,
-                inversion=False)
+                inversion=False, exclude=[])
         defaults.update(reparameterisations)
         logger.info('Reparameterisations:')
         for k, v in defaults.items():
@@ -76,7 +78,9 @@ class GWFlowProposal(FlowProposal):
         # if name exists in the physical space, change it
         # else (e.g. radial parameters) leave as is
         self._inversion[name] = {'name': name, 'rescaled_name': rescaled_name,
-                'rescale': True, 'flip': None}
+                'rescale': True, 'flip': None,
+                'min': self.model.bounds[name][0],
+                'max': self.model.bounds[name][1]}
 
         logger.debug(f'Added {name} to parameters with log inversion')
 
@@ -114,6 +118,8 @@ class GWFlowProposal(FlowProposal):
         self.rescaled_names = self.names.copy()
         self.default_rescaling = []
 
+        self._min = {n: self.model.bounds[n][0] for n in self.model.names}
+        self._max = {n: self.model.bounds[n][1] for n in self.model.names}
 
         if self.log_inversion:
             if isinstance(self.log_inversion, list):
@@ -220,7 +226,9 @@ class GWFlowProposal(FlowProposal):
 
         # Default -1 to 1 rescaling
         if self.minus_one_to_one:
-            self.default_rescaling += list(set(self.names) & set(self.rescaled_names))
+            self.default_rescaling += list(
+                    (set(self.names) & set(self.rescaled_names))
+                    - set(self.exclude))
             replace_in_list(self.rescaled_names, self.default_rescaling,
                     [d + '_prime' for d in self.default_rescaling])
 
@@ -230,7 +238,7 @@ class GWFlowProposal(FlowProposal):
         logger.info(f'x prime space parameters: {self.rescaled_names}')
 
 
-    def check_state(self):
+    def check_state(self, x):
         """
         Check the state of the rescaling before training
         """
@@ -240,6 +248,13 @@ class GWFlowProposal(FlowProposal):
         if self._inversion:
             for c in self._inversion.values():
                 c['flip'] = None
+                if self.update_bounds:
+                    c['min'] = np.min(x[c['name']])
+                    c['max'] = np.max(x[c['name']])
+
+        if self.update_bounds:
+            self._min = {n : np.min(x[n]) for n in self.model.names}
+            self._max = {n : np.max(x[n]) for n in self.model.names}
 
     def rescale(self, x):
         """
@@ -257,10 +272,14 @@ class GWFlowProposal(FlowProposal):
         if self.default_rescaling:
             for n in self.default_rescaling:
                 x_prime[n + '_prime'], lj = rescale_minus_one_to_one(x[n],
-                        xmin=self.model.bounds[n][0],
-                        xmax=self.model.bounds[n][1])
+                        xmin=self._min[n],
+                        xmax=self._max[n])
                 log_J += lj
 
+        if self.exclude:
+            for n in self.exclude:
+                if n in x.dtype.names:
+                    x_prime[n] = x[n]
 
         if self._log_inversion:
             for c in self._log_inversion.values():
@@ -295,8 +314,7 @@ class GWFlowProposal(FlowProposal):
             for c in self._inversion.values():
                 if c['rescale']:
                     x[c['name']], lj = rescale_zero_to_one(x[c['name']],
-                            xmin=self.model.bounds[c['name']][0],
-                            xmax=self.model.bounds[c['name']][1])
+                            xmin=c['min'], xmax=c['max'])
                     log_J += lj
 
                 if c['flip'] is None:
@@ -355,7 +373,7 @@ class GWFlowProposal(FlowProposal):
                 # 2 d.o.f
                 if (n := a['radial']) in self.model.names:
                     r, lj = rescale_zero_to_one(x[n],
-                            self.model.bounds[n][0], self.model.bounds[n][1])
+                            xmin=self._min[n], xmax=self._max[n])
                     log_J += lj
                 else:
                     r = None
@@ -498,7 +516,7 @@ class GWFlowProposal(FlowProposal):
                 # rescale it using the bounds
                 if (n := a['radial']) in self.model.names:
                     r, lj = inverse_rescale_zero_to_one(r,
-                        self.model.bounds[n][0], self.model.bounds[n][1])
+                        xmin=self._min[n], xmax=self._max[n])
                     log_J += lj
                 x[a['radial']] = r
 
@@ -536,17 +554,20 @@ class GWFlowProposal(FlowProposal):
 
                 if c['rescale']:
                     x[c['name']], lj = inverse_rescale_zero_to_one(
-                            x[c['name']],
-                            xmin=self.model.bounds[c['name']][0],
-                            xmax=self.model.bounds[c['name']][1])
+                            x[c['name']], xmin=c['min'], xmax=c['max'])
                     log_J += lj
 
         if self.default_rescaling:
             for n in self.default_rescaling:
                 x[n], lj = inverse_rescale_minus_one_to_one(x_prime[n + '_prime'],
-                        xmin=self.model.bounds[n][0],
-                        xmax=self.model.bounds[n][1])
+                        xmin=self._min[n],
+                        xmax=self._max[n])
                 log_J += lj
+
+        if self.exclude:
+            for n in self.exclude:
+                if n in x_prime.dtype.names:
+                    x[n] = x_prime[n]
 
         return x, log_J
 
@@ -565,7 +586,66 @@ class GWFlowProposal(FlowProposal):
                     log_p += chi.logpdf(x[n], 2)
         return log_p
 
-    def radius(self, z):
-        """Calculate the radius of a latent_point"""
-        return np.max(np.sqrt(np.sum(z ** 2., axis=-1)))
+
+class AugmentedGWFlowProposal(GWFlowProposal):
+
+    def __init__(self, model, augment_features=1, **kwargs):
+        super().__init__(model, **kwargs)
+        self.augment_features = augment_features
+
+    def set_rescaling(self):
+        super().set_rescaling()
+        self.augment_names =  [f'e_{i}' for i in range(self.augment_features)]
+        self.names += self.augment_names
+        self.rescaled_names += self.augment_names
+        self.exclude += self.augment_names
+        logger.info(f'augmented x space parameters: {self.names}')
+        logger.info(f'parameters to rescale {self.rescale_parameters}')
+        logger.info(f'augmented x prime space parameters: {self.rescaled_names}')
+
+    def initialise(self):
+        """
+        Initialise the proposal class
+        """
+        if not os.path.exists(self.output):
+            os.makedirs(self.output, exist_ok=True)
+
+        self.set_rescaling()
+
+        m = np.ones(self.rescaled_dims)
+        m[-self.augment_features:] = -1
+        self.flow_config['model_config']['kwargs']['mask'] = m
+
+        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+
+        self.flow = FlowModel(config=self.flow_config, output=self.output)
+        self.flow.initialise()
+        self.populated = False
+        self.initialised = True
+
+    def rescale(self, x):
+        x_prime, log_J = super().rescale(x)
+        if x_prime.size == 1:
+            x_prime[self.augment_names] = self.augment_features * (0.,)
+        else:
+            for an in self.augment_names:
+                x_prime[an] = np.random.randn(x_prime.size)
+        return x_prime, log_J
+
+    def augmented_prior(self, x):
+        """
+        Log guassian for augmented variables
+        """
+        logP = 0.
+        for n in self.augment_names:
+            logP += norm.logpdf(x[n])
+        return logP
+
+    def log_prior(self, x):
+        """
+        Compute the prior probability
+        """
+        logP = super().log_prior(x)
+        logP += self.augmented_prior(x)
+        return logP
 
