@@ -7,17 +7,22 @@ import numpy as np
 from scipy.stats import norm
 from scipy.special import xlogy
 
-# This prevents torch from using all of the available threads
+# This prevents torch from using all of the available threads when
+# running on the CPU
 import torch
-torch.set_num_threads(4)
+torch.set_num_threads(1)
 
 from flowproposal.flowsampler import FlowSampler
 from flowproposal.model import Model
 from flowproposal.utils import setup_logger
 
+from flowproposal.proposal import FlowProposal
+
 # Setup the logger - credit to the Bilby team for this neat function!
 # see: https://git.ligo.org/lscsoft/bilby
-logger = setup_logger(output='./test_posterior/', log_level='DEBUG')
+
+output = './outdir/2d_gaussian/'
+logger = setup_logger(output=output, log_level='DEBUG')
 
 # Define the model, in this case we use a simple 2D gaussian
 # The model must contain names for each of the parameters and their bounds
@@ -29,10 +34,10 @@ logger = setup_logger(output='./test_posterior/', log_level='DEBUG')
 # where each field is one of the names in the model and there are two
 # exra field which are `logP` and `logL'
 
-class MyModel(Model):
+class Gaussian(Model):
 
     names = ['x', 'y']
-    # dictionary bounds
+    # dictionary of bounds bounds
     bounds = {'x': [-10, 10], 'y': [-10, 10]}
 
     def log_prior(self, x):
@@ -62,17 +67,17 @@ class MyModel(Model):
 # the flow itself (neurons, number of trasformations etc)
 flow_config = dict(
         max_epochs=50,
-        patience=50,
-        model_config=dict(n_blocks=2, n_neurons=8, device_tag='cpu',
-            kwargs=dict(batch_norm_between_layers=True))
+        patience=10,
+        model_config=dict(n_blocks=4, n_neurons=8, n_layers=2, device_tag='cpu',
+            kwargs=dict(batch_norm_between_layers=True)
+            )
         )
 
 # The FlowSampler object is used to managed the sampling as has more
 # configuration options
-fp = FlowSampler(MyModel(), output='./test_furthe/', resume=False, nlive=1000,
-        flow_config=flow_config, training_frequency=1000, maximum_uninformed=2000,
-        keep_samples=False, rescale_parameters=True, exact_poolsize=True,
-        reset_weights=1, seed=1234)
+fp = FlowSampler(Gaussian(), output=output, resume=False, nlive=1000, plot=True,
+        flow_config=flow_config, training_frequency=1000, maximum_uninformed=1000,
+        rescale_parameters=True, seed=1234)
 
 # And go!
 fp.run()

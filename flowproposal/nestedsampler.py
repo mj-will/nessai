@@ -681,6 +681,7 @@ class NestedSampler:
         self.update_state(force=True)
         self.state.finalise()
         self.logZ = self.state.logZ
+        self.likelihood_calls = self.model.evaluate_log_likelihood.calls
         # output the chain and evidence
         if save:
             self.write_nested_samples_to_file()
