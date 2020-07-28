@@ -170,7 +170,7 @@ class FlowProposal(Proposal):
         if self.latent_prior == 'truncated_gaussian':
             from .utils import draw_truncated_gaussian
             self.draw_latent_prior = draw_truncated_gaussian
-        if self.latent_prior == 'gaussian':
+        elif self.latent_prior == 'gaussian':
             logger.warning('Using a gaussian latent prior WITHOUT truncation')
             from .utils import draw_gaussian
             self.draw_latent_prior = draw_gaussian
@@ -182,7 +182,7 @@ class FlowProposal(Proposal):
             from .utils import draw_nsphere
             self.draw_latent_prior = draw_nsphere
         else:
-            raise RuntimeError((f'Unknown latent prior: {latent_prior}, '
+            raise RuntimeError((f'Unknown latent prior: {self.latent_prior}, '
                 'choose from: truncated_gaussian (default), gaussian, '
                 'uniform, uniform_nsphere'))
         # Alternative latent distribution for use with uniform sphere
