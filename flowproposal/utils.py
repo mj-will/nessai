@@ -162,7 +162,7 @@ def replace_in_list(target_list, targets, replacements):
             replacements = list(replacements)
 
     if not all([t in target_list for t in targets]):
-        raise ValueError('Target(s) not in target list')
+        raise ValueError(f'Target(s) not in target list: {targets}')
 
     for t, r in zip(targets, replacements):
         i = target_list.index(t)
