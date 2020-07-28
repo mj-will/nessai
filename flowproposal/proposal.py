@@ -8,6 +8,7 @@ from scipy.special import logsumexp
 from .flowmodel import FlowModel, update_config
 from .livepoint import live_points_to_array, numpy_array_to_live_points, get_dtype
 from .plot import plot_live_points, plot_acceptance
+from .utils import get_uniform_distribution
 
 logger = logging.getLogger(__name__)
 
@@ -174,9 +175,19 @@ class FlowProposal(Proposal):
             from .utils import draw_gaussian
             self.draw_latent_prior = draw_gaussian
         elif self.latent_prior == 'uniform':
-            from .utils import draw_nsphere, draw_uniform
+            from .utils import draw_uniform
             self.draw_latent_prior = draw_uniform
             #raise NotImplementedError('Uniform proposal not implemented')
+        elif self.latent_prior == 'uniform_nsphere':
+            from .utils import draw_nsphere
+            self.draw_latent_prior = draw_nsphere
+        else:
+            raise RuntimeError((f'Unknown latent prior: {latent_prior}, '
+                'choose from: truncated_gaussian (default), gaussian, '
+                'uniform, uniform_nsphere'))
+        # Alternative latent distribution for use with uniform sphere
+        # Allows for training with Gaussian prior and sampling with uniform prior
+        self.alt_dist = None
 
         if fixed_radius:
             try:
@@ -407,8 +418,8 @@ class FlowProposal(Proposal):
         self.flow.train(x_prime, output=block_output, plot=self._plot_training)
 
         if self._plot_training:
-            #z = np.random.randn(5000, self.rescaled_dims)
-            z, _ = self.flow.model._distribution.sample_and_log_prob(5000)
+            self.alt_dist = None
+            z, _ = self.flow.sample_and_log_prob(N=5000)
             x_prime, log_prob = self.backward_pass(z, rescale=False)
             x_prime['logL'] = log_prob
             plot_live_points(x_prime, c='logL',
@@ -443,7 +454,7 @@ class FlowProposal(Proposal):
     def backward_pass(self, z, rescale=True):
         """A backwards pass from the model (latent -> real)"""
         # Compute the log probability
-        x, log_prob = self.flow.sample_and_log_prob(z=z)
+        x, log_prob = self.flow.sample_and_log_prob(z=z, alt_dist=self.alt_dist)
         x = numpy_array_to_live_points(x.astype('f8'), self.rescaled_names)
         # Apply rescaling in rescale=True
         if rescale:
@@ -489,6 +500,10 @@ class FlowProposal(Proposal):
                 if r > self.max_radius:
                     r = self.max_radius
             logger.debug(f'Populating proposal with lantent radius: {r:.5}')
+
+        if self.latent_prior == 'uniform_nsphere':
+            self.alt_dist = get_uniform_distribution(self.dims, r)
+
         warn = True
         if not self.keep_samples or not self.indices:
             self.x = np.array([], dtype=self.x_dtype)

@@ -241,17 +241,6 @@ class FlexibleRealNVP(Flow):
             distribution=StandardNormal([features]),
         )
 
-class TweakedUniform(BoxUniform):
-    def log_prob(self, value, context=None):
-        return super().log_prob(value)
-
-    def sample(self, num_samples, context=None):
-        return super().sample((num_samples, ))
-
-    def sample_and_log_prob(self, num_samples, context=None):
-        s = self.sample(num_samples)
-        return s, self.log_prob(s, context)
-
 
 class SimpleFlow(Distribution):
     """Base class for all flow objects."""

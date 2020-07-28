@@ -2,6 +2,9 @@ import json
 import logging
 import numpy as np
 from scipy.stats import chi
+import torch
+
+from nflows.distributions.uniform import BoxUniform
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +60,15 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
     R = np.random.uniform(0, 1, (N, 1))
     z = R ** (1 / dims) * x
     return fuzz * r * z
+
+
+def get_uniform_distribution(dims, r):
+    """
+    Return a Pytorch distribution that is uniform in the number of
+    dims specified
+    """
+    r = r * torch.ones(dims)
+    return BoxUniform(low=-r, high=r)
 
 
 def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
