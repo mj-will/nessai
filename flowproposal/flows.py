@@ -54,7 +54,7 @@ def setup_model(config):
     Setup the flow form a configuration dictionary
     """
     kwargs = {}
-    flows = {'realnvp': SimpleRealNVP, 'maf': MaskedAutoregressiveFlow,
+    flows = {'realnvp': FlexibleRealNVP, 'maf': MaskedAutoregressiveFlow,
             'frealnvp': FlexibleRealNVP, 'spline': NeuralSplineFlow}
     activations = {'relu': F.relu, 'tanh': F.tanh, 'swish': silu,
             'silu': silu}
@@ -77,11 +77,7 @@ def setup_model(config):
                 f'{flows.keys()}'))
         if ('mask' in kwargs and kwargs['mask'] is not None) or \
                 ('net' in kwargs and kwargs['net'] is not None):
-            if f.lower() == 'frealnvp':
-                pass
-            elif f.lower() == 'realnvp':
-                f = 'frealnvp'
-            else:
+            if f not in ['realnvp', 'frealnvp']:
                 raise RuntimeError(f'Custom masks and networks are only supported for RealNVP')
 
         model = flows[f.lower()](config['n_inputs'], config['n_neurons'], config['n_blocks'],
@@ -105,10 +101,10 @@ def setup_model(config):
     return model, device
 
 
-class ContextMLP(nets.MLP):
+class CustomMLP(nets.MLP):
 
     def __init__(self, *args, **kwargs):
-        super(ContextMLP, self).__init__(*args, **kwargs)
+        super(CustomMLP, self).__init__(*args, **kwargs)
 
     def forward(self, inputs, *args, **kwargs):
         """Forward method that allows for kwargs such as context"""
@@ -214,10 +210,10 @@ class FlexibleRealNVP(Flow):
             if batch_norm_within_layers:
                 logger.warning('Batch norm within layers not supported for MLP, will be ignored')
             if dropout_probability:
-                logger.warning('Dropour not supported for MLP, will be ignored')
+                logger.warning('Dropout not supported for MLP, will be ignored')
             hidden_features = num_blocks_per_layer * [hidden_features]
             def create_net(in_features, out_features):
-                return ContextMLP(
+                return CustomMLP(
                         (in_features,),
                         (out_features,),
                         hidden_features,
@@ -244,17 +240,6 @@ class FlexibleRealNVP(Flow):
             transform=CompositeTransform(layers),
             distribution=StandardNormal([features]),
         )
-
-class TweakedUniform(BoxUniform):
-    def log_prob(self, value, context=None):
-        return super().log_prob(value)
-
-    def sample(self, num_samples, context=None):
-        return super().sample((num_samples, ))
-
-    def sample_and_log_prob(self, num_samples, context=None):
-        s = self.sample(num_samples)
-        return s, self.log_prob(s, context)
 
 
 class SimpleFlow(Distribution):

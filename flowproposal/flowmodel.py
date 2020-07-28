@@ -285,7 +285,7 @@ class FlowModel:
         log_prob = log_prob.detach().cpu().numpy()
         return z, log_prob
 
-    def sample_and_log_prob(self, N=1, z=None):
+    def sample_and_log_prob(self, N=1, z=None, alt_dist=None):
         """
         Generate samples from samples drawn from the distribution or
         from provided noise samples
@@ -299,10 +299,15 @@ class FlowModel:
             with torch.no_grad():
                 x, log_prob = self.model.sample_and_log_prob(N)
         else:
+            if alt_dist is not None:
+                dist = alt_dist
+            else:
+                dist = self.model._distribution
+
             with torch.no_grad():
                 if isinstance(z, np.ndarray):
                     z = torch.Tensor(z.astype(np.float32)).to(self.device)
-                log_prob = self.model._distribution.log_prob(z)
+                log_prob = dist.log_prob(z)
                 x, log_J = self.model._transform.inverse(z, None)
                 log_prob -= log_J
 
