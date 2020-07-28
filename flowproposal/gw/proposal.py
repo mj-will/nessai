@@ -37,12 +37,16 @@ class GWFlowProposal(FlowProposal):
         """
         Set the relevant reparamterisation flags
         """
-        defaults = dict(mass_inversion=True, flip=False, reduced_quaternions=True,
+        defaults = dict(mass_inversion=False, flip=False, reduced_quaternions=True,
                 distance_rescaling=False, norm_quaternions=False, rescale_angles=True,
                 euler_convention='ZYZ', angular_decomposition=True,
                 minus_one_to_one=True, log_inversion=False, log_radial=False,
                 inversion=False, exclude=[])
         defaults.update(reparameterisations)
+
+        if defaults['mass_inversion'] and defaults['inversion']:
+            raise RuntimeError('Mass inversion and inversion are not compatible')
+
         logger.info('Reparameterisations:')
         for k, v in defaults.items():
             logger.info(f'{k}: {v}')
