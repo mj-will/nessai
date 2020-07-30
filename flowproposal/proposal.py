@@ -8,7 +8,7 @@ from scipy.special import logsumexp
 from .flowmodel import FlowModel, update_config
 from .livepoint import live_points_to_array, numpy_array_to_live_points, get_dtype
 from .plot import plot_live_points, plot_acceptance
-from .utils import get_uniform_distribution
+from .utils import get_uniform_distribution, detect_edge
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,7 @@ class Proposal:
         self.populated = True
         self.initialised = False
         self.training_count = 0
+        self.population_acceptance = None
 
     def initialise(self):
         """Initialise"""
@@ -51,6 +52,7 @@ class RejectionProposal(Proposal):
         super(RejectionProposal, self).__init__(model)
         self.poolsize=poolsize
         self.populated = False
+        self._acceptance_checked = True
 
     def draw_proposal(self):
         """Draw from the proposal distribution"""
@@ -68,6 +70,19 @@ class RejectionProposal(Proposal):
         log_w -= np.max(log_w)
         return log_w
 
+    @property
+    def population_acceptance(self):
+        if self._acceptance_checked:
+            return None
+        else:
+            self._acceptance_checked = True
+            return self._population_acceptance
+
+    @population_acceptance.setter
+    def population_acceptance(self, acceptance):
+        self._population_acceptance = acceptance
+        self._acceptance_checked = False
+
     def populate(self):
         """Populate"""
         x = self.draw_proposal()
@@ -76,6 +91,7 @@ class RejectionProposal(Proposal):
         indices = np.where((log_w - log_u) >= 0)[0]
         self.samples = x[indices]
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
+        self.population_acceptance = self.samples.size / self.poolsize
         self.populated = True
 
     def draw(self, old_sample):
@@ -90,7 +106,7 @@ class RejectionProposal(Proposal):
         return new_sample
 
 
-class FlowProposal(Proposal):
+class FlowProposal(RejectionProposal):
     """
     Object that handles training and proposal points
     """
@@ -99,7 +115,7 @@ class FlowProposal(Proposal):
             rescale_parameters=False, latent_prior='truncated_gaussian', fuzz=1.0,
             keep_samples=False, exact_poolsize=True, plot=True, fixed_radius=False,
             drawsize=10000, check_acceptance=False,
-            truncate=False, zero_reset=100,
+            truncate=False, zero_reset=100, detect_edges=False,
             rescale_bounds=[-1, 1], rescale_min_max=False, boundary_inversion=False,
             inversion_type='split', update_bounds=True, max_radius=False,
             **kwargs):
@@ -137,7 +153,16 @@ class FlowProposal(Proposal):
         self.zero_reset = zero_reset
         self.boundary_inversion = boundary_inversion
         self.inversion_type = inversion_type
-        self._flip = {}
+        self.detect_edges = detect_edges
+        self._edges= {}
+
+        if self.detect_edges:
+            self._edge_mode_range = 0.1
+            self._edge_cutoff = 0.1
+        else:
+            # Will always return an edge
+            self._edge_mode_range = 0.0
+            self._edge_cutoff = 0.0
 
         if plot:
             if isinstance(plot, str):
@@ -262,7 +287,7 @@ class FlowProposal(Proposal):
 
             self.rescale_bounds = [0, 1]
             self.update_bounds = True
-            self._flip = {n : None for n in b}
+            self._edges= {n : None for n in b}
             logger.info(f'Changing bounds to {self.rescale_bounds}')
         else:
             self.boundary_inversion = []
@@ -314,23 +339,25 @@ class FlowProposal(Proposal):
 
                 if n in self.boundary_inversion:
 
-                    if self._flip[n] is None:
-                        if np.median(x_prime[rn]) > 0.5:
-                            self._flip[n] = True
+                    if self._edges[n] is None:
+                        self._edges[n] = detect_edge(x_prime[rn], bounds=[0, 1],
+                                cutoff=self._edge_cutoff,
+                                mode_range=self._edge_mode_range)
+
+                    if self._edges[n]:
+                        logger.debug(f'Apply inversion for {n} to {self._edges[n]} bound')
+                        if self._edges[n] == 'upper':
+                            x_prime[rn] = 1 - x_prime[rn]
+                        if self.inversion_type == 'duplicate':
+                            x_inv = x_prime.copy()
+                            x_inv[rn] *= -1
+                            x_prime = np.concatenate([x_prime, x_inv])
+                            x = np.concatenate([x,  x])
                         else:
-                            self._flip[n] = False
-
-                    if self._flip[n]:
-                        x_prime[rn] = 1 - x_prime[rn]
-                    if self.inversion_type == 'duplicate':
-                        x_inv = x_prime.copy()
-                        x_inv[rn] *= -1
-                        x_prime = np.concatenate([x_prime, x_inv])
-                        x = np.concatenate([x,  x])
+                            inv = np.random.choice(x_prime.size, x_prime.size // 2)
+                            x_prime[rn][inv] *= -1
                     else:
-                        inv = np.random.choice(x_prime.size, x_prime.size // 2)
-                        x_prime[rn][inv] *= -1
-
+                        logger.debug(f'Not using inversion for {n}')
             else:
                 x_prime[rn] = x[n]
         x_prime['logP'] = x['logP']
@@ -351,7 +378,7 @@ class FlowProposal(Proposal):
                     x_prime[rn][~inv] = x_prime[rn][~inv]
                     x_prime[rn][inv] = -x_prime[rn][inv]
 
-                    if self._flip[n]:
+                    if self._edges[n]:
                         x_prime[rn] = 1 - x_prime[rn]
 
                 x[n] = (self._max[n] - self._min[n]) \
@@ -390,7 +417,7 @@ class FlowProposal(Proposal):
             self._min = {n: np.min(x[n]) for n in self.names}
             self._max = {n: np.max(x[n]) for n in self.names}
         if self.boundary_inversion:
-            self._flip = {n : None for n in self.boundary_inversion}
+            self._edges= {n : None for n in self.boundary_inversion}
 
     def train(self, x, plot=True):
         """
@@ -489,6 +516,7 @@ class FlowProposal(Proposal):
         log_w -= np.max(log_w)
         return log_w
 
+
     def populate(self, worst_point, N=10000, plot=True):
         """Populate a pool of latent points"""
         if self.fixed_radius:
@@ -510,12 +538,14 @@ class FlowProposal(Proposal):
             self.z = np.empty([0, self.dims])
         counter = 0
         zero_counter = 0
+        proposed = 0
         while len(self.x) < N:
             while True:
                 z = self.draw_latent_prior(self.dims, r=r, N=self.drawsize,
                         fuzz=self.fuzz)
                 if z.size:
                     break
+            proposed += z.shape[0]
             x, log_q = self.backward_pass(z, rescale=True)
             if self.truncate:
                 cut = log_q >= worst_q
@@ -555,6 +585,7 @@ class FlowProposal(Proposal):
             self.x = self.x[:N]
             self.z = self.z[:N]
 
+
         if self._plot_pool:
             plot_live_points(self.x, c='logL',
                     filename=f'{self.output}/pool_{self.populated_count}.png')
@@ -577,9 +608,11 @@ class FlowProposal(Proposal):
                     dtype=self.samples['logL'].dtype)
 
         self.indices = np.random.permutation(self.samples.size).tolist()
+        self.population_acceptance = self.x.size / proposed
         self.populated_count += 1
         self.populated = True
         logger.debug(f'Proposal populated with {len(self.indices)} samples')
+        logger.debug(f'Overall proposal acceptance: {self.x.size / proposed:.4}')
 
     def evaluate_likelihoods(self):
         """
