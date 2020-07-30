@@ -41,6 +41,7 @@ class _NSintegralState(object):
     # Start with a dummy sample enclosing the whole prior
     self.logLs=[-np.inf] # Likelihoods sampled
     self.log_vols=[0.0] # Volumes enclosed by contours
+    self.gradients = [0]
   def increment(self, logL, nlive=None):
     """
     Increment the state of the evidence integrator
@@ -65,6 +66,7 @@ class _NSintegralState(object):
     self.iteration += 1
     self.logLs.append(logL)
     self.log_vols.append(self.logw)
+    self.gradients.append((self.logLs[-1] - self.logLs[-2]) / (self.log_vols[-1] - self.log_vols[-2]))
   def finalise(self):
     """
     Compute the final evidence with more accurate integrator
@@ -192,7 +194,8 @@ class NestedSampler:
         self.max_likelihood = []
         self.logZ_history = []
         self.dZ_history = []
-
+        self.population_acceptance = []
+        self.population_iterations = []
 
         self.acceptance_threshold = acceptance_threshold
         self.train_on_empty = train_on_empty
@@ -364,7 +367,8 @@ class NestedSampler:
                 if (1 / counter) < self.acceptance_threshold:
                     self.max_count += 1
                     break
-
+                # Only here if proposed and then empty
+                # This returns the old point and allows for a training check
                 if not self.proposal.populated:
                     break
             yield counter, oldparam
@@ -400,6 +404,7 @@ class NestedSampler:
         self.iteration += 1
         self.block_iteration += 1
         count = 0
+
         while(True):
             c, proposed = next(self.yield_sample(worst))
             count += c
@@ -561,7 +566,7 @@ class NestedSampler:
         Produce plots with the current state of the nested sampling run
         """
 
-        fig, ax = plt.subplots(5, 1, sharex=True, figsize=(10,8))
+        fig, ax = plt.subplots(6, 1, sharex=True, figsize=(12,12))
         ax = ax.ravel()
         it = (np.arange(len(self.min_likelihood))) * (self.nlive // 10)
         it[-1] = self.iteration
@@ -570,26 +575,34 @@ class NestedSampler:
         ax[0].set_ylabel('logL')
         ax[0].legend(frameon=False)
 
-        ax[1].plot(it, self.likelihood_evaluations, c='darkblue', label='Evalutions')
-        ax[1].set_ylabel('logL evaluations')
+        g = np.min([len(self.state.gradients), self.iteration])
+        ax[1].plot(np.arange(g), np.abs(self.state.gradients[:g]),
+                c='darkblue', label='Gradient')
+        ax[1].set_ylabel(r'$|d\log L/d \log X|$')
+        ax[1].set_yscale('log')
 
-        ax[2].plot(it, self.logZ_history, label='logZ', c='darkblue')
-        ax[2].set_ylabel('logZ')
-        ax[2].legend(frameon=False)
+        ax[2].plot(it, self.likelihood_evaluations, c='darkblue', label='Evalutions')
+        ax[2].set_ylabel('logL evaluations')
 
-        ax_dz = plt.twinx(ax[2])
+        ax[3].plot(it, self.logZ_history, label='logZ', c='darkblue')
+        ax[3].set_ylabel('logZ')
+        ax[3].legend(frameon=False)
+
+        ax_dz = plt.twinx(ax[3])
         ax_dz.plot(it, self.dZ_history, label='dZ', c='lightblue')
         ax_dz.set_ylabel('dZ')
         ax_dz.legend(frameon=False)
 
-        ax[3].plot(it, self.mean_acceptance_history, c='darkblue', label='Mean')
-        ax[3].set_ylabel('Acceptance')
-        ax[3].set_ylim((-0.1, 1.1))
-        ax[3].legend(frameon=False)
+        ax[4].plot(it, self.mean_acceptance_history, c='darkblue', label='Proposal')
+        ax[4].plot(self.population_iterations, self.population_acceptance,
+                c='lightblue', label='Population')
+        ax[4].set_ylabel('Acceptance')
+        ax[4].set_ylim((-0.1, 1.1))
+        ax[4].legend(frameon=False)
 
         it = (np.arange(len(self.rolling_p))) * self.nlive
-        ax[4].plot(it, self.rolling_p, c='darkblue', label='p-value')
-        ax[4].set_ylabel('p-value')
+        ax[5].plot(it, self.rolling_p, c='darkblue', label='p-value')
+        ax[5].set_ylabel('p-value')
 
         ax[-1].set_xlabel('Iteration')
 
@@ -605,6 +618,11 @@ class NestedSampler:
         """
         Update state after replacing a live point
         """
+
+        if (pa := self.proposal.population_acceptance) is not None:
+            self.population_acceptance.append(pa)
+            self.population_iterations.append(self.iteration)
+
         if not (self.iteration % (self.nlive // 10)) or force:
             self.likelihood_evaluations.append(
                     self.model.evaluate_log_likelihood.calls)
@@ -627,7 +645,6 @@ class NestedSampler:
             if self.uninformed_sampling:
                 self.block_acceptance = 0.
                 self.block_iteration = 0
-
 
     def checkpoint(self):
         """

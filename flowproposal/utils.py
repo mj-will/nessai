@@ -1,7 +1,7 @@
 import json
 import logging
 import numpy as np
-from scipy.stats import chi
+from scipy import stats
 import torch
 
 from nflows.distributions.uniform import BoxUniform
@@ -130,7 +130,7 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0):
     r *= fuzz
     p = np.empty([0])
     while p.shape[0] < N:
-        p = np.concatenate([p, chi.rvs(dims, size=N)])
+        p = np.concatenate([p, stats.chi.rvs(dims, size=N)])
         p = p[p < r]
     x = np.random.randn(p.size, dims)
     points = (p * x.T / np.sqrt(np.sum(x**2., axis=1))).T
@@ -251,6 +251,28 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
         Array of log determinants of Jacobians for each sample
     """
     return (xmax - xmin) * ((x + 1) / 2.) + xmin, np.log(xmax - xmin) - np.log(2)
+
+
+def detect_edge(x, cutoff=0.1, nbins=100, bounds=[0, 1], mode_range=0.2):
+    """
+    Detect edges in input distributions
+    """
+    hist, bins = np.histogram(x, bins=nbins)
+    n = int(nbins * 0.1)
+    bounds_fraction = np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) / x.size
+    mode = ((bins[:-1] + bins[1:]) / 2)[np.argmax(hist)]
+    if not np.any(bounds_fraction > cutoff):
+        return False
+    elif np.abs(mode - np.mean(bounds)) < mode_range:
+        return False
+    else:
+        bound = np.argmax(bounds_fraction)
+        if bound == 0:
+            return 'lower'
+        elif bound == 1:
+            return 'upper'
+        else:
+            raise RuntimeError('Bounds were not computed correctly')
 
 
 def setup_logger(output=None, label=None, log_level='INFO'):
