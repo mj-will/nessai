@@ -8,7 +8,7 @@ from ..proposal import FlowProposal
 from ..flowmodel import FlowModel
 from ..utils import replace_in_list, rescale_zero_to_one, \
         inverse_rescale_zero_to_one, rescale_minus_one_to_one, \
-        inverse_rescale_minus_one_to_one
+        inverse_rescale_minus_one_to_one, detect_edge
 from .utils import angle_to_cartesian, cartesian_to_angle, \
         sky_to_cartesian, cartesian_to_sky
 
@@ -322,21 +322,26 @@ class GWFlowProposal(FlowProposal):
                     log_J += lj
 
                 if c['flip'] is None:
-                    if np.median(x[c['name']]) > 0.5:
-                        c['flip'] = True
-                    else:
-                        c['flip'] = False
+                    #if np.median(x[c['name']]) > 0.5:
+                    c['flip'] = detect_edge(x[c['name']], bounds=[0, 1],
+                            cutoff=self._edge_cutoff,
+                            mode_range=self._edge_mode_range)
+                    logger.debug(f"Inversion: {c['flip']}")
+                    #    c['flip'] = True
+                    #else:
+                    #    c['flip'] = False
 
-                if c['flip']:
+                if c['flip'] == 'upper':
                     x[c['name']] = 1 - x[c['name']]
 
+                if c['flip']:
 
-                x_inv = x.copy()
-                x_inv[c['name']] *= -1
-                x = np.concatenate([x, x_inv])
+                    x_inv = x.copy()
+                    x_inv[c['name']] *= -1
+                    x = np.concatenate([x, x_inv])
 
-                log_J = np.concatenate([log_J, log_J])
-                x_prime = np.concatenate([x_prime, x_prime])
+                    log_J = np.concatenate([log_J, log_J])
+                    x_prime = np.concatenate([x_prime, x_prime])
 
                 x_prime[c['rescaled_name']] = x[c['name']].copy()
 
@@ -553,7 +558,7 @@ class GWFlowProposal(FlowProposal):
                 x[c['name']][~inv] = x_prime[c['rescaled_name']][~inv]
                 x[c['name']][inv] = -x_prime[c['rescaled_name']][inv]
 
-                if c['flip']:
+                if c['flip'] == 'upper':
                     x[c['name']] = 1 - x[c['name']]
 
                 if c['rescale']:
