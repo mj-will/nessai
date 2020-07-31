@@ -1,6 +1,7 @@
 import json
 import logging
 import numpy as np
+import pandas as pd
 from scipy import stats
 import torch
 
@@ -340,10 +341,14 @@ class NumpyEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-def counter(fn):
-        def wrapper(*args, **kwargs):
-            wrapper.calls += 1
-            return fn(*args, **kwargs)
-        wrapper.calls= 0
-        wrapper.__name__= fn.__name__
-        return wrapper
+def save_live_points(live_points, filename):
+    """
+    Save a numpy structured array of live points to a json file
+    """
+    df = pd.DataFrame.from_records(live_points)
+    with open(filename, 'w') as wf:
+        json.dump(df.to_dict(orient='list'), wf, indent=4)
+
+
+
+

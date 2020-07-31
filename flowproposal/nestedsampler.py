@@ -625,7 +625,7 @@ class NestedSampler:
 
         if not (self.iteration % (self.nlive // 10)) or force:
             self.likelihood_evaluations.append(
-                    self.model.evaluate_log_likelihood.calls)
+                    self.model.likelihood_evaluations)
             self.min_likelihood.append(self.logLmin)
             self.max_likelihood.append(self.logLmax)
             self.logZ_history.append(self.state.logZ)
@@ -692,13 +692,11 @@ class NestedSampler:
             self.state.increment(p['logL'], nlive=self.nlive-i)
             self.nested_samples.append(p)
 
-        #self.nested_samples_numpy = np.array(self.nested_samples)
-
         # Refine evidence estimate
         self.update_state(force=True)
         self.state.finalise()
         self.logZ = self.state.logZ
-        self.likelihood_calls = self.model.evaluate_log_likelihood.calls
+        self.likelihood_calls = self.model.likelihood_evaluations
         # output the chain and evidence
         if save:
             self.write_nested_samples_to_file()
@@ -727,11 +725,11 @@ class NestedSampler:
         logger.critical('Resuming NestedSampler from ' + filename)
         with open(filename,"rb") as f:
             obj = pickle.load(f)
+        model.likelihood_evaluations += obj.likelihood_evaluations[-1]
         obj.model = model
         obj._uninformed_proposal.model = model
         obj._flow_proposal.model = model
         obj._flow_proposal.flow_config = flow_config
-        print(flow_config)
         if (m := obj._flow_proposal.mask) is not None:
             if isinstance(m, list):
                 m = np.array(m)

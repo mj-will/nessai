@@ -5,7 +5,7 @@ import numpy as np
 
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
-from .utils import NumpyEncoder
+from .utils import NumpyEncoder, save_live_points
 
 
 logger = logging.getLogger(__name__)
@@ -44,12 +44,11 @@ class FlowSampler:
         logger.info(f'Returned {self.posterior_samples.size} posterior samples')
 
         if save:
-            np.savetxt(os.path.join(
-                self.output,'posterior.dat'),
-                self.posterior_samples,
-                header=' '.join(self.posterior_samples.dtype.names),
-                newline='\n',delimiter=' ')
+            save_live_points(self.nested_samples,
+                    f'{self.output}/nested_samples.json')
 
+            save_live_points(self.posterior_samples,
+                    f'{self.output}/posterior_samples.json')
         if plot:
             from flowproposal import plot
 

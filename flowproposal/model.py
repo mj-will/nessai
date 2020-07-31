@@ -2,10 +2,10 @@
 import numpy as np
 
 from .livepoint import parameters_to_live_point, numpy_array_to_live_points, get_dtype
-from .utils import counter
 
 class Model:
 
+    likelihood_evaluations = 0
     names = [] # Names of parameters, e.g. ['p1','p2']
     bounds = {}
     _lower = None
@@ -89,8 +89,8 @@ class Model:
         """
         pass
 
-    @counter
     def evaluate_log_likelihood(self, x):
+        self.likelihood_evaluations += 1
         return self.log_likelihood(x)
 
     def header(self):
