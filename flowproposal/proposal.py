@@ -115,9 +115,9 @@ class FlowProposal(RejectionProposal):
             rescale_parameters=False, latent_prior='truncated_gaussian', fuzz=1.0,
             keep_samples=False, exact_poolsize=True, plot=True, fixed_radius=False,
             drawsize=10000, check_acceptance=False,
-            truncate=False, zero_reset=100, detect_edges=False,
+            truncate=False, zero_reset=None, detect_edges=False,
             rescale_bounds=[-1, 1], rescale_min_max=False, boundary_inversion=False,
-            inversion_type='split', update_bounds=True, max_radius=False,
+            inversion_type='duplicate', update_bounds=True, max_radius=False,
             **kwargs):
         """
         Initialise
@@ -126,6 +126,7 @@ class FlowProposal(RejectionProposal):
         logger.debug('Initialising FlowProposal')
 
         self.flow = None
+        self._flow_config = None
         self.initialised = False
         self.populated = False
         self.indices = []
@@ -189,8 +190,7 @@ class FlowProposal(RejectionProposal):
 
         self.acceptance = []
         self.approx_acceptance = []
-
-        self.flow_config = update_config(flow_config)
+        self.flow_config = flow_config
 
         if self.latent_prior == 'truncated_gaussian':
             from .utils import draw_truncated_gaussian
@@ -224,6 +224,16 @@ class FlowProposal(RejectionProposal):
             self.fixed_radius = False
 
         self.max_radius = max_radius
+
+    @property
+    def flow_config(self):
+        """Return the configuration for the flow"""
+        return self._flow_config
+
+    @flow_config.setter
+    def flow_config(self, config):
+        """Set configuration (includes checking defaults)"""
+        self._flow_config = update_config(config)
 
     @property
     def dims(self):
@@ -354,7 +364,8 @@ class FlowProposal(RejectionProposal):
                             x_prime = np.concatenate([x_prime, x_inv])
                             x = np.concatenate([x,  x])
                         else:
-                            inv = np.random.choice(x_prime.size, x_prime.size // 2)
+                            inv = np.random.choice(x_prime.size, x_prime.size // 2,
+                                    replace=False)
                             x_prime[rn][inv] *= -1
                     else:
                         logger.debug(f'Not using inversion for {n}')
@@ -466,6 +477,15 @@ class FlowProposal(RejectionProposal):
         """
         self.flow.reset_model()
 
+    def check_prior_bounds(self, x, *args):
+        """
+        Return only values that are within the prior bounds
+        """
+        idx = np.array(list(((x[n] >= self.model.bounds[n][0]) \
+                & (x[n] <= self.model.bounds[n][1])) for n in self.model.names)).T.all(1)
+        out = (a[idx] for a in (x,) + args)
+        return out
+
     def forward_pass(self, x, rescale=True):
         """Pass a vector of points through the model"""
         log_J = 0
@@ -488,6 +508,7 @@ class FlowProposal(RejectionProposal):
             x, log_J = self.inverse_rescale(x)
             # Include Jacobian for the rescaling
             log_prob -= log_J
+            x, log_prob = self.check_prior_bounds(x, log_prob)
         return x, log_prob
 
     def radius(self, z, log_q=None):
@@ -516,7 +537,6 @@ class FlowProposal(RejectionProposal):
         log_w -= np.max(log_w)
         return log_w
 
-
     def populate(self, worst_point, N=10000, plot=True):
         """Populate a pool of latent points"""
         if self.fixed_radius:
@@ -533,6 +553,7 @@ class FlowProposal(RejectionProposal):
             self.alt_dist = get_uniform_distribution(self.dims, r)
 
         warn = True
+        warn_zero = True
         if not self.keep_samples or not self.indices:
             self.x = np.array([], dtype=self.x_dtype)
             self.z = np.empty([0, self.dims])
@@ -557,7 +578,9 @@ class FlowProposal(RejectionProposal):
             indices = np.where((log_w - log_u) >= 0)[0]
 
             if not len(indices) or (len(indices) / self.drawsize < 0.001) :
-                logger.warning('Rejection sampling produced almost zero samples!')
+                if warn_zero:
+                    logger.warning('Rejection sampling produced almost zero samples!')
+                    warn_zero = False
                 zero_counter += 1
                 if zero_counter == self.zero_reset and self.x.size < (N // 2) and \
                         self.latent_prior == 'truncated_gaussian':
@@ -657,7 +680,7 @@ class FlowProposal(RejectionProposal):
         # user provides model and config for resume
         # flow can be reconstructed from resume
         del state['model']
-        del state['flow_config']
+        del state['_flow_config']
         del state['flow']
         for a in ['x', 'z', 'indices', 'samples']:
             if a in state:
