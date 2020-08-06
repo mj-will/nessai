@@ -216,6 +216,15 @@ class NestedSampler:
         logger.info(f'Parsing kwargs to FlowProposal: {kwargs}')
         proposal_output = self.output + '/proposal/'
         if flow_class is not None:
+            if isinstance(flow_class, str):
+                if flow_class == 'GWFlowProposal':
+                    from .gw.proposal import GWFlowProposal
+                    flow_class = GWFlowProposal
+                elif flow_class == 'FlowProposal':
+                    from .proposal import FlowProposal
+                    flow_class = FlowProposal
+                else:
+                    raise RuntimeError(f'Unknown flow class: {flow_class}')
             self._flow_proposal = flow_class(model, flow_config=flow_config,
                     output=proposal_output, plot=proposal_plots, **kwargs)
         else:
