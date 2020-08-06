@@ -20,7 +20,9 @@ def update_config(d):
     Update the default dictionary for a trainer
     """
     default_model = dict(n_inputs=None, n_neurons=32, n_blocks=4, n_layers=2,
-            ftype='RealNVP', device_tag='cpu', kwargs={})
+            ftype='RealNVP', device_tag='cpu',
+            kwargs=dict(batch_norm_between_layers=True, linear_transform='lu')
+            )
 
     if 'model_config' in d.keys():
         default_model.update(d['model_config'])
