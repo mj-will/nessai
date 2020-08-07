@@ -334,11 +334,20 @@ def setup_logger(output=None, label=None, log_level='INFO'):
 
 
 class NumpyEncoder(json.JSONEncoder):
-    """Class to encode numpy arrays when saving as json"""
+    """
+    Class to encode numpy arrays when saving as json
+
+    Based on: https://stackoverflow.com/a/57915246
+    """
     def default(self, obj):
-        if isinstance(obj, np.ndarray):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
             return obj.tolist()
-        return json.JSONEncoder.default(self, obj)
+        else:
+            return super(NumpyEncoder, self).default(obj)
 
 
 def save_live_points(live_points, filename):

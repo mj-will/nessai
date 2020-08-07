@@ -44,11 +44,8 @@ class FlowSampler:
         logger.info(f'Returned {self.posterior_samples.size} posterior samples')
 
         if save:
-            save_live_points(self.nested_samples,
-                    f'{self.output}/nested_samples.json')
+            self.save_results(f'{self.output}/result.json')
 
-            save_live_points(self.posterior_samples,
-                    f'{self.output}/posterior_samples.json')
         if plot:
             from flowproposal import plot
 
@@ -77,5 +74,37 @@ class FlowSampler:
                 json.dump(d, wf, indent=4, cls=NumpyEncoder)
             except Exception as e:
                 raise e
+
+
+    def save_results(self, filename):
+        """
+        Save the results from sampling
+        """
+        iterations = (np.arange(len(self.ns.min_likelihood))) * (self.ns.nlive // 10)
+        iterations[-1] = self.ns.iteration
+        d = dict()
+        d['history'] = dict(
+                iterations=iterations,
+                min_likelihood=self.ns.min_likelihood,
+                max_likelihood=self.ns.max_likelihood,
+                likelihood_evaluations=self.ns.likelihood_evaluations,
+                logZ=self.ns.logZ_history,
+                dZ=self.ns.dZ_history,
+                mean_acceptance=self.ns.mean_acceptance_history,
+                rolling_p=self.ns.rolling_p,
+                population=dict(
+                    iterations=self.ns.population_iterations,
+                    acceptance=self.ns.population_acceptance
+                    ),
+                training_iterations=self.ns.training_iterations
+
+                )
+        d['insertion_indices'] = self.ns.insertion_indices
+        d['nested_samples'] = self.nested_samples
+        d['posterior_samples'] = self.posterior_samples
+
+        with open(filename, 'w') as wf:
+            json.dump(d, wf, indent=4, cls=NumpyEncoder)
+
 
 
