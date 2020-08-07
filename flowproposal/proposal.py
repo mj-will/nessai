@@ -333,8 +333,8 @@ class FlowProposal(RejectionProposal):
         """
         Rescale the inputs to specified bounds
         """
-        log_J = 0
         x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
+        log_J = np.zeros(x_prime.size)
 
         if x.size == 1:
             x = np.array([x], dtype=x.dtype)
@@ -381,7 +381,7 @@ class FlowProposal(RejectionProposal):
         using the bounds specified
         """
         x = np.zeros([x_prime.size], dtype=self.x_dtype)
-        log_J = 0.
+        log_J = np.zeros(x_prime.size)
         for n, rn in zip(self.names, self.rescaled_names):
             if n in self.rescale_parameters:
                 if n in self.boundary_inversion:
@@ -463,7 +463,8 @@ class FlowProposal(RejectionProposal):
             plot_live_points(x_prime, c='logL',
                     filename=block_output + 'x_prime_generated.png')
             x, log_J = self.inverse_rescale(x_prime)
-            x_prime['logL'] += log_J
+            x, log_J = self.check_prior_bounds(x, log_J)
+            x['logL'] += log_J
             if self.rescale_parameters:
                 plot_live_points(x, c='logL',
                         filename=block_output + 'x_generated.png')
