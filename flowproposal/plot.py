@@ -18,6 +18,8 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None, **kwargs):
     pairplot_kwargs.update(kwargs)
 
     df = pd.DataFrame(live_points)
+    df = df[np.isfinite(df).all(1)]
+
     if c is not None:
         fig = sns.PairGrid(df, corner=True, diag_sharey=False)
         fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
