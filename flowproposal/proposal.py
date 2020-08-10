@@ -1,9 +1,10 @@
-import os
 import logging
+import os
+
 import numpy as np
-import torch
 from scipy import stats
 from scipy.special import logsumexp
+import torch
 
 from .flowmodel import FlowModel, update_config
 from .livepoint import live_points_to_array, numpy_array_to_live_points, get_dtype
@@ -11,6 +12,17 @@ from .plot import plot_live_points, plot_acceptance
 from .utils import get_uniform_distribution, detect_edge
 
 logger = logging.getLogger(__name__)
+
+
+def _initialize_global_variables(model):
+    """
+    Store a global copy of the model for multiprocessing.
+    """
+    global _model
+    _model = model
+
+def _log_likelihood_wrapper(x):
+    return _model.evaluate_log_likelihood(x)
 
 class Proposal:
 
@@ -20,6 +32,7 @@ class Proposal:
         self.initialised = False
         self.training_count = 0
         self.population_acceptance = None
+        self.pool = None
 
     def initialise(self):
         """Initialise"""
@@ -118,6 +131,7 @@ class FlowProposal(RejectionProposal):
             truncate=False, zero_reset=None, detect_edges=False,
             rescale_bounds=[-1, 1], rescale_min_max=False, boundary_inversion=False,
             inversion_type='duplicate', update_bounds=True, max_radius=False,
+            pool=None, n_pool=None, multiprocessing=False,
             **kwargs):
         """
         Initialise
@@ -156,6 +170,12 @@ class FlowProposal(RejectionProposal):
         self.inversion_type = inversion_type
         self.detect_edges = detect_edges
         self._edges= {}
+
+
+        self.pool = pool
+        self.n_pool = n_pool
+        if multiprocessing:
+            self._setup_pool()
 
         if self.detect_edges:
             self._edge_mode_range = 0.1
@@ -224,6 +244,27 @@ class FlowProposal(RejectionProposal):
             self.fixed_radius = False
 
         self.max_radius = max_radius
+
+
+    def _setup_pool(self):
+        """
+        Setup the multiprocessing pool for
+        """
+        if self.pool is None:
+            import multiprocessing
+            self.pool = multiprocessing.Pool(
+                processes=self.n_pool,
+                initializer=_initialize_global_variables,
+                initargs=(self.model,)
+            )
+
+    def _close_pool(self):
+        if getattr(self, "pool", None) is not None:
+            logger.info("Starting to close worker pool.")
+            self.pool.close()
+            self.pool.join()
+            self.pool = None
+            logger.info("Finished closing worker pool.")
 
     @property
     def flow_config(self):
@@ -409,7 +450,7 @@ class FlowProposal(RejectionProposal):
         Rescale from the phyisical space to the primed physical
         space
         """
-        log_J = 0.
+        log_J = np.zeros(x.size)
         return x, log_J
 
     def inverse_rescale(self, x_prime):
@@ -417,7 +458,7 @@ class FlowProposal(RejectionProposal):
         Rescale from the primed phyisical space to the original physical
         space
         """
-        log_J = 0.
+        log_J = np.zeros(x_prime.size)
         return x_prime, log_J
 
     def check_state(self, x):
@@ -642,8 +683,12 @@ class FlowProposal(RejectionProposal):
         """
         Evaluate the likelihoods for the pool of live points
         """
-        for s in self.samples:
-            s['logL'] = self.model.evaluate_log_likelihood(s)
+        if self.pool is None:
+            for s in self.samples:
+                s['logL'] = self.model.evaluate_log_likelihood(s)
+        else:
+            self.samples['logL'] = self.pool.map(_log_likelihood_wrapper, self.samples)
+            self.model.likelihood_evaluations += self.samples.size
 
     def compute_acceptance(self, logL):
         """
@@ -680,6 +725,7 @@ class FlowProposal(RejectionProposal):
             state['mask'] = None
         # user provides model and config for resume
         # flow can be reconstructed from resume
+        del state['pool']
         del state['model']
         del state['_flow_config']
         del state['flow']
