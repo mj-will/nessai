@@ -39,5 +39,3 @@ def test_dict_to_live_points():
     live_points = lp.dict_to_live_points(d)
     np.testing.assert_array_equal(truth, live_points)
     np.testing.assert_array_equal(truth, live_points)
-
-
