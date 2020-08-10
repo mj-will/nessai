@@ -11,17 +11,12 @@ import numpy as np
 import torch
 torch.set_num_threads(1)
 
-from flowproposal.utils import setup_logger
-from flowproposal.gw.proposal import GWFlowProposal
-
 # The output from the sampler will be saved to:
 # '$outdir/$label_flowproposal/'
 # alongside the usual bilby outputs
 outdir = './outdir/'
 label = 'gw_example'
 
-# Setup both loggers (this should change in the future)
-logger = setup_logger(outdir, label=label, log_level='DEBUG')
 bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level='DEBUG')
 
 duration = 4.
@@ -67,7 +62,8 @@ priors['mass_ratio'] = bilby.prior.Uniform(
 
 # Only sample masses and source angles
 for key in ['a_1', 'a_2', 'tilt_1', 'tilt_2', 'phi_12', 'phi_jl',
-            'ra', 'dec', 'geocent_time', 'luminosity_distance']:
+            'ra', 'dec', 'geocent_time', 'luminosity_distance', 'phase',
+            'psi']:
     priors[key] = injection_parameters[key]
 
 # Initialise GravitationalWaveTransient
@@ -77,16 +73,15 @@ likelihood = bilby.gw.likelihood.GravitationalWaveTransient(
 
 flow_config = {
     "lr": 0.0001,
-    "batch_size": 2000,
+    "batch_size": 500,
     "val_size": 0.1,
-    "max_epochs": 1000,
-    "patience": 100,
-    "noise_scale": 0.01,
+    "max_epochs": 200,
+    "patience": 20,
     "model_config": {
-        "n_blocks": 10,
-        "n_neurons": 64,
+        "n_blocks": 4,
+        "n_neurons": 32,
         "n_layers": 2,
-        "ftype": "frealnvp",
+        "ftype": "realnvp",
         "kwargs": {
             "batch_norm_between_layers": True,
             "linear_transform": "lu"
@@ -103,7 +98,7 @@ result = bilby.core.sampler.run_sampler(
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
     nlive=2000, training_frequency=2000, rescale_parameters=True,
     update_bounds=True, flow_config=flow_config, poolsize=20000,
-    flow_class=GWFlowProposal, analytic_priors=True,
-    reparameterisations={'inversion': True}, latent_prior='uniform_nsphere')
+    flow_class='GWFlowProposal', analytic_priors=True, resume=False,
+    reparameterisations={'inversion': True})
 result.plot_corner()
 
