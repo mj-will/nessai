@@ -50,6 +50,7 @@ class FlowModel:
         self.initialised = False
         self.output = output
         self._setup_from_input_dict(config)
+        self.weights_file = None
 
     def save_input(self, config):
         """

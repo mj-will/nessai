@@ -1,23 +1,24 @@
-import os
-import time
-import datetime
-import pickle
-import logging
-import numpy as np
-from tqdm import tqdm
 from collections import deque
-from scipy.stats import ksone
-import torch
+import datetime
+import logging
+import os
+import pickle
+import time
 
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.stats import ksone
 import seaborn as sns
-sns.set()
-sns.set_style('ticks')
+import torch
+from tqdm import tqdm
 
-from .posterior import logsubexp, log_integrate_log_trap
 from .livepoint import live_points_to_array, get_dtype
 from .plot import plot_indices
+from .posterior import logsubexp, log_integrate_log_trap
+from .utils import safe_file_dump
 
+sns.set()
+sns.set_style('ticks')
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ class NestedSampler:
                  maximum_uninformed=1000, training_frequency=1000, uninformed_proposal=None,
                  reset_weights=True, checkpointing=True, resume_file=None,
                  uninformed_proposal_kwargs={}, seed=None, plot=True, force_train=True,
-                 proposal_plots=True,
+                 proposal_plots=True, max_iteration=None,
                  **kwargs):
         """
         Initialise all necessary arguments and
@@ -168,6 +169,7 @@ class NestedSampler:
         self.insertion_indices = []
         self.rolling_p      = []
         self.checkpointing = checkpointing
+        self.resumed = False
         self.tolerance      = stopping
         self.condition      = np.inf
         self.worst          = 0
@@ -196,6 +198,12 @@ class NestedSampler:
         self.dZ_history = []
         self.population_acceptance = []
         self.population_iterations = []
+
+
+        if max_iteration is None:
+            self.max_iteration = np.inf
+        else:
+            self.max_iteration = max_iteration
 
         self.acceptance_threshold = acceptance_threshold
         self.train_on_empty = train_on_empty
@@ -549,6 +557,9 @@ class NestedSampler:
         if train:
             if self.iteration - self.last_updated < self.cooldown and not force:
                 logger.debug('Not training, still cooling down!')
+            elif self.resumed:
+                logger.info('Skipping training because of resume')
+                self.resumed = False
             else:
                 if self.reset_weights and not (self.proposal.training_count % self.reset_weights):
                     self.proposal.reset_model_weights()
@@ -660,8 +671,7 @@ class NestedSampler:
         Checkpoint its internal state
         """
         logger.critical('Checkpointing nested sampling')
-        with open(self.resume_file,"wb") as f:
-            pickle.dump(self, f)
+        safe_file_dump(self, self.resume_file, pickle, save_existing=True)
 
     def nested_sampling_loop(self, save=True):
         """
@@ -690,6 +700,11 @@ class NestedSampler:
 
             self.update_state()
 
+            if self.iteration >= self.max_iteration:
+                break
+
+        if self.proposal.pool is not None:
+            self.proposal._close_pool()
 
         if self.store_live_points:
             np.savetxt(self.live_points_dir + '/replacement_live_points.dat',
@@ -739,6 +754,7 @@ class NestedSampler:
         obj._uninformed_proposal.model = model
         obj._flow_proposal.model = model
         obj._flow_proposal.flow_config = flow_config
+        obj._flow_proposal.pool = None
         if (m := obj._flow_proposal.mask) is not None:
             if isinstance(m, list):
                 m = np.array(m)
@@ -747,6 +763,7 @@ class NestedSampler:
         if weights_file is None:
             weights_file = obj._flow_proposal.weights_file
         obj._flow_proposal.flow.reload_weights(weights_file)
+        obj.resumed = True
         return obj
 
     def __getstate__(self):

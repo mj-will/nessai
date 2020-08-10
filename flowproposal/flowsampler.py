@@ -1,6 +1,9 @@
-import os
+import datetime
 import json
 import logging
+import os
+import time
+
 import numpy as np
 
 from .nestedsampler import NestedSampler
@@ -20,12 +23,25 @@ class FlowSampler:
             resume_file='nested_sampler_resume.pkl', weights_file=None, **kwargs):
 
         self.output = output
-        if resume and os.path.exists(output + resume_file):
-            try:
-                self.ns = NestedSampler.resume(output +  resume_file, model,
-                        kwargs['flow_config'], weights_file)
-            except Exception as e:
-                raise RuntimeError(f'Could not resume sampler with error: {e}')
+        if resume:
+            if not any((os.path.exists(self.output + f) for f in [resume_file,
+                resume_file + '.old'])):
+                logger.warning('No files to resume from, starting sampling')
+                self.ns = NestedSampler(model, output=output,
+                        resume_file=resume_file, **kwargs)
+            else:
+                try:
+                    self.ns = NestedSampler.resume(output +  resume_file, model,
+                            kwargs['flow_config'], weights_file)
+                except (FileNotFoundError, RuntimeError) as e:
+                    logger.error(f'Could not load resume file from: {output}')
+                    try:
+                        resume_file += '.old'
+                        self.ns = NestedSampler.resume(output +  resume_file, model,
+                                kwargs['flow_config'], weights_file)
+                    except RuntimeError as e:
+                        logger.error('Could not load old resume file from: {output}')
+                        raise RuntimeError(f'Could not resume sampler with error: {e}')
         else:
             self.ns = NestedSampler(model, output=output, resume_file=resume_file,
                     **kwargs)
@@ -37,7 +53,10 @@ class FlowSampler:
         Run the nested samper
         """
         self.ns.initialise()
+        st = time.time()
         self.logZ, self.nested_samples = self.ns.nested_sampling_loop(save=save)
+        logger.info(('Total sampling time: '
+            f'{datetime.timedelta(seconds=time.time() - st)}'))
         logger.info('Computing posterior samples')
         self.posterior_samples = draw_posterior_samples(self.nested_samples,
                 self.ns.nlive)

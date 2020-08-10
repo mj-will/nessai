@@ -1,11 +1,14 @@
 import json
 import logging
+import os
+import shutil
+
+from nflows.distributions.uniform import BoxUniform
 import numpy as np
 import pandas as pd
 from scipy import stats
 import torch
 
-from nflows.distributions.uniform import BoxUniform
 
 logger = logging.getLogger(__name__)
 
@@ -358,6 +361,31 @@ def save_live_points(live_points, filename):
     with open(filename, 'w') as wf:
         json.dump(df.to_dict(orient='list'), wf, indent=4)
 
+
+def safe_file_dump(data, filename, module, save_existing=False):
+    """ Safely dump data to a .pickle file
+
+    See Bilby for the original impletmentation:
+    https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
+
+    Parameters
+    ----------
+    data:
+        data to dump
+    filename: str
+        The file to dump to
+    module: pickle, dill
+        The python module to use
+    """
+    if save_existing:
+        if os.path.exists(filename):
+            old_filename = filename + ".old"
+            shutil.move(filename, old_filename)
+
+    temp_filename = filename + ".temp"
+    with open(temp_filename, "wb") as file:
+        module.dump(data, file)
+    shutil.move(temp_filename, filename)
 
 
 
