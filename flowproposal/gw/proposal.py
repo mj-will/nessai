@@ -41,7 +41,7 @@ class GWFlowProposal(FlowProposal):
                 distance_rescaling=False, norm_quaternions=False, rescale_angles=True,
                 euler_convention='ZYZ', angular_decomposition=True,
                 minus_one_to_one=True, log_inversion=False, log_radial=False,
-                inversion=False, exclude=[])
+                inversion=True, exclude=[])
         defaults.update(reparameterisations)
 
         if defaults['mass_inversion'] and defaults['inversion']:
@@ -139,7 +139,8 @@ class GWFlowProposal(FlowProposal):
                 for p in self.inversion:
                     self.add_inversion(p)
             else:
-                for p in ['mass_ratio', 'luminosity_distance', 'a_1', 'a_2']:
+                for p in ['mass_ratio', 'luminosity_distance',
+                        'a_1', 'a_2']:
                     if p in self.names:
                         self.add_inversion(p)
 
@@ -317,34 +318,33 @@ class GWFlowProposal(FlowProposal):
         if self._inversion:
             for c in self._inversion.values():
                 if c['rescale']:
-                    x[c['name']], lj = rescale_zero_to_one(x[c['name']],
-                            xmin=c['min'], xmax=c['max'])
+                    x_prime[c['rescaled_name']], lj = rescale_zero_to_one(
+                            x[c['name']], xmin=c['min'], xmax=c['max'])
                     log_J += lj
 
                 if c['flip'] is None:
                     #if np.median(x[c['name']]) > 0.5:
-                    c['flip'] = detect_edge(x[c['name']], bounds=[0, 1],
+                    c['flip'] = detect_edge(x_prime[c['rescaled_name']],
+                            bounds=[0, 1],
                             cutoff=self._edge_cutoff,
                             mode_range=self._edge_mode_range)
-                    logger.debug(f"Inversion: {c['flip']}")
-                    #    c['flip'] = True
-                    #else:
-                    #    c['flip'] = False
+                    logger.debug(f"Inversion for {c['name']}: {c['flip']}")
 
                 if c['flip'] == 'upper':
-                    x[c['name']] = 1 - x[c['name']]
+                    x_prime[c['rescaled_name']] = 1 - x_prime[c['rescaled_name']]
 
                 if c['flip']:
 
-                    x_inv = x.copy()
-                    x_inv[c['name']] *= -1
-                    x = np.concatenate([x, x_inv])
-
-                    log_J = np.concatenate([log_J, log_J])
-                    x_prime = np.concatenate([x_prime, x_prime])
-
-                x_prime[c['rescaled_name']] = x[c['name']].copy()
-
+                    if self.inversion_type == 'duplicate':
+                        x_inv = x_prime.copy()
+                        x_inv[c['rescaled_name']] *= -1
+                        x_prime = np.concatenate([x_prime, x_inv])
+                        x = np.concatenate([x,  x])
+                        log_J = np.concatenate([log_J, log_J])
+                    else:
+                        inv = np.random.choice(x_prime.size, x_prime.size // 2,
+                                replace=False)
+                        x_prime[c['rescaled_name']][inv] *= -1
 
         if 'sky' in self._reparameterisations:
             if self.distance == 'luminosity_distance':
