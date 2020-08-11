@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from .livepoint import parameters_to_live_point, numpy_array_to_live_points, get_dtype
+from .livepoint import parameters_to_live_point, numpy_array_to_live_points, get_dtype, DEFAULT_FLOAT_DTYPE
 
 class Model:
 
@@ -54,7 +54,7 @@ class Model:
         return p
 
     def _multiple_new_points(self, N):
-        new_points = np.array([], dtype=get_dtype(self.names, 'f8'))
+        new_points = np.array([], dtype=get_dtype(self.names, DEFAULT_FLOAT_DTYPE))
         while new_points.size < N:
             p = numpy_array_to_live_points(
                     np.random.uniform(self.lower_bounds, self.upper_bounds, [N, self.dims]),

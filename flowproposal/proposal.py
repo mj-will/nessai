@@ -4,10 +4,9 @@ import os
 import numpy as np
 from scipy import stats
 from scipy.special import logsumexp
-import torch
 
 from .flowmodel import FlowModel, update_config
-from .livepoint import live_points_to_array, numpy_array_to_live_points, get_dtype
+from .livepoint import live_points_to_array, numpy_array_to_live_points, get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_live_points, plot_acceptance
 from .utils import get_uniform_distribution, detect_edge
 
@@ -289,12 +288,12 @@ class FlowProposal(RejectionProposal):
     @property
     def x_dtype(self):
         """Return the dtype for the x space"""
-        return get_dtype(self.names, 'f8')
+        return get_dtype(self.names, DEFAULT_FLOAT_DTYPE)
 
     @property
     def x_prime_dtype(self):
         """Return the dtype for the x prime space"""
-        return get_dtype(self.rescaled_names, 'f8')
+        return get_dtype(self.rescaled_names, DEFAULT_FLOAT_DTYPE)
 
     def initialise(self):
         """
@@ -544,7 +543,7 @@ class FlowProposal(RejectionProposal):
         """A backwards pass from the model (latent -> real)"""
         # Compute the log probability
         x, log_prob = self.flow.sample_and_log_prob(z=z, alt_dist=self.alt_dist)
-        x = numpy_array_to_live_points(x.astype('f8'), self.rescaled_names)
+        x = numpy_array_to_live_points(x.astype(DEFAULT_FLOAT_DTYPE), self.rescaled_names)
         # Apply rescaling in rescale=True
         if rescale:
             x, log_J = self.inverse_rescale(x)
