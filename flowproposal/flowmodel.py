@@ -235,7 +235,7 @@ class FlowModel:
             if not epoch % 50:
                 logger.info(f"Epoch {epoch}: loss: {loss:.3}, val loss: {val_loss:.3}")
 
-            if epoch - best_epoch > patience and epoch > 100:
+            if epoch - best_epoch > patience:
                 logger.info(f"Epoch {epoch}: Reached patience")
                 break
 
