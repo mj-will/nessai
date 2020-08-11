@@ -1,3 +1,4 @@
+import sys
 from collections import deque
 import datetime
 import logging
@@ -12,10 +13,13 @@ import seaborn as sns
 import torch
 from tqdm import tqdm
 
-from .livepoint import live_points_to_array, get_dtype
+from .livepoint import live_points_to_array, get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_indices
 from .posterior import logsubexp, log_integrate_log_trap
 from .utils import safe_file_dump
+
+import psutil
+process = psutil.Process(os.getpid())
 
 sns.set()
 sns.set_style('ticks')
@@ -43,6 +47,7 @@ class _NSintegralState(object):
     self.logLs=[-np.inf] # Likelihoods sampled
     self.log_vols=[0.0] # Volumes enclosed by contours
     self.gradients = [0]
+
   def increment(self, logL, nlive=None):
     """
     Increment the state of the evidence integrator
@@ -400,7 +405,7 @@ class NestedSampler:
         # Concatentate is complied C code, so it is much faster than np.insert
         # it also allows for simultaneous removal of the worst point
         # and insertion of the new live point
-        self.live_points = np.concatenate([self.live_points[1:index], [live_point],
+        self.live_points[:] = np.concatenate([self.live_points[1:index], [live_point],
             self.live_points[index:]])
         return index - 1
 
@@ -443,9 +448,6 @@ class NestedSampler:
                 if not self.block_iteration:
                     self.block_iteration += 1
 
-        if self.store_live_points:
-            self.replacement_points.append(proposed)
-
         self.acceptance = self.accepted / (self.accepted + self.rejected)
         self.mean_block_acceptance = self.block_acceptance / self.block_iteration
         logger.info((f"{self.iteration:5d}: n: {count:3d} "
@@ -462,7 +464,7 @@ class NestedSampler:
         """
         # send all live points to the samplers for start
         i = 0
-        live_points = np.array([], dtype=get_dtype(self.model.names, 'f8'))
+        live_points = np.array([], dtype=get_dtype(self.model.names, DEFAULT_FLOAT_DTYPE))
         with tqdm(total=self.nlive, disable= not self.verbose, desc='Drawing live points') as pbar:
             while i < self.nlive:
                 while i < self.nlive:
