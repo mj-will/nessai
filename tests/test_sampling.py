@@ -1,7 +1,10 @@
 import numpy as np
 import pytest
+import torch
 
 from flowproposal.flowsampler import FlowSampler
+
+torch.set_num_threads(1)
 
 def test_sampling_with_rescale(model, flow_config, tmpdir):
     output = str(tmpdir.mkdir('w_rescale'))
