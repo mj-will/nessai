@@ -1,8 +1,8 @@
-import numpy as np
+
+from flowproposal.model import Model
 from scipy.stats import norm
 import pytest
 
-from flowproposal.model import Model
 
 @pytest.fixture(scope='session')
 def model():
@@ -15,7 +15,8 @@ def model():
         def log_prior(self, x):
             log_p = 0.
             for n in self.names:
-                log_p += ((x[n] >= self.bounds[n][0]) & (x[n] <= self.bounds[n][1])) \
+                log_p += ((x[n] >= self.bounds[n][0])
+                          & (x[n] <= self.bounds[n][1])) \
                         / (self.bounds[n][1] - self.bounds[n][0])
             return log_p
 
@@ -27,12 +28,13 @@ def model():
 
     return TestModel()
 
+
 @pytest.fixture(scope='session')
 def flow_config():
     d = dict(
             max_epochs=5,
-            model_config=dict(n_blocks=2, n_neurons=2, n_layers=1, device_tag='cpu',
-                kwargs=dict(batch_norm_between_layers=False)
-                )
+            model_config=dict(n_blocks=2, n_neurons=2, n_layers=1,
+                              device_tag='cpu',
+                              kwargs=dict(batch_norm_between_layers=False))
             )
     return d

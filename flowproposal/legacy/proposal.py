@@ -5,7 +5,11 @@ import torch
 
 from ..proposal import Proposal
 from .flowmodel import FlowModel, update_config
-from ..livepoint import live_points_to_array, numpy_array_to_live_points, get_dtype
+from ..livepoint import (
+        live_points_to_array,
+        numpy_array_to_live_points,
+        get_dtype
+        )
 from ..plot import plot_live_points
 
 logger = logging.getLogger(__name__)
@@ -17,9 +21,9 @@ class CPNestFlowProposal(Proposal):
     """
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
-            rescale_parameters=False, latent_prior='truncated_gaussian', fuzz=1.0,
-            keep_samples=False, exact_poolsize=True, plot=True, fixed_radius=False,
-            **kwargs):
+                 rescale_parameters=False, latent_prior='truncated_gaussian',
+                 fuzz=1.0, keep_samples=False, exact_poolsize=True, plot=True,
+                 fixed_radius=False, **kwargs):
         """
         Initialise
         """
@@ -66,7 +70,8 @@ class CPNestFlowProposal(Proposal):
             try:
                 self.fixed_radius = float(fixed_radius)
             except ValueError:
-                logger.error('Fixed radius enabled but could not be converted to a float. Setting fixed_radius=False')
+                logger.error('Fixed radius enabled but could not be converted '
+                             'to a float. Setting fixed_radius=False')
                 self.fixed_radius = False
         else:
             self.fixed_radius = False
@@ -134,13 +139,13 @@ class CPNestFlowProposal(Proposal):
         self._min = {n: np.min(x[n]) for n in self.names}
         self._max = {n: np.max(x[n]) for n in self.names}
         x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
+        log_J = 0.
         for n, rn in zip(self.names, self.rescaled_names):
             if n in self.rescale_parameters:
-                x_prime[rn] = 2 * ((x[n] - self._min[n]) \
-                    / (self._max[n] - self._min[n])) - 1
+                x_prime[rn] = 2 * ((x[n] - self._min[n])
+                                   / (self._max[n] - self._min[n])) - 1
 
-                log_J += np.log(2) - np.log(self._max[n] \
-                        - self._min[n])
+                log_J += np.log(2) - np.log(self._max[n] - self._min[n])
             else:
                 x_prime[rn] = x[n]
         x_prime['logP'] = x['logP']
@@ -159,8 +164,7 @@ class CPNestFlowProposal(Proposal):
                 x[n] = (self._max[n] - self._min[n]) \
                         * ((x_prime[rn] + 1) / 2) + self._min[n]
 
-                log_J += np.log(self._max[n] - self._min[n]) \
-                        - np.log(2)
+                log_J += np.log(self._max[n] - self._min[n]) - np.log(2)
             else:
                 x[n] = x_prime[rn]
         x['logP'] = x_prime['logP']
@@ -175,11 +179,12 @@ class CPNestFlowProposal(Proposal):
         log_J = 0.
         for n, rn in zip(self.names, self.rescaled_names):
             if n in self.rescale_parameters:
-                x_prime[rn] = 2 * ((x[n] - self.model.bounds[n][0]) \
-                    / (self.model.bounds[n][1] - self.model.bounds[n][0])) - 1
+                x_prime[rn] = 2 * ((x[n] - self.model.bounds[n][0])
+                                   / (self.model.bounds[n][1]
+                                      - self.model.bounds[n][0])) - 1
 
-                log_J += np.log(2) - np.log(self.model.bounds[n][1] \
-                        - self.model.bounds[n][0])
+                log_J += np.log(2) - np.log(self.model.bounds[n][1]
+                                            - self.model.bounds[n][0])
             else:
                 x_prime[rn] = x[n]
         x_prime['logP'] = x['logP']
@@ -197,8 +202,9 @@ class CPNestFlowProposal(Proposal):
             if n in self.rescale_parameters:
                 x[n] = (self.model.bounds[n][1] - self.model.bounds[n][0]) \
                         * ((x_prime[rn] + 1) / 2) + self.model.bounds[n][0]
-                log_J += np.log(self.model.bounds[n][1] - self.model.bounds[n][0]) \
-                        - np.log(2)
+                log_J += np.log(self.model.bounds[n][1]
+                                - self.model.bounds[n][0]) \
+                    - np.log(2)
             else:
                 x[n] = x_prime[rn]
         x['logP'] = x_prime['logP']
@@ -235,7 +241,8 @@ class CPNestFlowProposal(Proposal):
         x_prime, log_J = self.rescale(x)
 
         if self.rescale_parameters and plot:
-            plot_live_points(x_prime, filename=block_output + 'x_prime_samples.png')
+            plot_live_points(x_prime,
+                             filename=block_output + 'x_prime_samples.png')
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
         x_prime = live_points_to_array(x_prime, self.rescaled_names)
@@ -244,7 +251,8 @@ class CPNestFlowProposal(Proposal):
         if plot:
             z = np.random.randn(5000, self.rescaled_dims)
             x_prime, log_J = self.backward_pass(z, rescale=False)
-            plot_live_points(x_prime, filename=block_output + 'x_prime_generated.png')
+            plot_live_points(x_prime,
+                             filename=block_output + 'x_prime_generated.png')
             x, log_J = self.inverse_rescale(x_prime)
             if self.rescale_parameters:
                 plot_live_points(x, filename=block_output + 'x_generated.png')
@@ -358,7 +366,8 @@ class CPNestFlowProposal(Proposal):
                 raise RuntimeError('Rejection sampling produced zero samples!')
             if len(indices) / N < 0.01:
                 if warn:
-                    logger.warning('Rejection sampling accepted less than 1 percent of samples!')
+                    logger.warning('Rejection sampling accepted less than '
+                                   '1 percent of samples!')
                     warn = False
             # array of indices to take random draws from
             self.x = np.concatenate([self.x, x[indices]], axis=0)
@@ -370,7 +379,8 @@ class CPNestFlowProposal(Proposal):
 
         if plot:
             plot_live_points(self.x,
-                    filename=f'{self.output}/pool_{self.populated_count}.png')
+                             filename=(f'{self.output}/'
+                                       f'pool_{self.populated_count}.png'))
 
         self.samples = self.x[self.model.names + ['logP', 'logL']]
 

@@ -79,13 +79,8 @@ def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     """
     Draw from the
     """
-    #if not dims == len(r):
-    #    raise RuntimeError('Dimensions and bounds for hypercube do not match')
-    #r *= fuzz
-    # Any of the bounds are greater than one, set them to one
-    #r = np.min([r, np.ones(dims)], axis=0)
-    #return np.random.uniform(1-r, r, (N, dims))
     return np.random.uniform(0, 1, (N, dims))
+
 
 def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
     """
@@ -191,7 +186,7 @@ def rescale_zero_to_one(x, xmin, xmax):
     array_like
         Array of log determinants of Jacobians for each sample
     """
-    return (x - xmin ) / (xmax - xmin), -np.log(xmax - xmin)
+    return (x - xmin) / (xmax - xmin), -np.log(xmax - xmin)
 
 
 def inverse_rescale_zero_to_one(x, xmin, xmax):
@@ -233,7 +228,8 @@ def rescale_minus_one_to_one(x, xmin, xmax):
     array_like
         Array of log determinants of Jacobians for each sample
     """
-    return (2. * (x - xmin ) / (xmax - xmin)) - 1, np.log(2) - np.log(xmax - xmin)
+    return ((2. * (x - xmin) / (xmax - xmin)) - 1,
+            np.log(2) - np.log(xmax - xmin))
 
 
 def inverse_rescale_minus_one_to_one(x, xmin, xmax):
@@ -254,7 +250,8 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
     array_like
         Array of log determinants of Jacobians for each sample
     """
-    return (xmax - xmin) * ((x + 1) / 2.) + xmin, np.log(xmax - xmin) - np.log(2)
+    return ((xmax - xmin) * ((x + 1) / 2.) + xmin,
+            np.log(xmax - xmin) - np.log(2))
 
 
 def detect_edge(x, cutoff=0.1, nbins=100, bounds=[0, 1], mode_range=0.2):
@@ -283,7 +280,7 @@ def setup_logger(output=None, label=None, log_level='INFO'):
     """
     Setup logger
 
-    Based on the implementation in Bilby: https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
+    Based on the implementation in Bilby
 
     Parameters
     ----------
@@ -303,15 +300,16 @@ def setup_logger(output=None, label=None, log_level='INFO'):
     else:
         level = int(log_level)
 
-
     logger = logging.getLogger('flowproposal')
     logger.propagate = False
     logger.setLevel(level)
 
-    if any([type(h) == logging.StreamHandler for h in logger.handlers]) is False:
+    if any([type(h) == logging.StreamHandler for h in logger.handlers]) \
+            is False:
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(name)s %(levelname)-8s: %(message)s', datefmt='%m-%d %H:%M'))
+            '%(asctime)s %(name)s %(levelname)-8s: %(message)s',
+            datefmt='%m-%d %H:%M'))
         stream_handler.setLevel(level)
         logger.addHandler(stream_handler)
 

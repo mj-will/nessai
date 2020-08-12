@@ -4,9 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nflows.flows import Flow, SimpleRealNVP, MaskedAutoregressiveFlow
+from nflows.flows import Flow, MaskedAutoregressiveFlow
 from nflows.distributions.normal import StandardNormal
-from nflows.distributions.uniform import BoxUniform
 from nflows.nn import nets as nets
 from nflows.transforms.base import CompositeTransform
 from nflows import transforms
@@ -14,15 +13,11 @@ from nflows.transforms.coupling import (
     AdditiveCouplingTransform,
     AffineCouplingTransform,
     PiecewiseRationalQuadraticCouplingTransform,
-)
+    )
 from nflows.transforms.normalization import BatchNorm
 from nflows.nn.nde.made import MaskedLinear
 from nflows.utils import create_alternating_binary_mask
-
 from nflows.distributions.base import Distribution
-from nflows.utils import torchutils
-
-from nflows import utils
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +35,7 @@ def weight_reset(m):
         m.bias.data.zero_()
         m.running_mean.zero_()
         m.running_var.fill_(1)
-    elif any(isinstance(m, l) for l in layers):
+    elif any(isinstance(m, layer) for layer in layers):
         m.reset_parameters()
 
 
@@ -55,11 +50,10 @@ def setup_model(config):
     """
     kwargs = {}
     flows = {'realnvp': FlexibleRealNVP, 'maf': MaskedAutoregressiveFlow,
-            'frealnvp': FlexibleRealNVP, 'spline': NeuralSplineFlow}
-    activations = {'relu': F.relu, 'tanh': F.tanh, 'swish': silu,
-            'silu': silu}
+             'frealnvp': FlexibleRealNVP, 'spline': NeuralSplineFlow}
+    activations = {'relu': F.relu, 'tanh': F.tanh, 'swish': silu, 'silu': silu}
 
-    if 'kwargs' in config and (k:=config['kwargs']) is not None:
+    if 'kwargs' in config and (k := config['kwargs']) is not None:
         if 'activation' in k and isinstance(k['activation'], str):
             try:
                 k['activation'] = activations[k['activation']]
@@ -68,20 +62,22 @@ def setup_model(config):
 
         kwargs.update(k)
 
-    if 'flow' in config and (c:=config['flow']) is not None:
+    if 'flow' in config and (c := config['flow']) is not None:
         model = c(config['n_inputs'], config['n_neurons'], config['n_blocks'],
-                config['n_layers'], **kwargs)
-    elif 'ftype' in config and (f:=config['ftype']) is not None:
+                  config['n_layers'], **kwargs)
+    elif 'ftype' in config and (f := config['ftype']) is not None:
         if f.lower() not in flows:
-            raise RuntimeError((f'Unknown flow type: {f}. Choose from:'
-                f'{flows.keys()}'))
+            raise RuntimeError(f'Unknown flow type: {f}. Choose from:'
+                               f'{flows.keys()}')
         if ('mask' in kwargs and kwargs['mask'] is not None) or \
                 ('net' in kwargs and kwargs['net'] is not None):
             if f not in ['realnvp', 'frealnvp']:
-                raise RuntimeError(f'Custom masks and networks are only supported for RealNVP')
+                raise RuntimeError('Custom masks and networks are only '
+                                   'supported for RealNVP')
 
-        model = flows[f.lower()](config['n_inputs'], config['n_neurons'], config['n_blocks'],
-                config['n_layers'], **kwargs)
+        model = flows[f.lower()](config['n_inputs'], config['n_neurons'],
+                                 config['n_blocks'], config['n_layers'],
+                                 **kwargs)
 
     if 'device_tag' in config:
         if isinstance(config['device_tag'], str):
@@ -91,8 +87,9 @@ def setup_model(config):
             model.to(device)
         except RuntimeError as e:
             device = torch.device('cpu')
-            logger.warning(('Could not send the normailising flow to the specified'
-                f"device {config['device']} send to CPU instead. Error raised: {e}"))
+            logger.warning("Could not send the normailising flow to the "
+                           f"specified device {config['device']} send to CPU "
+                           f"instead. Error raised: {e}")
     logger.debug('Flow model:')
     logger.debug(model)
 
@@ -190,7 +187,8 @@ class FlexibleRealNVP(Flow):
             elif linear_transform == 'svd':
                 return transforms.CompositeTransform([
                     transforms.RandomPermutation(features=features),
-                    transforms.SVDLinear(features, num_householder=10, identity_init=True)
+                    transforms.SVDLinear(features, num_householder=10,
+                                         identity_init=True)
                 ])
             else:
                 raise ValueError
@@ -204,14 +202,17 @@ class FlexibleRealNVP(Flow):
                     num_blocks=num_blocks_per_layer,
                     activation=activation,
                     dropout_probability=dropout_probability,
-                    use_batch_norm=batch_norm_within_layers,
-            )
+                    use_batch_norm=batch_norm_within_layers
+                    )
         elif net.lower() == 'mlp':
             if batch_norm_within_layers:
-                logger.warning('Batch norm within layers not supported for MLP, will be ignored')
+                logger.warning('Batch norm within layers not supported for '
+                               'MLP, will be ignored')
             if dropout_probability:
-                logger.warning('Dropout not supported for MLP, will be ignored')
+                logger.warning('Dropout not supported for MLP, '
+                               'will be ignored')
             hidden_features = num_blocks_per_layer * [hidden_features]
+
             def create_net(in_features, out_features):
                 return CustomMLP(
                         (in_features,),
@@ -246,13 +247,6 @@ class SimpleFlow(Distribution):
     """Base class for all flow objects."""
 
     def __init__(self, transform, distribution):
-        """Constructor.
-
-        Args:
-            transform: A `Transform` object, it transforms data into noise.
-            distribution: A `Distribution` object, the base distribution of the flow that
-                generates the noise.
-        """
         super().__init__()
         self._transform = transform
         self._distribution = distribution
@@ -270,9 +264,11 @@ class SimpleFlow(Distribution):
         return samples
 
     def sample_and_log_prob(self, num_samples, context=None):
-        """Generates samples from the flow, together with their log probabilities.
+        """
+        Generates samples from the flow, together with their log probabilities.
 
-        For flows, this is more efficient that calling `sample` and `log_prob` separately.
+        For flows, this is more efficient that calling `sample` and `log_prob`
+        separately.
         """
         noise, log_prob = self._distribution.sample_and_log_prob(
             num_samples
@@ -283,15 +279,9 @@ class SimpleFlow(Distribution):
         return samples, log_prob - logabsdet
 
     def transform_to_noise(self, inputs, context=None):
-        """Transforms given data into noise. Useful for goodness-of-fit checking.
-
-        Args:
-            inputs: A `Tensor` of shape [batch_size, ...], the data to be transformed.
-            context: A `Tensor` of shape [batch_size, ...] or None, optional context associated
-                with the data.
-
-        Returns:
-            A `Tensor` of shape [batch_size, ...], the noise.
+        """
+        Transforms given data into noise. Useful for goodness-of-fit
+        checking.
         """
         noise, _ = self._transform(inputs)
         return noise
@@ -329,7 +319,8 @@ class NeuralSplineFlow(SimpleFlow):
             elif linear_transform_type == 'svd':
                 return transforms.CompositeTransform([
                     transforms.RandomPermutation(features=features),
-                    transforms.SVDLinear(features, num_householder=10, identity_init=True)
+                    transforms.SVDLinear(features, num_householder=10,
+                                         identity_init=True)
                 ])
             else:
                 raise ValueError
@@ -347,16 +338,13 @@ class NeuralSplineFlow(SimpleFlow):
 
         def spline_constructor(i):
             return PiecewiseRationalQuadraticCouplingTransform(
-                    mask=create_alternating_binary_mask(
-                        features=features,
-                        even=(i % 2 == 0)
-                    ),
-                    transform_net_create_fn=create_resnet,
-                    num_bins=num_bins,
-                    apply_unconditional_transform=apply_unconditional_transform,
-                    **kwargs
-                )
-
+                mask=create_alternating_binary_mask(
+                    features=features,
+                    even=(i % 2 == 0)),
+                transform_net_create_fn=create_resnet,
+                num_bins=num_bins,
+                apply_unconditional_transform=apply_unconditional_transform,
+                **kwargs)
 
         transforms_list = []
         for i in range(num_layers):

@@ -3,7 +3,7 @@
 """
 Example of running FlowProposal with Bilby on a gravitational wave likelihood
 
-Based on the Bilby example: https://git.ligo.org/michael.williams/bilby/-/blob/master/examples/gw_examples/injection_examples/change_sampled_parameters.py
+Based on the Bilby example: https://git.ligo.org/lscsoft/bilby
 """
 import bilby
 import numpy as np
@@ -36,9 +36,11 @@ waveform_arguments = dict(waveform_approximant='IMRPhenomPv2',
 # We specify a function which transforms a dictionary of parameters into the
 # appropriate parameters for the source model.
 waveform_generator = bilby.gw.waveform_generator.WaveformGenerator(
-    sampling_frequency=sampling_frequency, duration=duration,
+    sampling_frequency=sampling_frequency,
+    duration=duration,
     frequency_domain_source_model=bilby.gw.source.lal_binary_black_hole,
-    parameter_conversion=bilby.gw.conversion.convert_to_lal_binary_black_hole_parameters,
+    parameter_conversion=(bilby.gw.conversion
+                          .convert_to_lal_binary_black_hole_parameters),
     waveform_arguments=waveform_arguments)
 
 # Set up interferometers.
@@ -93,11 +95,12 @@ flow_config = {
 # Note we've added a post-processing conversion function, this will generate
 # many useful additional parameters, e.g., source-frame masses.
 result = bilby.core.sampler.run_sampler(
-    likelihood=likelihood, priors=priors, sampler='flowproposal', outdir=outdir,
-    injection_parameters=injection_parameters, label=label,
+    likelihood=likelihood, priors=priors, sampler='flowproposal',
+    outdir=outdir, injection_parameters=injection_parameters, label=label,
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
     nlive=2000, training_frequency=2000, rescale_parameters=True,
     update_bounds=True, flow_config=flow_config, poolsize=20000,
     flow_class='GWFlowProposal', analytic_priors=True, resume=False,
     reparameterisations={'inversion': True})
+
 result.plot_corner()
