@@ -1,10 +1,14 @@
 import json
 import logging
+import os
+import shutil
+
+from nflows.distributions.uniform import BoxUniform
 import numpy as np
+import pandas as pd
 from scipy import stats
 import torch
 
-from nflows.distributions.uniform import BoxUniform
 
 logger = logging.getLogger(__name__)
 
@@ -75,13 +79,8 @@ def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     """
     Draw from the
     """
-    #if not dims == len(r):
-    #    raise RuntimeError('Dimensions and bounds for hypercube do not match')
-    #r *= fuzz
-    # Any of the bounds are greater than one, set them to one
-    #r = np.min([r, np.ones(dims)], axis=0)
-    #return np.random.uniform(1-r, r, (N, dims))
     return np.random.uniform(0, 1, (N, dims))
+
 
 def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
     """
@@ -187,7 +186,7 @@ def rescale_zero_to_one(x, xmin, xmax):
     array_like
         Array of log determinants of Jacobians for each sample
     """
-    return (x - xmin ) / (xmax - xmin), -np.log(xmax - xmin)
+    return (x - xmin) / (xmax - xmin), -np.log(xmax - xmin)
 
 
 def inverse_rescale_zero_to_one(x, xmin, xmax):
@@ -229,7 +228,8 @@ def rescale_minus_one_to_one(x, xmin, xmax):
     array_like
         Array of log determinants of Jacobians for each sample
     """
-    return (2. * (x - xmin ) / (xmax - xmin)) - 1, np.log(2) - np.log(xmax - xmin)
+    return ((2. * (x - xmin) / (xmax - xmin)) - 1,
+            np.log(2) - np.log(xmax - xmin))
 
 
 def inverse_rescale_minus_one_to_one(x, xmin, xmax):
@@ -250,7 +250,8 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
     array_like
         Array of log determinants of Jacobians for each sample
     """
-    return (xmax - xmin) * ((x + 1) / 2.) + xmin, np.log(xmax - xmin) - np.log(2)
+    return ((xmax - xmin) * ((x + 1) / 2.) + xmin,
+            np.log(xmax - xmin) - np.log(2))
 
 
 def detect_edge(x, cutoff=0.1, nbins=100, bounds=[0, 1], mode_range=0.2):
@@ -279,7 +280,7 @@ def setup_logger(output=None, label=None, log_level='INFO'):
     """
     Setup logger
 
-    Based on the implementation in Bilby: https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
+    Based on the implementation in Bilby
 
     Parameters
     ----------
@@ -299,15 +300,16 @@ def setup_logger(output=None, label=None, log_level='INFO'):
     else:
         level = int(log_level)
 
-
     logger = logging.getLogger('flowproposal')
     logger.propagate = False
     logger.setLevel(level)
 
-    if any([type(h) == logging.StreamHandler for h in logger.handlers]) is False:
+    if any([type(h) == logging.StreamHandler for h in logger.handlers]) \
+            is False:
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(name)s %(levelname)-8s: %(message)s', datefmt='%m-%d %H:%M'))
+            '%(asctime)s %(name)s %(levelname)-8s: %(message)s',
+            datefmt='%m-%d %H:%M'))
         stream_handler.setLevel(level)
         logger.addHandler(stream_handler)
 
@@ -333,17 +335,52 @@ def setup_logger(output=None, label=None, log_level='INFO'):
 
 
 class NumpyEncoder(json.JSONEncoder):
-    """Class to encode numpy arrays when saving as json"""
+    """
+    Class to encode numpy arrays when saving as json
+
+    Based on: https://stackoverflow.com/a/57915246
+    """
     def default(self, obj):
-        if isinstance(obj, np.ndarray):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
             return obj.tolist()
-        return json.JSONEncoder.default(self, obj)
+        else:
+            return super(NumpyEncoder, self).default(obj)
 
 
-def counter(fn):
-        def wrapper(*args, **kwargs):
-            wrapper.calls += 1
-            return fn(*args, **kwargs)
-        wrapper.calls= 0
-        wrapper.__name__= fn.__name__
-        return wrapper
+def save_live_points(live_points, filename):
+    """
+    Save a numpy structured array of live points to a json file
+    """
+    df = pd.DataFrame.from_records(live_points)
+    with open(filename, 'w') as wf:
+        json.dump(df.to_dict(orient='list'), wf, indent=4)
+
+
+def safe_file_dump(data, filename, module, save_existing=False):
+    """ Safely dump data to a .pickle file
+
+    See Bilby for the original impletmentation:
+    https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
+
+    Parameters
+    ----------
+    data:
+        data to dump
+    filename: str
+        The file to dump to
+    module: pickle, dill
+        The python module to use
+    """
+    if save_existing:
+        if os.path.exists(filename):
+            old_filename = filename + ".old"
+            shutil.move(filename, old_filename)
+
+    temp_filename = filename + ".temp"
+    with open(temp_filename, "wb") as file:
+        module.dump(data, file)
+    shutil.move(temp_filename, filename)

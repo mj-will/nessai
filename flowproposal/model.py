@@ -1,12 +1,17 @@
 
 import numpy as np
 
-from .livepoint import parameters_to_live_point, numpy_array_to_live_points, get_dtype
-from .utils import counter
+from .livepoint import (
+        numpy_array_to_live_points,
+        get_dtype,
+        DEFAULT_FLOAT_DTYPE
+        )
+
 
 class Model:
 
-    names = [] # Names of parameters, e.g. ['p1','p2']
+    likelihood_evaluations = 0
+    names = []    # Names of parameters, e.g. ['p1','p2']
     bounds = {}
     _lower = None
     _upper = None
@@ -46,18 +51,21 @@ class Model:
 
     def _single_new_point(self):
         logP = -np.inf
-        while (logP == - np.inf):
+        while (logP == -np.inf):
             p = numpy_array_to_live_points(
-                    np.random.uniform(self.lower_bounds, self.upper_bounds, [1, self.dims]),
+                    np.random.uniform(self.lower_bounds, self.upper_bounds,
+                                      [1, self.dims]),
                     self.names)
-            logP=self.log_prior(p)
+            logP = self.log_prior(p)
         return p
 
     def _multiple_new_points(self, N):
-        new_points = np.array([], dtype=get_dtype(self.names, 'f8'))
+        new_points = np.array([], dtype=get_dtype(self.names,
+                                                  DEFAULT_FLOAT_DTYPE))
         while new_points.size < N:
             p = numpy_array_to_live_points(
-                    np.random.uniform(self.lower_bounds, self.upper_bounds, [N, self.dims]),
+                    np.random.uniform(self.lower_bounds, self.upper_bounds,
+                                      [N, self.dims]),
                     self.names)
             logP = self.log_prior(p)
             new_points = np.concatenate([new_points, p[np.isfinite(logP)]])
@@ -89,8 +97,8 @@ class Model:
         """
         pass
 
-    @counter
     def evaluate_log_likelihood(self, x):
+        self.likelihood_evaluations += 1
         return self.log_likelihood(x)
 
     def header(self):

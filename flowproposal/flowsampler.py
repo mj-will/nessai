@@ -1,6 +1,9 @@
-import os
+import datetime
 import json
 import logging
+import os
+import time
+
 import numpy as np
 
 from .nestedsampler import NestedSampler
@@ -17,18 +20,39 @@ class FlowSampler:
     """
 
     def __init__(self, model, output='./', resume=True,
-            resume_file='nested_sampler_resume.pkl', weights_file=None, **kwargs):
+                 resume_file='nested_sampler_resume.pkl', weights_file=None,
+                 **kwargs):
 
         self.output = output
-        if resume and os.path.exists(output + resume_file):
-            try:
-                self.ns = NestedSampler.resume(output +  resume_file, model,
-                        kwargs['flow_config'], weights_file)
-            except Exception as e:
-                raise RuntimeError(f'Could not resume sampler with error: {e}')
+        if resume:
+            if not any((os.path.exists(self.output + f) for f in
+                        [resume_file, resume_file + '.old'])):
+                logger.warning('No files to resume from, starting sampling')
+                self.ns = NestedSampler(model, output=output,
+                                        resume_file=resume_file, **kwargs)
+            else:
+                try:
+                    self.ns = NestedSampler.resume(output + resume_file,
+                                                   model,
+                                                   kwargs['flow_config'],
+                                                   weights_file)
+                except (FileNotFoundError, RuntimeError) as e:
+                    logger.error(f'Could not load resume file from: {output} '
+                                 f'with error {e}')
+                    try:
+                        resume_file += '.old'
+                        self.ns = NestedSampler.resume(output + resume_file,
+                                                       model,
+                                                       kwargs['flow_config'],
+                                                       weights_file)
+                    except RuntimeError as e:
+                        logger.error('Could not load old resume '
+                                     f'file from: {output}')
+                        raise RuntimeError('Could not resume sampler '
+                                           f'with error: {e}')
         else:
-            self.ns = NestedSampler(model, output=output, resume_file=resume_file,
-                    **kwargs)
+            self.ns = NestedSampler(model, output=output,
+                                    resume_file=resume_file, **kwargs)
 
         self.save_kwargs(kwargs)
 
@@ -37,31 +61,34 @@ class FlowSampler:
         Run the nested samper
         """
         self.ns.initialise()
-        self.logZ, self.nested_samples = self.ns.nested_sampling_loop(save=save)
+        st = time.time()
+        self.logZ, self.nested_samples = \
+            self.ns.nested_sampling_loop(save=save)
+        logger.info(('Total sampling time: '
+                     f'{datetime.timedelta(seconds=time.time() - st)}'))
         logger.info('Computing posterior samples')
         self.posterior_samples = draw_posterior_samples(self.nested_samples,
-                self.ns.nlive)
-        logger.info(f'Returned {self.posterior_samples.size} posterior samples')
+                                                        self.ns.nlive)
+        logger.info(f'Returned {self.posterior_samples.size} '
+                    'posterior samples')
 
         if save:
-            np.savetxt(os.path.join(
-                self.output,'posterior.dat'),
-                self.posterior_samples,
-                header=' '.join(self.posterior_samples.dtype.names),
-                newline='\n',delimiter=' ')
+            self.save_results(f'{self.output}/result.json')
 
         if plot:
             from flowproposal import plot
 
-            plot.plot_likelihood_evaluations(self.ns.likelihood_evaluations,
+            plot.plot_likelihood_evaluations(
+                    self.ns.likelihood_evaluations,
                     self.ns.nlive,
                     filename=f'{self.output}/likelihood_evaluations.png')
 
             plot.plot_live_points(self.posterior_samples,
-                    filename=f'{self.output}/posterior_distribution.png')
+                                  filename=(f'{self.output}/'
+                                            'posterior_distribution.png'))
 
             plot.plot_indices(self.ns.insertion_indices, self.ns.nlive,
-                    filename=f'{self.output}/insertion_indices.png')
+                              filename=f'{self.output}/insertion_indices.png')
 
             self.ns.state.plot(f'{self.output}/logXlogL.png')
 
@@ -79,4 +106,33 @@ class FlowSampler:
             except Exception as e:
                 raise e
 
+    def save_results(self, filename):
+        """
+        Save the results from sampling
+        """
+        iterations = np.arange(len(self.ns.min_likelihood)) \
+            * (self.ns.nlive // 10)
+        iterations[-1] = self.ns.iteration
+        d = dict()
+        d['history'] = dict(
+                iterations=iterations,
+                min_likelihood=self.ns.min_likelihood,
+                max_likelihood=self.ns.max_likelihood,
+                likelihood_evaluations=self.ns.likelihood_evaluations,
+                logZ=self.ns.logZ_history,
+                dZ=self.ns.dZ_history,
+                mean_acceptance=self.ns.mean_acceptance_history,
+                rolling_p=self.ns.rolling_p,
+                population=dict(
+                    iterations=self.ns.population_iterations,
+                    acceptance=self.ns.population_acceptance
+                    ),
+                training_iterations=self.ns.training_iterations
 
+                )
+        d['insertion_indices'] = self.ns.insertion_indices
+        d['nested_samples'] = self.nested_samples
+        d['posterior_samples'] = self.posterior_samples
+
+        with open(filename, 'w') as wf:
+            json.dump(d, wf, indent=4, cls=NumpyEncoder)

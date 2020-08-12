@@ -1,21 +1,24 @@
 import math
 import logging
+
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 logger = logging.getLogger(__name__)
 
 
 def setup_model(n_inputs=None,  n_conditional_inputs=None, augment_dim=None,
-        n_neurons=128, n_layers=2, n_blocks=4, ftype='RealNVP', device='cpu',
-        mask=None, prior='gaussian', **kwargs):
+                n_neurons=128, n_layers=2, n_blocks=4, ftype='RealNVP',
+                device='cpu', mask=None, prior='gaussian', **kwargs):
     """"
     Setup the model
     """
     if 'augment_dim' in kwargs:
-        raise RuntimeError("Recieved kwarg 'augment_dim' not supported by basic setup")
+        raise RuntimeError(
+                "Recieved kwarg 'augment_dim' not supported by basic setup")
     if device is None:
         raise ValueError("Must provided a device or a string for a device")
     if type(device) == str:
@@ -26,7 +29,8 @@ def setup_model(n_inputs=None,  n_conditional_inputs=None, augment_dim=None,
     if ftype == 'realnvp':
         if augment_dim is None:
             if mask is None:
-                mask = torch.remainder(torch.arange(0, n_inputs, dtype=torch.float, device=device), 2)
+                mask = torch.remainder(torch.arange(
+                    0, n_inputs, dtype=torch.float, device=device), 2)
             else:
                 mask = torch.from_numpy(mask.astype('float32')).to(device)
             for _ in range(n_blocks):
@@ -42,11 +46,14 @@ def setup_model(n_inputs=None,  n_conditional_inputs=None, augment_dim=None,
     elif ftype == 'realnvp_joint':
         if augment_dim is None:
             if mask is None:
-                mask = torch.remainder(torch.arange(0, n_inputs, dtype=torch.float, device=device), 2)
+                mask = torch.remainder(torch.arange(
+                    0, n_inputs, dtype=torch.float, device=device), 2)
             else:
                 mask = torch.from_numpy(mask.astype('float32')).to(device)
             for _ in range(n_blocks):
-                blocks += [JointCouplingLayer(n_inputs, mask, n_neurons=n_neurons, n_layers=n_layers),
+                blocks += [JointCouplingLayer(n_inputs, mask,
+                                              n_neurons=n_neurons,
+                                              n_layers=n_layers),
                            BatchNormFlow(n_inputs)]
                 mask = 1 - mask
             model = FlowSequential(*blocks)
@@ -60,7 +67,8 @@ def setup_model(n_inputs=None,  n_conditional_inputs=None, augment_dim=None,
             raise RuntimeError('Must use even number of blocks for mixed mask')
         for m in mask:
             m = torch.from_numpy(m.astype('float32')).to(device)
-            blocks += [JointCouplingLayer(n_inputs, m, n_neurons=n_neurons, n_layers=n_layers),
+            blocks += [JointCouplingLayer(n_inputs, m, n_neurons=n_neurons,
+                                          n_layers=n_layers),
                        BatchNormFlow(n_inputs)]
         model = FlowSequential(*blocks)
 
@@ -77,7 +85,6 @@ def setup_model(n_inputs=None,  n_conditional_inputs=None, augment_dim=None,
             raise RuntimeError('Augmented flows not supported for MAF')
     else:
         raise ValueError('Unknown flow type, choose from RealNVP or MAF')
-
 
     model.to(device)
     model.device = device
@@ -151,13 +158,13 @@ class MADE(nn.Module):
             num_hidden, num_inputs * 2, num_inputs, mask_type='output')
 
         self.joiner = MaskedLinear(num_inputs, num_hidden, input_mask,
-                                      num_cond_inputs)
+                                   num_cond_inputs)
 
         self.trunk = nn.Sequential(act_func(),
                                    MaskedLinear(num_hidden, num_hidden,
-                                                   hidden_mask), act_func(),
+                                                hidden_mask), act_func(),
                                    MaskedLinear(num_hidden, num_inputs * 2,
-                                                   output_mask))
+                                                output_mask))
 
     def forward(self, inputs, cond_inputs=None, mode='direct'):
         if mode == 'direct':
@@ -260,64 +267,6 @@ class Logit(Sigmoid):
             return super(Logit, self).forward(inputs, 'direct')
 
 
-class BatchNormFlow(nn.Module):
-    """ An implementation of a batch normalization layer from
-    Density estimation using Real NVP
-    (https://arxiv.org/abs/1605.08803).
-    """
-
-    def __init__(self, num_inputs, momentum=0.0, eps=1e-5):
-        super(BatchNormFlow, self).__init__()
-
-        self.log_gamma = nn.Parameter(torch.zeros(num_inputs))
-        self.beta = nn.Parameter(torch.zeros(num_inputs))
-        self.momentum = momentum
-        self.eps = eps
-
-        self.register_buffer('running_mean', torch.zeros(num_inputs))
-        self.register_buffer('running_var', torch.ones(num_inputs))
-
-    def forward(self, inputs, cond_inputs=None, mode='direct'):
-        if mode == 'direct':
-            if self.training:
-                self.batch_mean = inputs.mean(0)
-                self.batch_var = (
-                    inputs - self.batch_mean).pow(2).mean(0) + self.eps
-
-                self.running_mean.mul_(self.momentum)
-                self.running_var.mul_(self.momentum)
-
-                self.running_mean.add_(self.batch_mean.data *
-                                       (1 - self.momentum))
-                self.running_var.add_(self.batch_var.data *
-                                      (1 - self.momentum))
-
-                mean = self.batch_mean
-                var = self.batch_var
-            else:
-                mean = self.running_mean
-                var = self.running_var
-
-            x_hat = (inputs - mean) / var.sqrt()
-            y = torch.exp(self.log_gamma) * x_hat + self.beta
-            return y, (self.log_gamma - 0.5 * torch.log(var)).sum(
-                -1, keepdim=True)
-        else:
-            if self.training:
-                mean = self.batch_mean
-                var = self.batch_var
-            else:
-                mean = self.running_mean
-                var = self.running_var
-
-            x_hat = (inputs - self.beta) / torch.exp(self.log_gamma)
-
-            y = x_hat * var.sqrt() + mean
-
-            return y, (-self.log_gamma + 0.5 * torch.log(var)).sum(
-                -1, keepdim=True)
-
-
 class ActNorm(nn.Module):
     """ An implementation of a activation normalization layer
     from Glow: Generative Flow with Invertible 1x1 Convolutions
@@ -331,7 +280,7 @@ class ActNorm(nn.Module):
         self.initialized = False
 
     def forward(self, inputs, cond_inputs=None, mode='direct'):
-        if self.initialized == False:
+        if not self.initialized:
             self.weight.data.copy_(torch.log(1.0 / (inputs.std(0) + 1e-12)))
             self.bias.data.copy_(inputs.mean(0))
             self.initialized = True
@@ -365,54 +314,6 @@ class InvertibleMM(nn.Module):
         else:
             return inputs @ torch.inverse(self.W), -torch.slogdet(
                 self.W)[-1].unsqueeze(0).unsqueeze(0).repeat(
-                    inputs.size(0), 1)
-
-
-class LUInvertibleMM(nn.Module):
-    """ An implementation of a invertible matrix multiplication
-    layer from Glow: Generative Flow with Invertible 1x1 Convolutions
-    (https://arxiv.org/abs/1807.03039).
-    """
-
-    def __init__(self, num_inputs):
-        super(LUInvertibleMM, self).__init__()
-        self.W = torch.Tensor(num_inputs, num_inputs)
-        nn.init.orthogonal_(self.W)
-        self.L_mask = torch.tril(torch.ones(self.W.size()), -1)
-        self.U_mask = self.L_mask.t().clone()
-
-        P, L, U = sp.linalg.lu(self.W.numpy())
-        self.P = torch.from_numpy(P)
-        self.L = nn.Parameter(torch.from_numpy(L))
-        self.U = nn.Parameter(torch.from_numpy(U))
-
-        S = np.diag(U)
-        sign_S = np.sign(S)
-        log_S = np.log(abs(S))
-        self.sign_S = torch.from_numpy(sign_S)
-        self.log_S = nn.Parameter(torch.from_numpy(log_S))
-
-        self.I = torch.eye(self.L.size(0))
-
-    def forward(self, inputs, cond_inputs=None, mode='direct'):
-        if str(self.L_mask.device) != str(self.L.device):
-            self.L_mask = self.L_mask.to(self.L.device)
-            self.U_mask = self.U_mask.to(self.L.device)
-            self.I = self.I.to(self.L.device)
-            self.P = self.P.to(self.L.device)
-            self.sign_S = self.sign_S.to(self.L.device)
-
-        L = self.L * self.L_mask + self.I
-        U = self.U * self.U_mask + torch.diag(
-            self.sign_S * torch.exp(self.log_S))
-        W = self.P @ L @ U
-
-        if mode == 'direct':
-            return inputs @ W, self.log_S.sum().unsqueeze(0).unsqueeze(
-                0).repeat(inputs.size(0), 1)
-        else:
-            return inputs @ torch.inverse(
-                W), -self.log_S.sum().unsqueeze(0).unsqueeze(0).repeat(
                     inputs.size(0), 1)
 
 
@@ -490,7 +391,8 @@ class CouplingLayer(nn.Module):
         self.scale_net = nn.Sequential(*scale_layers)
         translate_layers = [nn.Linear(total_inputs, num_hidden), t_act_func()]
         for i in range(0, num_layers):
-            translate_layers += [nn.Linear(num_hidden, num_hidden), t_act_func()]
+            translate_layers += \
+                [nn.Linear(num_hidden, num_hidden), t_act_func()]
         translate_layers += [nn.Linear(num_hidden, num_inputs)]
         self.translate_net = nn.Sequential(*translate_layers)
 
@@ -515,6 +417,7 @@ class CouplingLayer(nn.Module):
             t = self.translate_net(masked_inputs) * (1 - mask)
             s = torch.exp(-log_s)
             return (inputs - t) * s, -log_s.sum(-1, keepdim=True)
+
 
 class Transform(nn.Module):
     """
@@ -556,7 +459,8 @@ class JointCouplingLayer(nn.Module):
         """
         super(JointCouplingLayer, self).__init__()
         self.mask = mask
-        self.transform_network = Transform(n_inputs, n_inputs, n_neurons, n_layers)
+        self.transform_network = \
+            Transform(n_inputs, n_inputs, n_neurons, n_layers)
 
     def forward(self, inputs, cond_inputs=None, mode='forward'):
         """
@@ -565,7 +469,8 @@ class JointCouplingLayer(nn.Module):
         mask = self.mask
         masked_inputs = inputs * mask
         if cond_inputs is not None:
-            raise RuntimeError('Conditional inputs not implemented for Trasnform')
+            raise RuntimeError(
+                'Conditional inputs not implemented for Trasnform')
 
         if mode == 'direct':
             log_s, m = self.transform_network(masked_inputs)
@@ -579,6 +484,7 @@ class JointCouplingLayer(nn.Module):
             m *= (1 - mask)
             s = torch.exp(-log_s)
             return (inputs - m) * s, -log_s.sum(-1, keepdim=True)
+
 
 class FlowSequential(nn.Sequential):
     """ A sequential container for flows.
@@ -636,15 +542,16 @@ def swish(x):
     """Swish activation function"""
     return torch.mul(x, torch.sigmoid(x))
 
+
 class Swish(nn.Module):
     def __init__(self):
         '''
         Init method.
         '''
-        super().__init__() # init the base class
+        super().__init__()
 
     def forward(self, x):
         '''
         Forward pass of the function.
         '''
-        return swish(x) # simply apply already implemented SiLU
+        return swish(x)
