@@ -408,7 +408,6 @@ class NestedSampler:
         # This is the index including the current worst point, so final index
         # is one less, otherwise index=0 would never be possible
         index = np.searchsorted(self.live_points['logL'], live_point['logL'])
-
         self.live_points[:index - 1] = self.live_points[1:index]
         self.live_points[index - 1] = live_point
         return index - 1
@@ -417,7 +416,7 @@ class NestedSampler:
         """
         Replace a sample for single thread
         """
-        worst = self.live_points[0]    # Should this be a copy?
+        worst = self.live_points[0].copy()
         self.logLmin = worst['logL']
         self.state.increment(worst['logL'])
         self.nested_samples.append(worst)
