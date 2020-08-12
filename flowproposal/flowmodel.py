@@ -104,6 +104,15 @@ class FlowModel:
                 self.model_config['kwargs']['mask'] = masks
             logger.debug(f"Mask : {self.model_config['kwargs']['mask']}")
 
+    def _get_optimiser(self):
+        """
+        Get the optimiser and ensure it is always correctly intialised.
+        """
+        if self.model is None:
+            raise RuntimeError('Cannot initialise optimiser before model')
+        return torch.optim.Adam(self.model.parameters(),
+                                lr=self.lr, weight_decay=1e-6)
+
     def initialise(self):
         """
         Initialise the model and optimiser
@@ -111,8 +120,7 @@ class FlowModel:
         self.update_mask()
         self.model_config = update_config(self.model_config)
         self.model, self.device = setup_model(self.model_config)
-        self.optimiser = torch.optim.Adam(self.model.parameters(),
-                                          lr=self.lr, weight_decay=1e-6)
+        self.optimiser = self._get_optimiser()
         self.initialised = True
 
     def _prep_data(self, samples, val_size):
@@ -279,8 +287,7 @@ class FlowModel:
         """
         logger.debug('Reseting model weights and optimiser')
         self.model.apply(weight_reset)
-        self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.lr,
-                                          weight_decay=1e-6)
+        self.optimiser = self._get_optimiser()
 
     def forward_and_log_prob(self, x):
         """
