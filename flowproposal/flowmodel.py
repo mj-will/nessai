@@ -86,23 +86,7 @@ class FlowModel:
         """
         Get a the mask
         """
-        if 'mask' in self.model_config['kwargs'] and \
-                self.model_config['kwargs']['mask'] is not None:
-            if 'perm' in self.model_config['kwargs']['mask']:
-                if self.model_config['n_blocks'] % 2:
-                    raise RuntimeError('Number of blocks must be even '
-                                       'to use mixer')
-                masks = np.ones([self.model_config['n_blocks'],
-                                self.model_config['n_inputs']])
-
-                masks[0, ::2] = -1
-                masks[1] = masks[0] * -1
-                for n in range(2, masks.shape[0], 2):
-                    masks[n] = np.random.permutation(masks[n-2])
-                    masks[n + 1] = masks[n] * -1
-
-                self.model_config['kwargs']['mask'] = masks
-            logger.debug(f"Mask : {self.model_config['kwargs']['mask']}")
+        pass
 
     def _get_optimiser(self):
         """
