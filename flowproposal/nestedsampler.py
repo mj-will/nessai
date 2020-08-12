@@ -473,8 +473,9 @@ class NestedSampler:
         """
         # send all live points to the samplers for start
         i = 0
-        live_points = np.array([], dtype=get_dtype(self.model.names,
-                                                   DEFAULT_FLOAT_DTYPE))
+        live_points = np.empty(self.nlive,
+                               dtype=get_dtype(self.model.names,
+                                               DEFAULT_FLOAT_DTYPE))
         with tqdm(total=self.nlive, desc='Drawing live points') as pbar:
             while i < self.nlive:
                 while i < self.nlive:
@@ -483,13 +484,12 @@ class NestedSampler:
                     if np.isnan(live_point['logL']):
                         logger.warning('Likelihood function returned NaN for '
                                        'live_points ' + str(live_points[i]))
-                        logger.warning('You may want to check your '
-                                       'likelihood function')
+                        logger.warning(
+                            'You may want to check your likelihood function')
                     if (live_point['logP'] != -np.inf and
                             live_point['logL'] != -np.inf):
+                        live_points[i] = live_point
                         i += 1
-                        live_points = np.concatenate([live_points,
-                                                      [live_point]])
                         pbar.update()
                         break
 
