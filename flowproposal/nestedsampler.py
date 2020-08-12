@@ -18,9 +18,6 @@ from .plot import plot_indices
 from .posterior import logsubexp, log_integrate_log_trap
 from .utils import safe_file_dump
 
-import psutil
-process = psutil.Process(os.getpid())
-
 sns.set()
 sns.set_style('ticks')
 
