@@ -657,4 +657,3 @@ class AugmentedGWFlowProposal(GWFlowProposal):
         logP = super().log_prior(x)
         logP += self.augmented_prior(x)
         return logP
-

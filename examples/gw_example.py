@@ -101,4 +101,3 @@ result = bilby.core.sampler.run_sampler(
     flow_class='GWFlowProposal', analytic_priors=True, resume=False,
     reparameterisations={'inversion': True})
 result.plot_corner()
-

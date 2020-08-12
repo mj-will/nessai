@@ -10,7 +10,7 @@ NOTE: this packages requieres python >= 3.8
 
 ### PyTorch
 
-Many of the dependencies are shared with Pytorch, so first install the version of Pytorch in your Python environment. See the Pytorch homepage for instructions: https://pytorch.org/. 
+Many of the dependencies are shared with Pytorch, so first install the version of Pytorch in your Python environment. See the Pytorch homepage for instructions: https://pytorch.org/.
 
 NOTE: GPU support is currently disabled but should be added in the future.
 

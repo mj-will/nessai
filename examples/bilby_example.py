@@ -61,4 +61,3 @@ result = bilby.run_sampler(outdir=outdir, label=label, resume=False, plot=True,
     maximum_uninformed=1000, flow_config=flow_config, rescale_parameters=True,
     injection_parameters={'x': 0.0, 'y': 0.0}, proposal_plots=True,
     analytic_priors=True, training_frequency=1000, seed=1234)
-

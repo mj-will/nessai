@@ -53,4 +53,3 @@ def dict_to_live_points(d):
         array = rfn.append_fields(array, ['logP', 'logL'], data=[*np.zeros([array.size, 2]).T],
                 dtypes=[DEFAULT_FLOAT_DTYPE, LOGL_DTYPE], usemask=False)
         return array
-

@@ -359,4 +359,3 @@ class GWFlowProposal(CPNestFlowProposal):
     def radius(self, z):
         """Calculate the radius of a latent_point"""
         return np.max(np.sqrt(np.sum(z ** 2., axis=-1)))
-

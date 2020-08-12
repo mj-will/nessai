@@ -25,76 +25,75 @@ logger = logging.getLogger(__name__)
 
 
 class _NSintegralState(object):
-  """
-  Stores the state of the nested sampling integrator
-  """
-  def __init__(self, nlive):
-    self.nlive = nlive
-    self.reset()
-  def reset(self):
     """
-    Reset the sampler to its initial state at logZ = -infinity
+    Stores the state of the nested sampling integrator
     """
-    self.iteration=0
-    self.logZ=-np.inf
-    self.oldZ=-np.inf
-    self.logw=0
-    self.info=0
-    # Start with a dummy sample enclosing the whole prior
-    self.logLs=[-np.inf] # Likelihoods sampled
-    self.log_vols=[0.0] # Volumes enclosed by contours
-    self.gradients = [0]
+    def __init__(self, nlive):
+        self.nlive = nlive
+        self.reset()
 
-  def increment(self, logL, nlive=None):
-    """
-    Increment the state of the evidence integrator
-    Simply uses rectangle rule for initial estimate
-    """
-    if(logL<=self.logLs[-1]):
-      logger.warning('NS integrator received non-monotonic logL. {0:.5f} -> {1:.5f}'.format(self.logLs[-1],logL))
-    if nlive is None:
-      nlive = self.nlive
-    oldZ = self.logZ
-    logt=-1.0/nlive
-    Wt = self.logw + logL + logsubexp(0,logt)
-    self.logZ = np.logaddexp(self.logZ,Wt)
-    # Update information estimate
-    if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
-        self.info = np.exp(Wt - self.logZ)*logL + np.exp(oldZ - self.logZ)*(self.info + oldZ) - self.logZ
-        if np.isnan(self.info):
-            self.info=0
+    def reset(self):
+        """
+        Reset the sampler to its initial state at logZ = -infinity
+        """
+        self.iteration=0
+        self.logZ=-np.inf
+        self.oldZ=-np.inf
+        self.logw=0
+        self.info=0
+        # Start with a dummy sample enclosing the whole prior
+        self.logLs=[-np.inf] # Likelihoods sampled
+        self.log_vols=[0.0] # Volumes enclosed by contours
+        self.gradients = [0]
 
-    # Update history
-    self.logw += logt
-    self.iteration += 1
-    self.logLs.append(logL)
-    self.log_vols.append(self.logw)
-    self.gradients.append((self.logLs[-1] - self.logLs[-2]) / (self.log_vols[-1] - self.log_vols[-2]))
-  def finalise(self):
-    """
-    Compute the final evidence with more accurate integrator
-    Call at end of sampling run to refine estimate
-    """
-    from scipy import integrate
-    # Trapezoidal rule
-    self.logZ = log_integrate_log_trap(np.array(self.logLs),np.array(self.log_vols))
-    return self.logZ
-  def plot(self,filename):
-    """
-    Plot the logX vs logL
-    """
-    import matplotlib as mpl
-    mpl.use('Agg')
-    from matplotlib import pyplot as plt
-    fig=plt.figure()
-    plt.plot(self.log_vols,self.logLs)
-    plt.title('{0} iterations. logZ={1:.2f} H={2:.2f} bits'.format(self.iteration,self.logZ,self.info*np.log2(np.e)))
-    plt.grid(which='both')
-    plt.xlabel('log prior_volume')
-    plt.ylabel('log likelihood')
-    plt.xlim([self.log_vols[-1],self.log_vols[0]])
-    plt.savefig(filename)
-    logger.info('Saved nested sampling plot as {0}'.format(filename))
+    def increment(self, logL, nlive=None):
+        """
+        Increment the state of the evidence integrator
+        Simply uses rectangle rule for initial estimate
+        """
+        if(logL<=self.logLs[-1]):
+            logger.warning('NS integrator received non-monotonic logL. {0:.5f} -> {1:.5f}'.format(self.logLs[-1],logL))
+        if nlive is None:
+            nlive = self.nlive
+        oldZ = self.logZ
+        logt=-1.0/nlive
+        Wt = self.logw + logL + logsubexp(0,logt)
+        self.logZ = np.logaddexp(self.logZ,Wt)
+        # Update information estimate
+        if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
+            self.info = np.exp(Wt - self.logZ)*logL + np.exp(oldZ - self.logZ)*(self.info + oldZ) - self.logZ
+            if np.isnan(self.info):
+                self.info=0
+
+        # Update history
+        self.logw += logt
+        self.iteration += 1
+        self.logLs.append(logL)
+        self.log_vols.append(self.logw)
+        self.gradients.append((self.logLs[-1] - self.logLs[-2]) / (self.log_vols[-1] - self.log_vols[-2]))
+
+    def finalise(self):
+        """
+        Compute the final evidence with more accurate integrator
+        Call at end of sampling run to refine estimate
+        """
+        # Trapezoidal rule
+        self.logZ = log_integrate_log_trap(np.array(self.logLs),np.array(self.log_vols))
+        return self.logZ
+
+    def plot(self,filename):
+        """
+        Plot the logX vs logL
+        """
+        fig=plt.figure()
+        plt.plot(self.log_vols,self.logLs)
+        plt.title('{0} iterations. logZ={1:.2f} H={2:.2f} bits'.format(self.iteration,self.logZ,self.info*np.log2(np.e)))
+        plt.grid(which='both')
+        plt.xlabel('log prior_volume')
+        plt.ylabel('log likelihood')
+        plt.xlim([self.log_vols[-1],self.log_vols[0]])
+        plt.savefig(filename)
+        logger.info('Saved nested sampling plot as {0}'.format(filename))
 
 
 class NestedSampler:

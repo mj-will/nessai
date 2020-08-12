@@ -124,6 +124,3 @@ class FlowSampler:
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=NumpyEncoder)
-
-
-

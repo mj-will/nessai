@@ -81,4 +81,3 @@ fp = FlowSampler(Gaussian(), output=output, resume=False, nlive=1000, plot=True,
 
 # And go!
 fp.run()
-

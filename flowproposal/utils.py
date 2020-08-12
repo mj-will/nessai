@@ -386,6 +386,3 @@ def safe_file_dump(data, filename, module, save_existing=False):
     with open(temp_filename, "wb") as file:
         module.dump(data, file)
     shutil.move(temp_filename, filename)
-
-
-
