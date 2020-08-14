@@ -42,6 +42,48 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     plt.close()
 
 
+def plot_1d_comparison(*live_points, filename=None, parameters=None,
+                       bounds=None, sharey=True, hist_kwargs={},
+                       labels=None):
+    """
+    Plot 1d histograms comparing parameters
+    """
+    if parameters is None:
+        parameters = live_points[0].dtype.names
+    n_samples = live_points[0].size
+
+    if labels is None:
+        labels = [str(i) for i in range(len(live_points))]
+
+    fig, axs = plt.subplots(1, len(parameters), sharey=sharey,
+                            figsize=(3 * len(parameters), 3))
+    axs = axs.ravel()
+    for i, f in enumerate(parameters):
+        xmin = np.min([np.min(lp[f]) for lp in live_points])
+        xmax = np.max([np.max(lp[f]) for lp in live_points])
+        for j, lp in enumerate(live_points):
+            axs[i].hist(lp[f], np.sqrt(n_samples).astype(int), histtype='step',
+                        range=(xmin, xmax), density=True, label=labels[j],
+                        **hist_kwargs)
+        axs[i].set_xlabel(f)
+        if bounds is not None and f in bounds:
+            axs[i].axvline(bounds[f][0], ls=':', alpha=0.5, color='k')
+            axs[i].axvline(bounds[f][1], ls=':', alpha=0.5, color='k')
+
+    if len(labels) > 1:
+        handles, labels = plt.gca().get_legend_handles_labels()
+        legend_labels = dict(zip(labels, handles))
+        fig.legend(legend_labels.values(), legend_labels.keys(),
+                   frameon=False, ncol=len(labels),
+                   loc='upper center', bbox_to_anchor=(0, 0.1, 1, 1),
+                   bbox_transform=plt.gcf().transFigure)
+
+    plt.tight_layout()
+    if filename is not None:
+        fig.savefig(filename, bbox_inches='tight')
+    plt.close()
+
+
 def plot_posterior(live_points, filename=None, **kwargs):
     """
     Plot a set of live points

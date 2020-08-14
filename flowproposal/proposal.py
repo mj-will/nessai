@@ -12,7 +12,7 @@ from .livepoint import (
         get_dtype,
         DEFAULT_FLOAT_DTYPE
         )
-from .plot import plot_live_points, plot_acceptance
+from .plot import plot_live_points, plot_acceptance, plot_1d_comparison
 from .utils import get_uniform_distribution, detect_edge
 
 logger = logging.getLogger(__name__)
@@ -132,7 +132,7 @@ class FlowProposal(RejectionProposal):
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
                  rescale_parameters=False, latent_prior='truncated_gaussian',
-                 fuzz=1.0, keep_samples=False, exact_poolsize=True, plot=True,
+                 fuzz=1.0, keep_samples=False, exact_poolsize=True, plot='min',
                  fixed_radius=False, drawsize=10000, check_acceptance=False,
                  truncate=False, zero_reset=None, detect_edges=False,
                  rescale_bounds=[-1, 1], rescale_min_max=False,
@@ -195,14 +195,17 @@ class FlowProposal(RejectionProposal):
         if plot:
             if isinstance(plot, str):
                 if plot == 'all':
-                    self._plot_pool = True
-                    self._plot_training = True
+                    self._plot_pool = 'all'
+                    self._plot_training = 'all'
                 elif plot == 'train':
                     self._plot_pool = False
-                    self._plot_training = True
+                    self._plot_training = 'all'
                 elif plot == 'pool':
                     self._plot_pool = True
                     self._plot_training = False
+                elif plot == 'minimal' or plot == 'min':
+                    self._plot_pool = 'minimal'
+                    self._plot_training = 'minimal'
                 else:
                     logger.warning(
                         f'Unknown plot argument: {plot}, setting all false'
@@ -399,7 +402,6 @@ class FlowProposal(RejectionProposal):
         x = self.model.new_point(N=5000)
         x_prime, log_J = self.rescale(x)
         x_out, log_J_inv = self.inverse_rescale(x_prime)
-
         if x.size == x_out.size:
             for f in x.dtype.names:
                 if not np.allclose(x[f], x_out[f]):
@@ -465,6 +467,7 @@ class FlowProposal(RejectionProposal):
                             x_inv[rn] *= -1
                             x_prime = np.concatenate([x_prime, x_inv])
                             x = np.concatenate([x,  x])
+                            log_J = np.concatenate([log_J, log_J])
                         else:
                             inv = np.random.choice(x_prime.size,
                                                    x_prime.size // 2,
@@ -544,36 +547,47 @@ class FlowProposal(RejectionProposal):
 
         self.check_state(x)
 
-        if self._plot_training:
+        if self._plot_training == 'all':
             plot_live_points(x, c='logL',
                              filename=block_output + 'x_samples.png')
 
         x_prime, log_J = self.rescale(x)
 
-        if self.rescale_parameters and self._plot_training:
+        if self.rescale_parameters and self._plot_training == 'all':
             plot_live_points(x_prime, c='logL',
                              filename=block_output + 'x_prime_samples.png')
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
-        x_prime = live_points_to_array(x_prime, self.rescaled_names)
-        self.flow.train(x_prime, output=block_output, plot=self._plot_training)
+        x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
+        self.flow.train(x_prime_array,
+                        output=block_output, plot=self._plot_training)
 
         if self._plot_training:
             self.alt_dist = None
-            z, _ = self.flow.sample_and_log_prob(N=5000)
-            x_prime, log_prob = self.backward_pass(z, rescale=False)
-            x_prime['logL'] = log_prob
-            plot_live_points(
-                x_prime,
-                c='logL',
-                filename=block_output + 'x_prime_generated.png'
-                )
-            x, log_J = self.inverse_rescale(x_prime)
-            x, log_J = self.check_prior_bounds(x, log_J)
-            x['logL'] += log_J
+            z, _ = self.flow.sample_and_log_prob(N=x.size)
+            x_prime_gen, log_prob = self.backward_pass(z, rescale=False)
+            x_prime_gen['logL'] = log_prob
+            if self._plot_training == 'all':
+                plot_live_points(
+                    x_prime_gen,
+                    c='logL',
+                    filename=block_output + 'x_prime_generated.png'
+                    )
+            x_gen, log_J = self.inverse_rescale(x_prime_gen)
+            x_gen, log_J = self.check_prior_bounds(x_gen, log_J)
+            x_gen['logL'] += log_J
             if self.rescale_parameters:
-                plot_live_points(x, c='logL',
-                                 filename=block_output + 'x_generated.png')
+                if self._plot_training == 'all':
+                    plot_live_points(x_gen, c='logL',
+                                     filename=block_output + 'x_generated.png')
+                plot_1d_comparison(
+                    x_prime, x_prime_gen, parameters=self.rescaled_names,
+                    labels=['live points', 'generated'],
+                    filename=block_output + 'x_prime_comparison.png')
+
+            plot_1d_comparison(x, x_gen, parameters=self.model.names,
+                               labels=['live points', 'generated'],
+                               filename=block_output + 'x_comparison.png')
 
         self.populated = False
         self.training_count += 1
@@ -657,7 +671,7 @@ class FlowProposal(RejectionProposal):
             if self.max_radius:
                 if r > self.max_radius:
                     r = self.max_radius
-            logger.debug(f'Populating proposal with lantent radius: {r:.5}')
+            logger.info(f'Populating proposal with lantent radius: {r:.5}')
 
         if self.latent_prior == 'uniform_nsphere':
             self.alt_dist = get_uniform_distribution(self.dims, r)
@@ -724,11 +738,16 @@ class FlowProposal(RejectionProposal):
             self.x = self.x[:N]
             self.z = self.z[:N]
 
-        if self._plot_pool:
-            plot_live_points(
-                self.x, c='logL',
-                filename=f'{self.output}/pool_{self.populated_count}.png'
-                )
+        if (p := self._plot_pool):
+            if p == 'all':
+                plot_live_points(
+                    self.x, c='logL',
+                    filename=f'{self.output}/pool_{self.populated_count}.png')
+            else:
+                plot_1d_comparison(
+                    self.x,
+                    sharey=False,
+                    filename=f'{self.output}/pool_{self.populated_count}.png')
 
         self.samples = self.x[self.model.names + ['logP', 'logL']]
 
