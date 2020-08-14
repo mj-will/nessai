@@ -180,6 +180,8 @@ class FlowProposal(RejectionProposal):
         self.pool = pool
         self.n_pool = n_pool
         if multiprocessing:
+            if not self.check_acceptance:
+                self.check_acceptance = True
             self._setup_pool()
 
         if self.detect_edges:
@@ -315,6 +317,7 @@ class FlowProposal(RejectionProposal):
             os.makedirs(self.output, exist_ok=True)
 
         self.set_rescaling()
+        self.verify_rescaling()
         self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
@@ -388,6 +391,38 @@ class FlowProposal(RejectionProposal):
         logger.info(f'parameters to rescale {self.rescale_parameters}')
         logger.info(f'x prime space parameters: {self.rescaled_names}')
 
+    def verify_rescaling(self):
+        """
+        Verify the rescaling functions
+        """
+        logger.info('Verifying rescaling functions')
+        x = self.model.new_point(N=5000)
+        x_prime, log_J = self.rescale(x)
+        x_out, log_J_inv = self.inverse_rescale(x_prime)
+
+        if x.size == x_out.size:
+            for f in x.dtype.names:
+                if not np.allclose(x[f], x_out[f]):
+                    raise RuntimeError(f'Rescaling is not invertible for {f}')
+            if not np.allclose(log_J, -log_J_inv):
+                raise RuntimeError('Rescaling Jacobian is not invertible')
+        else:
+            ratio = x_out.size // x.size
+            for f in x.dtype.names:
+                if not any([np.allclose(x_out[f][:x.size],
+                                        x_out[f][n * x.size:(n + 1) * x.size])
+                            for n in range(1, ratio)]):
+                    raise RuntimeError(
+                        'Duplicate samples to map to same input values. '
+                        'Check the rescaling and inverse rescaling functions.')
+            for f in x.dtype.names:
+                if not np.allclose(x[f], x_out[f][:x.size]):
+                    raise RuntimeError(f'Rescaling is not invertible for {f}')
+            if not np.allclose(log_J, -log_J_inv):
+                raise RuntimeError('Rescaling Jacobian is not invertible')
+
+        logger.info('Rescaling functions are invertible')
+
     def _rescale_to_bounds(self, x):
         """
         Rescale the inputs to specified bounds
@@ -405,8 +440,8 @@ class FlowProposal(RejectionProposal):
                                 / (self._max[n] - self._min[n])) \
                              + self._rescale_shift
 
-                log_J -= np.log(self._max[n] - self._min[n]) \
-                    + np.log(self._rescale_factor)
+                log_J += (-np.log(self._max[n] - self._min[n])
+                          + np.log(self._rescale_factor))
 
                 if n in self.boundary_inversion:
 
@@ -457,15 +492,15 @@ class FlowProposal(RejectionProposal):
                     x_prime[rn][~inv] = x_prime[rn][~inv]
                     x_prime[rn][inv] = -x_prime[rn][inv]
 
-                    if self._edges[n]:
+                    if self._edges[n] == 'upper':
                         x_prime[rn] = 1 - x_prime[rn]
 
                 x[n] = (self._max[n] - self._min[n]) \
                     * (x_prime[rn] - self._rescale_shift) \
                     / self._rescale_factor + self._min[n]
 
-                log_J += np.log(self._max[n] - self._min[n]) \
-                    - np.log(self._rescale_factor)
+                log_J += (np.log(self._max[n] - self._min[n])
+                          - np.log(self._rescale_factor))
             else:
                 x[n] = x_prime[rn]
         x['logP'] = x_prime['logP']
