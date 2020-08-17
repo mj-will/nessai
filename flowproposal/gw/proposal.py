@@ -17,7 +17,9 @@ from .utils import (
     angle_to_cartesian,
     cartesian_to_angle,
     sky_to_cartesian,
-    cartesian_to_sky)
+    cartesian_to_sky,
+    zero_one_to_cartesian,
+    cartesian_to_zero_one)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ class GWFlowProposal(FlowProposal):
         self._inversion = {}
         self._log_inversion = {}
         self._log_radial = {}
+        self._angle_conversion = {}
 
     def set_reparameterisations(self, reparameterisations):
         """
@@ -46,7 +49,8 @@ class GWFlowProposal(FlowProposal):
                         norm_quaternions=False, rescale_angles=True,
                         euler_convention='ZYZ', angular_decomposition=True,
                         minus_one_to_one=True, log_inversion=False,
-                        log_radial=False, inversion=True, exclude=[])
+                        log_radial=False, inversion=True, exclude=[],
+                        convert_to_angle=False)
         defaults.update(reparameterisations)
 
         if defaults['mass_inversion'] and defaults['inversion']:
@@ -94,7 +98,7 @@ class GWFlowProposal(FlowProposal):
             'min': self.model.bounds[name][0],
             'max': self.model.bounds[name][1]}
 
-        logger.debug(f'Added {name} to parameters with log inversion')
+        logger.debug(f'Added {name} to parameters log inversion')
 
     def add_log_inversion(self, name):
         """
@@ -104,7 +108,7 @@ class GWFlowProposal(FlowProposal):
         if not self.model.bounds[name][1] == 1 or \
                 self.model.bounds[name][0] == 0:
             rescale = True
-            offset = 0.1 * np.ptp(self.model.bounds[name])
+            offset = 0.0 * np.ptp(self.model.bounds[name])
         else:
             rescale = False
             offset = 0.0
@@ -120,6 +124,22 @@ class GWFlowProposal(FlowProposal):
             'offset': offset, 'rescale': rescale, 'flip': None}
 
         logger.debug(f'Added {name} to parameters with log inversion')
+
+    def add_angle_conversion(self, name):
+        radial_name = name + '_radial'
+        self.names.append(radial_name)
+        self.rescaled_names.append(radial_name)
+
+        x_name = name + '_x'
+        y_name = name + '_y'
+        replace_in_list(self.rescaled_names, [name, radial_name],
+                        [x_name, y_name])
+
+        self._angle_conversion[name] = {
+            'name': name, 'radial': radial_name,
+            'x': x_name, 'y': y_name}
+
+        logger.debug(f'{name} will be converted to an angle')
 
     def set_rescaling(self):
         """
@@ -159,6 +179,11 @@ class GWFlowProposal(FlowProposal):
                 self._log_radial = [p for p in self.log_radial
                                     if p not in self._log_inversion]
             logger.debug(f'Using log radial for {self._log_radial}')
+
+        if self.convert_to_angle:
+            if isinstance(self.convert_to_angle, list):
+                for p in self.convert_to_angle:
+                    self.add_angle_conversion(p)
 
         if self.angular_decomposition:
             if all(p in self.names for p in ['ra', 'dec']):
@@ -215,7 +240,8 @@ class GWFlowProposal(FlowProposal):
                         scale = 1.0
                     if ((radial := f'a_{i}') in self.names and
                             not (radial in self._log_inversion or
-                                 radial in self._inversion)):
+                                 radial in self._inversion or
+                                 radial in self._angle_conversion)):
                         self.setup_angle(a, radial, scale=scale)
                     else:
                         self.setup_angle(a, scale=scale)
@@ -295,32 +321,41 @@ class GWFlowProposal(FlowProposal):
         if self._log_inversion:
             for c in self._log_inversion.values():
                 if c['rescale']:
-                    x[c['name']], lj = rescale_zero_to_one(
+                    x_prime[c['rescaled_name']], lj = rescale_zero_to_one(
                         x[c['name']],
                         xmin=self.model.bounds[c['name']][0] - c['offset'],
                         xmax=self.model.bounds[c['name']][1])
                     log_J += lj
 
                 if c['flip'] is None:
-                    if np.median(x[c['name']]) < 0.55:
-                        c['flip'] = True
-                    else:
-                        c['flip'] = False
+                    c['flip'] = detect_edge(
+                        x_prime[c['rescaled_name']],
+                        bounds=[0, 1],
+                        cutoff=self._edge_cutoff,
+                        mode_range=self._edge_mode_range)
+                    logger.debug(f"Log inversion for {c['name']}: {c['flip']}")
+
+                if c['flip'] == 'lower':
+                    x_prime[c['rescaled_name']] = \
+                            1 - x_prime[c['rescaled_name']]
+
+                x_prime[c['rescaled_name']] = \
+                    np.log(x_prime[c['rescaled_name']])
+
+                log_J -= x_prime[c['rescaled_name']]
 
                 if c['flip']:
-                    x[c['name']] = 1 - x[c['name']] + 0.1
 
-                x[c['name']] = np.log(x[c['name']])
-                x_inv = x.copy()
-                x_inv[c['name']] *= -1
-                # |J| = |-1/r| -> log|J| = -log r
-                log_J -= np.log(x[c['name']])
-                x = np.concatenate([x, x_inv])
-
-                log_J = np.concatenate([log_J, log_J])
-                x_prime = np.concatenate([x_prime, x_prime])
-
-                x_prime[c['rescaled_name']] = x[c['name']].copy()
+                    if self.inversion_type == 'duplicate':
+                        x_inv = x_prime.copy()
+                        x_inv[c['rescaled_name']] *= -1
+                        x_prime = np.concatenate([x_prime, x_inv])
+                        x = np.concatenate([x,  x])
+                        log_J = np.concatenate([log_J, log_J])
+                    else:
+                        inv = np.random.choice(x_prime.size, x_prime.size // 2,
+                                               replace=False)
+                        x_prime[c['rescaled_name']][inv] *= -1
 
         if self._inversion:
             for c in self._inversion.values():
@@ -353,6 +388,19 @@ class GWFlowProposal(FlowProposal):
                         inv = np.random.choice(x_prime.size, x_prime.size // 2,
                                                replace=False)
                         x_prime[c['rescaled_name']][inv] *= -1
+
+        if self._angle_conversion:
+            for c in self._angle_conversion.values():
+                p, lj = rescale_zero_to_one(
+                    x[c['name']],
+                    xmin=self.model.bounds[c['name']][0],
+                    xmax=self.model.bounds[c['name']][1])
+                log_J += lj
+
+                x_prime[c['x']], x_prime[c['y']], lj = \
+                    zero_one_to_cartesian(p)
+
+                log_J += lj
 
         if 'sky' in self._reparameterisations:
             if self.distance == 'luminosity_distance':
@@ -548,14 +596,26 @@ class GWFlowProposal(FlowProposal):
                     log_J += lj
                 x[a['radial']] = r
 
+        if self._angle_conversion:
+            for c in self._angle_conversion.values():
+                p, r, lj = cartesian_to_zero_one(
+                    x_prime[c['x']], x_prime[c['y']])
+                log_J += lj
+
+                x[c['name']], lj = inverse_rescale_zero_to_one(
+                    p, xmin=self.model.bounds[c['name']][0],
+                    xmax=self.model.bounds[c['name']][1])
+                log_J += lj
+                x[c['radial']] = r
+
         if self._log_inversion:
             for c in self._log_inversion.values():
                 inv = x_prime[c['rescaled_name']] > 0.
                 x[c['name']][~inv] = np.exp(x_prime[c['rescaled_name']][~inv])
                 x[c['name']][inv] = np.exp(-x_prime[c['rescaled_name']][inv])
 
-                if c['flip']:
-                    x[c['name']] = 1 - x[c['name']] + 0.1
+                if c['flip'] == 'lower':
+                    x[c['name']] = 1 - x[c['name']]
 
                 # for q_inv < 0 conversion is
                 # exp(q_inv) for q_inv > 0 exp(-q_inv)
@@ -616,6 +676,10 @@ class GWFlowProposal(FlowProposal):
             for a in self._search_angles.values():
                 if not (n := a['radial']) in self.model.names:
                     log_p += chi.logpdf(x[n], 2)
+
+        if self._angle_conversion:
+            for a in self._angle_conversion.values():
+                log_p += chi.logpdf(x[a['radial']], 2)
         return log_p
 
 
