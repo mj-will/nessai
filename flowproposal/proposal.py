@@ -153,6 +153,7 @@ class FlowProposal(RejectionProposal):
         self.training_count = 0
         self.populated_count = 0
         self.names = []
+        self.training_data = None
         self.x = None
         self.z = None
         self.samples = None
@@ -546,14 +547,15 @@ class FlowProposal(RejectionProposal):
             os.makedirs(block_output, exist_ok=True)
 
         self.check_state(x)
+        self.training_data = x.copy()
 
-        if self._plot_training == 'all':
+        if self._plot_training == 'all' and plot:
             plot_live_points(x, c='logL',
                              filename=block_output + 'x_samples.png')
 
         x_prime, log_J = self.rescale(x)
 
-        if self.rescale_parameters and self._plot_training == 'all':
+        if self.rescale_parameters and self._plot_training == 'all' and plot:
             plot_live_points(x_prime, c='logL',
                              filename=block_output + 'x_prime_samples.png')
         # Convert to numpy array for training and remove likelihoods and priors
@@ -562,7 +564,7 @@ class FlowProposal(RejectionProposal):
         self.flow.train(x_prime_array,
                         output=block_output, plot=self._plot_training)
 
-        if self._plot_training:
+        if self._plot_training and plot:
             self.alt_dist = None
             z, _ = self.flow.sample_and_log_prob(N=x.size)
             x_prime_gen, log_prob = self.backward_pass(z, rescale=False)
@@ -582,11 +584,12 @@ class FlowProposal(RejectionProposal):
                                      filename=block_output + 'x_generated.png')
                 plot_1d_comparison(
                     x_prime, x_prime_gen, parameters=self.rescaled_names,
-                    labels=['live points', 'generated'],
+                    labels=['live points', 'generated'], sharey=False,
                     filename=block_output + 'x_prime_comparison.png')
 
             plot_1d_comparison(x, x_gen, parameters=self.model.names,
                                labels=['live points', 'generated'],
+                               sharey=False,
                                filename=block_output + 'x_comparison.png')
 
         self.populated = False
@@ -692,6 +695,8 @@ class FlowProposal(RejectionProposal):
                     break
             proposed += z.shape[0]
             x, log_q = self.backward_pass(z, rescale=True)
+            if not x.size:
+                continue
             if self.truncate:
                 cut = log_q >= worst_q
                 x = x[cut]
@@ -738,15 +743,16 @@ class FlowProposal(RejectionProposal):
             self.x = self.x[:N]
             self.z = self.z[:N]
 
-        if (p := self._plot_pool):
+        if (p := self._plot_pool) and plot:
             if p == 'all':
                 plot_live_points(
                     self.x, c='logL',
                     filename=f'{self.output}/pool_{self.populated_count}.png')
             else:
                 plot_1d_comparison(
+                    self.training_data,
                     self.x,
-                    sharey=False,
+                    labels=['live points', 'pool'],
                     filename=f'{self.output}/pool_{self.populated_count}.png')
 
         self.samples = self.x[self.model.names + ['logP', 'logL']]
@@ -761,7 +767,7 @@ class FlowProposal(RejectionProposal):
                 self.compute_acceptance(worst_point['logL'])
                 )
             logger.debug(f'Current acceptance {self.acceptance[-1]}')
-            if self._plot_pool:
+            if self._plot_pool and plot:
                 plot_acceptance(
                     self.approx_acceptance,
                     self.acceptance,
