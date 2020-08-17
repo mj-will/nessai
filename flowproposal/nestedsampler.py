@@ -471,11 +471,11 @@ class NestedSampler:
         Initialise the pool of `cpnest.parameter.LivePoint` by
         sampling them from the `cpnest.model.log_prior` distribution
         """
-        # send all live points to the samplers for start
         i = 0
         live_points = np.empty(self.nlive,
                                dtype=get_dtype(self.model.names,
                                                DEFAULT_FLOAT_DTYPE))
+
         with tqdm(total=self.nlive, desc='Drawing live points') as pbar:
             while i < self.nlive:
                 while i < self.nlive:
@@ -646,7 +646,7 @@ class NestedSampler:
         ax[4].legend(frameon=False)
 
         it = (np.arange(len(self.rolling_p))) * self.nlive
-        ax[5].plot(it, self.rolling_p, c='darkblue', label='p-value')
+        ax[5].plot(it, self.rolling_p, 'o', c='darkblue', label='p-value')
         ax[5].set_ylabel('p-value')
 
         ax[-1].set_xlabel('Iteration')
