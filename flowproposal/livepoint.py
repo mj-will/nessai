@@ -60,3 +60,21 @@ def dict_to_live_points(d):
                                   dtypes=[DEFAULT_FLOAT_DTYPE, LOGL_DTYPE],
                                   usemask=False)
         return array
+
+
+def live_points_to_dict(live_points):
+    """
+    Convert a structured array of live points to a dictionary with
+    a key per field
+
+    Parameters
+    ----------
+    live_points: structured_array
+        Array of live points
+
+    Returns
+    -------
+    dict:
+        Dictionary of live points
+    """
+    return {f: live_points[f] for f in live_points.dtype.names}
