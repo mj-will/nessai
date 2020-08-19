@@ -6,6 +6,7 @@ import time
 
 import numpy as np
 
+from .livepoint import live_points_to_dict
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
 from .utils import NumpyEncoder
@@ -131,8 +132,9 @@ class FlowSampler:
 
                 )
         d['insertion_indices'] = self.ns.insertion_indices
-        d['nested_samples'] = self.nested_samples
-        d['posterior_samples'] = self.posterior_samples
+        d['nested_samples'] = live_points_to_dict(self.nested_samples)
+        d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
+        d['log_evidence'] = self.logZ
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=NumpyEncoder)
