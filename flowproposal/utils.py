@@ -5,12 +5,42 @@ import shutil
 
 from nflows.distributions.uniform import BoxUniform
 import numpy as np
-import pandas as pd
 from scipy import stats
 import torch
 
-
 logger = logging.getLogger(__name__)
+
+
+def compute_indices_ks_test(indices, nlive):
+    """
+    Compute the two-sided KS test for discrete insertion indices for a given
+    number of live points
+
+    Parameters
+    ----------
+    indices: array_like
+        Indices of newly inserteed live points
+    nlive: int
+        Number of live points
+
+    Returns
+    ------
+    D: float
+        Two-sided KS statistic
+    p: float
+        p-value
+    """
+    if indices:
+        u, counts = np.unique(indices, return_counts=True)
+        analytic_cdf = u / nlive
+        cdf = np.cumsum(counts) / len(indices)
+        dplus = np.max(cdf - analytic_cdf)
+        dminus = np.max(analytic_cdf[1:] - cdf[:-1])
+        D = np.max([dplus, dminus])
+        p = stats.kstwo.sf(D, nlive)
+        return D, p
+    else:
+        return None, None
 
 
 def draw_surface_nsphere(dims, r=1, N=1000):
@@ -349,15 +379,6 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.tolist()
         else:
             return super(NumpyEncoder, self).default(obj)
-
-
-def save_live_points(live_points, filename):
-    """
-    Save a numpy structured array of live points to a json file
-    """
-    df = pd.DataFrame.from_records(live_points)
-    with open(filename, 'w') as wf:
-        json.dump(df.to_dict(orient='list'), wf, indent=4)
 
 
 def safe_file_dump(data, filename, module, save_existing=False):

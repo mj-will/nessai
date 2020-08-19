@@ -7,7 +7,6 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import ksone
 import seaborn as sns
 import torch
 from tqdm import tqdm
@@ -15,7 +14,7 @@ from tqdm import tqdm
 from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_indices
 from .posterior import logsubexp, log_integrate_log_trap
-from .utils import safe_file_dump
+from .utils import safe_file_dump, compute_indices_ks_test
 
 sns.set()
 sns.set_style('ticks')
@@ -107,38 +106,22 @@ class NestedSampler:
     Nested Sampler class.
     Initialisation arguments:
 
-    model: :obj:`cpnest.Model` user defined model
-
-    manager: `multiprocessing` manager instance which controls
-        the shared objects.
-        Default: None
-
-    nlive: int
-        number of live points to be used for the integration
-        Default: 1024
-
-    output: string
-        folder where the output will be stored
-        Default: None
-
-    verbose: int
-        0: Nothing
-        1: display information on screen
-        2: (1) + diagnostic plots
-        Default: 1
-
+    Parameters
+    ----------
+    model: :obj:`flowproposal.Model`
+        User defined model
+    nlive: int, optional
+        Number of live points. Defaults to 1000
+    output: str
+        Path for output, if None, output is not saved. Defaults to None.
     seed: int
         seed for the initialisation of the pseudorandom chain
-        Default: 1234
-
     prior_sampling: boolean
         produce nlive samples from the prior.
         Default: False
-
     stopping: float
         Stop when remaining samples wouldn't change logZ estimate by this much.
-        Deafult: 0.1
-
+        Defaults to 0.1.
     n_periodic_checkpoint: int
         checkpoint the sampler every n_periodic_checkpoint iterations
         Default: None (disabled)
@@ -160,6 +143,9 @@ class NestedSampler:
         variables for the algorithm
         """
         logger.info('Initialising nested sampler')
+
+        model.verify_model()
+
         self.model = model
         self.nlive = nlive
         self.live_points = None
@@ -349,19 +335,13 @@ class NestedSampler:
         else:
             indices = self.insertion_indices
 
-        analytic_cdf = np.arange(self.nlive + 1) / self.nlive
-        counts, _ = np.histogram(indices, bins=np.arange(self.nlive + 1))
-        cdf = np.cumsum(counts) / len(indices)
-        gaps = np.column_stack([cdf - analytic_cdf[:self.nlive],
-                                analytic_cdf[1:] - cdf])
-        D = np.max(gaps)
-        p = ksone.sf(D, self.nlive)
+        D, p = compute_indices_ks_test(indices, self.nlive)
 
         if rolling:
-            logger.warning(f'Rolling KS test: D={D:.3}, p-value={p:.3}')
+            logger.warning(f'Rolling KS test: D={D!s:.5}, p-value={p!s:.5}')
             self.rolling_p.append(p)
         else:
-            logger.warning(f'Final KS test: D={D:.3}, p-value={p:.3}')
+            logger.warning(f'Final KS test: D={D!s:.5}, p-value={p!s:.5}')
 
         if filename is not None:
             np.savetxt(os.path.join(self.output, filename),
