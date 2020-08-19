@@ -18,7 +18,10 @@ class Model:
 
     @property
     def dims(self):
-        return len(self.names)
+        if self.names:
+            return len(self.names)
+        else:
+            return None
 
     @property
     def lower_bounds(self):
@@ -40,16 +43,33 @@ class Model:
         """
         Create a new LivePoint, drawn from within bounds
 
-        -----------
-        Return:
-            p: :obj:`cpnest.parameter.LivePoint`
+        Parameters
+        ----------
+        N: int, optional
+            Number of points to draw. By default draws one point. If N > 1
+            points are drawn using a faster method.
+
+        Returns
+        -------
+        np.ndarray
+            Numpy structured array with fields for each parameter
+            and log-prior (logP) and log-likelihood (logL)
         """
-        if N >= 1:
+        if N > 1:
             return self._multiple_new_points(N)
         else:
             return self._single_new_point()
 
     def _single_new_point(self):
+        """
+        Draw a single point within the prior
+
+        Returns
+        -------
+        np.ndarray
+            Numpy structured array with fields for each parameter
+            and log-prior (logP) and log-likelihood (logL)
+        """
         logP = -np.inf
         while (logP == -np.inf):
             p = numpy_array_to_live_points(
@@ -60,6 +80,21 @@ class Model:
         return p
 
     def _multiple_new_points(self, N):
+        """
+        Draw multiple points within the prior. Draws N points and accepts
+        only those for which log-prior is finite.
+
+        Parameters
+        ----------
+        N: int
+            Number of points to draw
+
+        Returns
+        -------
+        np.ndarray
+            Numpy structured array with fields for each parameter
+            and log-prior (logP) and log-likelihood (logL)
+        """
         new_points = np.array([], dtype=get_dtype(self.names,
                                                   DEFAULT_FLOAT_DTYPE))
         while new_points.size < N:
@@ -74,24 +109,15 @@ class Model:
     def log_likelihood(self, x):
         """
         returns log likelihood of given parameter
-
-        ------------
-        Parameter:
-            param: :obj:`cpnest.parameter.LivePoint`
         """
         pass
 
     def log_prior(self, x):
         """
         Returns log of prior.
-        Default is flat prior within bounds
 
-        ----------
-        Parameter:
-            param: :obj:`cpnest.parameter.LivePoint`
-
-        ----------
-        Return:
+        Returns
+        -------
             0 if param is in bounds
             -np.inf otherwise
         """
@@ -101,8 +127,24 @@ class Model:
         self.likelihood_evaluations += 1
         return self.log_likelihood(x)
 
-    def header(self):
+    def verify_model(self):
         """
-        Return a string with the output file header
+        Verify that the model is correctly setup. This includes checking
+        the names, bounds and log-likelihood.
         """
-        return '\t'.join(self.names) + '\tlogL'
+        if not self.names:
+            raise ValueError('Names for model parameters are not set')
+        if not self.bounds:
+            raise ValueError('Bounds are not set for model')
+
+        for n in self.names:
+            if n not in self.bounds.keys():
+                raise RuntimeError(f'Missing bounds for {n}')
+
+        x = self.new_point()
+        if self.log_prior(x) is None:
+            raise RuntimeError('Log-likehood function did not return a '
+                               'a prior value')
+        if self.log_likelihood(x) is None:
+            raise RuntimeError('Log-likehood function did not return a '
+                               'a likelihood value')
