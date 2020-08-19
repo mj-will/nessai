@@ -26,11 +26,27 @@ def cartesian_to_angle(x, y, scale=1.0):
 
 def sky_to_cartesian(ra, dec, dL=None):
     """
-    Decompose an angle into a real and imaginary part
+    Convert right ascension, declination and (optinal) luminosity distance
+    (defined on [0, 1]) to Cartesian coordinates.
+
+    Parameters
+    ----------
+    ra, dec: array_like
+        Right ascension and declination
+    dL: array_like, optional
+        Corresponding luminosity distance defined on [0, 1]. If None (default)
+        radial componment is drawn froma chi distribution with 3 degrees of
+        freedom
+
+    Returns
+    -------
+    x, y, z: array_like
+        Cartesian coordinates
+    log_J: array_like
+        Determinant of the log-Jacobian
     """
     if dL is None:
         dL = stats.chi.rvs(3, size=ra.size)
-    # amplitudes
     x = dL * np.cos(dec) * np.cos(ra)
     y = dL * np.cos(dec) * np.sin(ra)
     z = dL * np.sin(dec)
@@ -40,6 +56,19 @@ def sky_to_cartesian(ra, dec, dL=None):
 def cartesian_to_sky(x, y, z):
     """
     Reconstruct an angle given the real and imaginary part
+
+    Parameters
+    ----------
+    x, y, z: array_like
+        Three dimensional Cartesian coordinates
+
+    Returns:
+    ra, dec: array_like
+        Right ascension and declination
+    dl: array_like
+        Luminosity distance
+    log_J: array_like
+        Determinant of the log-Jacobian
     """
     dL = np.sqrt(np.sum([x ** 2., y ** 2., z ** 2.], axis=0))
     dec = np.arctan2(z, np.sqrt(x ** 2. + y ** 2.0))
