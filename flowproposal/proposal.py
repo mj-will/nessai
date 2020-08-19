@@ -128,6 +128,68 @@ class RejectionProposal(Proposal):
 class FlowProposal(RejectionProposal):
     """
     Object that handles training and proposal points
+
+    Parameters
+    ----------
+    model: obj:`flowproposal.model.Model`
+        User defined model
+    flow_config: dict, optional
+        Configuration for training the normalising flow. If None, uses default
+        settings. Defaults to None.
+    output: str, optional
+        Path to output directory. Defaults to ./
+    plot: {True, False, 'all', 'min'}, optional
+        Controls the plotting level:
+        * True: all plots
+        * False: no plots
+        * 'all': all plots
+        * 'min': 1d plots and loss
+        Defaults to `'min'`
+    latent_prior: {'truncated_gaussian', 'gaussian', 'uniform_nsphere',
+                   'gaussian'}, optional
+        Prior distribution in the latent space. Defaults to
+        'truncated_gaussian'.
+    poolsize: int, optional
+        Size of the proposal pool. Defaults to 10000.
+    exact_poolsize: bool, optional
+        If True extra samples are discarded when populating the pool. Defaults
+        to True
+    drawsize: int, optional
+        Number of points to simultaneosly draw when populating the proposal
+        Defaults to 10000
+    check_acceptance: bool, optional
+        If True the acceptance is computed after populating the pool. This
+        includes computing the likelihood for every point. Default False.
+    max_radius: float (optional)
+        If a float then this value is used as an upper limit for the
+        computed radius when populating the proposal. If unspecified no
+        upper limit is used.
+    fuzz: float (optional)
+        Fuzz-factor applied to the radius. If unspecified no fuzz-factor is
+        applied.
+    zero_reset: int (optional)
+        Value used when reseting proposal if zero samples are accepted.
+        If specified is after drawing samples zero_reset times the current
+        poolsize is less than half, then the radius is reduced by 1% and
+        the pool is reset.
+    truncate: bool (optional)
+        Truncate proposals using probability compute for worst point.
+        Not recommended.
+    rescale_parameters: list or bool (optional)
+        If True live points are rescaled to `rescale_bounds` before training.
+        If an instance of `list` then must contain names of parameters to
+        rescale. If False no rescaling is applied. Default False.
+    rescale_bounds: list (optional)
+        Lower and upper bound to use for rescaling. Defaults to [-1, 1]. See
+        `rescale_parameters`.
+    update_bounds: bool (optional)
+        If True bounds used for rescaling are updated at the starting of
+        training. If False prior bounds are used. Default False.
+    boundary_inversion: bool or list (optional)
+        If True boundary inversion is applied to all bounds. If
+        If an instance of `list` of parameters names, then inversion
+        only applied to these parameters. If False (default )no inversion is
+        used.
     """
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
@@ -135,7 +197,7 @@ class FlowProposal(RejectionProposal):
                  fuzz=1.0, keep_samples=False, exact_poolsize=True, plot='min',
                  fixed_radius=False, drawsize=10000, check_acceptance=False,
                  truncate=False, zero_reset=None, detect_edges=False,
-                 rescale_bounds=[-1, 1], rescale_min_max=False,
+                 rescale_bounds=[-1, 1], expansion_fraction=0.0,
                  boundary_inversion=False, inversion_type='duplicate',
                  update_bounds=True, max_radius=False, pool=None, n_pool=None,
                  multiprocessing=False, **kwargs):
@@ -163,11 +225,11 @@ class FlowProposal(RejectionProposal):
         self.poolsize = poolsize
         self.drawsize = drawsize
         self.fuzz = fuzz
+        self.expansion_fraction = expansion_fraction
         self.latent_prior = latent_prior
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
         self.exact_poolsize = exact_poolsize
-        self.rescale_min_max = rescale_min_max
         self.update_bounds = update_bounds
         self.check_acceptance = check_acceptance
         self.rescale_bounds = rescale_bounds
@@ -322,6 +384,10 @@ class FlowProposal(RejectionProposal):
 
         self.set_rescaling()
         self.verify_rescaling()
+
+        if self.expansion_fraction:
+            logger.info('Overwritting fuzz factor with expansion fraction')
+            self.fuzz = 1 + self.expansion_fraction ** (1 / self.rescaled_dims)
         self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
@@ -584,12 +650,11 @@ class FlowProposal(RejectionProposal):
                                      filename=block_output + 'x_generated.png')
                 plot_1d_comparison(
                     x_prime, x_prime_gen, parameters=self.rescaled_names,
-                    labels=['live points', 'generated'], sharey=False,
+                    labels=['live points', 'generated'],
                     filename=block_output + 'x_prime_comparison.png')
 
             plot_1d_comparison(x, x_gen, parameters=self.model.names,
                                labels=['live points', 'generated'],
-                               sharey=False,
                                filename=block_output + 'x_comparison.png')
 
         self.populated = False

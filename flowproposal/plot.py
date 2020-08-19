@@ -42,11 +42,32 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     plt.close()
 
 
-def plot_1d_comparison(*live_points, filename=None, parameters=None,
-                       bounds=None, sharey=True, hist_kwargs={},
-                       labels=None):
+def plot_1d_comparison(*live_points, parameters=None, labels=None,
+                       bounds=None, hist_kwargs={},
+                       filename=None):
     """
-    Plot 1d histograms comparing parameters
+    Plot 1d histograms comparing different sets of live points
+
+    Parameters
+    ----------
+    *live_points:
+        Variable length argument list of live points in structured arrays with
+        fields. See `parameters` argument.
+    parameters: array_like, optional
+        Array of parameters (field names) to plot. Default None implies all
+        fields are plotted.
+    labels: array_like, optional
+        Array of labels for each structured array being plotted (default None).
+        If None each set of live points is labelled numerically
+    bounds: dict, optional
+        Dictionary of upper and lowers bounds to plot. Each key must
+        match a field and each value must be an interable of length 2 in order
+        lower then upper bound. If None (default), no bounds plotted.
+    hist_kwargs: dict, optional
+        Dictionary of keyword arguments parsed to matplotlib.pyplot.hist.
+    filename: str, optional
+        Name of file for saving figure. (Default None implies figure is not
+        saved).
     """
     if parameters is None:
         parameters = live_points[0].dtype.names
