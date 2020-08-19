@@ -141,10 +141,23 @@ class Model:
             if n not in self.bounds.keys():
                 raise RuntimeError(f'Missing bounds for {n}')
 
-        x = self.new_point()
+        logP = -np.inf
+        counter = 0
+        while (logP == -np.inf):
+            x = numpy_array_to_live_points(
+                    np.random.uniform(self.lower_bounds, self.upper_bounds,
+                                      [1, self.dims]),
+                    self.names)
+            logP = self.log_prior(x)
+            counter += 1
+            if counter == 10000:
+                raise RuntimeError('Could not draw valid point from within '
+                                   'the prior after 10000 tries, check the '
+                                   'log prior function.')
+
         if self.log_prior(x) is None:
-            raise RuntimeError('Log-likehood function did not return a '
+            raise RuntimeError('Log-prior function did not return'
                                'a prior value')
         if self.log_likelihood(x) is None:
-            raise RuntimeError('Log-likehood function did not return a '
+            raise RuntimeError('Log-likehood function did not return'
                                'a likelihood value')
