@@ -38,7 +38,7 @@ class _NSintegralState(object):
         self.logZ = -np.inf
         self.oldZ = -np.inf
         self.logw = 0
-        self.info = 0
+        self.info = [0.]
         # Start with a dummy sample enclosing the whole prior
         self.logLs = [-np.inf]   # Likelihoods sampled
         self.log_vols = [0.0]    # Volumes enclosed by contours
@@ -60,12 +60,13 @@ class _NSintegralState(object):
         self.logZ = np.logaddexp(self.logZ, Wt)
         # Update information estimate
         if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
-            self.info = np.exp(Wt - self.logZ) * logL \
-                        + np.exp(oldZ - self.logZ) \
-                        * (self.info + oldZ) \
-                        - self.logZ
-            if np.isnan(self.info):
-                self.info = 0
+            info = np.exp(Wt - self.logZ) * logL \
+                  + np.exp(oldZ - self.logZ) \
+                  * (self.info[-1] + oldZ) \
+                  - self.logZ
+            if np.isnan(info):
+                info = 0
+            self.info.append(info)
 
         # Update history
         self.logw += logt
@@ -92,7 +93,7 @@ class _NSintegralState(object):
         fig = plt.figure()
         plt.plot(self.log_vols, self.logLs)
         plt.title((f'{self.iteration} iterations. logZ={self.logZ:.2f}'
-                   f'H={self.info * np.log2(np.e):.2f} bits'))
+                   f'H={self.info[-1] * np.log2(np.e):.2f} bits'))
         plt.grid(which='both')
         plt.xlabel('log prior_volume')
         plt.ylabel('log likelihood')
@@ -126,6 +127,10 @@ class NestedSampler:
         checkpoint the sampler every n_periodic_checkpoint iterations
         Default: None (disabled)
 
+    retrain_acceptance: bool, True
+        If true use mean acceptance of samples produce with current flow
+        as a criteria for retraining
+
     """
 
     def __init__(self, model, nlive=1000, output=None, prior_sampling=False,
@@ -137,6 +142,7 @@ class NestedSampler:
                  checkpointing=True, resume_file=None,
                  uninformed_proposal_kwargs={}, seed=None, plot=True,
                  force_train=True, proposal_plots=True, max_iteration=None,
+                 retrain_acceptance=True, uninformed_acceptance_threshold=None,
                  **kwargs):
         """
         Initialise all necessary arguments and
@@ -162,6 +168,7 @@ class NestedSampler:
         self.block_acceptance = 1.
         self.mean_block_acceptance = 1.
         self.block_iteration = 0
+        self.retrain_acceptance = retrain_acceptance
 
         self.insertion_indices = []
         self.rolling_p = []
@@ -197,6 +204,16 @@ class NestedSampler:
             self.max_iteration = max_iteration
 
         self.acceptance_threshold = acceptance_threshold
+        if uninformed_acceptance_threshold is None:
+            if self.acceptance_threshold < 0.1:
+                self.uninformed_acceptance_threshold = \
+                    0.1 * self.acceptance_threshold
+            else:
+                self.uninformed_acceptance_threshold = \
+                    self.acceptance_threshold
+        else:
+            self.uninformed_acceptance_threshold = \
+                uninformed_acceptance_threshold
         self.train_on_empty = train_on_empty
         self.force_train = True
         self.cooldown = cooldown
@@ -268,6 +285,14 @@ class NestedSampler:
             os.makedirs(self.live_points_dir, exist_ok=True)
             self.replacement_points = []
 
+    @property
+    def log_evidence(self):
+        return self.state.logZ
+
+    @property
+    def information(self):
+        return self.state.info[-1]
+
     def setup_output(self, output, resume_file=None):
         """
         Set up the output folder
@@ -313,7 +338,7 @@ class NestedSampler:
         with open(self.evidence_file, 'w') as f:
             f.write('{0:.5f} {1:.5f} {2:.5f}\n'.format(self.state.logZ,
                                                        self.logLmax,
-                                                       self.state.info))
+                                                       self.state.info[-1]))
 
     def setup_random_seed(self, seed):
         """
@@ -441,9 +466,11 @@ class NestedSampler:
                     f"m_acc: {self.mean_acceptance:.3f} "
                     f"b_acc: {self.mean_block_acceptance:.3f} "
                     f"sub_acc: {1 / count:.3f} "
-                    f"H: {self.state.info:.2f} logL: {self.logLmin:.5f} --> "
-                    f"{proposed['logL']:.5f} dZ: {self.condition:.3f} "
+                    f"H: {self.state.info[-1]:.2f} "
+                    f"logL: {self.logLmin:.5f} --> {proposed['logL']:.5f} "
+                    f"dZ: {self.condition:.3f} "
                     f"logZ: {self.state.logZ:.3f} "
+                    f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
                     f"logLmax: {self.logLmax:.2f}")
 
     def populate_live_points(self):
@@ -518,8 +545,8 @@ class NestedSampler:
         Force will overide the cooldown mechanism, rejected will not
         """
         if self.uninformed_sampling:
-            if ((self.mean_acceptance < 10 * self.acceptance_threshold) or
-                    (self.iteration >= self.maximum_uninformed)):
+            if ((self.mean_acceptance < self.uninformed_acceptance_threshold)
+                    or (self.iteration >= self.maximum_uninformed)):
                 logger.warning('Switching to FlowProposal')
                 self.proposal = self._flow_proposal
                 self.uninformed_sampling = False
@@ -533,11 +560,13 @@ class NestedSampler:
             train = True
             logger.debug('Training flow (force)')
         elif (self.mean_block_acceptance < self.acceptance_threshold and
-                self.iteration - self.last_updated < self.cooldown):
+                self.iteration - self.last_updated < self.cooldown and
+                self.retrain_acceptance):
             train = True
             logger.debug('Training flow (acceptance)')
         elif (rejected and
-                self.mean_block_acceptance < self.acceptance_threshold):
+                self.mean_block_acceptance < self.acceptance_threshold and
+                self.retrain_acceptance):
             logger.debug('Training flow (rejected + acceptance)')
             train = True
 
@@ -635,6 +664,11 @@ class NestedSampler:
             for a in ax:
                 a.axvline(t, ls='--', alpha=0.7, color='k')
 
+        if not self.train_on_empty:
+            for p in self.population_iterations:
+                for a in ax:
+                    a.axvline(p, ls='-.', alpha=0.7, color='tab:orange')
+
         plt.tight_layout()
 
         fig.savefig(f'{self.output}/state.png')
@@ -720,15 +754,16 @@ class NestedSampler:
         # Refine evidence estimate
         self.update_state(force=True)
         self.state.finalise()
-        self.logZ = self.state.logZ
+        self.info = self.state.info
         self.likelihood_calls = self.model.likelihood_evaluations
         # output the chain and evidence
         if save:
             self.write_nested_samples_to_file()
             self.write_evidence_to_file()
 
-        logger.critical('Final evidence: {0:0.2f}'.format(self.state.logZ))
-        logger.critical('Information: {0:.2f}'.format(self.state.info))
+        logger.critical(f'Final evidence: {self.state.logZ:.3f} +/- '
+                        f'{np.sqrt(self.state.info[-1] / self.nlive):.3f}')
+        logger.critical('Information: {0:.2f}'.format(self.state.info[-1]))
 
         self.check_insertion_indices(rolling=False)
 

@@ -134,7 +134,8 @@ class FlowSampler:
         d['insertion_indices'] = self.ns.insertion_indices
         d['nested_samples'] = live_points_to_dict(self.nested_samples)
         d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
-        d['log_evidence'] = self.logZ
+        d['log_evidence'] = self.ns.log_evidence
+        d['infomation'] = self.ns.information
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=NumpyEncoder)
