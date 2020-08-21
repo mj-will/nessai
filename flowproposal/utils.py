@@ -30,7 +30,7 @@ def compute_indices_ks_test(indices, nlive):
     p: float
         p-value
     """
-    if indices:
+    if len(indices):
         u, counts = np.unique(indices, return_counts=True)
         analytic_cdf = u / nlive
         cdf = np.cumsum(counts) / len(indices)
