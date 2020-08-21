@@ -40,6 +40,9 @@ class GWFlowProposal(FlowProposal):
         self._log_radial = {}
         self._angle_conversion = {}
 
+        self._default_inversion_parameters = ['mass_ratio', 'a_1', 'a_2',
+                                              'luminosity_distance']
+
     def set_reparameterisations(self, reparameterisations):
         """
         Set the relevant reparamterisation flags
@@ -50,12 +53,32 @@ class GWFlowProposal(FlowProposal):
                         euler_convention='ZYZ', angular_decomposition=True,
                         minus_one_to_one=True, log_inversion=False,
                         log_radial=False, inversion=True, exclude=[],
-                        convert_to_angle=False)
+                        convert_to_angle=False, default_rescaling=[])
         defaults.update(reparameterisations)
 
         if defaults['mass_inversion'] and defaults['inversion']:
             raise RuntimeError(
                 'Mass inversion and inversion are not compatible')
+
+        if (defaults['inversion'] is True and
+                defaults['log_inversion'] is True):
+            raise RuntimeError('To use inversion and log-inversion, specify '
+                               'the parameters for each as list')
+        if (isinstance(defaults['inversion'], list) and
+                defaults['log_inversion'] is True):
+            raise RuntimeError('Cannot set inversion to a list and use '
+                               'default parameters for log inversion.')
+        if (isinstance(defaults['log_inversion'], list) and
+                defaults['inversion'] is True):
+            raise RuntimeError('Cannot set log inversion to a list and use '
+                               'default parameters for inversion.')
+
+        if all([isinstance(inv, list) for inv in [defaults['inversion'],
+                                                  defaults['log_inversion']]]):
+            if s := (set(defaults['inversion'])
+                     & set(defaults['log_inversion'])):
+                raise RuntimeError('Inversion and log_inversion have common '
+                                   f'parameters: {s}')
 
         logger.info('Reparameterisations:')
         for k, v in defaults.items():
@@ -81,6 +104,21 @@ class GWFlowProposal(FlowProposal):
             'x': x_name, 'y': y_name, 'scale': scale}
 
         logger.debug(f'Added {name} with config: {self._search_angles[name]}')
+
+    @property
+    def inversion_parameters(self):
+        """
+        Returns a list of parameters to which an inversion (normal or log)
+        is applied
+        """
+        parameters = []
+        if isinstance(self.inversion, list):
+            parameters += self.inversion
+        if isinstance(self.log_inversion, list):
+            parameters += self.log_inversion
+        if not parameters and any([self.inversion, self.log_inversion]):
+            parameters = self._default_inversion_parameters
+        return parameters
 
     def add_inversion(self, name):
         """
@@ -147,11 +185,41 @@ class GWFlowProposal(FlowProposal):
         """
         self.names = self.model.names.copy()
         self.rescaled_names = self.names.copy()
-        self.default_rescaling = []
 
         self._min = {n: self.model.bounds[n][0] for n in self.model.names}
         self._max = {n: self.model.bounds[n][1] for n in self.model.names}
 
+        if isinstance(self.inversion_type, str):
+            if self.inversion_type not in ('split', 'duplicate'):
+                raise RuntimeError(
+                        f'Unknown inversion type: {self.inversion_type}')
+            if self.inversion is True:
+                self.inversion_type = \
+                    {p: self.inversion_type for
+                     p in self._default_inversion_parameters}
+            elif self.log_inversion is True:
+                self.inversion_type = \
+                    {p: self.inversion_type for
+                     p in self._default_inversion_parameters}
+            else:
+                self.inversion_type = \
+                    {p: self.inversion_type for
+                     p in self.inversion_parameters}
+
+        elif isinstance(self.inversion_type, dict):
+            if self.inversion is True:
+                self.inversion = list(self.inversion_type.keys())
+            elif self.log_inversion is True:
+                self.log_inversion = list(self.inversion_type.keys())
+            elif (not self.inversion and not self.log_inversion):
+                raise RuntimeError('Inversion type specified as dict but '
+                                   'inverison and log inversion are both '
+                                   'disabled')
+            elif (set(self.inversion_parameters)
+                  - set(self.inversion_type.keys())):
+                raise RuntimeError('If inversion is a list and inversion '
+                                   'type is a dict, the entries in the '
+                                   'list must match the keys!')
         if self.log_inversion:
             if isinstance(self.log_inversion, list):
                 for p in self.log_inversion:
@@ -166,7 +234,7 @@ class GWFlowProposal(FlowProposal):
                 for p in self.inversion:
                     self.add_inversion(p)
             else:
-                for p in ['mass_ratio', 'luminosity_distance', 'a_1', 'a_2']:
+                for p in self._default_inversion_parameters:
                     if p in self.names:
                         self.add_inversion(p)
 
@@ -241,7 +309,8 @@ class GWFlowProposal(FlowProposal):
                     if ((radial := f'a_{i}') in self.names and
                             not (radial in self._log_inversion or
                                  radial in self._inversion or
-                                 radial in self._angle_conversion)):
+                                 radial in self._angle_conversion or
+                                 radial in self.default_rescaling)):
                         self.setup_angle(a, radial, scale=scale)
                     else:
                         self.setup_angle(a, scale=scale)
@@ -267,9 +336,12 @@ class GWFlowProposal(FlowProposal):
         if self.minus_one_to_one:
             self.default_rescaling += list(
                 (set(self.names) & set(self.rescaled_names))
-                - set(self.exclude))
+                - set(self.exclude) - set(self.default_rescaling))
             replace_in_list(self.rescaled_names, self.default_rescaling,
                             [d + '_prime' for d in self.default_rescaling])
+
+        self._rescale_factor = np.ptp(self.rescale_bounds)
+        self._rescale_shift = self.rescale_bounds[0]
 
         self.rescale_parameters = 'all'
         logger.info(f'x space parameters: {self.names}')
@@ -309,9 +381,16 @@ class GWFlowProposal(FlowProposal):
 
         if self.default_rescaling:
             for n in self.default_rescaling:
-                x_prime[n + '_prime'], lj = rescale_minus_one_to_one(
-                    x[n], xmin=self._min[n], xmax=self._max[n])
-                log_J += lj
+                # x_prime[n + '_prime'], lj = rescale_minus_one_to_one(
+                #     x[n], xmin=self._min[n], xmax=self._max[n])
+                # log_J += lj
+                x_prime[n + '_prime'] = self._rescale_factor \
+                             * ((x[n] - self._min[n])
+                                / (self._max[n] - self._min[n])) \
+                             + self._rescale_shift
+
+                log_J += (-np.log(self._max[n] - self._min[n])
+                          + np.log(self._rescale_factor))
 
         if self.exclude:
             for n in self.exclude:
@@ -346,7 +425,7 @@ class GWFlowProposal(FlowProposal):
 
                 if c['flip']:
 
-                    if self.inversion_type == 'duplicate':
+                    if self.inversion_type[c['name']] == 'duplicate':
                         x_inv = x_prime.copy()
                         x_inv[c['rescaled_name']] *= -1
                         x_prime = np.concatenate([x_prime, x_inv])
@@ -378,7 +457,7 @@ class GWFlowProposal(FlowProposal):
 
                 if c['flip']:
 
-                    if self.inversion_type == 'duplicate':
+                    if self.inversion_type[c['name']] == 'duplicate':
                         x_inv = x_prime.copy()
                         x_inv[c['rescaled_name']] *= -1
                         x_prime = np.concatenate([x_prime, x_inv])
@@ -633,13 +712,15 @@ class GWFlowProposal(FlowProposal):
 
         if self._inversion:
             for c in self._inversion.values():
+                if c['flip']:
+                    inv = x_prime[c['rescaled_name']] < 0.
+                    x[c['name']][~inv] = x_prime[c['rescaled_name']][~inv]
+                    x[c['name']][inv] = -x_prime[c['rescaled_name']][inv]
 
-                inv = x_prime[c['rescaled_name']] < 0.
-                x[c['name']][~inv] = x_prime[c['rescaled_name']][~inv]
-                x[c['name']][inv] = -x_prime[c['rescaled_name']][inv]
-
-                if c['flip'] == 'upper':
-                    x[c['name']] = 1 - x[c['name']]
+                    if c['flip'] == 'upper':
+                        x[c['name']] = 1 - x[c['name']]
+                else:
+                    x[c['name']] = x_prime[c['rescaled_name']]
 
                 if c['rescale']:
                     x[c['name']], lj = \
@@ -650,11 +731,17 @@ class GWFlowProposal(FlowProposal):
 
         if self.default_rescaling:
             for n in self.default_rescaling:
-                x[n], lj = \
-                    inverse_rescale_minus_one_to_one(x_prime[n + '_prime'],
-                                                     xmin=self._min[n],
-                                                     xmax=self._max[n])
-                log_J += lj
+                # x[n], lj = \
+                #     inverse_rescale_minus_one_to_one(x_prime[n + '_prime'],
+                #                                      xmin=self._min[n],
+                #                                      xmax=self._max[n])
+                # log_J += lj
+                x[n] = (self._max[n] - self._min[n]) \
+                    * (x_prime[n + '_prime'] - self._rescale_shift) \
+                    / self._rescale_factor + self._min[n]
+
+                log_J += (np.log(self._max[n] - self._min[n])
+                          - np.log(self._rescale_factor))
 
         if self.exclude:
             for n in self.exclude:
