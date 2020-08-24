@@ -69,7 +69,7 @@ class Gaussian(Model):
 flow_config = dict(
         max_epochs=50,
         patience=10,
-        model_config=dict(n_blocks=4, n_neurons=8, n_layers=2,
+        model_config=dict(n_blocks=2, n_neurons=8, n_layers=2,
                           device_tag='cpu',
                           kwargs=dict(batch_norm_between_layers=True))
         )
