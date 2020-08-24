@@ -384,10 +384,11 @@ class FlowProposal(RejectionProposal):
 
         self.set_rescaling()
         self.verify_rescaling()
-
-        if self.expansion_fraction:
+        if self.expansion_fraction and self.expansion_fraction is not None:
             logger.info('Overwritting fuzz factor with expansion fraction')
-            self.fuzz = 1 + self.expansion_fraction ** (1 / self.rescaled_dims)
+            self.fuzz = \
+                (1 + self.expansion_fraction) ** (1 / self.rescaled_dims)
+            logger.info(f'New fuzz factor: {self.fuzz}')
         self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
@@ -420,7 +421,6 @@ class FlowProposal(RejectionProposal):
                     'Appyling boundary inversion to: '
                     f'{self.boundary_inversion}'
                     )
-
             if self.inversion_type not in ('split', 'duplicate'):
                 raise RuntimeError(
                         f'Unknown inversion type: {self.inversion_type}')
@@ -770,6 +770,15 @@ class FlowProposal(RejectionProposal):
             log_w = self.compute_weights(x, log_q)
             log_u = np.log(np.random.rand(x.shape[0]))
             indices = np.where((log_w - log_u) >= 0)[0]
+
+            if counter > np.inf and not self.x.size and not self.zero_reset:
+                logger.warning('No samples after 100 tries, reset radius')
+                r *= 0.99
+                logger.warning(f'New radius: {r}')
+                self.x = np.array([], dtype=self.x_dtype)
+                self.z = np.empty([0, self.dims])
+                counter = 0
+                continue
 
             if not len(indices) or (len(indices) / self.drawsize < 0.001):
                 if warn_zero:
