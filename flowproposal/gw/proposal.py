@@ -136,7 +136,7 @@ class GWFlowProposal(FlowProposal):
             'min': self.model.bounds[name][0],
             'max': self.model.bounds[name][1]}
 
-        logger.debug(f'Added {name} to parameters log inversion')
+        logger.debug(f'Added {name} to parameters with inversion')
 
     def add_log_inversion(self, name):
         """
@@ -237,6 +237,7 @@ class GWFlowProposal(FlowProposal):
                 for p in self._default_inversion_parameters:
                     if p in self.names:
                         self.add_inversion(p)
+            logger.info(f'Inversion types: {self.inversion_type}')
 
         if self.log_radial:
             log_radial = ['luminosity_distance', 'a_1', 'a_2']
