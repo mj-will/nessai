@@ -130,7 +130,10 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
     """
     Histogram indices for index insertion tests
     """
+    if not indices:
+        return
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    nbins = int(nlive / (200 / 3))
     if plot_breakdown:
         for i in range(len(indices) // nlive):
             ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
@@ -138,7 +141,7 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
                        lw=0.5, cumulative=True, range=(0, nlive-1))
 
     ax[0].hist(indices, density=True, color='tab:blue', linewidth=1.25,
-               histtype='step', bins=nlive // 50, label='produced',
+               histtype='step', bins=nbins, label='produced',
                range=(0, nlive-1))
     ax[1].hist(indices, density=True, color='tab:blue', linewidth=1.25,
                histtype='step', bins=nlive, label='produced',
@@ -146,7 +149,12 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
 
     if nlive is not None:
         ax[0].axhline(1 / nlive, color='black', linewidth=1.25,
-                      linestyle=':', label='pmf')
+                      linestyle='-', label='pmf', alpha=0.5)
+        ax[0].axhline((1 + (nbins / len(indices)) ** 0.5) / nlive,
+                      color='black', linewidth=1.25, linestyle=':', alpha=0.5,
+                      label='1-sigma')
+        ax[0].axhline((1 - (nbins / len(indices)) ** 0.5) / nlive,
+                      color='black', linewidth=1.25, linestyle=':', alpha=0.5)
         ax[1].plot([0, nlive], [0, 1], color='black', linewidth=1.25,
                    linestyle=':', label='cmf')
 
