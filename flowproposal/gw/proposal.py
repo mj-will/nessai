@@ -260,7 +260,8 @@ class GWFlowProposal(FlowProposal):
                                 ['ra', 'dec'], ['sky_x', 'sky_y'])
                 if 'luminosity_distance' not in self.names or \
                         'luminosity_distance' in self._log_inversion or \
-                        'luminosity_distance' in self._inversion:
+                        'luminosity_distance' in self._inversion or \
+                        'luminosity_distance' in self.convert_to_angle:
                     self.names.append('sky_radial')
                     self.distance = 'sky_radial'
                     self.rescaled_names.append('sky_z')
