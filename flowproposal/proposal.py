@@ -476,13 +476,14 @@ class FlowProposal(RejectionProposal):
             if not np.allclose(log_J, -log_J_inv):
                 raise RuntimeError('Rescaling Jacobian is not invertible')
         else:
-            ratio = x_out.size // x.size
+            # ratio = x_out.size // x.size
             for f in x.dtype.names:
-                if not any([np.allclose(x_out[f][:x.size],
-                                        x_out[f][n * x.size:(n + 1) * x.size])
-                            for n in range(1, ratio)]):
+                # if not any([np.allclose(x_out[f][:x.size],
+                #                        x_out[f][n * x.size:(n + 1) * x.size])
+                #            for n in range(1, ratio)]):
+                if not any([np.any(np.isclose(x[f], xo)) for xo in x_out[f]]):
                     raise RuntimeError(
-                        'Duplicate samples to map to same input values. '
+                        'Duplicate samples must map to same input values. '
                         'Check the rescaling and inverse rescaling functions.')
             for f in x.dtype.names:
                 if not np.allclose(x[f], x_out[f][:x.size]):
@@ -710,7 +711,7 @@ class FlowProposal(RejectionProposal):
             i = np.argmax(r)
             return r[i], log_q[i]
         else:
-            return np.mean(np.sqrt(np.sum(z ** 2., axis=-1)))
+            return np.nanmax(np.sqrt(np.sum(z ** 2., axis=-1)))
 
     def log_prior(self, x):
         """
@@ -869,6 +870,7 @@ class FlowProposal(RejectionProposal):
             for s in self.samples:
                 s['logL'] = self.model.evaluate_log_likelihood(s)
         else:
+            print('Using pool')
             self.samples['logL'] = self.pool.map(_log_likelihood_wrapper,
                                                  self.samples)
             self.model.likelihood_evaluations += self.samples.size
