@@ -1,3 +1,4 @@
+from matplotlib import ticker
 from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -265,7 +266,7 @@ def plot_loss(epoch, history, output='./'):
     """
     Plot a loss function
     """
-    fig = plt.figure()
+    fig, ax = plt.subplots()
     epochs = np.arange(1, epoch + 1, 1)
     plt.plot(epochs, history['loss'], label='Loss')
     plt.plot(epochs, history['val_loss'], label='Val. loss')
@@ -273,6 +274,9 @@ def plot_loss(epoch, history, output='./'):
     plt.ylabel('Negative log-likelihood')
     plt.legend()
     plt.tight_layout()
+    plt.yscale('symlog')
+    ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+    ax.yaxis.set_minor_formatter(ticker.FormatStrFormatter("%.2f"))
     fig.savefig(output + 'loss.png')
     plt.close('all')
 
