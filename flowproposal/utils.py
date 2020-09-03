@@ -5,13 +5,36 @@ import shutil
 
 from nflows.distributions.uniform import BoxUniform
 import numpy as np
-from scipy import stats
+from scipy import stats, spatial
 import torch
 
 logger = logging.getLogger(__name__)
 
 
-def compute_indices_ks_test(indices, nlive):
+def logit(x):
+    """
+    Logit function that also returns log Jacobian
+
+    Parameters
+    ----------
+    x: array_like
+    """
+    return np.log(x) - np.log(1 - x), -np.log(np.abs(x - x ** 2))
+
+
+def sigmoid(x):
+    """
+    Sigmoid function that also returns log Jacobian
+
+    Parameters
+    ----------
+    x: array_like
+    """
+    return (1 / (1 + np.exp(-x)),
+            np.log(np.abs(np.exp(-x) / (np.exp(-x) + 1) ** 2)))
+
+
+def compute_indices_ks_test(indices, nlive, mode='D+'):
     """
     Compute the two-sided KS test for discrete insertion indices for a given
     number of live points
@@ -34,10 +57,13 @@ def compute_indices_ks_test(indices, nlive):
         u, counts = np.unique(indices, return_counts=True)
         analytic_cdf = u / nlive
         cdf = np.cumsum(counts) / len(indices)
-        dplus = np.max(cdf - analytic_cdf)
-        dminus = np.max(analytic_cdf[1:] - cdf[:-1])
-        D = np.max([dplus, dminus])
-        p = stats.kstwo.sf(D, nlive)
+        if mode == 'D+':
+            D = np.max(cdf - analytic_cdf)
+        elif mode == 'D-':
+            D = np.max(analytic_cdf[1:] - cdf[:-1])
+        else:
+            raise RuntimeError
+        p = stats.ksone.sf(D, nlive)
         return D, p
     else:
         return None, None
@@ -284,7 +310,8 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
             np.log(xmax - xmin) - np.log(2))
 
 
-def detect_edge(x, cutoff=0.1, nbins=100, bounds=[0, 1], mode_range=0.2):
+def detect_edge(x, cutoff=0.1, nbins=100, bounds=[0, 1], mode_range=0.2,
+                both=False):
     """
     Detect edges in input distributions
     """
@@ -297,16 +324,34 @@ def detect_edge(x, cutoff=0.1, nbins=100, bounds=[0, 1], mode_range=0.2):
     elif np.abs(mode - np.mean(bounds)) < mode_range:
         return False
     else:
-        bound = np.argmax(bounds_fraction)
-        if bound == 0:
-            return 'lower'
-        elif bound == 1:
-            return 'upper'
+        if np.all(bounds_fraction > cutoff) and both:
+            return 'both'
         else:
-            raise RuntimeError('Bounds were not computed correctly')
+            bound = np.argmax(bounds_fraction)
+            if bound == 0:
+                return 'lower'
+            elif bound == 1:
+                return 'upper'
+            else:
+                raise RuntimeError('Bounds were not computed correctly')
 
 
-def setup_logger(output=None, label=None, log_level='INFO'):
+def compute_minimum_distances(samples, metric='euclidean'):
+    """
+    Compute the distance to the nearest neighbour of each sample
+
+    Parameters
+    ----------
+    samples: array_like
+        Array of samples
+    """
+    d = spatial.distance.cdist(samples, samples, metric)
+    d[d == 0] = np.nan
+    dmin = np.nanmin(d, axis=1)
+    return dmin
+
+
+def setup_logger(output=None, label='label', log_level='INFO'):
     """
     Setup logger
 
@@ -321,7 +366,6 @@ def setup_logger(output=None, label=None, log_level='INFO'):
     log_level: {'ERROR', 'WARNING', 'INFO', 'DEBUG'}
         Level of logging parsed to logger
     """
-    import os
     if type(log_level) is str:
         try:
             level = getattr(logging, log_level.upper())
