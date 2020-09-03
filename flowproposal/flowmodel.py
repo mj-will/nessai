@@ -8,7 +8,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from .flows import setup_model, weight_reset
 from .plot import plot_loss
-from .utils import NumpyEncoder
+from .utils import NumpyEncoder, compute_minimum_distances
 
 logger = logging.getLogger(__name__)
 
@@ -198,6 +198,12 @@ class FlowModel:
         if val_size is None:
             val_size = self.val_size
 
+        if self.noise_scale == 'adaptive':
+            noise_scale = 0.1 * np.std(compute_minimum_distances(samples))
+            logger.debug(f'Using adaptive scale: {noise_scale:.3f}')
+        else:
+            noise_scale = self.noise_scale
+
         train_loader, val_loader = self._prep_data(samples, val_size=val_size)
 
         # train
@@ -221,7 +227,7 @@ class FlowModel:
         logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
-            loss = self._train(train_loader, noise_scale=self.noise_scale)
+            loss = self._train(train_loader, noise_scale=noise_scale)
             val_loss = self._validate(val_loader)
             history['loss'].append(loss)
             history['val_loss'].append(val_loss)
@@ -280,6 +286,7 @@ class FlowModel:
         x = torch.Tensor(x.astype(np.float32)).to(self.device)
         self.model.eval()
         with torch.no_grad():
+            print(x)
             z, log_J = self.model._transform(x, None)
             log_prob = self.model._distribution.log_prob(z, None)
             log_prob += log_J
