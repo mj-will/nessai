@@ -295,12 +295,12 @@ class NeuralSplineFlow(SimpleFlow):
         hidden_features,
         num_layers,
         num_blocks_per_layer,
-        num_bins=10,
+        num_bins=64,
         activation=F.relu,
         dropout_probability=0.0,
         batch_norm_within_layers=False,
         batch_norm_between_layers=False,
-        apply_unconditional_transform=True,
+        apply_unconditional_transform=False,
         linear_transform_type='permutation',
         **kwargs
     ):
