@@ -310,21 +310,50 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
             np.log(xmax - xmin) - np.log(2))
 
 
-def detect_edge(x, cutoff=0.1, nbins=100, bounds=[0, 1], mode_range=0.2,
-                both=False):
+def detect_edge(x, bounds, percent=0.1, cutoff=0.1, nbins='fd',
+                both=False, allow_none=False):
     """
-    Detect edges in input distributions
+    Detect edges in input distributions based on the density.
+
+    Checks if data is uniform over the interval specified by the bounds and if
+    the data is normally distributed about the mid-point of the bounds
+
+    Parameters
+    ----------
+    x: array_like
+        Samples
+    bounds: list
+        Lower and upper bound
+    percent: float (0.1)
+        Percentage of interval used to check edges
+    cutoff: float (0.1)
+        Minimum fraction of the maximum density contained within the
+        percentage of the interval specified
+    both: bool
+        Allow function to return both instead of force either upper or lower
+    allow_none: bool
+        Allow for neither lower or upper bound to be returned
     """
-    hist, bins = np.histogram(x, bins=nbins)
-    n = int(nbins * 0.1)
-    bounds_fraction = np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) / x.size
-    mode = ((bins[:-1] + bins[1:]) / 2)[np.argmax(hist)]
-    if not np.any(bounds_fraction > cutoff):
+    hist, bins = np.histogram(x, bins=nbins, density=True)
+    n = int(len(bins) * percent)
+    bounds_fraction = \
+        np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (bins[1] - bins[0])
+    uniform_p = stats.kstest(x, 'uniform', args=(bounds[0], np.ptp(bounds)))[1]
+    normal_p = stats.kstest(x, 'norm', args=(np.sum(bounds) / 2,))[1]
+    max_density = hist.max()
+    logger.debug('Max. density: {max_density:.3f}')
+    if uniform_p >= 0.05 and both:
+        logger.debug('Samples pass KS test for uniform')
+        return 'both'
+    elif normal_p >= 0.05 and allow_none:
+        logger.debug('Samples pass KS test for normal distribution')
         return False
-    elif np.abs(mode - np.mean(bounds)) < mode_range:
+    elif not np.any(bounds_fraction > cutoff * max_density) and allow_none:
+        logger.debug('Density too low at both bounds')
         return False
     else:
-        if np.all(bounds_fraction > cutoff) and both:
+        if np.all(bounds_fraction > cutoff * max_density) and both:
+            logger.debug('Both bounds above cutoff')
             return 'both'
         else:
             bound = np.argmax(bounds_fraction)

@@ -175,7 +175,7 @@ class GWFlowProposal(FlowProposal):
 
         self._angle_conversion[name] = {
             'name': name, 'radial': radial_name,
-            'x': x_name, 'y': y_name}
+            'x': x_name, 'y': y_name, 'apply': True}
 
         logger.debug(f'{name} will be converted to an angle')
 
@@ -190,7 +190,7 @@ class GWFlowProposal(FlowProposal):
         self._max = {n: self.model.bounds[n][1] for n in self.model.names}
 
         if isinstance(self.inversion_type, str):
-            if self.inversion_type not in ('split', 'duplicate'):
+            if self.inversion_type not in ('split', 'duplicate', 'reflexion'):
                 raise RuntimeError(
                         f'Unknown inversion type: {self.inversion_type}')
             if self.inversion is True:
@@ -378,14 +378,16 @@ class GWFlowProposal(FlowProposal):
         x_prime['logP'] = x['logP']
         x_prime['logL'] = x['logL']
 
+        # If population the proposal and using split then force points
+        # to be duplicate so maximum raidus can be used
         if x.size == 1:
+            pop = True
             x = np.array([x], dtype=x.dtype)
+        else:
+            pop = False
 
         if self.default_rescaling:
             for n in self.default_rescaling:
-                # x_prime[n + '_prime'], lj = rescale_minus_one_to_one(
-                #     x[n], xmin=self._min[n], xmax=self._max[n])
-                # log_J += lj
                 x_prime[n + '_prime'] = self._rescale_factor \
                              * ((x[n] - self._min[n])
                                 / (self._max[n] - self._min[n])) \
@@ -440,35 +442,77 @@ class GWFlowProposal(FlowProposal):
 
         if self._inversion:
             for c in self._inversion.values():
-                if c['rescale']:
-                    x_prime[c['rescaled_name']], lj = rescale_zero_to_one(
-                        x[c['name']], xmin=c['min'], xmax=c['max'])
-                    log_J += lj
-
                 if c['flip'] is None:
+                    if self.inversion_type[c['name']] == 'reflexion':
+                        both = True
+                    else:
+                        both = False
                     c['flip'] = detect_edge(
-                        x_prime[c['rescaled_name']],
-                        bounds=[0, 1],
+                        x[c['name']],
+                        bounds=[c['min'], c['max']],
                         cutoff=self._edge_cutoff,
-                        mode_range=self._edge_mode_range)
+                        allow_none=self._allow_none,
+                        both=both)
                     logger.debug(f"Inversion for {c['name']}: {c['flip']}")
-
-                if c['flip'] == 'upper':
-                    x_prime[c['rescaled_name']] = \
-                            1 - x_prime[c['rescaled_name']]
 
                 if c['flip']:
 
-                    if self.inversion_type[c['name']] == 'duplicate':
-                        x_inv = x_prime.copy()
-                        x_inv[c['rescaled_name']] *= -1
-                        x_prime = np.concatenate([x_prime, x_inv])
-                        x = np.concatenate([x,  x])
-                        log_J = np.concatenate([log_J, log_J])
+                    if c['rescale']:
+                        x_prime[c['rescaled_name']], lj = rescale_zero_to_one(
+                            x[c['name']], xmin=c['min'], xmax=c['max'])
+                        log_J += lj
+
+                    if c['flip'] == 'upper':
+                        x_prime[c['rescaled_name']] = \
+                                1 - x_prime[c['rescaled_name']]
+
+                    if c['flip'] == 'both':
+                        if pop:
+                            if x_prime[c['rescaled_name']][0] < 0.5:
+                                lower = np.arange(x.size, 2 * x.size)
+                                upper = np.array([], dtype=int)
+                            else:
+                                lower = np.array([], dtype=int)
+                                upper = np.arange(x.size, 2 * x.size)
+                            x_prime = np.tile(x_prime, 2)
+                            x = np.tile(x, 2)
+                            log_J = np.tile(log_J, 2)
+                        else:
+
+                            lower_samples = \
+                                np.where(x_prime[c['rescaled_name']] <= 0.5)[0]
+                            upper_samples = \
+                                np.where(x_prime[c['rescaled_name']] > 0.5)[0]
+                            lower = np.random.choice(lower_samples,
+                                                     lower_samples.size // 2,
+                                                     replace=False)
+                            upper = np.random.choice(upper_samples,
+                                                     upper_samples.size // 2,
+                                                     replace=False)
+                        x_prime[c['rescaled_name']][lower] *= -1
+                        x_prime[c['rescaled_name']][upper] = \
+                            2.0 - x_prime[c['rescaled_name']][upper]
+
                     else:
-                        inv = np.random.choice(x_prime.size, x_prime.size // 2,
-                                               replace=False)
-                        x_prime[c['rescaled_name']][inv] *= -1
+                        if (self.inversion_type[c['name']] == 'duplicate' or
+                                pop):
+                            x_inv = x_prime.copy()
+                            x_inv[c['rescaled_name']] *= -1
+                            x_prime = np.concatenate([x_prime, x_inv])
+                            x = np.concatenate([x,  x])
+                            log_J = np.concatenate([log_J, log_J])
+                        else:
+                            inv = np.random.choice(x_prime.size,
+                                                   x_prime.size // 2,
+                                                   replace=False)
+                            x_prime[c['rescaled_name']][inv] *= -1
+                else:
+                    if c['rescale']:
+                        x_prime[c['rescaled_name']], lj = \
+                            rescale_minus_one_to_one(x[c['name']],
+                                                     xmin=c['min'],
+                                                     xmax=c['max'])
+                        log_J += lj
 
         if self._angle_conversion:
             for c in self._angle_conversion.values():
@@ -714,22 +758,36 @@ class GWFlowProposal(FlowProposal):
 
         if self._inversion:
             for c in self._inversion.values():
-                if c['flip']:
-                    inv = x_prime[c['rescaled_name']] < 0.
-                    x[c['name']][~inv] = x_prime[c['rescaled_name']][~inv]
-                    x[c['name']][inv] = -x_prime[c['rescaled_name']][inv]
+                if f := c['flip']:
+                    if f == 'both':
+                        lower = x_prime[c['rescaled_name']] < 0.
+                        upper = x_prime[c['rescaled_name']] > 1.
+                        x[c['name']] = x_prime[c['rescaled_name']]
+                        x[c['name']][lower] *= -1
+                        x[c['name']][upper] = 2 - x[c['name']][upper]
 
-                    if c['flip'] == 'upper':
-                        x[c['name']] = 1 - x[c['name']]
+                    else:
+                        inv = x_prime[c['rescaled_name']] < 0.
+                        x[c['name']][~inv] = x_prime[c['rescaled_name']][~inv]
+                        x[c['name']][inv] = -x_prime[c['rescaled_name']][inv]
+
+                        if c['flip'] == 'upper':
+                            x[c['name']] = 1 - x[c['name']]
+
+                    if c['rescale']:
+                        x[c['name']], lj = \
+                            inverse_rescale_zero_to_one(x[c['name']],
+                                                        xmin=c['min'],
+                                                        xmax=c['max'])
+                        log_J += lj
                 else:
+                    if c['rescale']:
+                        x[c['name']], lj = \
+                            inverse_rescale_minus_one_to_one(x[c['name']],
+                                                             xmin=c['min'],
+                                                             xmax=c['max'])
+                        log_J += lj
                     x[c['name']] = x_prime[c['rescaled_name']]
-
-                if c['rescale']:
-                    x[c['name']], lj = \
-                        inverse_rescale_zero_to_one(x[c['name']],
-                                                    xmin=c['min'],
-                                                    xmax=c['max'])
-                    log_J += lj
 
         if self.default_rescaling:
             for n in self.default_rescaling:

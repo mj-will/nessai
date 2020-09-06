@@ -31,7 +31,14 @@ def _log_likelihood_wrapper(x):
 
 
 class Proposal:
+    """
+    Base proposal object
 
+    Parameters
+    ----------
+    model: obj
+        User-defined model
+    """
     def __init__(self, model):
         self.model = model
         self.populated = True
@@ -41,13 +48,28 @@ class Proposal:
         self.pool = None
 
     def initialise(self):
-        """Initialise"""
+        """
+        Initialise the proposal
+        """
         self.initialised = True
 
     def draw(self, old_param):
+        """
+        New a new point given the old point
+        """
         return None
 
     def train(self, x, **kwargs):
+        """
+        Train the proposal method
+
+        Parameters
+        ----------
+        x: array_like
+            Array of live points to use for training
+        kwargs:
+            Any of keyword arguments
+        """
         logger.info('This proposal method cannot be trained')
 
     def __getstate__(self):
@@ -57,10 +79,17 @@ class Proposal:
 
 
 class AnalyticProposal(Proposal):
+    """"
+    Class for drawining from analytic priors
 
+    This assumes the `new_point` method of the model draws points
+    from the prior
+    """
     def draw(self, old_param):
         """
-        Draw directly from the analytic priors
+        Draw directly from the analytic priors.
+
+        Ouput is independent of the input
         """
         return self.model.new_point()
 
@@ -86,11 +115,17 @@ class RejectionProposal(Proposal):
         log_p = self.model.log_prior(x)
         log_q = self.log_proposal(x)
         log_w = log_p - log_q
-        log_w -= np.max(log_w)
+        log_w -= np.nanmax(log_w)
         return log_w
 
     @property
     def population_acceptance(self):
+        """
+        Check the acceptance of the current proposal method.
+
+        If this method has already been called since the proposal was
+        last populated it returns None.
+        """
         if self._acceptance_checked:
             return None
         else:
@@ -248,11 +283,11 @@ class FlowProposal(RejectionProposal):
             self._setup_pool()
 
         if self.detect_edges:
-            self._edge_mode_range = 0.1
+            self._allow_none = True
             self._edge_cutoff = 0.1
         else:
             # Will always return an edge
-            self._edge_mode_range = 0.0
+            self._allow_none = False
             self._edge_cutoff = 0.0
 
         if plot:
@@ -286,6 +321,9 @@ class FlowProposal(RejectionProposal):
         self.acceptance = []
         self.approx_acceptance = []
         self.flow_config = flow_config
+
+        self.clip = self.flow_config.get('clip', False)
+        print('Clip: ', self.clip)
 
         if self.latent_prior == 'truncated_gaussian':
             from .utils import draw_truncated_gaussian
@@ -323,7 +361,7 @@ class FlowProposal(RejectionProposal):
         else:
             self.fixed_radius = False
 
-        self.max_radius = max_radius
+        self.max_radius = float(max_radius)
 
     def _setup_pool(self):
         """
@@ -502,6 +540,9 @@ class FlowProposal(RejectionProposal):
 
         if x.size == 1:
             x = np.array([x], dtype=x.dtype)
+            singular = True
+        else:
+            singular = False
 
         for n, rn in zip(self.names, self.rescaled_names):
             if n in self.rescale_parameters:
@@ -518,9 +559,9 @@ class FlowProposal(RejectionProposal):
                     if self._edges[n] is None:
                         self._edges[n] = detect_edge(
                             x_prime[rn],
-                            bounds=[0, 1],
+                            [0, 1],
                             cutoff=self._edge_cutoff,
-                            mode_range=self._edge_mode_range
+                            allow_none=self._allow_none
                             )
 
                     if self._edges[n]:
@@ -530,7 +571,7 @@ class FlowProposal(RejectionProposal):
                             )
                         if self._edges[n] == 'upper':
                             x_prime[rn] = 1 - x_prime[rn]
-                        if self.inversion_type == 'duplicate':
+                        if self.inversion_type == 'duplicate' or singular:
                             x_inv = x_prime.copy()
                             x_inv[rn] *= -1
                             x_prime = np.concatenate([x_prime, x_inv])
@@ -636,15 +677,16 @@ class FlowProposal(RejectionProposal):
             z, _ = self.flow.sample_and_log_prob(N=x.size)
             x_prime_gen, log_prob = self.backward_pass(z, rescale=False)
             x_prime_gen['logL'] = log_prob
+            x_gen, log_J = self.inverse_rescale(x_prime_gen)
+            x_gen, log_J, x_prime_gen = \
+                self.check_prior_bounds(x_gen, log_J, x_prime_gen)
+            x_gen['logL'] += log_J
             if self._plot_training == 'all':
                 plot_live_points(
                     x_prime_gen,
                     c='logL',
                     filename=block_output + 'x_prime_generated.png'
                     )
-            x_gen, log_J = self.inverse_rescale(x_prime_gen)
-            x_gen, log_J = self.check_prior_bounds(x_gen, log_J)
-            x_gen['logL'] += log_J
             if self.rescale_parameters:
                 if self._plot_training == 'all':
                     plot_live_points(x_gen, c='logL',
@@ -670,6 +712,21 @@ class FlowProposal(RejectionProposal):
     def check_prior_bounds(self, x, *args):
         """
         Return only values that are within the prior bounds
+
+        Parameters
+        ----------
+        x: array_like
+            Array of live points which will compared against prior bounds
+        *args:
+            Aditional arrays which correspond to the array of live points.
+            Only those corresponding to points within the prior bounds
+            are returned
+
+        Returns
+        -------
+        out: tuple of arrays
+            Array containing the subset of the orignal arrays which fall within
+            the prior bounds
         """
         idx = np.array(list(((x[n] >= self.model.bounds[n][0])
                              & (x[n] <= self.model.bounds[n][1]))
@@ -686,6 +743,10 @@ class FlowProposal(RejectionProposal):
         x = live_points_to_array(x, names=self.rescaled_names)
         if x.ndim == 1:
             x = x[np.newaxis, :]
+        if x.shape[0] == 1:
+            if self.clip:
+                print(self.clip)
+                x = np.clip(x, *self.clip)
         z, log_prob = self.flow.forward_and_log_prob(x)
         return z, log_prob + log_J
 
@@ -694,6 +755,8 @@ class FlowProposal(RejectionProposal):
         # Compute the log probability
         x, log_prob = self.flow.sample_and_log_prob(z=z,
                                                     alt_dist=self.alt_dist)
+        valid = np.isfinite(log_prob)
+        x, log_prob = x[valid], log_prob[valid]
         x = numpy_array_to_live_points(x.astype(DEFAULT_FLOAT_DTYPE),
                                        self.rescaled_names)
         # Apply rescaling in rescale=True
@@ -724,7 +787,6 @@ class FlowProposal(RejectionProposal):
         Compute the weight for a given set of samples
         """
         log_p = self.log_prior(x)
-        x['logP'] = log_p
         x['logL'] = log_q
         log_w = log_p - log_q
         log_w -= np.max(log_w)
@@ -859,8 +921,7 @@ class FlowProposal(RejectionProposal):
         self.populated = True
         logger.debug(f'Proposal populated with {len(self.indices)} samples')
         logger.debug(
-                f'Overall proposal acceptance: {self.x.size / proposed:.4}'
-                )
+            f'Overall proposal acceptance: {self.x.size / proposed:.4}')
 
     def evaluate_likelihoods(self):
         """
@@ -870,7 +931,6 @@ class FlowProposal(RejectionProposal):
             for s in self.samples:
                 s['logL'] = self.model.evaluate_log_likelihood(s)
         else:
-            print('Using pool')
             self.samples['logL'] = self.pool.map(_log_likelihood_wrapper,
                                                  self.samples)
             self.model.likelihood_evaluations += self.samples.size
@@ -878,7 +938,17 @@ class FlowProposal(RejectionProposal):
     def compute_acceptance(self, logL):
         """
         Compute how many of the current pool have log-likelihoods greater
-        than the specified value
+        than the specified log-likelihood
+
+        Parameters
+        ----------
+        float: logL
+            Log-likelihood to use as the lower bound
+
+        Returns
+        -------
+        float: acceptance
+            Acceptance defined on [0, 1]
         """
         return (self.samples['logL'] > logL).sum() / self.samples.size
 
@@ -1052,7 +1122,7 @@ class AugmentedFlowProposal(FlowProposal):
         x['logP'] = log_p
         x['logL'] = log_q
         log_w = log_p - log_q
-        log_w -= np.max(log_w)
+        log_w -= np.nanmax(log_w)
         return log_w, log_q
 
     def populate(self, worst_point, N=10000, plot=True):
