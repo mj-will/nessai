@@ -286,7 +286,6 @@ class FlowModel:
         x = torch.Tensor(x.astype(np.float32)).to(self.device)
         self.model.eval()
         with torch.no_grad():
-            print(x)
             z, log_J = self.model._transform(x, None)
             log_prob = self.model._distribution.log_prob(z, None)
             log_prob += log_J
