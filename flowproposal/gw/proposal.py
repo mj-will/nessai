@@ -452,7 +452,8 @@ class GWFlowProposal(FlowProposal):
                         bounds=[c['min'], c['max']],
                         cutoff=self._edge_cutoff,
                         allow_none=self._allow_none,
-                        both=both)
+                        both=both,
+                        test=self._inversion_test_type)
                     logger.debug(f"Inversion for {c['name']}: {c['flip']}")
 
                 if c['flip']:
@@ -513,6 +514,8 @@ class GWFlowProposal(FlowProposal):
                                                      xmin=c['min'],
                                                      xmax=c['max'])
                         log_J += lj
+                    else:
+                        x_prime[c['rescaled_name']] = x[c['name']].copy()
 
         if self._angle_conversion:
             for c in self._angle_conversion.values():
@@ -783,11 +786,13 @@ class GWFlowProposal(FlowProposal):
                 else:
                     if c['rescale']:
                         x[c['name']], lj = \
-                            inverse_rescale_minus_one_to_one(x[c['name']],
-                                                             xmin=c['min'],
-                                                             xmax=c['max'])
+                            inverse_rescale_minus_one_to_one(
+                                x_prime[c['rescaled_name']],
+                                xmin=c['min'],
+                                xmax=c['max'])
                         log_J += lj
-                    x[c['name']] = x_prime[c['rescaled_name']]
+                    else:
+                        x[c['name']] = x_prime[c['rescaled_name']].copy()
 
         if self.default_rescaling:
             for n in self.default_rescaling:

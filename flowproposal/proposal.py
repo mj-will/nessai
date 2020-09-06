@@ -282,9 +282,10 @@ class FlowProposal(RejectionProposal):
                 self.check_acceptance = True
             self._setup_pool()
 
+        self._inversion_test_type = None
         if self.detect_edges:
             self._allow_none = True
-            self._edge_cutoff = 0.1
+            self._edge_cutoff = 0.2
         else:
             # Will always return an edge
             self._allow_none = False
@@ -505,30 +506,36 @@ class FlowProposal(RejectionProposal):
         """
         logger.info('Verifying rescaling functions')
         x = self.model.new_point(N=5000)
-        x_prime, log_J = self.rescale(x)
-        x_out, log_J_inv = self.inverse_rescale(x_prime)
-        if x.size == x_out.size:
-            for f in x.dtype.names:
-                if not np.allclose(x[f], x_out[f]):
-                    raise RuntimeError(f'Rescaling is not invertible for {f}')
-            if not np.allclose(log_J, -log_J_inv):
-                raise RuntimeError('Rescaling Jacobian is not invertible')
-        else:
-            # ratio = x_out.size // x.size
-            for f in x.dtype.names:
-                # if not any([np.allclose(x_out[f][:x.size],
-                #                        x_out[f][n * x.size:(n + 1) * x.size])
-                #            for n in range(1, ratio)]):
-                if not any([np.any(np.isclose(x[f], xo)) for xo in x_out[f]]):
-                    raise RuntimeError(
-                        'Duplicate samples must map to same input values. '
-                        'Check the rescaling and inverse rescaling functions.')
-            for f in x.dtype.names:
-                if not np.allclose(x[f], x_out[f][:x.size]):
-                    raise RuntimeError(f'Rescaling is not invertible for {f}')
-            if not np.allclose(log_J, -log_J_inv):
-                raise RuntimeError('Rescaling Jacobian is not invertible')
+        for inversion in ['lower', 'upper', 'both', False]:
+            self.check_state(x)
+            logger.debug(f'Testing: {inversion}')
+            self._inversion_test_type = inversion
+            x_prime, log_J = self.rescale(x)
+            x_out, log_J_inv = self.inverse_rescale(x_prime)
+            if x.size == x_out.size:
+                for f in x.dtype.names:
+                    if not np.allclose(x[f], x_out[f]):
+                        raise RuntimeError(
+                            f'Rescaling is not invertible for {f}')
+                if not np.allclose(log_J, -log_J_inv):
+                    raise RuntimeError('Rescaling Jacobian is not invertible')
+            else:
+                # ratio = x_out.size // x.size
+                for f in x.dtype.names:
+                    if not any([np.any(np.isclose(x[f], xo))
+                                for xo in x_out[f]]):
+                        raise RuntimeError(
+                            'Duplicate samples must map to same input values. '
+                            'Check the rescaling and inverse rescaling '
+                            'functions.')
+                for f in x.dtype.names:
+                    if not np.allclose(x[f], x_out[f][:x.size]):
+                        raise RuntimeError(
+                            f'Rescaling is not invertible for {f}')
+                if not np.allclose(log_J, -log_J_inv):
+                    raise RuntimeError('Rescaling Jacobian is not invertible')
 
+        self._inversion_test_type = None
         logger.info('Rescaling functions are invertible')
 
     def _rescale_to_bounds(self, x):
@@ -561,7 +568,8 @@ class FlowProposal(RejectionProposal):
                             x_prime[rn],
                             [0, 1],
                             cutoff=self._edge_cutoff,
-                            allow_none=self._allow_none
+                            allow_none=self._allow_none,
+                            test=self._inversion_test_type
                             )
 
                     if self._edges[n]:

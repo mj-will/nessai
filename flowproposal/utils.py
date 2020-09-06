@@ -311,7 +311,7 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
 
 
 def detect_edge(x, bounds, percent=0.1, cutoff=0.1, nbins='fd',
-                both=False, allow_none=False):
+                both=False, allow_none=False, test=None):
     """
     Detect edges in input distributions based on the density.
 
@@ -334,17 +334,22 @@ def detect_edge(x, bounds, percent=0.1, cutoff=0.1, nbins='fd',
     allow_none: bool
         Allow for neither lower or upper bound to be returned
     """
+    if test is not None:
+        return test
     hist, bins = np.histogram(x, bins=nbins, density=True)
     n = int(len(bins) * percent)
     bounds_fraction = \
         np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (bins[1] - bins[0])
     uniform_p = stats.kstest(x, 'uniform', args=(bounds[0], np.ptp(bounds)))[1]
     normal_p = stats.kstest(x, 'norm', args=(np.sum(bounds) / 2,))[1]
-    max_density = hist.max()
-    logger.debug('Max. density: {max_density:.3f}')
-    if uniform_p >= 0.05 and both:
+    max_density = hist.max() * (bins[1] - bins[0])
+    logger.debug(f'Max. density: {max_density:.3f}')
+    if uniform_p >= 0.05:
         logger.debug('Samples pass KS test for uniform')
-        return 'both'
+        if both:
+            return 'both'
+        else:
+            return np.random.choice(['lower', 'upper'])
     elif normal_p >= 0.05 and allow_none:
         logger.debug('Samples pass KS test for normal distribution')
         return False
