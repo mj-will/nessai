@@ -9,7 +9,7 @@ sns.set()
 sns.set_style('ticks')
 
 pairplot_kwargs = dict(corner=True, kind='scatter',
-                       diag_kws=dict(histtype='step', bins=50, lw=1.5,
+                       diag_kws=dict(histtype='step', bins='fd', lw=1.5,
                                      density=True, color='teal'),
                        plot_kws=dict(s=1.0, edgecolor=None, palette='viridis',
                                      color='teal'))
@@ -87,7 +87,7 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
                       for lp in live_points])
         for j, lp in enumerate(live_points):
             axs[i].hist(lp[f][np.isfinite(lp[f])],
-                        25, histtype='step',
+                        'fd', histtype='step',
                         range=(xmin, xmax), density=True, label=labels[j],
                         **hist_kwargs)
         axs[i].set_xlabel(f)
@@ -134,7 +134,7 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
     if not indices:
         return
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    nbins = int(nlive / (200 / 3))
+    nbins = len(np.histogram_bin_edges(indices, 'fd')) - 1
     if plot_breakdown:
         for i in range(len(indices) // nlive):
             ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
