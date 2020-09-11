@@ -163,7 +163,7 @@ class GWFlowProposal(FlowProposal):
 
         logger.debug(f'Added {name} to parameters with log inversion')
 
-    def add_angle_conversion(self, name):
+    def add_angle_conversion(self, name, duplicate=False):
         radial_name = name + '_radial'
         self.names.append(radial_name)
         self.rescaled_names.append(radial_name)
@@ -175,7 +175,7 @@ class GWFlowProposal(FlowProposal):
 
         self._angle_conversion[name] = {
             'name': name, 'radial': radial_name,
-            'x': x_name, 'y': y_name, 'apply': True}
+            'x': x_name, 'y': y_name, 'apply': True, 'duplicate': duplicate}
 
         logger.debug(f'{name} will be converted to an angle')
 
@@ -252,7 +252,10 @@ class GWFlowProposal(FlowProposal):
         if self.convert_to_angle:
             if isinstance(self.convert_to_angle, list):
                 for p in self.convert_to_angle:
-                    self.add_angle_conversion(p)
+                    self.add_angle_conversion(p, duplicate=False)
+            if isinstance(self.convert_to_angle, dict):
+                for k, v in self.convert_to_angle.items():
+                    self.add_angle_conversion(k, duplicate=v)
 
         if self.angular_decomposition:
             if all(p in self.names for p in ['ra', 'dec']):
@@ -368,7 +371,7 @@ class GWFlowProposal(FlowProposal):
             self._min = {n: np.min(x[n]) for n in self.model.names}
             self._max = {n: np.max(x[n]) for n in self.model.names}
 
-    def rescale(self, x):
+    def rescale(self, x, compute_radius=False):
         """
         Rescale from the x space to the x prime space
         """
@@ -381,10 +384,7 @@ class GWFlowProposal(FlowProposal):
         # If population the proposal and using split then force points
         # to be duplicate so maximum raidus can be used
         if x.size == 1:
-            pop = True
             x = np.array([x], dtype=x.dtype)
-        else:
-            pop = False
 
         if self.default_rescaling:
             for n in self.default_rescaling:
@@ -468,7 +468,7 @@ class GWFlowProposal(FlowProposal):
                                 1 - x_prime[c['rescaled_name']]
 
                     if c['flip'] == 'both':
-                        if pop:
+                        if compute_radius:
                             if x_prime[c['rescaled_name']][0] < 0.5:
                                 lower = np.arange(x.size, 2 * x.size)
                                 upper = np.array([], dtype=int)
@@ -496,7 +496,7 @@ class GWFlowProposal(FlowProposal):
 
                     else:
                         if (self.inversion_type[c['name']] == 'duplicate' or
-                                pop):
+                                compute_radius):
                             x_inv = x_prime.copy()
                             x_inv[c['rescaled_name']] *= -1
                             x_prime = np.concatenate([x_prime, x_inv])
@@ -524,11 +524,20 @@ class GWFlowProposal(FlowProposal):
                     xmin=self.model.bounds[c['name']][0],
                     xmax=self.model.bounds[c['name']][1])
                 log_J += lj
+                # if computing the radius, set duplicate=True
+                if compute_radius or c['duplicate']:
+                    x_prime = np.concatenate([x_prime, x_prime])
+                    x = np.concatenate([x,  x])
+                    log_J = np.concatenate([log_J, log_J])
+                    x_prime[c['x']], x_prime[c['y']], lj = \
+                        zero_one_to_cartesian(p, duplicate=True)
+                    log_J += lj
 
-                x_prime[c['x']], x_prime[c['y']], lj = \
-                    zero_one_to_cartesian(p)
+                else:
+                    x_prime[c['x']], x_prime[c['y']], lj = \
+                        zero_one_to_cartesian(p, duplicate=False)
 
-                log_J += lj
+                    log_J += lj
 
         if 'sky' in self._reparameterisations:
             if self.distance == 'luminosity_distance':
