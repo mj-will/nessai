@@ -9,7 +9,7 @@ import numpy as np
 from .livepoint import live_points_to_dict
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
-from .utils import NumpyEncoder
+from .utils import NumpyEncoder, configure_threads
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,12 @@ class FlowSampler:
     def __init__(self, model, output='./', resume=True,
                  resume_file='nested_sampler_resume.pkl', weights_file=None,
                  **kwargs):
+
+        configure_threads(
+            max_threads=kwargs.get('max_threads', None),
+            pytorch_threads=kwargs.get('pytorch_threads', None),
+            n_pool=kwargs.get('n_pool', None)
+            )
 
         self.output = output
         if resume:

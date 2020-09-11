@@ -30,8 +30,10 @@ def sigmoid(x):
     ----------
     x: array_like
     """
-    return (1 / (1 + np.exp(-x)),
-            np.log(np.abs(np.exp(-x) / (np.exp(-x) + 1) ** 2)))
+    x = np.asarray(x)
+    log_J = np.nan_to_num(-x - 2 * np.log(np.exp(-x) + 1),
+                          nan=np.NINF, neginf=np.NINF)
+    return np.divide(1, 1 + np.exp(-x)), log_J
 
 
 def compute_indices_ks_test(indices, nlive, mode='D+'):
@@ -62,7 +64,7 @@ def compute_indices_ks_test(indices, nlive, mode='D+'):
         elif mode == 'D-':
             D = np.max(analytic_cdf[1:] - cdf[:-1])
         else:
-            raise RuntimeError
+            raise RuntimeError(f'{mode} is not a valid mode. Choose D+ or D-')
         p = stats.ksone.sf(D, nlive)
         return D, p
     else:
@@ -122,18 +124,19 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
     return fuzz * r * z
 
 
-def get_uniform_distribution(dims, r):
+def get_uniform_distribution(dims, r, device='cpu'):
     """
     Return a Pytorch distribution that is uniform in the number of
     dims specified
     """
-    r = r * torch.ones(dims)
+    r = r * torch.ones(dims, device=device)
     return BoxUniform(low=-r, high=r)
 
 
 def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     """
-    Draw from the
+    Draw from a uniform distribution on [0, 1], deals with extra input
+    parameters used by other draw functions
     """
     return np.random.uniform(0, 1, (N, dims))
 
@@ -385,7 +388,7 @@ def compute_minimum_distances(samples, metric='euclidean'):
     return dmin
 
 
-def setup_logger(output=None, label='label', log_level='INFO'):
+def setup_logger(output=None, label='flowproposal', log_level='INFO'):
     """
     Setup logger
 
@@ -483,3 +486,51 @@ def safe_file_dump(data, filename, module, save_existing=False):
     with open(temp_filename, "wb") as file:
         module.dump(data, file)
     shutil.move(temp_filename, filename)
+
+
+def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
+    """
+    Configure the number of threads available. This is necessary when using
+    PyTorch on the CPU as by default it will use all available threads.
+
+    Notes
+    -----
+    Uses torch.set_num_threads. If pytorch threads is None but other
+    arguments are specified them the value is inferred from them.
+
+    Parameters
+    ----------
+    max_threads: int (None)
+        Maximum total number of threads to use between PyTorch and
+        multiprocessing
+    pytorch_threads: int (None)
+        Maximum number of threads for PyTorch on CPU
+    n_pool: int (None)
+        Number of pools to use if using multiprocessing
+    """
+    if max_threads is not None:
+        if pytorch_threads is not None and pytorch_threads > max_threads:
+            raise RuntimeError(
+                f'More threads assigned to PyTorch ({pytorch_threads}) '
+                f'than are available ({max_threads})')
+        if n_pool is not None and n_pool >= max_threads:
+            raise RuntimeError(
+                f'More threads assigned to pool ({n_pool}) than are '
+                f'available ({max_threads})')
+        if (n_pool is not None and pytorch_threads is not None and
+                (pytorch_threads + n_pool) > max_threads):
+            raise RuntimeError(
+                f'More threads assigned to PyTorch ({pytorch_threads}) '
+                f'and pool ({n_pool})than are available ({max_threads})')
+
+    if pytorch_threads is None:
+        if max_threads is not None:
+            if n_pool is not None:
+                pytorch_threads = max_threads - n_pool
+            else:
+                pytorch_threads = max_threads
+
+    if pytorch_threads is not None:
+        logger.debug(
+            f'Setting maximum number of PyTorch threads to {pytorch_threads}')
+        torch.set_num_threads(pytorch_threads)
