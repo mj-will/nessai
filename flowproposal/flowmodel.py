@@ -107,7 +107,7 @@ class FlowModel:
         self.optimiser = self._get_optimiser()
         self.initialised = True
 
-    def _prep_data(self, samples, val_size):
+    def _prep_data(self, samples, val_size, batch_size):
         """
         Prep data and return dataloaders for training
         """
@@ -121,10 +121,16 @@ class FlowModel:
         x_train, x_val = samples[:n], samples[n:]
         logger.debug(f'{x_train.shape} training samples')
         logger.debug(f'{x_val.shape} validation samples')
+
+        if not isinstance(batch_size, int):
+            if batch_size == 'all':
+                batch_size = x_train.shape[0]
+            elif batch_size is not None:
+                raise RuntimeError(f'Unknown batch size: {batch_size}')
         train_tensor = torch.from_numpy(x_train.astype(np.float32))
         train_dataset = torch.utils.data.TensorDataset(train_tensor)
         train_loader = torch.utils.data.DataLoader(train_dataset,
-                                                   batch_size=self.batch_size,
+                                                   batch_size=batch_size,
                                                    shuffle=True)
 
         val_tensor = torch.from_numpy(x_val.astype(np.float32))
@@ -204,7 +210,8 @@ class FlowModel:
         else:
             noise_scale = self.noise_scale
 
-        train_loader, val_loader = self._prep_data(samples, val_size=val_size)
+        train_loader, val_loader = self._prep_data(samples, val_size=val_size,
+                                                   batch_size=self.batch_size)
 
         # train
         if max_epochs is None:
