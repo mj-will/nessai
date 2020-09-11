@@ -549,6 +549,7 @@ class NestedSampler:
                     or (self.iteration >= self.maximum_uninformed)):
                 logger.warning('Switching to FlowProposal')
                 self.proposal = self._flow_proposal
+                self.proposal.ns_acceptance = self.mean_block_acceptance
                 self.uninformed_sampling = False
             # If using uninformed sampling, don't check training
             else:
@@ -677,7 +678,8 @@ class NestedSampler:
         """
         Update state after replacing a live point
         """
-
+        # Check if acceptance is not None, this indicates the proposal
+        # was populated
         if (pa := self.proposal.population_acceptance) is not None:
             self.population_acceptance.append(pa)
             self.population_iterations.append(self.iteration)
@@ -707,6 +709,7 @@ class NestedSampler:
             if self.uninformed_sampling:
                 self.block_acceptance = 0.
                 self.block_iteration = 0
+        self.proposal.ns_acceptance = self.mean_block_acceptance
 
     def checkpoint(self):
         """
@@ -770,10 +773,14 @@ class NestedSampler:
         if self.checkpointing:
             self.checkpoint()
 
-        logger.info('Total training time: '
-                    f'{datetime.timedelta(seconds=self.training_time)}')
-        logger.info('Total likelihood evaluations: '
-                    f'{self.likelihood_calls:3d}')
+        logger.info(
+            'Total training time: '
+            f'{datetime.timedelta(seconds=self.training_time)}')
+        logger.info(
+            'Total population time: '
+            f'{datetime.timedelta(seconds=self.proposal.population_time)}')
+        logger.info(
+            f'Total likelihood evaluations: {self.likelihood_calls:3d}')
 
         return self.state.logZ, np.array(self.nested_samples)
 
