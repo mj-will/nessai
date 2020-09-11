@@ -234,9 +234,6 @@ class FlexibleRealNVP(Flow):
             if batch_norm_between_layers:
                 layers.append(BatchNorm(features=features))
 
-        if linear_transform is not None:
-            layers.append(create_linear_transform())
-
         super().__init__(
             transform=CompositeTransform(layers),
             distribution=StandardNormal([features]),
@@ -295,13 +292,13 @@ class NeuralSplineFlow(SimpleFlow):
         hidden_features,
         num_layers,
         num_blocks_per_layer,
-        num_bins=64,
+        num_bins=8,
         activation=F.relu,
         dropout_probability=0.0,
         batch_norm_within_layers=False,
         batch_norm_between_layers=False,
         apply_unconditional_transform=False,
-        linear_transform_type='permutation',
+        linear_transform='permutation',
         **kwargs
     ):
         if batch_norm_between_layers:
@@ -309,14 +306,14 @@ class NeuralSplineFlow(SimpleFlow):
             batch_norm_between_layers = False
 
         def create_linear_transform():
-            if linear_transform_type == 'permutation':
+            if linear_transform == 'permutation':
                 return transforms.RandomPermutation(features=features)
-            elif linear_transform_type == 'lu':
+            elif linear_transform == 'lu':
                 return transforms.CompositeTransform([
                     transforms.RandomPermutation(features=features),
                     transforms.LULinear(features, identity_init=True)
                 ])
-            elif linear_transform_type == 'svd':
+            elif linear_transform == 'svd':
                 return transforms.CompositeTransform([
                     transforms.RandomPermutation(features=features),
                     transforms.SVDLinear(features, num_householder=10,
@@ -351,7 +348,6 @@ class NeuralSplineFlow(SimpleFlow):
             transforms_list.append(create_linear_transform())
             transforms_list.append(spline_constructor(i))
 
-        transforms_list.append(create_linear_transform())
         distribution = StandardNormal([features])
 
         super().__init__(
