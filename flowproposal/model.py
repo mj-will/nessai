@@ -112,6 +112,12 @@ class Model:
         """
         pass
 
+    def log_likelihood_batch(self, x):
+        """
+        Returns the log likelihood for a batch of sampler
+        """
+        pass
+
     def log_prior(self, x):
         """
         Returns log of prior.
