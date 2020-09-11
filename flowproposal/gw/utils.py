@@ -76,7 +76,7 @@ def cartesian_to_sky(x, y, z):
     return ra, dec, dL, - 2. * np.log(dL) - np.log(np.cos(dec))
 
 
-def zero_one_to_cartesian(theta):
+def zero_one_to_cartesian(theta, duplicate=False):
     """
     Convert a variable defined on [0,1] to an angle on [-pi, pi] and
     to Cartesian coordinates with a radius drawn from a chi distribution
@@ -95,8 +95,11 @@ def zero_one_to_cartesian(theta):
     log_J: array_like
         Determinant of the log-Jacobian
     """
-    neg = np.random.choice(theta.size, theta.size // 2, replace=False)
-    theta[neg] *= -1
+    if duplicate:
+        theta = np.concatenate([theta, -theta])
+    else:
+        neg = np.random.choice(theta.size, theta.size // 2, replace=False)
+        theta[neg] *= -1
     return angle_to_cartesian(theta, scale=np.pi)
 
 
