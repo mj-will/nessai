@@ -316,15 +316,15 @@ class FlowModel:
                 x, log_prob = self.model.sample_and_log_prob(N)
         else:
             if alt_dist is not None:
-                dist = alt_dist
+                log_prob_fn = alt_dist.log_prob
             else:
-                dist = self.model._distribution
+                log_prob_fn = self.model.base_distribution_log_prob
 
             with torch.no_grad():
                 if isinstance(z, np.ndarray):
                     z = torch.Tensor(z.astype(np.float32)).to(self.device)
-                log_prob = dist.log_prob(z)
-                x, log_J = self.model._transform.inverse(z, None)
+                log_prob = log_prob_fn(z)
+                x, log_J = self.model.inverse(z, context=None)
                 log_prob -= log_J
 
         x = x.detach().cpu().numpy()

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from nflows.flows import Flow, MaskedAutoregressiveFlow
+from nflows.flows import MaskedAutoregressiveFlow as BaseMAF
 from nflows.distributions.normal import StandardNormal
 from nflows.nn import nets as nets
 from nflows.transforms.base import CompositeTransform
@@ -98,8 +98,66 @@ def setup_model(config):
     return model, device
 
 
-class CustomMLP(nets.MLP):
+class Flow(Distribution):
+    """
+    Base class for all flow objects.
 
+    This replaces Flow from nflows. It removes the context and includes
+    additional methods which are called in FlowModel
+    """
+    def __init__(self, transform, distribution):
+        super().__init__()
+        self._transform = transform
+        self._distribution = distribution
+
+    def _log_prob(self, inputs, context=None):
+        noise, logabsdet = self._transform(inputs)
+        log_prob = self._distribution.log_prob(noise)
+        return log_prob + logabsdet
+
+    def _sample(self, num_samples, context=None):
+        noise = self._distribution.sample(num_samples)
+
+        samples, _ = self._transform.inverse(noise)
+
+        return samples
+
+    def sample_and_log_prob(self, num_samples, context=None):
+        """
+        Generates samples from the flow, together with their log probabilities
+        in the data space log p(x) = log p(z) + log|J|.
+
+        For flows, this is more efficient that calling `sample` and `log_prob`
+        separately.
+        """
+        noise, log_prob = self._distribution.sample_and_log_prob(
+            num_samples
+        )
+
+        samples, logabsdet = self._transform.inverse(noise)
+
+        return samples, log_prob - logabsdet
+
+    def inverse(self, z, context=None):
+        """
+        Apply the inverse transformation and return samples in the
+        data space and log |J| (not log probability)
+        """
+        return self._transform.inverse(z, context=context)
+
+    def base_distribution_log_prob(self, z, context=None):
+        """
+        Computes the log probability of samples in the latent for
+        the base distribution in the flow.
+        """
+        return self._distribution.log_prob(z, context)
+
+
+class CustomMLP(nets.MLP):
+    """
+    MLP which handles additional kwargs that are supplied by some
+    flow models
+    """
     def __init__(self, *args, **kwargs):
         super(CustomMLP, self).__init__(*args, **kwargs)
 
@@ -240,51 +298,30 @@ class FlexibleRealNVP(Flow):
         )
 
 
-class SimpleFlow(Distribution):
-    """Base class for all flow objects."""
+class MaskedAutoregressiveFlow(BaseMAF):
+    """
+    Wrapper for MaskedAutoregressiveFlow included in nflows that adds
+    additional methods that are used in FlowModel.
 
-    def __init__(self, transform, distribution):
-        super().__init__()
-        self._transform = transform
-        self._distribution = distribution
-
-    def _log_prob(self, inputs, context=None):
-        noise, logabsdet = self._transform(inputs)
-        log_prob = self._distribution.log_prob(noise)
-        return log_prob + logabsdet
-
-    def _sample(self, num_samples, context=None):
-        noise = self._distribution.sample(num_samples)
-
-        samples, _ = self._transform.inverse(noise)
-
-        return samples
-
-    def sample_and_log_prob(self, num_samples, context=None):
+    See: https://github.com/bayesiains/nflows/blob/master/nflows/flows/
+    autoregressive.py
+    """
+    def inverse(self, z, context=None):
         """
-        Generates samples from the flow, together with their log probabilities.
-
-        For flows, this is more efficient that calling `sample` and `log_prob`
-        separately.
+        Apply the inverse transformation and return samples in the
+        data space and log |J|
         """
-        noise, log_prob = self._distribution.sample_and_log_prob(
-            num_samples
-        )
+        return self._transform.inverse(z, context=context)
 
-        samples, logabsdet = self._transform.inverse(noise)
-
-        return samples, log_prob - logabsdet
-
-    def transform_to_noise(self, inputs, context=None):
+    def base_distribution_log_prob(self, z, context=None):
         """
-        Transforms given data into noise. Useful for goodness-of-fit
-        checking.
+        Computes the log probability of samples in the latent for
+        the base distribution in the flow
         """
-        noise, _ = self._transform(inputs)
-        return noise
+        return self._distribution.log_prob(z, context=context)
 
 
-class NeuralSplineFlow(SimpleFlow):
+class NeuralSplineFlow(Flow):
 
     def __init__(
         self,
