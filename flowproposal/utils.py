@@ -5,12 +5,70 @@ import shutil
 
 from nflows.distributions.uniform import BoxUniform
 import numpy as np
-import pandas as pd
-from scipy import stats
+from scipy import stats, spatial
 import torch
 
-
 logger = logging.getLogger(__name__)
+
+
+def logit(x):
+    """
+    Logit function that also returns log Jacobian
+
+    Parameters
+    ----------
+    x: array_like
+    """
+    return np.log(x) - np.log(1 - x), -np.log(np.abs(x - x ** 2))
+
+
+def sigmoid(x):
+    """
+    Sigmoid function that also returns log Jacobian
+
+    Parameters
+    ----------
+    x: array_like
+    """
+    x = np.asarray(x)
+    log_J = np.nan_to_num(-x - 2 * np.log(np.exp(-x) + 1),
+                          nan=np.NINF, neginf=np.NINF)
+    return np.divide(1, 1 + np.exp(-x)), log_J
+
+
+def compute_indices_ks_test(indices, nlive, mode='D+'):
+    """
+    Compute the two-sided KS test for discrete insertion indices for a given
+    number of live points
+
+    Parameters
+    ----------
+    indices: array_like
+        Indices of newly inserteed live points
+    nlive: int
+        Number of live points
+
+    Returns
+    ------
+    D: float
+        Two-sided KS statistic
+    p: float
+        p-value
+    """
+    if len(indices):
+        u, counts = np.unique(indices, return_counts=True)
+        analytic_cdf = u / nlive
+        cdf = np.cumsum(counts) / len(indices)
+        if mode == 'D+':
+            D = np.max(cdf - analytic_cdf)
+        elif mode == 'D-':
+            D = np.max(analytic_cdf[1:] - cdf[:-1])
+        else:
+            raise RuntimeError(f'{mode} is not a valid mode. Choose D+ or D-')
+        p = stats.ksone.sf(D, nlive)
+        return D, p
+    else:
+        return None, None
 
 
 def draw_surface_nsphere(dims, r=1, N=1000):
@@ -66,18 +124,19 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
     return fuzz * r * z
 
 
-def get_uniform_distribution(dims, r):
+def get_uniform_distribution(dims, r, device='cpu'):
     """
     Return a Pytorch distribution that is uniform in the number of
     dims specified
     """
-    r = r * torch.ones(dims)
+    r = r * torch.ones(dims, device=device)
     return BoxUniform(low=-r, high=r)
 
 
 def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     """
-    Draw from the
+    Draw from a uniform distribution on [0, 1], deals with extra input
+    parameters used by other draw functions
     """
     return np.random.uniform(0, 1, (N, dims))
 
@@ -254,29 +313,82 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
             np.log(xmax - xmin) - np.log(2))
 
 
-def detect_edge(x, cutoff=0.1, nbins=100, bounds=[0, 1], mode_range=0.2):
+def detect_edge(x, bounds, percent=0.1, cutoff=0.1, nbins='fd',
+                both=False, allow_none=False, test=None):
     """
-    Detect edges in input distributions
+    Detect edges in input distributions based on the density.
+
+    Checks if data is uniform over the interval specified by the bounds and if
+    the data is normally distributed about the mid-point of the bounds
+
+    Parameters
+    ----------
+    x: array_like
+        Samples
+    bounds: list
+        Lower and upper bound
+    percent: float (0.1)
+        Percentage of interval used to check edges
+    cutoff: float (0.1)
+        Minimum fraction of the maximum density contained within the
+        percentage of the interval specified
+    both: bool
+        Allow function to return both instead of force either upper or lower
+    allow_none: bool
+        Allow for neither lower or upper bound to be returned
     """
-    hist, bins = np.histogram(x, bins=nbins)
-    n = int(nbins * 0.1)
-    bounds_fraction = np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) / x.size
-    mode = ((bins[:-1] + bins[1:]) / 2)[np.argmax(hist)]
-    if not np.any(bounds_fraction > cutoff):
+    if test is not None:
+        return test
+    hist, bins = np.histogram(x, bins=nbins, density=True)
+    n = int(len(bins) * percent)
+    bounds_fraction = \
+        np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (bins[1] - bins[0])
+    uniform_p = stats.kstest(x, 'uniform', args=(bounds[0], np.ptp(bounds)))[1]
+    normal_p = stats.kstest(x, 'norm', args=(np.sum(bounds) / 2,))[1]
+    max_density = hist.max() * (bins[1] - bins[0])
+    logger.debug(f'Max. density: {max_density:.3f}')
+    if uniform_p >= 0.05:
+        logger.debug('Samples pass KS test for uniform')
+        if both:
+            return 'both'
+        else:
+            return np.random.choice(['lower', 'upper'])
+    elif normal_p >= 0.05 and allow_none:
+        logger.debug('Samples pass KS test for normal distribution')
         return False
-    elif np.abs(mode - np.mean(bounds)) < mode_range:
+    elif not np.any(bounds_fraction > cutoff * max_density) and allow_none:
+        logger.debug('Density too low at both bounds')
         return False
     else:
-        bound = np.argmax(bounds_fraction)
-        if bound == 0:
-            return 'lower'
-        elif bound == 1:
-            return 'upper'
+        if np.all(bounds_fraction > cutoff * max_density) and both:
+            logger.debug('Both bounds above cutoff')
+            return 'both'
         else:
-            raise RuntimeError('Bounds were not computed correctly')
+            bound = np.argmax(bounds_fraction)
+            if bound == 0:
+                return 'lower'
+            elif bound == 1:
+                return 'upper'
+            else:
+                raise RuntimeError('Bounds were not computed correctly')
 
 
-def setup_logger(output=None, label=None, log_level='INFO'):
+def compute_minimum_distances(samples, metric='euclidean'):
+    """
+    Compute the distance to the nearest neighbour of each sample
+
+    Parameters
+    ----------
+    samples: array_like
+        Array of samples
+    """
+    d = spatial.distance.cdist(samples, samples, metric)
+    d[d == 0] = np.nan
+    dmin = np.nanmin(d, axis=1)
+    return dmin
+
+
+def setup_logger(output=None, label='flowproposal', log_level='INFO'):
     """
     Setup logger
 
@@ -291,7 +403,6 @@ def setup_logger(output=None, label=None, log_level='INFO'):
     log_level: {'ERROR', 'WARNING', 'INFO', 'DEBUG'}
         Level of logging parsed to logger
     """
-    import os
     if type(log_level) is str:
         try:
             level = getattr(logging, log_level.upper())
@@ -351,15 +462,6 @@ class NumpyEncoder(json.JSONEncoder):
             return super(NumpyEncoder, self).default(obj)
 
 
-def save_live_points(live_points, filename):
-    """
-    Save a numpy structured array of live points to a json file
-    """
-    df = pd.DataFrame.from_records(live_points)
-    with open(filename, 'w') as wf:
-        json.dump(df.to_dict(orient='list'), wf, indent=4)
-
-
 def safe_file_dump(data, filename, module, save_existing=False):
     """ Safely dump data to a .pickle file
 
@@ -384,3 +486,51 @@ def safe_file_dump(data, filename, module, save_existing=False):
     with open(temp_filename, "wb") as file:
         module.dump(data, file)
     shutil.move(temp_filename, filename)
+
+
+def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
+    """
+    Configure the number of threads available. This is necessary when using
+    PyTorch on the CPU as by default it will use all available threads.
+
+    Notes
+    -----
+    Uses torch.set_num_threads. If pytorch threads is None but other
+    arguments are specified them the value is inferred from them.
+
+    Parameters
+    ----------
+    max_threads: int (None)
+        Maximum total number of threads to use between PyTorch and
+        multiprocessing
+    pytorch_threads: int (None)
+        Maximum number of threads for PyTorch on CPU
+    n_pool: int (None)
+        Number of pools to use if using multiprocessing
+    """
+    if max_threads is not None:
+        if pytorch_threads is not None and pytorch_threads > max_threads:
+            raise RuntimeError(
+                f'More threads assigned to PyTorch ({pytorch_threads}) '
+                f'than are available ({max_threads})')
+        if n_pool is not None and n_pool >= max_threads:
+            raise RuntimeError(
+                f'More threads assigned to pool ({n_pool}) than are '
+                f'available ({max_threads})')
+        if (n_pool is not None and pytorch_threads is not None and
+                (pytorch_threads + n_pool) > max_threads):
+            raise RuntimeError(
+                f'More threads assigned to PyTorch ({pytorch_threads}) '
+                f'and pool ({n_pool})than are available ({max_threads})')
+
+    if pytorch_threads is None:
+        if max_threads is not None:
+            if n_pool is not None:
+                pytorch_threads = max_threads - n_pool
+            else:
+                pytorch_threads = max_threads
+
+    if pytorch_threads is not None:
+        logger.debug(
+            f'Setting maximum number of PyTorch threads to {pytorch_threads}')
+        torch.set_num_threads(pytorch_threads)

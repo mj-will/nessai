@@ -6,9 +6,10 @@ import time
 
 import numpy as np
 
+from .livepoint import live_points_to_dict
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
-from .utils import NumpyEncoder
+from .utils import NumpyEncoder, configure_threads
 
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,12 @@ class FlowSampler:
     def __init__(self, model, output='./', resume=True,
                  resume_file='nested_sampler_resume.pkl', weights_file=None,
                  **kwargs):
+
+        configure_threads(
+            max_threads=kwargs.get('max_threads', None),
+            pytorch_threads=kwargs.get('pytorch_threads', None),
+            n_pool=kwargs.get('n_pool', None)
+            )
 
         self.output = output
         if resume:
@@ -131,8 +138,10 @@ class FlowSampler:
 
                 )
         d['insertion_indices'] = self.ns.insertion_indices
-        d['nested_samples'] = self.nested_samples
-        d['posterior_samples'] = self.posterior_samples
+        d['nested_samples'] = live_points_to_dict(self.nested_samples)
+        d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
+        d['log_evidence'] = self.ns.log_evidence
+        d['infomation'] = self.ns.information
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=NumpyEncoder)

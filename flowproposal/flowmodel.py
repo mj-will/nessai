@@ -8,7 +8,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from .flows import setup_model, weight_reset
 from .plot import plot_loss
-from .utils import NumpyEncoder
+from .utils import NumpyEncoder, compute_minimum_distances
 
 logger = logging.getLogger(__name__)
 
@@ -86,23 +86,16 @@ class FlowModel:
         """
         Get a the mask
         """
-        if 'mask' in self.model_config['kwargs'] and \
-                self.model_config['kwargs']['mask'] is not None:
-            if 'perm' in self.model_config['kwargs']['mask']:
-                if self.model_config['n_blocks'] % 2:
-                    raise RuntimeError('Number of blocks must be even '
-                                       'to use mixer')
-                masks = np.ones([self.model_config['n_blocks'],
-                                self.model_config['n_inputs']])
+        pass
 
-                masks[0, ::2] = -1
-                masks[1] = masks[0] * -1
-                for n in range(2, masks.shape[0], 2):
-                    masks[n] = np.random.permutation(masks[n-2])
-                    masks[n + 1] = masks[n] * -1
-
-                self.model_config['kwargs']['mask'] = masks
-            logger.debug(f"Mask : {self.model_config['kwargs']['mask']}")
+    def _get_optimiser(self):
+        """
+        Get the optimiser and ensure it is always correctly intialised.
+        """
+        if self.model is None:
+            raise RuntimeError('Cannot initialise optimiser before model')
+        return torch.optim.Adam(self.model.parameters(),
+                                lr=self.lr, weight_decay=1e-6)
 
     def initialise(self):
         """
@@ -111,11 +104,10 @@ class FlowModel:
         self.update_mask()
         self.model_config = update_config(self.model_config)
         self.model, self.device = setup_model(self.model_config)
-        self.optimiser = torch.optim.Adam(self.model.parameters(),
-                                          lr=self.lr, weight_decay=1e-6)
+        self.optimiser = self._get_optimiser()
         self.initialised = True
 
-    def _prep_data(self, samples, val_size):
+    def _prep_data(self, samples, val_size, batch_size):
         """
         Prep data and return dataloaders for training
         """
@@ -129,10 +121,16 @@ class FlowModel:
         x_train, x_val = samples[:n], samples[n:]
         logger.debug(f'{x_train.shape} training samples')
         logger.debug(f'{x_val.shape} validation samples')
+
+        if not isinstance(batch_size, int):
+            if batch_size == 'all':
+                batch_size = x_train.shape[0]
+            elif batch_size is not None:
+                raise RuntimeError(f'Unknown batch size: {batch_size}')
         train_tensor = torch.from_numpy(x_train.astype(np.float32))
         train_dataset = torch.utils.data.TensorDataset(train_tensor)
         train_loader = torch.utils.data.DataLoader(train_dataset,
-                                                   batch_size=self.batch_size,
+                                                   batch_size=batch_size,
                                                    shuffle=True)
 
         val_tensor = torch.from_numpy(x_val.astype(np.float32))
@@ -206,7 +204,14 @@ class FlowModel:
         if val_size is None:
             val_size = self.val_size
 
-        train_loader, val_loader = self._prep_data(samples, val_size=val_size)
+        if self.noise_scale == 'adaptive':
+            noise_scale = 0.1 * np.std(compute_minimum_distances(samples))
+            logger.debug(f'Using adaptive scale: {noise_scale:.3f}')
+        else:
+            noise_scale = self.noise_scale
+
+        train_loader, val_loader = self._prep_data(samples, val_size=val_size,
+                                                   batch_size=self.batch_size)
 
         # train
         if max_epochs is None:
@@ -229,7 +234,7 @@ class FlowModel:
         logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
-            loss = self._train(train_loader, noise_scale=self.noise_scale)
+            loss = self._train(train_loader, noise_scale=noise_scale)
             val_loss = self._validate(val_loader)
             history['loss'].append(loss)
             history['val_loss'].append(val_loss)
@@ -240,8 +245,8 @@ class FlowModel:
                 best_model = copy.deepcopy(self.model.state_dict())
 
             if not epoch % 50:
-                logger.info(f'Epoch {epoch}: loss: {loss:.3}'
-                            f'val loss: {val_loss:.3}')
+                logger.info(
+                    f'Epoch {epoch}: loss: {loss:.3} val loss: {val_loss:.3}')
 
             if epoch - best_epoch > patience:
                 logger.info(f'Epoch {epoch}: Reached patience')
@@ -279,8 +284,7 @@ class FlowModel:
         """
         logger.debug('Reseting model weights and optimiser')
         self.model.apply(weight_reset)
-        self.optimiser = torch.optim.Adam(self.model.parameters(), lr=self.lr,
-                                          weight_decay=1e-6)
+        self.optimiser = self._get_optimiser()
 
     def forward_and_log_prob(self, x):
         """

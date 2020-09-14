@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 
 import numpy as np
 from scipy import stats
@@ -12,7 +13,7 @@ from .livepoint import (
         get_dtype,
         DEFAULT_FLOAT_DTYPE
         )
-from .plot import plot_live_points, plot_acceptance
+from .plot import plot_live_points, plot_acceptance, plot_1d_comparison
 from .utils import get_uniform_distribution, detect_edge
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,14 @@ def _log_likelihood_wrapper(x):
 
 
 class Proposal:
+    """
+    Base proposal object
 
+    Parameters
+    ----------
+    model: obj
+        User-defined model
+    """
     def __init__(self, model):
         self.model = model
         self.populated = True
@@ -41,13 +49,28 @@ class Proposal:
         self.pool = None
 
     def initialise(self):
-        """Initialise"""
+        """
+        Initialise the proposal
+        """
         self.initialised = True
 
     def draw(self, old_param):
+        """
+        New a new point given the old point
+        """
         return None
 
     def train(self, x, **kwargs):
+        """
+        Train the proposal method
+
+        Parameters
+        ----------
+        x: array_like
+            Array of live points to use for training
+        kwargs:
+            Any of keyword arguments
+        """
         logger.info('This proposal method cannot be trained')
 
     def __getstate__(self):
@@ -57,10 +80,17 @@ class Proposal:
 
 
 class AnalyticProposal(Proposal):
+    """"
+    Class for drawining from analytic priors
 
+    This assumes the `new_point` method of the model draws points
+    from the prior
+    """
     def draw(self, old_param):
         """
-        Draw directly from the analytic priors
+        Draw directly from the analytic priors.
+
+        Ouput is independent of the input
         """
         return self.model.new_point()
 
@@ -69,9 +99,13 @@ class RejectionProposal(Proposal):
 
     def __init__(self, model, poolsize=1000):
         super(RejectionProposal, self).__init__(model)
-        self.poolsize = poolsize
+        self._poolsize = poolsize
         self.populated = False
         self._acceptance_checked = True
+
+    @property
+    def poolsize(self):
+        return self._poolsize
 
     def draw_proposal(self):
         """Draw from the proposal distribution"""
@@ -86,11 +120,17 @@ class RejectionProposal(Proposal):
         log_p = self.model.log_prior(x)
         log_q = self.log_proposal(x)
         log_w = log_p - log_q
-        log_w -= np.max(log_w)
+        log_w -= np.nanmax(log_w)
         return log_w
 
     @property
     def population_acceptance(self):
+        """
+        Check the acceptance of the current proposal method.
+
+        If this method has already been called since the proposal was
+        last populated it returns None.
+        """
         if self._acceptance_checked:
             return None
         else:
@@ -128,17 +168,80 @@ class RejectionProposal(Proposal):
 class FlowProposal(RejectionProposal):
     """
     Object that handles training and proposal points
+
+    Parameters
+    ----------
+    model: obj:`flowproposal.model.Model`
+        User defined model
+    flow_config: dict, optional
+        Configuration for training the normalising flow. If None, uses default
+        settings. Defaults to None.
+    output: str, optional
+        Path to output directory. Defaults to ./
+    plot: {True, False, 'all', 'min'}, optional
+        Controls the plotting level:
+        * True: all plots
+        * False: no plots
+        * 'all': all plots
+        * 'min': 1d plots and loss
+        Defaults to `'min'`
+    latent_prior: {'truncated_gaussian', 'gaussian', 'uniform_nsphere',
+                   'gaussian'}, optional
+        Prior distribution in the latent space. Defaults to
+        'truncated_gaussian'.
+    poolsize: int, optional
+        Size of the proposal pool. Defaults to 10000.
+    exact_poolsize: bool, optional
+        If True extra samples are discarded when populating the pool. Defaults
+        to True
+    drawsize: int, optional
+        Number of points to simultaneosly draw when populating the proposal
+        Defaults to 10000
+    check_acceptance: bool, optional
+        If True the acceptance is computed after populating the pool. This
+        includes computing the likelihood for every point. Default False.
+    max_radius: float (optional)
+        If a float then this value is used as an upper limit for the
+        computed radius when populating the proposal. If unspecified no
+        upper limit is used.
+    fuzz: float (optional)
+        Fuzz-factor applied to the radius. If unspecified no fuzz-factor is
+        applied.
+    zero_reset: int (optional)
+        Value used when reseting proposal if zero samples are accepted.
+        If specified is after drawing samples zero_reset times the current
+        poolsize is less than half, then the radius is reduced by 1% and
+        the pool is reset.
+    truncate: bool (optional)
+        Truncate proposals using probability compute for worst point.
+        Not recommended.
+    rescale_parameters: list or bool (optional)
+        If True live points are rescaled to `rescale_bounds` before training.
+        If an instance of `list` then must contain names of parameters to
+        rescale. If False no rescaling is applied. Default False.
+    rescale_bounds: list (optional)
+        Lower and upper bound to use for rescaling. Defaults to [-1, 1]. See
+        `rescale_parameters`.
+    update_bounds: bool (optional)
+        If True bounds used for rescaling are updated at the starting of
+        training. If False prior bounds are used. Default False.
+    boundary_inversion: bool or list (optional)
+        If True boundary inversion is applied to all bounds. If
+        If an instance of `list` of parameters names, then inversion
+        only applied to these parameters. If False (default )no inversion is
+        used.
     """
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
                  rescale_parameters=False, latent_prior='truncated_gaussian',
-                 fuzz=1.0, keep_samples=False, exact_poolsize=True, plot=True,
+                 fuzz=1.0, keep_samples=False, exact_poolsize=True, plot='min',
                  fixed_radius=False, drawsize=10000, check_acceptance=False,
                  truncate=False, zero_reset=None, detect_edges=False,
-                 rescale_bounds=[-1, 1], rescale_min_max=False,
+                 rescale_bounds=[-1, 1], expansion_fraction=0.0,
                  boundary_inversion=False, inversion_type='duplicate',
                  update_bounds=True, max_radius=False, pool=None, n_pool=None,
-                 multiprocessing=False, **kwargs):
+                 multiprocessing=False, max_poolsize_scale=50,
+                 update_poolsize=False, **kwargs):
         """
         Initialise
         """
@@ -152,21 +255,27 @@ class FlowProposal(RejectionProposal):
         self.indices = []
         self.training_count = 0
         self.populated_count = 0
+        self.population_time = 0
         self.names = []
+        self.training_data = None
         self.x = None
         self.z = None
         self.samples = None
         self.rescaled_names = []
 
         self.output = output
-        self.poolsize = poolsize
+        self._poolsize = poolsize
+        self._poolsize_scale = 1.0
+        self.update_poolsize = update_poolsize
+        self.max_poolsize_scale = max_poolsize_scale
+        self.ns_acceptance = 1.
         self.drawsize = drawsize
         self.fuzz = fuzz
+        self.expansion_fraction = expansion_fraction
         self.latent_prior = latent_prior
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
         self.exact_poolsize = exact_poolsize
-        self.rescale_min_max = rescale_min_max
         self.update_bounds = update_bounds
         self.check_acceptance = check_acceptance
         self.rescale_bounds = rescale_bounds
@@ -180,27 +289,33 @@ class FlowProposal(RejectionProposal):
         self.pool = pool
         self.n_pool = n_pool
         if multiprocessing:
+            if not self.check_acceptance:
+                self.check_acceptance = True
             self._setup_pool()
 
+        self._inversion_test_type = None
         if self.detect_edges:
-            self._edge_mode_range = 0.1
-            self._edge_cutoff = 0.1
+            self._allow_none = True
+            self._edge_cutoff = 0.2
         else:
             # Will always return an edge
-            self._edge_mode_range = 0.0
+            self._allow_none = False
             self._edge_cutoff = 0.0
 
         if plot:
             if isinstance(plot, str):
                 if plot == 'all':
-                    self._plot_pool = True
-                    self._plot_training = True
+                    self._plot_pool = 'all'
+                    self._plot_training = 'all'
                 elif plot == 'train':
                     self._plot_pool = False
-                    self._plot_training = True
+                    self._plot_training = 'all'
                 elif plot == 'pool':
                     self._plot_pool = True
                     self._plot_training = False
+                elif plot == 'minimal' or plot == 'min':
+                    self._plot_pool = 'minimal'
+                    self._plot_training = 'minimal'
                 else:
                     logger.warning(
                         f'Unknown plot argument: {plot}, setting all false'
@@ -218,6 +333,8 @@ class FlowProposal(RejectionProposal):
         self.acceptance = []
         self.approx_acceptance = []
         self.flow_config = flow_config
+
+        self.clip = self.flow_config.get('clip', False)
 
         if self.latent_prior == 'truncated_gaussian':
             from .utils import draw_truncated_gaussian
@@ -255,7 +372,7 @@ class FlowProposal(RejectionProposal):
         else:
             self.fixed_radius = False
 
-        self.max_radius = max_radius
+        self.max_radius = float(max_radius)
 
     def _setup_pool(self):
         """
@@ -276,6 +393,14 @@ class FlowProposal(RejectionProposal):
             self.pool.join()
             self.pool = None
             logger.info("Finished closing worker pool.")
+
+    @property
+    def poolsize(self):
+        """
+        Return the poolsize based of the base value and the current
+        value of the scaling
+        """
+        return int(self._poolsize_scale * self._poolsize)
 
     @property
     def flow_config(self):
@@ -315,11 +440,34 @@ class FlowProposal(RejectionProposal):
             os.makedirs(self.output, exist_ok=True)
 
         self.set_rescaling()
+        self.verify_rescaling()
+        if self.expansion_fraction and self.expansion_fraction is not None:
+            logger.info('Overwritting fuzz factor with expansion fraction')
+            self.fuzz = \
+                (1 + self.expansion_fraction) ** (1 / self.rescaled_dims)
+            logger.info(f'New fuzz factor: {self.fuzz}')
         self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
         self.populated = False
         self.initialised = True
+
+    def update_poolsize_scale(self, acceptance):
+        """
+        Update poolsize given the current acceptance.
+        """
+        logger.debug(f'Updating poolsize with acceptance: {acceptance:.3f}')
+        if not acceptance:
+            logger.warning('Acceptance is zero, using maximum scale')
+            self._poolsize_scale = self.max_poolize_scale
+        else:
+            self._poolsize_scale = 1.0 / acceptance
+            if self._poolsize_scale > self.max_poolsize_scale:
+                logger.warning(
+                    'Poolsize scaling is greater than maximum value')
+                self._poolsize_scale = self.max_poolsize_scale
+            if self._poolsize_scale < 1.:
+                self._poolsize_scale = 1.
 
     def set_rescaling(self):
         """
@@ -347,7 +495,6 @@ class FlowProposal(RejectionProposal):
                     'Appyling boundary inversion to: '
                     f'{self.boundary_inversion}'
                     )
-
             if self.inversion_type not in ('split', 'duplicate'):
                 raise RuntimeError(
                         f'Unknown inversion type: {self.inversion_type}')
@@ -388,7 +535,45 @@ class FlowProposal(RejectionProposal):
         logger.info(f'parameters to rescale {self.rescale_parameters}')
         logger.info(f'x prime space parameters: {self.rescaled_names}')
 
-    def _rescale_to_bounds(self, x):
+    def verify_rescaling(self):
+        """
+        Verify the rescaling functions
+        """
+        logger.info('Verifying rescaling functions')
+        x = self.model.new_point(N=5000)
+        for inversion in ['lower', 'upper', 'both', False]:
+            self.check_state(x)
+            logger.debug(f'Testing: {inversion}')
+            self._inversion_test_type = inversion
+            x_prime, log_J = self.rescale(x)
+            x_out, log_J_inv = self.inverse_rescale(x_prime)
+            if x.size == x_out.size:
+                for f in x.dtype.names:
+                    if not np.allclose(x[f], x_out[f]):
+                        raise RuntimeError(
+                            f'Rescaling is not invertible for {f}')
+                if not np.allclose(log_J, -log_J_inv):
+                    raise RuntimeError('Rescaling Jacobian is not invertible')
+            else:
+                # ratio = x_out.size // x.size
+                for f in x.dtype.names:
+                    if not any([np.any(np.isclose(x[f], xo))
+                                for xo in x_out[f]]):
+                        raise RuntimeError(
+                            'Duplicate samples must map to same input values. '
+                            'Check the rescaling and inverse rescaling '
+                            'functions.')
+                for f in x.dtype.names:
+                    if not np.allclose(x[f], x_out[f][:x.size]):
+                        raise RuntimeError(
+                            f'Rescaling is not invertible for {f}')
+                if not np.allclose(log_J, -log_J_inv):
+                    raise RuntimeError('Rescaling Jacobian is not invertible')
+
+        self._inversion_test_type = None
+        logger.info('Rescaling functions are invertible')
+
+    def _rescale_to_bounds(self, x, compute_radius=False):
         """
         Rescale the inputs to specified bounds
         """
@@ -405,17 +590,18 @@ class FlowProposal(RejectionProposal):
                                 / (self._max[n] - self._min[n])) \
                              + self._rescale_shift
 
-                log_J -= np.log(self._max[n] - self._min[n]) \
-                    + np.log(self._rescale_factor)
+                log_J += (-np.log(self._max[n] - self._min[n])
+                          + np.log(self._rescale_factor))
 
                 if n in self.boundary_inversion:
 
                     if self._edges[n] is None:
                         self._edges[n] = detect_edge(
                             x_prime[rn],
-                            bounds=[0, 1],
+                            [0, 1],
                             cutoff=self._edge_cutoff,
-                            mode_range=self._edge_mode_range
+                            allow_none=self._allow_none,
+                            test=self._inversion_test_type
                             )
 
                     if self._edges[n]:
@@ -425,11 +611,13 @@ class FlowProposal(RejectionProposal):
                             )
                         if self._edges[n] == 'upper':
                             x_prime[rn] = 1 - x_prime[rn]
-                        if self.inversion_type == 'duplicate':
+                        if (self.inversion_type == 'duplicate' or
+                                compute_radius):
                             x_inv = x_prime.copy()
                             x_inv[rn] *= -1
                             x_prime = np.concatenate([x_prime, x_inv])
                             x = np.concatenate([x,  x])
+                            log_J = np.concatenate([log_J, log_J])
                         else:
                             inv = np.random.choice(x_prime.size,
                                                    x_prime.size // 2,
@@ -457,30 +645,45 @@ class FlowProposal(RejectionProposal):
                     x_prime[rn][~inv] = x_prime[rn][~inv]
                     x_prime[rn][inv] = -x_prime[rn][inv]
 
-                    if self._edges[n]:
+                    if self._edges[n] == 'upper':
                         x_prime[rn] = 1 - x_prime[rn]
 
                 x[n] = (self._max[n] - self._min[n]) \
                     * (x_prime[rn] - self._rescale_shift) \
                     / self._rescale_factor + self._min[n]
 
-                log_J += np.log(self._max[n] - self._min[n]) \
-                    - np.log(self._rescale_factor)
+                log_J += (np.log(self._max[n] - self._min[n])
+                          - np.log(self._rescale_factor))
             else:
                 x[n] = x_prime[rn]
         x['logP'] = x_prime['logP']
         x['logL'] = x_prime['logL']
         return x, log_J
 
-    def rescale(self, x):
+    def rescale(self, x, compute_radius=False):
         """
-        Rescale from the phyisical space to the primed physical
-        space
+        Rescale from the phyisical space to the primed physical space
+
+        Parameters
+        ----------
+        x: array_like
+            Array of live points to rescale
+        compute_radius: bool (False)
+            Used to indicate when rescaling is being used for computing the
+            radius for population. This is important for rescaling that uses
+            inversions.
+
+        Returns
+        -------
+        array
+            Array of rescaled values
+        array
+            Array of log det|J|
         """
         log_J = np.zeros(x.size)
         return x, log_J
 
-    def inverse_rescale(self, x_prime):
+    def inverse_rescale(self, x_prime, **kwargs):
         """
         Rescale from the primed phyisical space to the original physical
         space
@@ -508,37 +711,50 @@ class FlowProposal(RejectionProposal):
             os.makedirs(block_output, exist_ok=True)
 
         self.check_state(x)
+        self.training_data = x.copy()
 
-        if self._plot_training:
+        if self._plot_training == 'all' and plot:
             plot_live_points(x, c='logL',
                              filename=block_output + 'x_samples.png')
 
         x_prime, log_J = self.rescale(x)
 
-        if self.rescale_parameters and self._plot_training:
+        if self.rescale_parameters and self._plot_training == 'all' and plot:
             plot_live_points(x_prime, c='logL',
                              filename=block_output + 'x_prime_samples.png')
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
-        x_prime = live_points_to_array(x_prime, self.rescaled_names)
-        self.flow.train(x_prime, output=block_output, plot=self._plot_training)
+        x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
+        self.flow.train(x_prime_array,
+                        output=block_output, plot=self._plot_training)
 
-        if self._plot_training:
+        if self._plot_training and plot:
             self.alt_dist = None
-            z, _ = self.flow.sample_and_log_prob(N=5000)
-            x_prime, log_prob = self.backward_pass(z, rescale=False)
-            x_prime['logL'] = log_prob
-            plot_live_points(
-                x_prime,
-                c='logL',
-                filename=block_output + 'x_prime_generated.png'
-                )
-            x, log_J = self.inverse_rescale(x_prime)
-            x, log_J = self.check_prior_bounds(x, log_J)
-            x['logL'] += log_J
+            z, _ = self.flow.sample_and_log_prob(N=x.size)
+            x_prime_gen, log_prob = self.backward_pass(z, rescale=False)
+            x_prime_gen['logL'] = log_prob
+            x_gen, log_J = self.inverse_rescale(x_prime_gen)
+            x_gen, log_J, x_prime_gen = \
+                self.check_prior_bounds(x_gen, log_J, x_prime_gen)
+            x_gen['logL'] += log_J
+            if self._plot_training == 'all':
+                plot_live_points(
+                    x_prime_gen,
+                    c='logL',
+                    filename=block_output + 'x_prime_generated.png'
+                    )
             if self.rescale_parameters:
-                plot_live_points(x, c='logL',
-                                 filename=block_output + 'x_generated.png')
+                if self._plot_training == 'all':
+                    plot_live_points(x_gen, c='logL',
+                                     filename=block_output + 'x_generated.png')
+                plot_1d_comparison(
+                    x_prime, x_prime_gen, parameters=self.rescaled_names,
+                    labels=['live points', 'generated'],
+                    filename=block_output + 'x_prime_comparison.png')
+
+            plot_1d_comparison(x, x_gen, parameters=self.model.names,
+                               labels=['live points', 'generated'],
+                               filename=block_output + 'x_comparison.png')
 
         self.populated = False
         self.training_count += 1
@@ -552,6 +768,21 @@ class FlowProposal(RejectionProposal):
     def check_prior_bounds(self, x, *args):
         """
         Return only values that are within the prior bounds
+
+        Parameters
+        ----------
+        x: array_like
+            Array of live points which will compared against prior bounds
+        *args:
+            Aditional arrays which correspond to the array of live points.
+            Only those corresponding to points within the prior bounds
+            are returned
+
+        Returns
+        -------
+        out: tuple of arrays
+            Array containing the subset of the orignal arrays which fall within
+            the prior bounds
         """
         idx = np.array(list(((x[n] >= self.model.bounds[n][0])
                              & (x[n] <= self.model.bounds[n][1]))
@@ -559,23 +790,32 @@ class FlowProposal(RejectionProposal):
         out = (a[idx] for a in (x,) + args)
         return out
 
-    def forward_pass(self, x, rescale=True):
+    def forward_pass(self, x, rescale=True, compute_radius=True):
         """Pass a vector of points through the model"""
         log_J = 0
         if rescale:
-            x, log_J_rescale = self.rescale(x)
+            x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
             log_J += log_J_rescale
         x = live_points_to_array(x, names=self.rescaled_names)
         if x.ndim == 1:
             x = x[np.newaxis, :]
+        if x.shape[0] == 1:
+            if self.clip:
+                x = np.clip(x, *self.clip)
         z, log_prob = self.flow.forward_and_log_prob(x)
         return z, log_prob + log_J
 
     def backward_pass(self, z, rescale=True):
         """A backwards pass from the model (latent -> real)"""
         # Compute the log probability
-        x, log_prob = self.flow.sample_and_log_prob(z=z,
-                                                    alt_dist=self.alt_dist)
+        try:
+            x, log_prob = self.flow.sample_and_log_prob(z=z,
+                                                        alt_dist=self.alt_dist)
+        except AssertionError:
+            return np.array([]), np.array([])
+
+        valid = np.isfinite(log_prob)
+        x, log_prob = x[valid], log_prob[valid]
         x = numpy_array_to_live_points(x.astype(DEFAULT_FLOAT_DTYPE),
                                        self.rescaled_names)
         # Apply rescaling in rescale=True
@@ -593,7 +833,7 @@ class FlowProposal(RejectionProposal):
             i = np.argmax(r)
             return r[i], log_q[i]
         else:
-            return np.mean(np.sqrt(np.sum(z ** 2., axis=-1)))
+            return np.nanmax(np.sqrt(np.sum(z ** 2., axis=-1)))
 
     def log_prior(self, x):
         """
@@ -617,15 +857,18 @@ class FlowProposal(RejectionProposal):
         if self.fixed_radius:
             r = self.fixed_radius
         else:
-            worst_z, worst_q = self.forward_pass(worst_point, rescale=True)
+            worst_z, worst_q = self.forward_pass(worst_point,
+                                                 rescale=True,
+                                                 compute_radius=True)
             r, worst_q = self.radius(worst_z, worst_q)
             if self.max_radius:
                 if r > self.max_radius:
                     r = self.max_radius
-            logger.debug(f'Populating proposal with lantent radius: {r:.5}')
+            logger.info(f'Populating proposal with lantent radius: {r:.5}')
 
         if self.latent_prior == 'uniform_nsphere':
-            self.alt_dist = get_uniform_distribution(self.dims, r)
+            self.alt_dist = get_uniform_distribution(self.dims, r,
+                                                     device=self.flow.device)
 
         warn = True
         warn_zero = True
@@ -643,6 +886,8 @@ class FlowProposal(RejectionProposal):
                     break
             proposed += z.shape[0]
             x, log_q = self.backward_pass(z, rescale=True)
+            if not x.size:
+                continue
             if self.truncate:
                 cut = log_q >= worst_q
                 x = x[cut]
@@ -651,6 +896,15 @@ class FlowProposal(RejectionProposal):
             log_w = self.compute_weights(x, log_q)
             log_u = np.log(np.random.rand(x.shape[0]))
             indices = np.where((log_w - log_u) >= 0)[0]
+
+            if counter > np.inf and not self.x.size and not self.zero_reset:
+                logger.warning('No samples after 100 tries, reset radius')
+                r *= 0.99
+                logger.warning(f'New radius: {r}')
+                self.x = np.array([], dtype=self.x_dtype)
+                self.z = np.empty([0, self.dims])
+                counter = 0
+                continue
 
             if not len(indices) or (len(indices) / self.drawsize < 0.001):
                 if warn_zero:
@@ -689,11 +943,17 @@ class FlowProposal(RejectionProposal):
             self.x = self.x[:N]
             self.z = self.z[:N]
 
-        if self._plot_pool:
-            plot_live_points(
-                self.x, c='logL',
-                filename=f'{self.output}/pool_{self.populated_count}.png'
-                )
+        if (p := self._plot_pool) and plot:
+            if p == 'all':
+                plot_live_points(
+                    self.x, c='logL',
+                    filename=f'{self.output}/pool_{self.populated_count}.png')
+            else:
+                plot_1d_comparison(
+                    self.training_data,
+                    self.x,
+                    labels=['live points', 'pool'],
+                    filename=f'{self.output}/pool_{self.populated_count}.png')
 
         self.samples = self.x[self.model.names + ['logP', 'logL']]
 
@@ -707,7 +967,7 @@ class FlowProposal(RejectionProposal):
                 self.compute_acceptance(worst_point['logL'])
                 )
             logger.debug(f'Current acceptance {self.acceptance[-1]}')
-            if self._plot_pool:
+            if self._plot_pool and plot:
                 plot_acceptance(
                     self.approx_acceptance,
                     self.acceptance,
@@ -722,10 +982,9 @@ class FlowProposal(RejectionProposal):
         self.population_acceptance = self.x.size / proposed
         self.populated_count += 1
         self.populated = True
-        logger.debug(f'Proposal populated with {len(self.indices)} samples')
-        logger.debug(
-                f'Overall proposal acceptance: {self.x.size / proposed:.4}'
-                )
+        logger.info(f'Proposal populated with {len(self.indices)} samples')
+        logger.info(
+            f'Overall proposal acceptance: {self.x.size / proposed:.4}')
 
     def evaluate_likelihoods(self):
         """
@@ -742,7 +1001,17 @@ class FlowProposal(RejectionProposal):
     def compute_acceptance(self, logL):
         """
         Compute how many of the current pool have log-likelihoods greater
-        than the specified value
+        than the specified log-likelihood
+
+        Parameters
+        ----------
+        float: logL
+            Log-likelihood to use as the lower bound
+
+        Returns
+        -------
+        float: acceptance
+            Acceptance defined on [0, 1]
         """
         return (self.samples['logL'] > logL).sum() / self.samples.size
 
@@ -751,8 +1020,12 @@ class FlowProposal(RejectionProposal):
         Draw a replacement point
         """
         if not self.populated:
+            if self.update_poolsize:
+                self.update_poolsize_scale(self.ns_acceptance)
+            st = time.time()
             while not self.populated:
                 self.populate(worst_point, N=self.poolsize)
+            self.population_time += (time.time() - st)
         # new sample is drawn randomly from proposed points
         # popping from right end is faster
         index = self.indices.pop()
@@ -916,7 +1189,7 @@ class AugmentedFlowProposal(FlowProposal):
         x['logP'] = log_p
         x['logL'] = log_q
         log_w = log_p - log_q
-        log_w -= np.max(log_w)
+        log_w -= np.nanmax(log_w)
         return log_w, log_q
 
     def populate(self, worst_point, N=10000, plot=True):
@@ -1012,4 +1285,4 @@ class AugmentedFlowProposal(FlowProposal):
         self.indices = np.random.permutation(self.samples.size).tolist()
         self.populated_count += 1
         self.populated = True
-        logger.debug(f'Proposal populated with {len(self.indices)} samples')
+        logger.info(f'Proposal populated with {len(self.indices)} samples')

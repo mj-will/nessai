@@ -1,3 +1,4 @@
+from matplotlib import ticker
 from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -8,7 +9,7 @@ sns.set()
 sns.set_style('ticks')
 
 pairplot_kwargs = dict(corner=True, kind='scatter',
-                       diag_kws=dict(histtype='step', bins=50, lw=1.5,
+                       diag_kws=dict(histtype='step', bins='fd', lw=1.5,
                                      density=True, color='teal'),
                        plot_kws=dict(s=1.0, edgecolor=None, palette='viridis',
                                      color='teal'))
@@ -42,6 +43,73 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     plt.close()
 
 
+def plot_1d_comparison(*live_points, parameters=None, labels=None,
+                       bounds=None, hist_kwargs={},
+                       filename=None):
+    """
+    Plot 1d histograms comparing different sets of live points
+
+    Parameters
+    ----------
+    *live_points:
+        Variable length argument list of live points in structured arrays with
+        fields. See `parameters` argument.
+    parameters: array_like, optional
+        Array of parameters (field names) to plot. Default None implies all
+        fields are plotted.
+    labels: array_like, optional
+        Array of labels for each structured array being plotted (default None).
+        If None each set of live points is labelled numerically
+    bounds: dict, optional
+        Dictionary of upper and lowers bounds to plot. Each key must
+        match a field and each value must be an interable of length 2 in order
+        lower then upper bound. If None (default), no bounds plotted.
+    hist_kwargs: dict, optional
+        Dictionary of keyword arguments parsed to matplotlib.pyplot.hist.
+    filename: str, optional
+        Name of file for saving figure. (Default None implies figure is not
+        saved).
+    """
+    if parameters is None:
+        parameters = live_points[0].dtype.names
+
+    if labels is None:
+        labels = [str(i) for i in range(len(live_points))]
+
+    fig, axs = plt.subplots(len(parameters), 1, sharey=False,
+                            figsize=(3, 3 * len(parameters)))
+
+    axs = axs.ravel()
+    for i, f in enumerate(parameters):
+        xmin = np.min([np.min(lp[f][np.isfinite(lp[f])])
+                       for lp in live_points])
+        xmax = np.max([np.max(lp[f][np.isfinite(lp[f])])
+                      for lp in live_points])
+        for j, lp in enumerate(live_points):
+            axs[i].hist(lp[f][np.isfinite(lp[f])],
+                        'fd', histtype='step',
+                        range=(xmin, xmax), density=True, label=labels[j],
+                        **hist_kwargs)
+        axs[i].set_xlabel(f)
+        if bounds is not None and f in bounds:
+            axs[i].axvline(bounds[f][0], ls=':', alpha=0.5, color='k')
+            axs[i].axvline(bounds[f][1], ls=':', alpha=0.5, color='k')
+
+    if len(labels) > 1:
+        handles, labels = plt.gca().get_legend_handles_labels()
+        legend_labels = dict(zip(labels, handles))
+        fig.legend(legend_labels.values(), legend_labels.keys(),
+                   frameon=False, ncol=len(labels),
+                   loc='upper center',
+                   bbox_to_anchor=(0, 0.1 / len(parameters), 1, 1),
+                   bbox_transform=plt.gcf().transFigure)
+
+    plt.tight_layout()
+    if filename is not None:
+        fig.savefig(filename, bbox_inches='tight')
+    plt.close()
+
+
 def plot_posterior(live_points, filename=None, **kwargs):
     """
     Plot a set of live points
@@ -63,7 +131,10 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
     """
     Histogram indices for index insertion tests
     """
+    if not indices:
+        return
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    nbins = len(np.histogram_bin_edges(indices, 'fd')) - 1
     if plot_breakdown:
         for i in range(len(indices) // nlive):
             ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
@@ -71,7 +142,7 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
                        lw=0.5, cumulative=True, range=(0, nlive-1))
 
     ax[0].hist(indices, density=True, color='tab:blue', linewidth=1.25,
-               histtype='step', bins=nlive // 50, label='produced',
+               histtype='step', bins=nbins, label='produced',
                range=(0, nlive-1))
     ax[1].hist(indices, density=True, color='tab:blue', linewidth=1.25,
                histtype='step', bins=nlive, label='produced',
@@ -79,7 +150,12 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
 
     if nlive is not None:
         ax[0].axhline(1 / nlive, color='black', linewidth=1.25,
-                      linestyle=':', label='pmf')
+                      linestyle='-', label='pmf', alpha=0.5)
+        ax[0].axhline((1 + (nbins / len(indices)) ** 0.5) / nlive,
+                      color='black', linewidth=1.25, linestyle=':', alpha=0.5,
+                      label='1-sigma')
+        ax[0].axhline((1 - (nbins / len(indices)) ** 0.5) / nlive,
+                      color='black', linewidth=1.25, linestyle=':', alpha=0.5)
         ax[1].plot([0, nlive], [0, 1], color='black', linewidth=1.25,
                    linestyle=':', label='cmf')
 
@@ -190,7 +266,7 @@ def plot_loss(epoch, history, output='./'):
     """
     Plot a loss function
     """
-    fig = plt.figure()
+    fig, ax = plt.subplots()
     epochs = np.arange(1, epoch + 1, 1)
     plt.plot(epochs, history['loss'], label='Loss')
     plt.plot(epochs, history['val_loss'], label='Val. loss')
@@ -198,6 +274,9 @@ def plot_loss(epoch, history, output='./'):
     plt.ylabel('Negative log-likelihood')
     plt.legend()
     plt.tight_layout()
+    plt.yscale('symlog')
+    ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
+    ax.yaxis.set_minor_formatter(ticker.FormatStrFormatter("%.2f"))
     fig.savefig(output + 'loss.png')
     plt.close('all')
 

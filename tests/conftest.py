@@ -1,7 +1,12 @@
 
-from flowproposal.model import Model
-from scipy.stats import norm
 import pytest
+from scipy.stats import norm
+import torch
+
+from flowproposal.model import Model
+
+cuda = pytest.mark.skipif(not torch.cuda.is_available(),
+                          reason="test requires CUDA")
 
 
 @pytest.fixture(scope='session')
