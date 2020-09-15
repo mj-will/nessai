@@ -128,6 +128,21 @@ def get_uniform_distribution(dims, r, device='cpu'):
     """
     Return a Pytorch distribution that is uniform in the number of
     dims specified
+
+    Parameters
+    ----------
+    dims: int
+        Number of dimensions
+    r: float
+        Radius to use for lower and upper bounds
+    device: str, optional (cpu)
+        Device on which the distribution is placed.
+
+    Returns
+    -------
+    :obj:`nflows.distributions.uniform.BoxUniform`
+        Instance of BoxUniform which the lower and upper bounds set by
+        the radius
     """
     r = r * torch.ones(dims, device=device)
     return BoxUniform(low=-r, high=r)
@@ -379,8 +394,17 @@ def compute_minimum_distances(samples, metric='euclidean'):
 
     Parameters
     ----------
-    samples: array_like
+    samples : array_like
         Array of samples
+    metric : str, optional (euclidean)
+        Metric to use. See scipy docs for list of metrics:
+        https://docs.scipy.org/doc/scipy/reference/generated/
+        scipy.spatial.distance.cdist.html
+
+    Returns
+    -------
+    array_like
+        Distance to nearest neighbour for each sample
     """
     d = spatial.distance.cdist(samples, samples, metric)
     d[d == 0] = np.nan
@@ -400,8 +424,12 @@ def setup_logger(output=None, label='flowproposal', log_level='INFO'):
         Path of to output directory
     label : str, optional
         Label for this instance of the logger
-    log_level: {'ERROR', 'WARNING', 'INFO', 'DEBUG'}
+    log_level : {'ERROR', 'WARNING', 'INFO', 'DEBUG'}
         Level of logging parsed to logger
+
+    Returns
+    -------
+    logger
     """
     if type(log_level) is str:
         try:

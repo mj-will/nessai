@@ -12,9 +12,9 @@ def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
 
     Parameters
     ----------
-    names: list of str
+    names : list of str
         Names of parameters
-    array_dtype: optional
+    array_dtype : optional
         dtype to use
 
     Returns
@@ -31,9 +31,9 @@ def live_points_to_array(live_points, names=None):
     Converts live points to unstructered arrays for training
     Parameters
     ----------
-    live_points: structured_array
+    live_points : structured_array
         Structured array of live points
-    names: list of str or None
+    names : list of str or None
         If None all fields in the structed array are added to the dictionary
         else only those included in the list are added.
 
@@ -58,9 +58,9 @@ def parameters_to_live_point(parameters, names):
 
     Parameters
     ----------
-    parameters: tuple
+    parameters : tuple
         Float point values for each parameter
-    names: tuple
+    names : tuple
         Names for each parameter as strings
 
     Returns
@@ -81,9 +81,9 @@ def numpy_array_to_live_points(array, names):
 
     Parameters
     ----------
-    array: np.ndarray
+    array : np.ndarray
         Instance of np.ndarray to converto to a structed array
-    names: tuple
+    names : tuple
         Names for each parameter as strings
 
     Returns
@@ -105,7 +105,7 @@ def dict_to_live_points(d):
 
     Parameters
     ----------
-    d: dict
+    d : dict
         Dictionary with parmeters names as keys and values that correspond
         to one or more parameters
 
@@ -139,15 +139,15 @@ def live_points_to_dict(live_points, names=None):
 
     Parameters
     ----------
-    live_points: structured_array
+    live_points : structured_array
         Array of live points
-    names: list of str or None
+    names : list of str or None
         If None all fields in the structed array are added to the dictionary
         else only those included in the list are added.
 
     Returns
     -------
-    dict:
+    dict
         Dictionary of live points
     """
     if names is None:
