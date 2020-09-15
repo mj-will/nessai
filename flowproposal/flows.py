@@ -22,31 +22,52 @@ from nflows.distributions.base import Distribution
 logger = logging.getLogger(__name__)
 
 
-def weight_reset(m):
+def weight_reset(module):
     """
-    Reset parameters of a given model
+    Reset parameters of a given module in place
+
+    Checks the following modules from torch.nn
+    * Batchnorm1d
+    * Conv1d
+    * Conv2d
+    * Linear
+
+    Also checks the following modules from nflows
+    * nflows.transforms.normalization.BatchNorm
+    * nflows.nn.nde.made.MaskedLinear
+
+    Parameters
+    ----------
+    module : :obj:`torch.nn.Module`
+        Module to reset
     """
     layers = [nn.Conv1d, nn.Conv2d, nn.Linear, nn.BatchNorm1d, MaskedLinear]
-    if isinstance(m, BatchNorm):
+    if isinstance(module, BatchNorm):
         # nflows BatchNorm does not have a weight reset, so must
         # be done manually
-        constant = np.log(np.exp(1 - m.eps) - 1)
-        m.unconstrained_weight.data.fill_(constant)
-        m.bias.data.zero_()
-        m.running_mean.zero_()
-        m.running_var.fill_(1)
-    elif any(isinstance(m, layer) for layer in layers):
-        m.reset_parameters()
+        constant = np.log(np.exp(1 - module.eps) - 1)
+        module.unconstrained_weight.data.fill_(constant)
+        module.bias.data.zero_()
+        module.running_mean.zero_()
+        module.running_var.fill_(1)
+    elif any(isinstance(module, layer) for layer in layers):
+        module.reset_parameters()
 
 
 def silu(x):
-    """Silu activation function"""
+    """
+    SiLU (Sigmoid-weighted Linear Unit) activation function.
+
+    Also known as swish.
+
+    Elfwing et al 2017: https://arxiv.org/abs/1702.03118v3
+    """
     return torch.mul(x, torch.sigmoid(x))
 
 
 def setup_model(config):
     """
-    Setup the flow form a configuration dictionary
+    Setup the flow form a configuration dictionary.
     """
     kwargs = {}
     flows = {'realnvp': FlexibleRealNVP, 'maf': MaskedAutoregressiveFlow,
@@ -102,27 +123,74 @@ class Flow(Distribution):
     """
     Base class for all flow objects.
 
-    This replaces Flow from nflows. It removes the context and includes
-    additional methods which are called in FlowModel
+    This replaces `Flow` from nflows. It removes the context and includes
+    additional methods which are called in FlowModel.
+
+    Parameters
+    ----------
+    transform : :obj: `nflows.transforms.Transform`
+        Object that applys the transformation, must have`forward` and
+        `inverse` methods. See nflows for more details.
+    distribution : :obj: `nflows.distributions.Distribution`
+        Object the serves as the base distribution used when sampling
+        and computing the log probrability. Must have `log_prob` and
+        `sample` methods. See nflows for details
     """
     def __init__(self, transform, distribution):
         super().__init__()
+
+        for method in ['forward', 'inverse']:
+            if not hasattr(transform, method):
+                raise RuntimeError(
+                    f'Transform does not have `{method}` method')
+
+        for method in ['log_prob', 'sample']:
+            if not hasattr(distribution, method):
+                raise RuntimeError(
+                    f'Distribution does not have `{method}` method')
+
         self._transform = transform
         self._distribution = distribution
 
     def _log_prob(self, inputs, context=None):
+        """
+        Computes the log probability of the inputs samples by apply the
+        transform.
+
+        Does NOT need to specified by the user
+        """
         noise, logabsdet = self._transform(inputs)
         log_prob = self._distribution.log_prob(noise)
         return log_prob + logabsdet
 
     def _sample(self, num_samples, context=None):
+        """
+        Produces N samples in the data space by drawing from the base
+        distribution and the applying the inverse transform.
+
+        Does NOT need to be specified by the user
+        """
         noise = self._distribution.sample(num_samples)
 
         samples, _ = self._transform.inverse(noise)
 
         return samples
 
-    def sample_and_log_prob(self, num_samples, context=None):
+    def forward(self, x, context=None):
+        """
+        Apply the forward transformation and return samples in the latent
+        space and log |J|
+        """
+        return self._transform.forward(x)
+
+    def inverse(self, z, context=None):
+        """
+        Apply the inverse transformation and return samples in the
+        data space and log |J| (not log probability)
+        """
+        return self._transform.inverse(z)
+
+    def sample_and_log_prob(self, N, context=None):
         """
         Generates samples from the flow, together with their log probabilities
         in the data space log p(x) = log p(z) + log|J|.
@@ -130,27 +198,18 @@ class Flow(Distribution):
         For flows, this is more efficient that calling `sample` and `log_prob`
         separately.
         """
-        noise, log_prob = self._distribution.sample_and_log_prob(
-            num_samples
-        )
+        z, log_prob = self._distribution.sample_and_log_prob(N)
 
-        samples, logabsdet = self._transform.inverse(noise)
+        samples, logabsdet = self._transform.inverse(z)
 
         return samples, log_prob - logabsdet
-
-    def inverse(self, z, context=None):
-        """
-        Apply the inverse transformation and return samples in the
-        data space and log |J| (not log probability)
-        """
-        return self._transform.inverse(z, context=context)
 
     def base_distribution_log_prob(self, z, context=None):
         """
         Computes the log probability of samples in the latent for
         the base distribution in the flow.
         """
-        return self._distribution.log_prob(z, context)
+        return self._distribution.log_prob(z)
 
 
 class CustomMLP(nets.MLP):
@@ -193,8 +252,40 @@ class FlexibleRealNVP(Flow):
     instead of a ResNet
 
     > L. Dinh et al., Density estimation using Real NVP, ICLR 2017.
-    """
 
+    Parameters
+    ----------
+    features : int
+        Number of features (dimensions) in the data space
+    hidden_features : int
+        Number of neurons per layer in each neural network
+    num_layers : int
+        Number of coupling tranformations
+    num_blocks_per_layer : int
+        Number of layers (or blocks for resnet) per nerual network for
+        each coupling transform
+    mask : array_like, optional
+        Custom mask to use between coupling transforms. Can either be
+        a single array with the same length as the number of features or
+        and two-dimensional array of shape (# features, # num_layers).
+        Must use -1 and 1 to indicate no updated and updated.
+    net : {'resnet', 'mlp'}
+        Type of neural network to use
+    use_volume_preserving : bool, optional (False)
+        Use volume preserving flows which use only additiona and no scaling
+    activation : function
+        Activation function implemented in torch
+    dropout_probability : float, optional (0.0)
+        Dropout probaiblity used in each layer of the neural network
+    batch_norm_within_layers : bool, optional (False)
+       Enable or disable batch norm within the neural network for each coupling
+       transform
+    batch_norm_between_layers : bool, optional (False)
+       Enable or disable batch norm between coupling transforms
+    linear_transform : {'permutaiton', 'lu', 'svd'}
+        Linear transform to use between coupling layers. Not recommended when
+        using a custom mask.
+    """
     def __init__(
         self,
         features,
@@ -306,6 +397,14 @@ class MaskedAutoregressiveFlow(BaseMAF):
     See: https://github.com/bayesiains/nflows/blob/master/nflows/flows/
     autoregressive.py
     """
+
+    def forward(self, x, context=None):
+        """
+        Apply the forward transformation and return samples in the latent
+        space and log |J|
+        """
+        return self._transform.forward(x)
+
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
@@ -322,7 +421,40 @@ class MaskedAutoregressiveFlow(BaseMAF):
 
 
 class NeuralSplineFlow(Flow):
+    """
+    Implementation of Neural Spline Flow
 
+    NSF: https://arxiv.org/abs/1906.04032
+
+    Parameters
+    ----------
+    features : int
+        Number of features (dimensions) in the data space
+    hidden_features : int
+        Number of neurons per layer in each neural network
+    num_layers : int
+        Number of coupling tranformations
+    num_blocks_per_layer : int
+        Number of layers (or blocks for resnet) per nerual network for
+        each coupling transform
+    num_bins : int, optional (8)
+        Number of bins to use for each spline
+    activation : function
+        Activation function implemented in torch
+    dropout_probability : float, optional (0.0)
+        Dropout probaiblity used in each layer of the neural network
+    batch_norm_within_layers : bool, optional (False)
+       Enable or disable batch norm within the neural network for each coupling
+       transform
+    batch_norm_between_layers : bool, optional (False)
+       Enable or disable batch norm between coupling transforms
+    linear_transform : {'permutaiton', 'lu', 'svd'}
+        Linear transform to use between coupling layers. Not recommended when
+        using a custom mask.
+    kwargs : dict
+        Additional kwargs parsed to the spline constructor, e.g. `tails` or
+        `tail_bound`. See nflows for details
+    """
     def __init__(
         self,
         features,
