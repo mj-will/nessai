@@ -45,7 +45,7 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
 
 def plot_1d_comparison(*live_points, parameters=None, labels=None,
                        bounds=None, hist_kwargs={},
-                       filename=None):
+                       filename=None, convert_to_live_points=False):
     """
     Plot 1d histograms comparing different sets of live points
 
@@ -70,7 +70,14 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         Name of file for saving figure. (Default None implies figure is not
         saved).
     """
-    if parameters is None:
+    if convert_to_live_points:
+        live_points = list(live_points)
+        if parameters is None:
+            parameters = [i for i in range(live_points[0].shape[-1])]
+        for i in range(len(live_points)):
+            live_points[i] = {k: v for k, v in enumerate(live_points[i].T)}
+
+    elif parameters is None:
         parameters = live_points[0].dtype.names
 
     if labels is None:

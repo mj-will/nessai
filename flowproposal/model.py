@@ -60,6 +60,22 @@ class Model:
         else:
             return self._single_new_point()
 
+    def new_point_log_prob(self, p):
+        """
+        Computes the proposal probabaility for a new point
+
+        Parameters
+        ----------
+        p: array_like
+            Points in a structured array
+
+        Returns
+        -------
+        array_like
+            Log proposal probability for each point
+        """
+        return np.zeros(p.size)
+
     def _single_new_point(self):
         """
         Draw a single point within the prior

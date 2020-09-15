@@ -509,6 +509,13 @@ class NestedSampler:
     def initialise(self, live_points=True):
         """
         Initialise the nested sampler
+
+        Parameters
+        ----------
+        live_points : bool, optional (True)
+            If true and there are no live points, new live points are
+            drawn using `populate_live_points` else all other initialisation
+            steps are complete but live points remain empty.
         """
         flags = [False] * 3
         if not self._flow_proposal.initialised:
@@ -542,7 +549,7 @@ class NestedSampler:
         """
         Check if state should be updated prior to drawing a new sample
 
-        Force will overide the cooldown mechanism, rejected will not
+        Force will overide the cooldown mechanism, rejected will not.
         """
         if self.uninformed_sampling:
             if ((self.mean_acceptance < self.uninformed_acceptance_threshold)
@@ -616,7 +623,8 @@ class NestedSampler:
 
     def plot_state(self):
         """
-        Produce plots with the current state of the nested sampling run
+        Produce plots with the current state of the nested sampling run.
+        Plots are saved to the output directory specifed at initialisation.
         """
 
         fig, ax = plt.subplots(6, 1, sharex=True, figsize=(12, 12))
@@ -713,17 +721,22 @@ class NestedSampler:
 
     def checkpoint(self):
         """
-        Checkpoint its internal state
+        Checkpoint the classes internal state
         """
         logger.critical('Checkpointing nested sampling')
         safe_file_dump(self, self.resume_file, pickle, save_existing=True)
 
     def nested_sampling_loop(self, save=True):
         """
-        main nested sampling loop
+        Main nested sampling loop
+
+        Parameters
+        ----------
+        save : bool, optional (True)
+            Save results after sampling
         """
         if not self.initialised:
-            self.initialise()
+            self.initialise(live_points=True)
 
         if self.prior_sampling:
             for i in range(self.nlive):
@@ -747,7 +760,7 @@ class NestedSampler:
                 break
 
         if self.proposal.pool is not None:
-            self.proposal._close_pool()
+            self.proposal.close_pool()
 
         # final adjustments
         for i, p in enumerate(self.live_points):
@@ -787,8 +800,24 @@ class NestedSampler:
     @classmethod
     def resume(cls, filename, model, flow_config={}, weights_file=None):
         """
-        Resumes the interrupted state from a
-        checkpoint pickle file.
+        Resumes the interrupted state from a checkpoint pickle file.
+
+        Parameters
+        ----------
+        filename : str
+            Pickle pickle to resume from
+        model : :obj:`flowproposal.model.Model`
+            User-defined model
+        flow_config : dict, optional
+            Dictionary for configuring the flow
+        weights_file : str, optional
+            Weights files to use in place of the weights file stored in the
+            pickle file.
+
+        Returns
+        -------
+        obj
+            Instance of NestedSampler
         """
         logger.critical('Resuming NestedSampler from ' + filename)
         with open(filename, 'rb') as f:

@@ -18,6 +18,23 @@ logger = logging.getLogger(__name__)
 class FlowSampler:
     """
     Main class to handle running the nested sampler
+
+    Parameters
+    ----------
+    model : :obj:`flowproposal.model.Model`
+        User-defined model
+    output : str, optional (./)
+        Output directory
+    resume : bool, optional (True)
+        If True try to resume the sampler is the resume file existis
+    resume_file : str, optional
+        File to resume sampler from
+    weights_files : str, optional
+        Weights files used to resume sampler that replaces the weights file
+        saved internally.
+    kwargs :
+        Keyword arguments parsed to NestedSampler. See NestedSampler for
+        details
     """
 
     def __init__(self, model, output='./', resume=True,
