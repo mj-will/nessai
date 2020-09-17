@@ -56,13 +56,14 @@ def compute_indices_ks_test(indices, nlive, mode='D+'):
         p-value
     """
     if len(indices):
-        u, counts = np.unique(indices, return_counts=True)
-        analytic_cdf = u / nlive
+        counts = np.zeros(nlive)
+        u, c = np.unique(indices, return_counts=True)
+        counts[u] = c
         cdf = np.cumsum(counts) / len(indices)
         if mode == 'D+':
-            D = np.max(cdf - analytic_cdf)
+            D = np.max(np.arange(1.0, nlive + 1) / nlive - cdf)
         elif mode == 'D-':
-            D = np.max(analytic_cdf[1:] - cdf[:-1])
+            D = np.max(cdf - np.arange(0.0, nlive) / nlive)
         else:
             raise RuntimeError(f'{mode} is not a valid mode. Choose D+ or D-')
         p = stats.ksone.sf(D, nlive)
