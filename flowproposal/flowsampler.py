@@ -159,6 +159,8 @@ class FlowSampler:
         d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
         d['log_evidence'] = self.ns.log_evidence
         d['infomation'] = self.ns.information
+        d['training_time'] = self.ns.training_time
+        d['population_time'] = self.ns.proposal.population_time
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=NumpyEncoder)
