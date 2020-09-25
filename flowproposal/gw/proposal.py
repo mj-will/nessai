@@ -16,8 +16,6 @@ from ..utils import (
 from .utils import (
     angle_to_cartesian,
     cartesian_to_angle,
-    sky_to_cartesian,
-    cartesian_to_sky,
     zero_one_to_cartesian,
     cartesian_to_zero_one)
 
@@ -259,8 +257,27 @@ class GWFlowProposal(FlowProposal):
 
         if self.angular_decomposition:
             if all(p in self.names for p in ['ra', 'dec']):
+                from .utils import ra_dec_to_cartesian, cartesian_to_ra_dec
+                self.sky_angles = ['ra', 'dec']
+                self.sky_to_cartesian = ra_dec_to_cartesian
+                self.cartesian_to_sky = cartesian_to_ra_dec
+            elif all(p in self.names for p in ['azimuth', 'zenith']):
+                from .utils import (azimuth_zenith_to_cartesian,
+                                    cartesian_to_azimuth_zenith)
+                self.sky_angles = ['azimuth', 'zenith']
+                self.sky_to_cartesian = azimuth_zenith_to_cartesian
+                self.cartesian_to_sky = cartesian_to_azimuth_zenith
+            elif any(p in self.names for p in
+                     ['ra', 'dec', 'azimuth', 'zenith']):
+                raise RuntimeError(
+                    'Cannot use angular decompoisiton with only'
+                    'one of the two sky angles')
+            else:
+                self.sky_angles = []
+
+            if self.sky_angles:
                 replace_in_list(self.rescaled_names,
-                                ['ra', 'dec'], ['sky_x', 'sky_y'])
+                                self.sky_angles, ['sky_x', 'sky_y'])
                 if 'luminosity_distance' not in self.names or \
                         'luminosity_distance' in self._log_inversion or \
                         'luminosity_distance' in self._inversion or \
@@ -273,11 +290,9 @@ class GWFlowProposal(FlowProposal):
                     replace_in_list(self.rescaled_names, [self.distance],
                                     ['sky_z'])
                 self._reparameterisations.append('sky')
-
-            elif any(p in self.names for p in ['ra', 'dec']):
-                raise RuntimeError(
-                    'Cannot use angular decompoisiton with only'
-                    'one of the two sky angles')
+                logger.info(
+                    'Using angular decomposition of sky for: '
+                    f'{self.sky_angles}')
 
         if 'geocent_time' in self.names:
             self.time = 'geocent_time'
@@ -561,7 +576,8 @@ class GWFlowProposal(FlowProposal):
                 r = None
 
             x_prime['sky_x'], x_prime['sky_y'], x_prime['sky_z'], lj = \
-                sky_to_cartesian(x['ra'], x['dec'], r)
+                self.sky_to_cartesian(x[self.sky_angles[0]],
+                                      x[self.sky_angles[1]], r)
             log_J += lj
 
         if 'time' in self._reparameterisations:
@@ -693,8 +709,9 @@ class GWFlowProposal(FlowProposal):
                     'Cannot use q-inversion with only one tilt angle')
 
         if 'sky' in self._reparameterisations:
-            x['ra'], x['dec'], r, lj = cartesian_to_sky(
-                x_prime['sky_x'], x_prime['sky_y'], x_prime['sky_z'])
+            x[self.sky_angles[0]], x[self.sky_angles[1]], r, lj = \
+                self.cartesian_to_sky(x_prime['sky_x'], x_prime['sky_y'],
+                                      x_prime['sky_z'])
             log_J += lj
 
             if self.distance == 'luminosity_distance':
