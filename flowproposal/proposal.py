@@ -2,9 +2,11 @@ import logging
 import os
 import time
 
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 from scipy.special import logsumexp
+import torch
 
 from .flowmodel import FlowModel, update_config
 from .livepoint import (
@@ -49,6 +51,7 @@ class Proposal:
         self.initialised = False
         self.training_count = 0
         self.population_acceptance = None
+        self.r = None
         self.pool = None
 
     def initialise(self):
@@ -1048,9 +1051,9 @@ class FlowProposal(RejectionProposal):
                 if r > self.max_radius:
                     r = self.max_radius
             logger.info(f'Populating proposal with lantent radius: {r:.5}')
-
+        self.r = r
         if self.latent_prior == 'uniform_nsphere':
-            self.alt_dist = get_uniform_distribution(self.dims, r,
+            self.alt_dist = get_uniform_distribution(self.dims, self.r,
                                                      device=self.flow.device)
 
         warn = True
@@ -1063,8 +1066,8 @@ class FlowProposal(RejectionProposal):
         proposed = 0
         while len(self.x) < N:
             while True:
-                z = self.draw_latent_prior(self.dims, r=r, N=self.drawsize,
-                                           fuzz=self.fuzz)
+                z = self.draw_latent_prior(self.dims, r=self.r,
+                                           N=self.drawsize, fuzz=self.fuzz)
                 if z.size:
                     break
             proposed += z.shape[0]
@@ -1075,6 +1078,7 @@ class FlowProposal(RejectionProposal):
                 cut = log_q >= worst_q
                 x = x[cut]
                 log_q = log_q[cut]
+            logger.debug(f'Dynamic range of log proposal: {np.ptp(log_q):.3}')
             # rescale given priors used initially, need for priors
             log_w = self.compute_weights(x, log_q)
             log_u = np.log(np.random.rand(x.shape[0]))
@@ -1082,7 +1086,7 @@ class FlowProposal(RejectionProposal):
 
             if counter > np.inf and not self.x.size and not self.zero_reset:
                 logger.warning('No samples after 100 tries, reset radius')
-                r *= 0.99
+                self.r *= 0.99
                 logger.warning(f'New radius: {r}')
                 self.x = np.array([], dtype=self.x_dtype)
                 self.z = np.empty([0, self.dims])
@@ -1102,7 +1106,7 @@ class FlowProposal(RejectionProposal):
                     logger.warning(
                         'Proposal is too ineffcient, reducing radius'
                         )
-                    r *= 0.99
+                    self.r *= 0.99
                     logger.warning(f'New radius: {r}')
                     self.x = np.array([], dtype=self.x_dtype)
                     self.z = np.empty([0, self.dims])
@@ -1115,9 +1119,11 @@ class FlowProposal(RejectionProposal):
                         f'samples! ({len(indices) / self.drawsize})')
                     warn = False
 
+            logger.debug(f'Acceptance: {len(indices) / log_q.size}')
             # array of indices to take random draws from
             self.x = np.concatenate([self.x, x[indices]], axis=0)
             self.z = np.concatenate([self.z, z[indices]], axis=0)
+
             if counter % 10 == 0:
                 logger.debug(f'Accepted {self.x.size} / {N} points')
             counter += 1
@@ -1137,6 +1143,23 @@ class FlowProposal(RejectionProposal):
                     self.x,
                     labels=['live points', 'pool'],
                     filename=f'{self.output}/pool_{self.populated_count}.png')
+                z_tensor = torch.from_numpy(self.z).to(self.flow.device)
+                with torch.no_grad():
+                    if self.alt_dist is not None:
+                        log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
+                    else:
+                        log_p = self.flow.model.base_distribution_log_prob(
+                            z_tensor).cpu().numpy()
+                fig, axs = plt.subplots(2, 1, figsize=(3, 6))
+                axs = axs.ravel()
+                axs[0].hist(self.x['logL'], 20, histtype='step', label='log q')
+                axs[1].hist(self.x['logL'] - log_p, 20, histtype='step',
+                            label='log J')
+                axs[0].set_xlabel('Log q')
+                axs[1].set_xlabel('Log |J|')
+                plt.tight_layout()
+                fig.savefig(
+                    f'{self.output}/pool_{self.populated_count}_log_q.png')
 
         self.samples = self.x[self.model.names + ['logP', 'logL']]
 
