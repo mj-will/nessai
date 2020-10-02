@@ -66,10 +66,31 @@ def compute_indices_ks_test(indices, nlive, mode='D+'):
             D = np.max(cdf - np.arange(0.0, nlive) / nlive)
         else:
             raise RuntimeError(f'{mode} is not a valid mode. Choose D+ or D-')
-        p = stats.ksone.sf(D, nlive)
+        p = stats.ksone.sf(D, len(indices))
         return D, p
     else:
         return None, None
+
+
+def bonferroni_correction(p_values, alpha=0.05):
+    """
+    Apply the Bonferroni correction for multiple tests.
+
+    Based on the implementation in `statmodels.stats.multitest`
+
+    Parameters
+    ----------
+    p_values :  array_like, 1-d
+        Uncorrelated p-values
+    alpha : float, optional
+        Family wise error rate
+    """
+    p_values = np.asarray(p_values)
+    alpha_bon = alpha / p_values.size
+    reject = p_values <= alpha_bon
+    p_values_corrected = p_values * p_values.size
+    p_values_corrected[p_values_corrected > 1] = 1
+    return reject, p_values_corrected, alpha_bon
 
 
 def draw_surface_nsphere(dims, r=1, N=1000):
