@@ -367,12 +367,12 @@ class NestedSampler:
 
         D, p = compute_indices_ks_test(indices, self.nlive)
 
-        if rolling:
-            logger.warning(f'Rolling KS test: D={D!s:.5}, p-value={p!s:.5}')
-            if p is not None:
+        if p is not None:
+            if rolling:
+                logger.warning(f'Rolling KS test: D={D:.4}, p-value={p:.4}')
                 self.rolling_p.append(p)
-        else:
-            logger.warning(f'Final KS test: D={D!s:.5}, p-value={p!s:.5}')
+            else:
+                logger.warning(f'Final KS test: D={D:.4}, p-value={p:.4}')
 
         if filename is not None:
             np.savetxt(os.path.join(self.output, filename),
