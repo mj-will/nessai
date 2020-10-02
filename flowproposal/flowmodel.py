@@ -416,17 +416,15 @@ class FlowModel:
 
         Returns
         -------
-        z : :obj:`torch.Tensor`
+        z : :obj:`np.ndarray`
             Samples in the latent space
-        log_prob : :obj:`torch.Tensor`
+        log_prob : :obj:`np.ndarray`
             Log probabilties for each samples
         """
         x = torch.Tensor(x.astype(np.float32)).to(self.device)
         self.model.eval()
         with torch.no_grad():
-            z, log_J = self.model.forward(x, None)
-            log_prob = self.model.base_distribution_log_prob(z, None)
-            log_prob += log_J
+            z, log_prob = self.model.forward_and_log_prob(x)
 
         z = z.detach().cpu().numpy()
         log_prob = log_prob.detach().cpu().numpy()
@@ -452,9 +450,9 @@ class FlowModel:
 
         Returns
         -------
-        samples : :obj:`torch.Tensor`
+        samples : :obj:`np.ndarray`
             Tensor containing samples in the latent space
-        log_prob : :obj:`torch.Tensor`
+        log_prob : :obj:`np.ndarray`
             Tensor containing the log probabaility that corresponds to each
             sample
         """
