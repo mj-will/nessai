@@ -495,21 +495,38 @@ def setup_logger(output=None, label='flowproposal', log_level='INFO'):
     return logger
 
 
-class NumpyEncoder(json.JSONEncoder):
+def is_jsonable(x):
     """
-    Class to encode numpy arrays when saving as json
+    Check if an object is JSON serialisable
+
+    Based on: https://stackoverflow.com/a/53112659
+    """
+    try:
+        json.dumps(x)
+        return True
+    except (TypeError, OverflowError):
+        return False
+
+
+class FPJSONEncoder(json.JSONEncoder):
+    """
+    Class to encode numpy arrays and other non-serialisable objects in
+    FlowProposal
 
     Based on: https://stackoverflow.com/a/57915246
     """
     def default(self, obj):
+
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif not is_jsonable(obj):
+            return str(obj)
         else:
-            return super(NumpyEncoder, self).default(obj)
+            return super(FPJSONEncoder, self).default(obj)
 
 
 def safe_file_dump(data, filename, module, save_existing=False):

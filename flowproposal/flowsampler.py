@@ -9,7 +9,7 @@ import numpy as np
 from .livepoint import live_points_to_dict
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
-from .utils import NumpyEncoder, configure_threads
+from .utils import FPJSONEncoder, configure_threads
 
 
 logger = logging.getLogger(__name__)
@@ -123,10 +123,11 @@ class FlowSampler:
         d = kwargs.copy()
         with open(f'{self.output}/config.json', 'w') as wf:
             try:
-                json.dump(d, wf, indent=4, cls=NumpyEncoder)
+                json.dump(d, wf, indent=4, cls=FPJSONEncoder)
             except TypeError:
-                d['flow_class'] = str(d['flow_class'])
-                json.dump(d, wf, indent=4, cls=NumpyEncoder)
+                if 'flow_class' in d:
+                    d['flow_class'] = str(d['flow_class'])
+                    json.dump(d, wf, indent=4, cls=FPJSONEncoder)
             except Exception as e:
                 raise e
 
@@ -163,4 +164,4 @@ class FlowSampler:
         d['population_time'] = self.ns.proposal.population_time
 
         with open(filename, 'w') as wf:
-            json.dump(d, wf, indent=4, cls=NumpyEncoder)
+            json.dump(d, wf, indent=4, cls=FPJSONEncoder)

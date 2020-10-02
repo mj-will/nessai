@@ -8,7 +8,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from .flows import setup_model, weight_reset
 from .plot import plot_loss
-from .utils import NumpyEncoder, compute_minimum_distances
+from .utils import FPJSONEncoder, compute_minimum_distances
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ class FlowModel:
                 str(config['model_config']['flow'])
 
         with open(output_file, "w") as f:
-            json.dump(config, f, indent=4, cls=NumpyEncoder)
+            json.dump(config, f, indent=4, cls=FPJSONEncoder)
 
     def _setup_from_input_dict(self, config):
         """
@@ -231,11 +231,17 @@ class FlowModel:
         model.train()
         train_loss = 0
 
+        if hasattr(model, 'loss_function'):
+            loss_fn = model.loss_function
+        else:
+            def loss_fn(data):
+                return -model.log_prob(data).mean()
+
         for idx, data in enumerate(loader):
             data = (data[0]
                     + noise_scale * torch.randn_like(data[0])).to(self.device)
             self.optimiser.zero_grad()
-            loss = -model.log_prob(data).mean()
+            loss = loss_fn(data)
             train_loss += loss.item()
             loss.backward()
             clip_grad_norm_(model.parameters(), 5.)
@@ -263,10 +269,16 @@ class FlowModel:
         model.eval()
         val_loss = 0
 
+        if hasattr(model, 'loss_function'):
+            loss_fn = model.loss_function
+        else:
+            def loss_fn(data):
+                return -model.log_prob(data).mean()
+
         for idx, data in enumerate(loader):
             data = data[0].to(self.device)
             with torch.no_grad():
-                val_loss += -model.log_prob(data).mean().item()
+                val_loss += loss_fn(data).item()
 
         return val_loss / len(loader)
 
