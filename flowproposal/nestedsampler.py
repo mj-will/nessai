@@ -14,7 +14,10 @@ from tqdm import tqdm
 from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_indices
 from .posterior import logsubexp, log_integrate_log_trap
-from .utils import safe_file_dump, compute_indices_ks_test
+from .utils import (
+    safe_file_dump,
+    compute_indices_ks_test,
+    )
 
 sns.set()
 sns.set_style('ticks')
@@ -98,6 +101,7 @@ class _NSintegralState(object):
         plt.xlabel('log prior_volume')
         plt.ylabel('log likelihood')
         plt.xlim([self.log_vols[-1], self.log_vols[0]])
+        plt.yscale('symlog')
         fig.savefig(filename)
         logger.info('Saved nested sampling plot as {0}'.format(filename))
 
@@ -196,6 +200,7 @@ class NestedSampler:
         self.logZ_history = []
         self.dZ_history = []
         self.population_acceptance = []
+        self.population_radii = []
         self.population_iterations = []
 
         if max_iteration is None:
@@ -364,7 +369,8 @@ class NestedSampler:
 
         if rolling:
             logger.warning(f'Rolling KS test: D={D!s:.5}, p-value={p!s:.5}')
-            self.rolling_p.append(p)
+            if p is not None:
+                self.rolling_p.append(p)
         else:
             logger.warning(f'Final KS test: D={D!s:.5}, p-value={p!s:.5}')
 
@@ -653,7 +659,9 @@ class NestedSampler:
         ax_dz = plt.twinx(ax[3])
         ax_dz.plot(it, self.dZ_history, label='dZ', c='lightblue')
         ax_dz.set_ylabel('dZ')
-        ax_dz.legend(frameon=False)
+        handles, labels = ax[3].get_legend_handles_labels()
+        handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
+        ax[3].legend(handles + handles_dz, labels + labels_dz, frameon=False)
 
         ax[4].plot(it, self.mean_acceptance_history, c='darkblue',
                    label='Proposal')
@@ -661,10 +669,18 @@ class NestedSampler:
                    c='lightblue', label='Population')
         ax[4].set_ylabel('Acceptance')
         ax[4].set_ylim((-0.1, 1.1))
-        ax[4].legend(frameon=False)
+        handles, labels = ax[4].get_legend_handles_labels()
 
-        it = (np.arange(len(self.rolling_p))) * self.nlive
-        ax[5].plot(it, self.rolling_p, 'o', c='darkblue', label='p-value')
+        ax_r = plt.twinx(ax[4])
+        ax_r.plot(self.population_iterations, self.population_radii,
+                  label='Radius', color='tab:orange')
+        ax_r.set_ylabel('Population radius')
+        handles_r, labels_r = ax_r.get_legend_handles_labels()
+        ax[4].legend(handles + handles_r, labels + labels_r, frameon=False)
+
+        if len(self.rolling_p):
+            it = (np.arange(len(self.rolling_p)) + 1) * self.nlive
+            ax[5].plot(it, self.rolling_p, 'o', c='darkblue', label='p-value')
         ax[5].set_ylabel('p-value')
 
         ax[-1].set_xlabel('Iteration')
@@ -690,6 +706,7 @@ class NestedSampler:
         # was populated
         if (pa := self.proposal.population_acceptance) is not None:
             self.population_acceptance.append(pa)
+            self.population_radii.append(self.proposal.r)
             self.population_iterations.append(self.iteration)
 
         if not (self.iteration % (self.nlive // 10)) or force:
