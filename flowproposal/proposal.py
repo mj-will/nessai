@@ -2,9 +2,11 @@ import logging
 import os
 import time
 
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 from scipy.special import logsumexp
+import torch
 
 from .flowmodel import FlowModel, update_config
 from .livepoint import (
@@ -28,6 +30,9 @@ def _initialize_global_variables(model):
 
 
 def _log_likelihood_wrapper(x):
+    """
+    Wrapper for the log likelihood
+    """
     return _model.evaluate_log_likelihood(x)
 
 
@@ -46,6 +51,7 @@ class Proposal:
         self.initialised = False
         self.training_count = 0
         self.population_acceptance = None
+        self.r = None
         self.pool = None
 
     def initialise(self):
@@ -96,7 +102,17 @@ class AnalyticProposal(Proposal):
 
 
 class RejectionProposal(Proposal):
+    """
+    Object for rejection sampling from the priors. Relies on the method
+    `new_point` included in `flowproposal.model.Model`.
 
+    Parameters
+    ----------
+    model : obj
+        User-defined model
+    poolsize : int
+        Number of new samples to store in the pool
+    """
     def __init__(self, model, poolsize=1000):
         super(RejectionProposal, self).__init__(model)
         self._poolsize = poolsize
@@ -108,15 +124,32 @@ class RejectionProposal(Proposal):
         return self._poolsize
 
     def draw_proposal(self):
-        """Draw from the proposal distribution"""
+        """Draw a signal new point"""
         return self.model.new_point(N=self.poolsize)
 
     def log_proposal(self, x):
-        """Proposal probability"""
-        return self.model.log_prior(x)
+        """
+        Log proposal probability. Calls `model.new_point_log_prob`
 
-    def get_weights(self, x):
-        """Get weights for the samples"""
+        Parameters
+        ----------
+        x : structured_array
+            Array of new points
+        """
+        return self.model.new_point_log_prob(x)
+
+    def compute_weights(self, x):
+        """
+        Get weights for the samples.
+
+        Computes the log weights for rejection sampling sampling such that
+        that the maximum log probability is zero.
+
+        Parameters
+        ----------
+        x :  structed_arrays
+            Array of points
+        """
         log_p = self.model.log_prior(x)
         log_q = self.log_proposal(x)
         log_w = log_p - log_q
@@ -139,13 +172,19 @@ class RejectionProposal(Proposal):
 
     @population_acceptance.setter
     def population_acceptance(self, acceptance):
+        """
+        Set the population acceptance and reset the flag
+        """
         self._population_acceptance = acceptance
         self._acceptance_checked = False
 
     def populate(self):
-        """Populate"""
+        """
+        Populate the pool by drawing from the proposal distribution and
+        using rejection sampling.
+        """
         x = self.draw_proposal()
-        log_w = self.get_weights(x)
+        log_w = self.compute_weights(x)
         log_u = np.log(np.random.rand(self.poolsize))
         indices = np.where((log_w - log_u) >= 0)[0]
         self.samples = x[indices]
@@ -154,10 +193,17 @@ class RejectionProposal(Proposal):
         self.populated = True
 
     def draw(self, old_sample):
-        """Propose a new sample"""
+        """
+        Propose a new sample. Draws from the pool if it is populated, else
+        it populates the pool.
+
+        Parameters
+        ----------
+        old_sample : structured_array
+            Old sample, this is not used in the proposal method
+        """
         if not self.populated:
             self.populate()
-        # get new sample
         index = self.indices.pop()
         new_sample = self.samples[index]
         if not self.indices:
@@ -374,9 +420,9 @@ class FlowProposal(RejectionProposal):
 
         self.max_radius = float(max_radius)
 
-    def _setup_pool(self):
+    def setup_pool(self):
         """
-        Setup the multiprocessing pool for
+        Setup the multiprocessing pool
         """
         if self.pool is None:
             import multiprocessing
@@ -386,7 +432,10 @@ class FlowProposal(RejectionProposal):
                 initargs=(self.model,)
             )
 
-    def _close_pool(self):
+    def close_pool(self):
+        """
+        Close the the multiprocessing pool
+        """
         if getattr(self, "pool", None) is not None:
             logger.info("Starting to close worker pool.")
             self.pool.close()
@@ -434,7 +483,12 @@ class FlowProposal(RejectionProposal):
 
     def initialise(self):
         """
-        Initialise the proposal class
+        Initialise the proposal class.
+
+        This includes:
+            * Setting up the rescaling
+            * Verifying the rescaling is invertible
+            * Intitialising the FlowModel
         """
         if not os.path.exists(self.output):
             os.makedirs(self.output, exist_ok=True)
@@ -455,6 +509,11 @@ class FlowProposal(RejectionProposal):
     def update_poolsize_scale(self, acceptance):
         """
         Update poolsize given the current acceptance.
+
+        Parameters
+        ----------
+        acceptance : float
+            Current acceptance.
         """
         logger.debug(f'Updating poolsize with acceptance: {acceptance:.3f}')
         if not acceptance:
@@ -537,7 +596,7 @@ class FlowProposal(RejectionProposal):
 
     def verify_rescaling(self):
         """
-        Verify the rescaling functions
+        Verify the rescaling functions are invertible
         """
         logger.info('Verifying rescaling functions')
         x = self.model.new_point(N=5000)
@@ -687,13 +746,32 @@ class FlowProposal(RejectionProposal):
         """
         Rescale from the primed phyisical space to the original physical
         space
+
+        Parameters
+        ----------
+        x_prime: array_like
+            Array of live points to rescale
+
+        Returns
+        -------
+        array
+            Array of rescaled values in the data space
+        array
+            Array of log det|J|
         """
         log_J = np.zeros(x_prime.size)
         return x_prime, log_J
 
     def check_state(self, x):
         """
-        Skeleton function for operations that need to checked before training
+        Operations that need to checked before training. These include
+        updating the bounds for rescaling and resetting the bounds for
+        inversion.
+
+        Parameters
+        ----------
+        x: array_like
+            Array of training live points which can be used to set parameters
         """
         if self.update_bounds:
             self._min = {n: np.min(x[n]) for n in self.names}
@@ -703,7 +781,17 @@ class FlowProposal(RejectionProposal):
 
     def train(self, x, plot=True):
         """
-        Train the normalising flow given the live points
+        Train the normalising flow given some of the live points.
+
+        Parameters
+        ----------
+        x : structured_array
+            Array of live points
+        plot : {True, False, 'all'}
+            Enable or disable plots for during training. By default the plots
+            are only one-dimenensional histograms, `'all'` includes corner
+            plots with samples, these are often a fwe MB in size so
+            proceed with caution!
         """
 
         block_output = self.output + f'/training/block_{self.training_count}/'
@@ -729,9 +817,15 @@ class FlowProposal(RejectionProposal):
                         output=block_output, plot=self._plot_training)
 
         if self._plot_training and plot:
+            z_training_data, _ = self.forward_pass(self.training_data,
+                                                   rescale=True)
             self.alt_dist = None
-            z, _ = self.flow.sample_and_log_prob(N=x.size)
-            x_prime_gen, log_prob = self.backward_pass(z, rescale=False)
+            z_gen, _ = self.flow.sample_and_log_prob(N=x.size)
+            plot_1d_comparison(z_training_data, z_gen,
+                               labels=['z_live_points', 'z_generated'],
+                               convert_to_live_points=True,
+                               filename=block_output + 'z_comparison.png')
+            x_prime_gen, log_prob = self.backward_pass(z_gen, rescale=False)
             x_prime_gen['logL'] = log_prob
             x_gen, log_J = self.inverse_rescale(x_prime_gen)
             x_gen, log_J, x_prime_gen = \
@@ -761,7 +855,7 @@ class FlowProposal(RejectionProposal):
 
     def reset_model_weights(self):
         """
-        Reset the flows weights
+        Reset the flow weights
         """
         self.flow.reset_model()
 
@@ -791,7 +885,27 @@ class FlowProposal(RejectionProposal):
         return out
 
     def forward_pass(self, x, rescale=True, compute_radius=True):
-        """Pass a vector of points through the model"""
+        """
+        Pass a vector of points through the model
+
+        Parameters
+        ----------
+        x : array_like
+            Live points to map to the latent space
+        rescale : bool, optional (True)
+            Apply rescaling function
+        compute_radius : bool, optional (True)
+            Flag parsed to rescaling for rescaling specific to radius
+            computation
+
+        Returns
+        -------
+        x : array_like
+            Samples in the latent sapce
+        log_prob : array_like
+            Log probabilties corresponding to each sample (including the
+            jacobian)
+        """
         log_J = 0
         if rescale:
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
@@ -806,11 +920,28 @@ class FlowProposal(RejectionProposal):
         return z, log_prob + log_J
 
     def backward_pass(self, z, rescale=True):
-        """A backwards pass from the model (latent -> real)"""
+        """
+        A backwards pass from the model (latent -> real)
+
+        Parameters
+        ----------
+        z : array_like
+            Structured array of points in the latent space
+        rescale : bool, optional (True)
+            Apply inverse rescaling function
+
+        Returns
+        -------
+        x : array_like
+            Samples in the latent sapce
+        log_prob : array_like
+            Log probabilties corresponding to each sample (including the
+            Jacobian)
+        """
         # Compute the log probability
         try:
-            x, log_prob = self.flow.sample_and_log_prob(z=z,
-                                                        alt_dist=self.alt_dist)
+            x, log_prob = self.flow.sample_and_log_prob(
+                z=z, alt_dist=self.alt_dist)
         except AssertionError:
             return np.array([]), np.array([])
 
@@ -827,7 +958,24 @@ class FlowProposal(RejectionProposal):
         return x, log_prob
 
     def radius(self, z, log_q=None):
-        """Calculate the radius of a latent_point"""
+        """
+        Calculate the radius of a latent point or set of latent points.
+        If multiple points are parsed the maximum radius is returned.
+
+        Parameters
+        ----------
+        z : :obj:`np.ndarray`
+            Array of points in the latent space
+        log_q : :obj:`np.ndarray`, optional (None)
+            Array of correponding probabilities. If specified
+            then probability of the maximum radius is also returned.
+
+        Returns
+        -------
+        tuple of arrays
+            Tuple of array with the maximum raidus and correspoding log_q
+            if it was a specified input.
+        """
         if log_q is not None:
             r = np.sqrt(np.sum(z ** 2., axis=-1))
             i = np.argmax(r)
@@ -837,13 +985,36 @@ class FlowProposal(RejectionProposal):
 
     def log_prior(self, x):
         """
-        Compute the prior probability
+        Compute the prior probability using the user-defined model
+
+        Parameters
+        ----------
+        x : structured_array
+            Array of samples
+
+        Returns
+        -------
+        array_like
+            Array of log prior probabilities
         """
         return self.model.log_prior(x)
 
     def compute_weights(self, x, log_q):
         """
-        Compute the weight for a given set of samples
+        Compute weights for the samples.
+
+        Computes the log weights for rejection sampling sampling such that
+        that the maximum log probability is zero.
+
+        Also sets the fields `logP` and `logL`. Note `logL` is set as the
+        proposal probability.
+
+        Parameters
+        ----------
+        x :  structed_arrays
+            Array of points
+        log_q : array_like
+            Array of log proposal probabilties.
         """
         log_p = self.log_prior(x)
         x['logP'] = log_p
@@ -853,7 +1024,22 @@ class FlowProposal(RejectionProposal):
         return log_w
 
     def populate(self, worst_point, N=10000, plot=True):
-        """Populate a pool of latent points"""
+        """
+        Populate a pool of latent points given the current worst point.
+
+        Parameters
+        ----------
+        worst_point : structured_array
+            The current worst point used to compute the radius of the contour
+            in the latent space.
+        N : int, optional (10000)
+            The total number of points to populate in the pool
+        plot : {True, False, 'all'}
+            Enable or disable plots for during training. By default the plots
+            are only one-dimenensional histograms, `'all'` includes corner
+            plots with samples, these are often a fwe MB in size so
+            proceed with caution!
+        """
         if self.fixed_radius:
             r = self.fixed_radius
         else:
@@ -865,9 +1051,9 @@ class FlowProposal(RejectionProposal):
                 if r > self.max_radius:
                     r = self.max_radius
             logger.info(f'Populating proposal with lantent radius: {r:.5}')
-
+        self.r = r
         if self.latent_prior == 'uniform_nsphere':
-            self.alt_dist = get_uniform_distribution(self.dims, r,
+            self.alt_dist = get_uniform_distribution(self.dims, self.r,
                                                      device=self.flow.device)
 
         warn = True
@@ -880,8 +1066,8 @@ class FlowProposal(RejectionProposal):
         proposed = 0
         while len(self.x) < N:
             while True:
-                z = self.draw_latent_prior(self.dims, r=r, N=self.drawsize,
-                                           fuzz=self.fuzz)
+                z = self.draw_latent_prior(self.dims, r=self.r,
+                                           N=self.drawsize, fuzz=self.fuzz)
                 if z.size:
                     break
             proposed += z.shape[0]
@@ -892,6 +1078,7 @@ class FlowProposal(RejectionProposal):
                 cut = log_q >= worst_q
                 x = x[cut]
                 log_q = log_q[cut]
+            logger.debug(f'Dynamic range of log proposal: {np.ptp(log_q):.3}')
             # rescale given priors used initially, need for priors
             log_w = self.compute_weights(x, log_q)
             log_u = np.log(np.random.rand(x.shape[0]))
@@ -899,7 +1086,7 @@ class FlowProposal(RejectionProposal):
 
             if counter > np.inf and not self.x.size and not self.zero_reset:
                 logger.warning('No samples after 100 tries, reset radius')
-                r *= 0.99
+                self.r *= 0.99
                 logger.warning(f'New radius: {r}')
                 self.x = np.array([], dtype=self.x_dtype)
                 self.z = np.empty([0, self.dims])
@@ -919,7 +1106,7 @@ class FlowProposal(RejectionProposal):
                     logger.warning(
                         'Proposal is too ineffcient, reducing radius'
                         )
-                    r *= 0.99
+                    self.r *= 0.99
                     logger.warning(f'New radius: {r}')
                     self.x = np.array([], dtype=self.x_dtype)
                     self.z = np.empty([0, self.dims])
@@ -932,9 +1119,11 @@ class FlowProposal(RejectionProposal):
                         f'samples! ({len(indices) / self.drawsize})')
                     warn = False
 
+            logger.debug(f'Acceptance: {len(indices) / log_q.size}')
             # array of indices to take random draws from
             self.x = np.concatenate([self.x, x[indices]], axis=0)
             self.z = np.concatenate([self.z, z[indices]], axis=0)
+
             if counter % 10 == 0:
                 logger.debug(f'Accepted {self.x.size} / {N} points')
             counter += 1
@@ -954,6 +1143,23 @@ class FlowProposal(RejectionProposal):
                     self.x,
                     labels=['live points', 'pool'],
                     filename=f'{self.output}/pool_{self.populated_count}.png')
+                z_tensor = torch.from_numpy(self.z).to(self.flow.device)
+                with torch.no_grad():
+                    if self.alt_dist is not None:
+                        log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
+                    else:
+                        log_p = self.flow.model.base_distribution_log_prob(
+                            z_tensor).cpu().numpy()
+                fig, axs = plt.subplots(2, 1, figsize=(3, 6))
+                axs = axs.ravel()
+                axs[0].hist(self.x['logL'], 20, histtype='step', label='log q')
+                axs[1].hist(self.x['logL'] - log_p, 20, histtype='step',
+                            label='log J')
+                axs[0].set_xlabel('Log q')
+                axs[1].set_xlabel('Log |J|')
+                plt.tight_layout()
+                fig.savefig(
+                    f'{self.output}/pool_{self.populated_count}_log_q.png')
 
         self.samples = self.x[self.model.names + ['logP', 'logL']]
 
@@ -988,7 +1194,10 @@ class FlowProposal(RejectionProposal):
 
     def evaluate_likelihoods(self):
         """
-        Evaluate the likelihoods for the pool of live points
+        Evaluate the likelihoods for the pool of live points.
+
+        If the multiprocessing pool has been started, the samples will be map
+        using `pool.map`.
         """
         if self.pool is None:
             for s in self.samples:
@@ -1001,7 +1210,8 @@ class FlowProposal(RejectionProposal):
     def compute_acceptance(self, logL):
         """
         Compute how many of the current pool have log-likelihoods greater
-        than the specified log-likelihood
+        than the specified log-likelihood using the current value in the
+        `logL` field.
 
         Parameters
         ----------
@@ -1017,7 +1227,19 @@ class FlowProposal(RejectionProposal):
 
     def draw(self, worst_point):
         """
-        Draw a replacement point
+        Draw a replacement point. The new point is independent of the worst
+        point. The worst point is only used during population.
+
+        Parameters
+        ----------
+        worst_point : structured_array
+            The current worst point used to compute the radius of the contour
+            in the latent space.
+
+        Returns
+        -------
+        structured_array
+            New live point
         """
         if not self.populated:
             if self.update_poolsize:

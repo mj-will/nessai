@@ -14,7 +14,10 @@ from tqdm import tqdm
 from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_indices
 from .posterior import logsubexp, log_integrate_log_trap
-from .utils import safe_file_dump, compute_indices_ks_test
+from .utils import (
+    safe_file_dump,
+    compute_indices_ks_test,
+    )
 
 sns.set()
 sns.set_style('ticks')
@@ -98,6 +101,7 @@ class _NSintegralState(object):
         plt.xlabel('log prior_volume')
         plt.ylabel('log likelihood')
         plt.xlim([self.log_vols[-1], self.log_vols[0]])
+        plt.yscale('symlog')
         fig.savefig(filename)
         logger.info('Saved nested sampling plot as {0}'.format(filename))
 
@@ -196,6 +200,7 @@ class NestedSampler:
         self.logZ_history = []
         self.dZ_history = []
         self.population_acceptance = []
+        self.population_radii = []
         self.population_iterations = []
 
         if max_iteration is None:
@@ -362,11 +367,12 @@ class NestedSampler:
 
         D, p = compute_indices_ks_test(indices, self.nlive)
 
-        if rolling:
-            logger.warning(f'Rolling KS test: D={D!s:.5}, p-value={p!s:.5}')
-            self.rolling_p.append(p)
-        else:
-            logger.warning(f'Final KS test: D={D!s:.5}, p-value={p!s:.5}')
+        if p is not None:
+            if rolling:
+                logger.warning(f'Rolling KS test: D={D:.4}, p-value={p:.4}')
+                self.rolling_p.append(p)
+            else:
+                logger.warning(f'Final KS test: D={D:.4}, p-value={p:.4}')
 
         if filename is not None:
             np.savetxt(os.path.join(self.output, filename),
@@ -509,6 +515,13 @@ class NestedSampler:
     def initialise(self, live_points=True):
         """
         Initialise the nested sampler
+
+        Parameters
+        ----------
+        live_points : bool, optional (True)
+            If true and there are no live points, new live points are
+            drawn using `populate_live_points` else all other initialisation
+            steps are complete but live points remain empty.
         """
         flags = [False] * 3
         if not self._flow_proposal.initialised:
@@ -542,7 +555,7 @@ class NestedSampler:
         """
         Check if state should be updated prior to drawing a new sample
 
-        Force will overide the cooldown mechanism, rejected will not
+        Force will overide the cooldown mechanism, rejected will not.
         """
         if self.uninformed_sampling:
             if ((self.mean_acceptance < self.uninformed_acceptance_threshold)
@@ -616,7 +629,8 @@ class NestedSampler:
 
     def plot_state(self):
         """
-        Produce plots with the current state of the nested sampling run
+        Produce plots with the current state of the nested sampling run.
+        Plots are saved to the output directory specifed at initialisation.
         """
 
         fig, ax = plt.subplots(6, 1, sharex=True, figsize=(12, 12))
@@ -645,7 +659,9 @@ class NestedSampler:
         ax_dz = plt.twinx(ax[3])
         ax_dz.plot(it, self.dZ_history, label='dZ', c='lightblue')
         ax_dz.set_ylabel('dZ')
-        ax_dz.legend(frameon=False)
+        handles, labels = ax[3].get_legend_handles_labels()
+        handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
+        ax[3].legend(handles + handles_dz, labels + labels_dz, frameon=False)
 
         ax[4].plot(it, self.mean_acceptance_history, c='darkblue',
                    label='Proposal')
@@ -653,10 +669,18 @@ class NestedSampler:
                    c='lightblue', label='Population')
         ax[4].set_ylabel('Acceptance')
         ax[4].set_ylim((-0.1, 1.1))
-        ax[4].legend(frameon=False)
+        handles, labels = ax[4].get_legend_handles_labels()
 
-        it = (np.arange(len(self.rolling_p))) * self.nlive
-        ax[5].plot(it, self.rolling_p, 'o', c='darkblue', label='p-value')
+        ax_r = plt.twinx(ax[4])
+        ax_r.plot(self.population_iterations, self.population_radii,
+                  label='Radius', color='tab:orange')
+        ax_r.set_ylabel('Population radius')
+        handles_r, labels_r = ax_r.get_legend_handles_labels()
+        ax[4].legend(handles + handles_r, labels + labels_r, frameon=False)
+
+        if len(self.rolling_p):
+            it = (np.arange(len(self.rolling_p)) + 1) * self.nlive
+            ax[5].plot(it, self.rolling_p, 'o', c='darkblue', label='p-value')
         ax[5].set_ylabel('p-value')
 
         ax[-1].set_xlabel('Iteration')
@@ -682,6 +706,7 @@ class NestedSampler:
         # was populated
         if (pa := self.proposal.population_acceptance) is not None:
             self.population_acceptance.append(pa)
+            self.population_radii.append(self.proposal.r)
             self.population_iterations.append(self.iteration)
 
         if not (self.iteration % (self.nlive // 10)) or force:
@@ -713,17 +738,22 @@ class NestedSampler:
 
     def checkpoint(self):
         """
-        Checkpoint its internal state
+        Checkpoint the classes internal state
         """
         logger.critical('Checkpointing nested sampling')
         safe_file_dump(self, self.resume_file, pickle, save_existing=True)
 
     def nested_sampling_loop(self, save=True):
         """
-        main nested sampling loop
+        Main nested sampling loop
+
+        Parameters
+        ----------
+        save : bool, optional (True)
+            Save results after sampling
         """
         if not self.initialised:
-            self.initialise()
+            self.initialise(live_points=True)
 
         if self.prior_sampling:
             for i in range(self.nlive):
@@ -747,7 +777,7 @@ class NestedSampler:
                 break
 
         if self.proposal.pool is not None:
-            self.proposal._close_pool()
+            self.proposal.close_pool()
 
         # final adjustments
         for i, p in enumerate(self.live_points):
@@ -787,8 +817,24 @@ class NestedSampler:
     @classmethod
     def resume(cls, filename, model, flow_config={}, weights_file=None):
         """
-        Resumes the interrupted state from a
-        checkpoint pickle file.
+        Resumes the interrupted state from a checkpoint pickle file.
+
+        Parameters
+        ----------
+        filename : str
+            Pickle pickle to resume from
+        model : :obj:`flowproposal.model.Model`
+            User-defined model
+        flow_config : dict, optional
+            Dictionary for configuring the flow
+        weights_file : str, optional
+            Weights files to use in place of the weights file stored in the
+            pickle file.
+
+        Returns
+        -------
+        obj
+            Instance of NestedSampler
         """
         logger.critical('Resuming NestedSampler from ' + filename)
         with open(filename, 'rb') as f:

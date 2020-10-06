@@ -24,9 +24,9 @@ def cartesian_to_angle(x, y, scale=1.0):
     return angle, radius, -np.log(radius)
 
 
-def sky_to_cartesian(ra, dec, dL=None):
+def ra_dec_to_cartesian(ra, dec, dL=None):
     """
-    Convert right ascension, declination and (optinal) luminosity distance
+    Convert right ascension, declination and (optional) luminosity distance
     (defined on [0, 1]) to Cartesian coordinates.
 
     Parameters
@@ -53,7 +53,7 @@ def sky_to_cartesian(ra, dec, dL=None):
     return x, y, z, 2. * np.log(dL) + np.log(np.cos(dec))
 
 
-def cartesian_to_sky(x, y, z):
+def cartesian_to_ra_dec(x, y, z):
     """
     Reconstruct an angle given the real and imaginary part
 
@@ -74,6 +74,59 @@ def cartesian_to_sky(x, y, z):
     dec = np.arctan2(z, np.sqrt(x ** 2. + y ** 2.0))
     ra = np.arctan2(y, x) % (2. * np.pi)
     return ra, dec, dL, - 2. * np.log(dL) - np.log(np.cos(dec))
+
+
+def azimuth_zenith_to_cartesian(azimuth, zenith, dL=None):
+    """
+    Convert azimuth, zenith and (optional) luminosity distance
+    (defined on [0, 1]) to Cartesian coordinates.
+
+    Parameters
+    ----------
+    azimuth, zenith: array_like
+        Azimuth and zenith
+    dL: array_like, optional
+        Corresponding luminosity distance defined on [0, 1]. If None (default)
+        radial componment is drawn froma chi distribution with 3 degrees of
+        freedom
+
+    Returns
+    -------
+    x, y, z: array_like
+        Cartesian coordinates
+    log_J: array_like
+        Determinant of the log-Jacobian
+    """
+    if dL is None:
+        dL = stats.chi.rvs(3, size=azimuth.size)
+    x = dL * np.sin(zenith) * np.cos(azimuth)
+    y = dL * np.sin(zenith) * np.sin(azimuth)
+    z = dL * np.cos(zenith)
+    return x, y, z, 2. * np.log(dL) + np.log(np.sin(zenith))
+
+
+def cartesian_to_azimuth_zenith(x, y, z):
+    """
+    Reconstruct an angle given the real and imaginary part
+
+    Parameters
+    ----------
+    x, y, z: array_like
+        Three dimensional Cartesian coordinates
+
+    Returns:
+    --------
+    azimuth, zenith: array_like
+        Azimuth and zenith
+    dl: array_like
+        Luminosity distance
+    log_J: array_like
+        Determinant of the log-Jacobian
+    """
+    dL = np.sqrt(np.sum([x ** 2., y ** 2., z ** 2.], axis=0))
+    zenith = np.arctan2(np.sqrt(x ** 2. + y ** 2.0), z)
+    azimuth = np.arctan2(y, x) % (2. * np.pi)
+    return azimuth, zenith, dL, - 2. * np.log(dL) - np.log(np.sin(zenith))
 
 
 def zero_one_to_cartesian(theta, duplicate=False):

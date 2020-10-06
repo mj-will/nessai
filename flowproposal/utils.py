@@ -56,19 +56,41 @@ def compute_indices_ks_test(indices, nlive, mode='D+'):
         p-value
     """
     if len(indices):
-        u, counts = np.unique(indices, return_counts=True)
-        analytic_cdf = u / nlive
+        counts = np.zeros(nlive)
+        u, c = np.unique(indices, return_counts=True)
+        counts[u] = c
         cdf = np.cumsum(counts) / len(indices)
         if mode == 'D+':
-            D = np.max(cdf - analytic_cdf)
+            D = np.max(np.arange(1.0, nlive + 1) / nlive - cdf)
         elif mode == 'D-':
-            D = np.max(analytic_cdf[1:] - cdf[:-1])
+            D = np.max(cdf - np.arange(0.0, nlive) / nlive)
         else:
             raise RuntimeError(f'{mode} is not a valid mode. Choose D+ or D-')
-        p = stats.ksone.sf(D, nlive)
+        p = stats.ksone.sf(D, len(indices))
         return D, p
     else:
         return None, None
+
+
+def bonferroni_correction(p_values, alpha=0.05):
+    """
+    Apply the Bonferroni correction for multiple tests.
+
+    Based on the implementation in `statmodels.stats.multitest`
+
+    Parameters
+    ----------
+    p_values :  array_like, 1-d
+        Uncorrelated p-values
+    alpha : float, optional
+        Family wise error rate
+    """
+    p_values = np.asarray(p_values)
+    alpha_bon = alpha / p_values.size
+    reject = p_values <= alpha_bon
+    p_values_corrected = p_values * p_values.size
+    p_values_corrected[p_values_corrected > 1] = 1
+    return reject, p_values_corrected, alpha_bon
 
 
 def draw_surface_nsphere(dims, r=1, N=1000):
@@ -128,6 +150,21 @@ def get_uniform_distribution(dims, r, device='cpu'):
     """
     Return a Pytorch distribution that is uniform in the number of
     dims specified
+
+    Parameters
+    ----------
+    dims: int
+        Number of dimensions
+    r: float
+        Radius to use for lower and upper bounds
+    device: str, optional (cpu)
+        Device on which the distribution is placed.
+
+    Returns
+    -------
+    :obj:`nflows.distributions.uniform.BoxUniform`
+        Instance of BoxUniform which the lower and upper bounds set by
+        the radius
     """
     r = r * torch.ones(dims, device=device)
     return BoxUniform(low=-r, high=r)
@@ -379,8 +416,17 @@ def compute_minimum_distances(samples, metric='euclidean'):
 
     Parameters
     ----------
-    samples: array_like
+    samples : array_like
         Array of samples
+    metric : str, optional (euclidean)
+        Metric to use. See scipy docs for list of metrics:
+        https://docs.scipy.org/doc/scipy/reference/generated/
+        scipy.spatial.distance.cdist.html
+
+    Returns
+    -------
+    array_like
+        Distance to nearest neighbour for each sample
     """
     d = spatial.distance.cdist(samples, samples, metric)
     d[d == 0] = np.nan
@@ -400,8 +446,12 @@ def setup_logger(output=None, label='flowproposal', log_level='INFO'):
         Path of to output directory
     label : str, optional
         Label for this instance of the logger
-    log_level: {'ERROR', 'WARNING', 'INFO', 'DEBUG'}
+    log_level : {'ERROR', 'WARNING', 'INFO', 'DEBUG'}
         Level of logging parsed to logger
+
+    Returns
+    -------
+    logger
     """
     if type(log_level) is str:
         try:
@@ -445,21 +495,38 @@ def setup_logger(output=None, label='flowproposal', log_level='INFO'):
     return logger
 
 
-class NumpyEncoder(json.JSONEncoder):
+def is_jsonable(x):
     """
-    Class to encode numpy arrays when saving as json
+    Check if an object is JSON serialisable
+
+    Based on: https://stackoverflow.com/a/53112659
+    """
+    try:
+        json.dumps(x)
+        return True
+    except (TypeError, OverflowError):
+        return False
+
+
+class FPJSONEncoder(json.JSONEncoder):
+    """
+    Class to encode numpy arrays and other non-serialisable objects in
+    FlowProposal
 
     Based on: https://stackoverflow.com/a/57915246
     """
     def default(self, obj):
+
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif not is_jsonable(obj):
+            return str(obj)
         else:
-            return super(NumpyEncoder, self).default(obj)
+            return super(FPJSONEncoder, self).default(obj)
 
 
 def safe_file_dump(data, filename, module, save_existing=False):

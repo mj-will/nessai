@@ -9,7 +9,7 @@ import numpy as np
 from .livepoint import live_points_to_dict
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
-from .utils import NumpyEncoder, configure_threads
+from .utils import FPJSONEncoder, configure_threads
 
 
 logger = logging.getLogger(__name__)
@@ -18,6 +18,23 @@ logger = logging.getLogger(__name__)
 class FlowSampler:
     """
     Main class to handle running the nested sampler
+
+    Parameters
+    ----------
+    model : :obj:`flowproposal.model.Model`
+        User-defined model
+    output : str, optional (./)
+        Output directory
+    resume : bool, optional (True)
+        If True try to resume the sampler is the resume file existis
+    resume_file : str, optional
+        File to resume sampler from
+    weights_files : str, optional
+        Weights files used to resume sampler that replaces the weights file
+        saved internally.
+    kwargs :
+        Keyword arguments parsed to NestedSampler. See NestedSampler for
+        details
     """
 
     def __init__(self, model, output='./', resume=True,
@@ -106,10 +123,11 @@ class FlowSampler:
         d = kwargs.copy()
         with open(f'{self.output}/config.json', 'w') as wf:
             try:
-                json.dump(d, wf, indent=4, cls=NumpyEncoder)
+                json.dump(d, wf, indent=4, cls=FPJSONEncoder)
             except TypeError:
-                d['flow_class'] = str(d['flow_class'])
-                json.dump(d, wf, indent=4, cls=NumpyEncoder)
+                if 'flow_class' in d:
+                    d['flow_class'] = str(d['flow_class'])
+                    json.dump(d, wf, indent=4, cls=FPJSONEncoder)
             except Exception as e:
                 raise e
 
@@ -142,6 +160,8 @@ class FlowSampler:
         d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
         d['log_evidence'] = self.ns.log_evidence
         d['infomation'] = self.ns.information
+        d['training_time'] = self.ns.training_time
+        d['population_time'] = self.ns.proposal.population_time
 
         with open(filename, 'w') as wf:
-            json.dump(d, wf, indent=4, cls=NumpyEncoder)
+            json.dump(d, wf, indent=4, cls=FPJSONEncoder)

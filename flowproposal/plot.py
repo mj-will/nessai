@@ -9,7 +9,7 @@ sns.set()
 sns.set_style('ticks')
 
 pairplot_kwargs = dict(corner=True, kind='scatter',
-                       diag_kws=dict(histtype='step', bins='fd', lw=1.5,
+                       diag_kws=dict(histtype='step', bins='auto', lw=1.5,
                                      density=True, color='teal'),
                        plot_kws=dict(s=1.0, edgecolor=None, palette='viridis',
                                      color='teal'))
@@ -43,9 +43,83 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     plt.close()
 
 
+def _hist_bin_fd(x):
+    """
+    The Freedman-Diaconis histogram bin estimator.
+
+    See original Numpy implementation.
+
+    Parameters
+    ----------
+    x : array_like
+        Input data that is to be histogrammed, trimmed to range. May not
+        be empty.
+    Returns
+    -------
+    h : An estimate of the optimal bin width for the given data.
+    """
+    iqr = np.subtract(*np.percentile(x, [75, 25]))
+    return 2.0 * iqr * x.size ** (-1.0 / 3.0)
+
+
+def _hist_bin_sturges(x):
+    """
+    Sturges histogram bin estimator.
+
+    See original Numpy implementation.
+
+    Parameters
+    ----------
+    x : array_like
+        Input data that is to be histogrammed, trimmed to range. May not
+        be empty.
+    Returns
+    -------
+    h : An estimate of the optimal bin width for the given data.
+    """
+    return np.ptp(x) / (np.log2(x.size) + 1.0)
+
+
+def auto_bins(x, max_bins=100):
+    """
+    Compute the number bins for a histogram using numpy.histogram_bin_edges
+    but enforece a maximum number of bins.
+
+    Parameters
+    ----------
+    array : array_like
+        Input data
+    bins : int or sequence of scalars or str, optional
+        Method for determining number of bins, see numpy documentation
+    max_bins : int, optional (1000)
+        Maximum number of bins
+
+    Returns
+    -------
+    int
+        Number of bins
+    """
+    x = np.asarray(x)
+    fd_bw = _hist_bin_fd(x)
+    sturges_bw = _hist_bin_sturges(x)
+    if fd_bw:
+        bw = min(fd_bw, sturges_bw)
+    else:
+        bw = sturges_bw
+
+    if bw:
+        n_bins = int(np.ceil(np.ptp(x)) / bw)
+    else:
+        n_bins = 1
+
+    nbins = min(n_bins, max_bins)
+    assert isinstance(nbins, int)
+    return nbins
+
+
 def plot_1d_comparison(*live_points, parameters=None, labels=None,
                        bounds=None, hist_kwargs={},
-                       filename=None):
+                       filename=None, convert_to_live_points=False):
     """
     Plot 1d histograms comparing different sets of live points
 
@@ -70,7 +144,14 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         Name of file for saving figure. (Default None implies figure is not
         saved).
     """
-    if parameters is None:
+    if convert_to_live_points:
+        live_points = list(live_points)
+        if parameters is None:
+            parameters = [i for i in range(live_points[0].shape[-1])]
+        for i in range(len(live_points)):
+            live_points[i] = {k: v for k, v in enumerate(live_points[i].T)}
+
+    elif parameters is None:
         parameters = live_points[0].dtype.names
 
     if labels is None:
@@ -87,7 +168,8 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
                       for lp in live_points])
         for j, lp in enumerate(live_points):
             axs[i].hist(lp[f][np.isfinite(lp[f])],
-                        'fd', histtype='step',
+                        bins=auto_bins(lp[f][np.isfinite(lp[f])]),
+                        histtype='step',
                         range=(xmin, xmax), density=True, label=labels[j],
                         **hist_kwargs)
         axs[i].set_xlabel(f)
@@ -134,7 +216,7 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
     if not indices:
         return
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    nbins = len(np.histogram_bin_edges(indices, 'fd')) - 1
+    nbins = min(len(np.histogram_bin_edges(indices, 'auto')) - 1, 1000)
     if plot_breakdown:
         for i in range(len(indices) // nlive):
             ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
