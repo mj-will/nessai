@@ -16,7 +16,7 @@ from .livepoint import (
         DEFAULT_FLOAT_DTYPE
         )
 from .plot import plot_live_points, plot_acceptance, plot_1d_comparison
-from .utils import get_uniform_distribution, detect_edge
+from .utils import get_uniform_distribution, detect_edge, save_live_points
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +287,7 @@ class FlowProposal(RejectionProposal):
                  boundary_inversion=False, inversion_type='duplicate',
                  update_bounds=True, max_radius=False, pool=None, n_pool=None,
                  multiprocessing=False, max_poolsize_scale=50,
-                 update_poolsize=False, **kwargs):
+                 update_poolsize=False, save_training_data=False, **kwargs):
         """
         Initialise
         """
@@ -304,6 +304,7 @@ class FlowProposal(RejectionProposal):
         self.population_time = 0
         self.names = []
         self.training_data = None
+        self.save_training_data = save_training_data
         self.x = None
         self.z = None
         self.samples = None
@@ -797,6 +798,8 @@ class FlowProposal(RejectionProposal):
         block_output = self.output + f'/training/block_{self.training_count}/'
         if not os.path.exists(block_output):
             os.makedirs(block_output, exist_ok=True)
+
+        save_live_points(x, f'{block_output}/training_data.json')
 
         self.check_state(x)
         self.training_data = x.copy()

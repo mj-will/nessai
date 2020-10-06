@@ -8,6 +8,8 @@ import numpy as np
 from scipy import stats, spatial
 import torch
 
+from .livepoint import live_points_to_dict
+
 logger = logging.getLogger(__name__)
 
 
@@ -553,6 +555,16 @@ def safe_file_dump(data, filename, module, save_existing=False):
     with open(temp_filename, "wb") as file:
         module.dump(data, file)
     shutil.move(temp_filename, filename)
+
+
+def save_live_points(live_points, filename):
+    """
+    Save live points to a file. Live points are converted to a dictionary
+    and then saved.
+    """
+    d = live_points_to_dict(live_points)
+    with open(filename, 'w') as wf:
+        json.dump(d, wf, indent=4, cls=FPJSONEncoder)
 
 
 def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
