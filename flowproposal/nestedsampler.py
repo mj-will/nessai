@@ -561,6 +561,9 @@ class NestedSampler:
             if ((self.mean_acceptance < self.uninformed_acceptance_threshold)
                     or (self.iteration >= self.maximum_uninformed)):
                 logger.warning('Switching to FlowProposal')
+                # Make sure the pool is closed
+                if self.proposal.pool is not None:
+                    self.porposal.close_pool()
                 self.proposal = self._flow_proposal
                 self.proposal.ns_acceptance = self.mean_block_acceptance
                 self.uninformed_sampling = False
