@@ -287,7 +287,8 @@ class FlowProposal(RejectionProposal):
                  boundary_inversion=False, inversion_type='duplicate',
                  update_bounds=True, max_radius=False, pool=None, n_pool=None,
                  multiprocessing=False, max_poolsize_scale=50,
-                 update_poolsize=False, save_training_data=False, **kwargs):
+                 update_poolsize=False, save_training_data=False,
+                 compute_radius_with_all=False, **kwargs):
         """
         Initialise
         """
@@ -333,12 +334,14 @@ class FlowProposal(RejectionProposal):
         self.detect_edges = detect_edges
         self._edges = {}
 
+        self.compute_radius_with_all = compute_radius_with_all
+
         self.pool = pool
         self.n_pool = n_pool
         if multiprocessing:
             if not self.check_acceptance:
                 self.check_acceptance = True
-            self._setup_pool()
+            self.setup_pool()
 
         self._inversion_test_type = None
         if self.detect_edges:
@@ -799,7 +802,8 @@ class FlowProposal(RejectionProposal):
         if not os.path.exists(block_output):
             os.makedirs(block_output, exist_ok=True)
 
-        save_live_points(x, f'{block_output}/training_data.json')
+        if self.save_training_data:
+            save_live_points(x, f'{block_output}/training_data.json')
 
         self.check_state(x)
         self.training_data = x.copy()
@@ -1046,6 +1050,9 @@ class FlowProposal(RejectionProposal):
         if self.fixed_radius:
             r = self.fixed_radius
         else:
+            if self.compute_radius_with_all:
+                logger.debug('Using previous live points to compute radius')
+                worst_point = self.training_data
             worst_z, worst_q = self.forward_pass(worst_point,
                                                  rescale=True,
                                                  compute_radius=True)
