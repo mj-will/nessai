@@ -3,7 +3,6 @@ import datetime
 import logging
 import os
 import pickle
-import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -191,7 +190,8 @@ class NestedSampler:
             self.setup_output(output, resume_file)
         self.output = output
 
-        self.training_time = 0
+        self.training_time = datetime.timedelta()
+        self.sampling_time = datetime.timedelta()
         self.likelihood_evaluations = []
         self.training_iterations = []
         self.likelihood_calls = 0
@@ -620,9 +620,9 @@ class NestedSampler:
                                     training_data,
                                     self.nested_samples[-self.memory].copy()
                                     ])
-                st = time.time()
+                st = datetime.datetime.now()
                 self.proposal.train(training_data)
-                self.training_time += (time.time() - st)
+                self.training_time += (datetime.datetime.now() - st)
                 self.training_iterations.append(self.iteration)
                 self.last_updated = self.iteration
                 self.block_iteration = 0
@@ -743,6 +743,9 @@ class NestedSampler:
         """
         Checkpoint the classes internal state
         """
+        self.sampling_time += \
+            (datetime.datetime.now() - self.sampling_start_time)
+        self.start_time = 0
         logger.critical('Checkpointing nested sampling')
         safe_file_dump(self, self.resume_file, pickle, save_existing=True)
 
@@ -755,6 +758,7 @@ class NestedSampler:
         save : bool, optional (True)
             Save results after sampling
         """
+        self.sampling_start_time = datetime.datetime.now()
         if not self.initialised:
             self.initialise(live_points=True)
 
@@ -803,15 +807,13 @@ class NestedSampler:
 
         self.check_insertion_indices(rolling=False)
 
+        # This includes updating the total sampling time
         if self.checkpointing:
             self.checkpoint()
 
-        logger.info(
-            'Total training time: '
-            f'{datetime.timedelta(seconds=self.training_time)}')
-        logger.info(
-            'Total population time: '
-            f'{datetime.timedelta(seconds=self.proposal.population_time)}')
+        logger.info(f'Total sampling time: {self.sampling_time}')
+        logger.info(f'Total training time: {self.training_time}')
+        logger.info(f'Total population time: {self.proposal.population_time}')
         logger.info(
             f'Total likelihood evaluations: {self.likelihood_calls:3d}')
 

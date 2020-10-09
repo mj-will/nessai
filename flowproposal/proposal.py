@@ -1,6 +1,6 @@
+import datetime
 import logging
 import os
-import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -302,7 +302,7 @@ class FlowProposal(RejectionProposal):
         self.indices = []
         self.training_count = 0
         self.populated_count = 0
-        self.population_time = 0
+        self.population_time = datetime.timedelta()
         self.names = []
         self.training_data = None
         self.save_training_data = save_training_data
@@ -1254,10 +1254,10 @@ class FlowProposal(RejectionProposal):
         if not self.populated:
             if self.update_poolsize:
                 self.update_poolsize_scale(self.ns_acceptance)
-            st = time.time()
+            st = datetime.datetime.now()
             while not self.populated:
                 self.populate(worst_point, N=self.poolsize)
-            self.population_time += (time.time() - st)
+            self.population_time += (datetime.datetime.now() - st)
         # new sample is drawn randomly from proposed points
         # popping from right end is faster
         index = self.indices.pop()
