@@ -83,7 +83,7 @@ class GWFlowProposal(FlowProposal):
             logger.info(f'{k}: {v}')
             setattr(self, k, v)
 
-    def setup_angle(self, name, radial_name=False, scale=1.0):
+    def setup_angle(self, name, radial_name=False, scale=1.0, zero='bound'):
         """
         Add an angular parameter to the list of reparameterisations
         """
@@ -99,7 +99,7 @@ class GWFlowProposal(FlowProposal):
 
         self._search_angles[name] = {
             'angle': name, 'radial': radial_name,
-            'x': x_name, 'y': y_name, 'scale': scale}
+            'x': x_name, 'y': y_name, 'scale': scale, 'zero': zero}
 
         logger.debug(f'Added {name} with config: {self._search_angles[name]}')
 
@@ -204,7 +204,7 @@ class GWFlowProposal(FlowProposal):
                     {p: self.inversion_type for
                      p in self.inversion_parameters}
 
-        elif isinstance(self.inversion_type, dict):
+        elif isinstance(self.inversion_type, dict) and self.inversion_type:
             if self.inversion is True:
                 self.inversion = list(self.inversion_type.keys())
             elif self.log_inversion is True:
@@ -312,16 +312,25 @@ class GWFlowProposal(FlowProposal):
 
         if self.angular_decomposition:
             logger.debug('Checking source angles')
-            for a in ['psi', 'theta_jn', 'iota', 'phase']:
+            for a in ['psi', 'theta_jn', 'iota', 'phase', 'cos_theta_jn']:
                 if a in self.names:
                     if self.rescale_angles:
                         scale = 2. * np.pi / np.ptp(self.model.bounds[a])
                     else:
                         scale = 1.0
-                    self.setup_angle(a, scale=scale)
+                    if a in ['cos_theta_jn']:
+                        zero = 'centre'
+                    else:
+                        zero = 'bound'
+                    self.setup_angle(a, scale=scale, zero=zero)
             logger.debug('Checking spin angles')
             for i in [1, 2]:
-                if (a := f'tilt_{i}') in self.names:
+                if ((a := f'tilt_{i}') in self.names or
+                   (a := f'cos_tilt_{i}') in self.names):
+                    if 'cos' in a:
+                        zero = 'centre'
+                    else:
+                        zero = 'bound'
                     if self.rescale_angles:
                         scale = 2. * np.pi / np.ptp(self.model.bounds[a])
                     else:
@@ -331,13 +340,13 @@ class GWFlowProposal(FlowProposal):
                                  radial in self._inversion or
                                  radial in self._angle_conversion or
                                  radial in self.default_rescaling)):
-                        self.setup_angle(a, radial, scale=scale)
+                        self.setup_angle(a, radial, scale=scale, zero=zero)
                     else:
-                        self.setup_angle(a, scale=scale)
+                        self.setup_angle(a, scale=scale, zero=zero)
 
             for a in ['phi_jl', 'phi_12']:
                 if a in self.names:
-                    self.setup_angle(a, scale=1.0)
+                    self.setup_angle(a, scale=1.0, zero='bound')
 
         if self.mass_inversion:
             if 'mass_ratio' in self.names:
@@ -740,7 +749,8 @@ class GWFlowProposal(FlowProposal):
         if self._search_angles:
             for a in self._search_angles.values():
                 x[a['angle']], r, lj = cartesian_to_angle(
-                    x_prime[a['x']], x_prime[a['y']], scale=a['scale'])
+                    x_prime[a['x']], x_prime[a['y']], scale=a['scale'],
+                    zero=a['zero'])
                 log_J += lj
                 # if the radial parameter is defined in the model
                 # rescale it using the bounds

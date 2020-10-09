@@ -14,13 +14,25 @@ def angle_to_cartesian(alpha, r=None, scale=1.0):
     return x, y, np.log(r)
 
 
-def cartesian_to_angle(x, y, scale=1.0):
+def cartesian_to_angle(x, y, scale=1.0, zero='centre'):
     """
     Reconstruct an angle given the real and imaginary part. Assume the angle
     is defined on [0, 2 pi] / scale.
+
+    Parameters
+    ----------
+    x, y : array_like
+        Cartesian coordinates
+    scale : float, optional
+        Rescaling factor used to rescale from [0, 2pi]
+    zero : str, {centre, bound}
+        Specifiy is zero should be the central value or lower bound
     """
     radius = np.sqrt(x ** 2. + y ** 2.)
-    angle = (np.arctan2(y, x) + 2. * np.pi) % (2. * np.pi) / scale
+    if zero == 'centre':
+        angle = np.arctan2(y, x) / scale
+    else:
+        angle = (np.arctan2(y, x) + 2. * np.pi) % (2. * np.pi) / scale
     return angle, radius, -np.log(radius)
 
 
