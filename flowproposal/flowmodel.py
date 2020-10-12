@@ -345,7 +345,7 @@ class FlowModel:
         logger.info(f"Patience: {patience}")
         history = dict(loss=[], val_loss=[])
 
-        self.weights_file = output + 'model.pt'
+        current_weights_file = output + 'model.pt'
         logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
@@ -368,7 +368,8 @@ class FlowModel:
                 break
 
         self.model.load_state_dict(best_model)
-        torch.save(self.model.state_dict(), self.weights_file)
+        torch.save(self.model.state_dict(), current_weights_file)
+        self.weights_file = current_weights_file
         self.model.eval()
 
         if plot:

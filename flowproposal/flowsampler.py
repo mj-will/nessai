@@ -1,8 +1,8 @@
-import datetime
 import json
 import logging
 import os
-import time
+import signal
+import sys
 
 import numpy as np
 
@@ -39,13 +39,15 @@ class FlowSampler:
 
     def __init__(self, model, output='./', resume=True,
                  resume_file='nested_sampler_resume.pkl', weights_file=None,
-                 **kwargs):
+                 exit_code=130, **kwargs):
 
         configure_threads(
             max_threads=kwargs.get('max_threads', None),
             pytorch_threads=kwargs.get('pytorch_threads', None),
             n_pool=kwargs.get('n_pool', None)
             )
+
+        self.exit_code = exit_code
 
         self.output = output
         if resume:
@@ -80,16 +82,23 @@ class FlowSampler:
 
         self.save_kwargs(kwargs)
 
+        try:
+            signal.signal(signal.SIGTERM, self.safe_exit)
+            signal.signal(signal.SIGINT, self.safe_exit)
+            signal.signal(signal.SIGALRM, self.safe_exit)
+        except AttributeError:
+            logger.debug('Can not set signal attributes on this system')
+
     def run(self, resume=False, plot=True, save=True):
         """
         Run the nested samper
         """
         self.ns.initialise()
-        st = time.time()
         self.logZ, self.nested_samples = \
             self.ns.nested_sampling_loop(save=save)
-        logger.info(('Total sampling time: '
-                     f'{datetime.timedelta(seconds=time.time() - st)}'))
+        logger.info((f'Total sampling time: {self.ns.sampling_time}'))
+
+        logger.info('Starting post processing')
         logger.info('Computing posterior samples')
         self.posterior_samples = draw_posterior_samples(self.nested_samples,
                                                         self.ns.nlive)
@@ -160,8 +169,23 @@ class FlowSampler:
         d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
         d['log_evidence'] = self.ns.log_evidence
         d['infomation'] = self.ns.information
+        d['sampling_time'] = self.ns.sampling_time
         d['training_time'] = self.ns.training_time
         d['population_time'] = self.ns.proposal.population_time
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=FPJSONEncoder)
+
+    def safe_exit(self, signum=None, frame=None):
+        """
+        Safely exit. This includes closing the multiprocessing pool.
+        """
+        logger.warning(f'Trying to safely exit with code {signum}')
+
+        self.ns.checkpoint()
+
+        if self.ns.proposal.pool is not None:
+            self.ns.proposal.close_pool()
+
+        logger.warning(f'Exiting with code: {self.exit_code}')
+        sys.exit(self.exit_code)

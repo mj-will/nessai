@@ -307,7 +307,6 @@ class FlowProposal(RejectionProposal):
         self.training_data = None
         self.save_training_data = save_training_data
         self.x = None
-        self.z = None
         self.samples = None
         self.rescaled_names = []
 
@@ -1070,7 +1069,7 @@ class FlowProposal(RejectionProposal):
         warn_zero = True
         if not self.keep_samples or not self.indices:
             self.x = np.array([], dtype=self.x_dtype)
-            self.z = np.empty([0, self.dims])
+            z_samples = np.empty([0, self.dims])
         counter = 0
         zero_counter = 0
         proposed = 0
@@ -1088,7 +1087,7 @@ class FlowProposal(RejectionProposal):
                 cut = log_q >= worst_q
                 x = x[cut]
                 log_q = log_q[cut]
-            logger.debug(f'Dynamic range of log proposal: {np.ptp(log_q):.3}')
+
             # rescale given priors used initially, need for priors
             log_w = self.compute_weights(x, log_q)
             log_u = np.log(np.random.rand(x.shape[0]))
@@ -1099,7 +1098,7 @@ class FlowProposal(RejectionProposal):
                 self.r *= 0.99
                 logger.warning(f'New radius: {r}')
                 self.x = np.array([], dtype=self.x_dtype)
-                self.z = np.empty([0, self.dims])
+                z_samples = np.empty([0, self.dims])
                 counter = 0
                 continue
 
@@ -1119,7 +1118,7 @@ class FlowProposal(RejectionProposal):
                     self.r *= 0.99
                     logger.warning(f'New radius: {r}')
                     self.x = np.array([], dtype=self.x_dtype)
-                    self.z = np.empty([0, self.dims])
+                    z_samples = np.empty([0, self.dims])
                     zero_counter = 0
                     continue
             if len(indices) / self.drawsize < 0.01:
@@ -1129,10 +1128,9 @@ class FlowProposal(RejectionProposal):
                         f'samples! ({len(indices) / self.drawsize})')
                     warn = False
 
-            logger.debug(f'Acceptance: {len(indices) / log_q.size}')
             # array of indices to take random draws from
             self.x = np.concatenate([self.x, x[indices]], axis=0)
-            self.z = np.concatenate([self.z, z[indices]], axis=0)
+            z_samples = np.concatenate([z_samples, z[indices]], axis=0)
 
             if counter % 10 == 0:
                 logger.debug(f'Accepted {self.x.size} / {N} points')
@@ -1140,7 +1138,7 @@ class FlowProposal(RejectionProposal):
 
         if self.exact_poolsize:
             self.x = self.x[:N]
-            self.z = self.z[:N]
+            z_samples = z_samples[:N]
 
         if (p := self._plot_pool) and plot:
             if p == 'all':
@@ -1153,7 +1151,7 @@ class FlowProposal(RejectionProposal):
                     self.x,
                     labels=['live points', 'pool'],
                     filename=f'{self.output}/pool_{self.populated_count}.png')
-                z_tensor = torch.from_numpy(self.z).to(self.flow.device)
+                z_tensor = torch.from_numpy(z_samples).to(self.flow.device)
                 with torch.no_grad():
                     if self.alt_dist is not None:
                         log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
@@ -1277,15 +1275,16 @@ class FlowProposal(RejectionProposal):
             state['mask'] = state['flow'].model_config['kwargs']['mask']
         else:
             state['mask'] = None
+        state['pool'] = None
+        if state['populated']:
+            state['resume_populated'] = True
+        else:
+            state['resumed_populated'] = False
         # user provides model and config for resume
         # flow can be reconstructed from resume
-        del state['pool']
         del state['model']
         del state['_flow_config']
         del state['flow']
-        for a in ['x', 'z', 'indices', 'samples']:
-            if a in state:
-                del state[a]
         return state
 
     def __setstate__(self, state):
@@ -1437,7 +1436,7 @@ class AugmentedFlowProposal(FlowProposal):
         warn = True
         if not self.keep_samples or not self.indices:
             self.x = np.array([], dtype=self.x_dtype)
-            self.z = np.empty([0, self.dims])
+            z_samples = np.empty([0, self.dims])
         counter = 0
         zero_counter = 0
         while len(self.x) < N:
@@ -1466,7 +1465,7 @@ class AugmentedFlowProposal(FlowProposal):
                     r *= 0.99
                     logger.warning(f'New radius: {r}')
                     self.x = np.array([], dtype=self.x_dtype)
-                    self.z = np.empty([0, self.dims])
+                    z_samples = np.empty([0, self.dims])
                     zero_counter = 0
                     continue
             if len(indices) / self.drawsize < 0.01:
@@ -1479,14 +1478,14 @@ class AugmentedFlowProposal(FlowProposal):
 
             # array of indices to take random draws from
             self.x = np.concatenate([self.x, x[indices]], axis=0)
-            self.z = np.concatenate([self.z, z[indices]], axis=0)
+            z_samples = np.concatenate([z_samples, z[indices]], axis=0)
             if counter % 10 == 0:
                 logger.debug(f'Accepted {self.x.size} / {N} points')
             counter += 1
 
         if self.exact_poolsize:
             self.x = self.x[:N]
-            self.z = self.z[:N]
+            z_samples = z_samples[:N]
 
         if plot:
             plot_live_points(

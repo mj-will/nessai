@@ -191,6 +191,7 @@ class NestedSampler:
         self.output = output
 
         self.training_time = datetime.timedelta()
+        self.completed_training = True
         self.sampling_time = datetime.timedelta()
         self.likelihood_evaluations = []
         self.training_iterations = []
@@ -202,6 +203,9 @@ class NestedSampler:
         self.population_acceptance = []
         self.population_radii = []
         self.population_iterations = []
+
+        self.checkpoint_iterations = []
+        self.finalised = False
 
         if max_iteration is None:
             self.max_iteration = np.inf
@@ -604,10 +608,8 @@ class NestedSampler:
             if (self.iteration - self.last_updated < self.cooldown and
                     not force):
                 logger.debug('Not training, still cooling down!')
-            elif self.resumed:
-                logger.info('Skipping training because of resume')
-                self.resumed = False
             else:
+                self.completed_training = False
                 if (self.reset_weights and not (self.proposal.training_count
                                                 % self.reset_weights)):
                     self.proposal.reset_model_weights()
@@ -628,7 +630,8 @@ class NestedSampler:
                 self.block_iteration = 0
                 self.block_acceptance = 0.
                 if self.checkpointing:
-                    self.checkpoint()
+                    self.checkpoint(periodic=True)
+                self.completed_training = True
 
     def plot_state(self):
         """
@@ -640,6 +643,20 @@ class NestedSampler:
         ax = ax.ravel()
         it = (np.arange(len(self.min_likelihood))) * (self.nlive // 10)
         it[-1] = self.iteration
+
+        for t in self.training_iterations:
+            for a in ax:
+                a.axvline(t, ls='-', alpha=0.7, color='k')
+
+        if not self.train_on_empty:
+            for p in self.population_iterations:
+                for a in ax:
+                    a.axvline(p, ls='-', alpha=0.7, color='tab:orange')
+
+        for i in self.checkpoint_iterations:
+            for a in ax:
+                a.axvline(i, ls='-', alpha=0.7, color='tab:pink')
+
         ax[0].plot(it, self.min_likelihood, label='Min logL', c='lightblue')
         ax[0].plot(it, self.max_likelihood, label='Max logL', c='darkblue')
         ax[0].set_ylabel('logL')
@@ -688,15 +705,6 @@ class NestedSampler:
 
         ax[-1].set_xlabel('Iteration')
 
-        for t in self.training_iterations:
-            for a in ax:
-                a.axvline(t, ls='--', alpha=0.7, color='k')
-
-        if not self.train_on_empty:
-            for p in self.population_iterations:
-                for a in ax:
-                    a.axvline(p, ls='-.', alpha=0.7, color='tab:orange')
-
         plt.tight_layout()
 
         fig.savefig(f'{self.output}/state.png')
@@ -739,10 +747,18 @@ class NestedSampler:
                 self.block_iteration = 0
         self.proposal.ns_acceptance = self.mean_block_acceptance
 
-    def checkpoint(self):
+    def checkpoint(self, periodic=False):
         """
         Checkpoint the classes internal state
+
+        Parameters
+        ----------
+        periodic : bool
+            Indicates if the checkpoint is regular periodic checkpointing
+            or forced by a signal
         """
+        if not periodic:
+            self.checkpoint_iterations += [self.iteration]
         self.sampling_time += \
             (datetime.datetime.now() - self.sampling_start_time)
         self.start_time = 0
@@ -770,6 +786,23 @@ class NestedSampler:
                 self.write_evidence_to_file()
             return 0
 
+        if self.resumed:
+            # If pool is populated make reset the flag since it is set to
+            # false during initialisation
+            if hasattr(self._flow_proposal, 'resume_populated'):
+                if self._flow_proposal.resume_populated:
+                    self._flow_proposal.populated = True
+                    logger.info('Resumed with populated pool')
+
+            # If process exited during training make sure to re-train
+            if not self.completed_training:
+                logger.warning('Resumed sampler exitted during training. '
+                               'Restarting training.')
+                self._flow_proposal.reset_model_weights()
+                self.check_state(force=True)
+
+            self.resumed = False
+
         self.update_state()
 
         while self.condition > self.tolerance:
@@ -787,19 +820,22 @@ class NestedSampler:
             self.proposal.close_pool()
 
         # final adjustments
-        for i, p in enumerate(self.live_points):
-            self.state.increment(p['logL'], nlive=self.nlive-i)
-            self.nested_samples.append(p)
+        # avoid repeating final adjustments if resuming a completed run.
+        if not self.finalised:
+            for i, p in enumerate(self.live_points):
+                self.state.increment(p['logL'], nlive=self.nlive-i)
+                self.nested_samples.append(p)
 
-        # Refine evidence estimate
-        self.update_state(force=True)
-        self.state.finalise()
-        self.info = self.state.info
-        self.likelihood_calls = self.model.likelihood_evaluations
-        # output the chain and evidence
-        if save:
-            self.write_nested_samples_to_file()
-            self.write_evidence_to_file()
+            # Refine evidence estimate
+            self.update_state(force=True)
+            self.state.finalise()
+            self.info = self.state.info
+            self.likelihood_calls = self.model.likelihood_evaluations
+            # output the chain and evidence
+            if save:
+                self.write_nested_samples_to_file()
+                self.write_evidence_to_file()
+            self.finalised = True
 
         logger.critical(f'Final evidence: {self.state.logZ:.3f} +/- '
                         f'{np.sqrt(self.state.info[-1] / self.nlive):.3f}')
@@ -809,7 +845,7 @@ class NestedSampler:
 
         # This includes updating the total sampling time
         if self.checkpointing:
-            self.checkpoint()
+            self.checkpoint(periodic=True)
 
         logger.info(f'Total sampling time: {self.sampling_time}')
         logger.info(f'Total training time: {self.training_time}')
@@ -849,7 +885,7 @@ class NestedSampler:
         obj._uninformed_proposal.model = model
         obj._flow_proposal.model = model
         obj._flow_proposal.flow_config = flow_config
-        obj._flow_proposal.pool = None
+
         if (m := obj._flow_proposal.mask) is not None:
             if isinstance(m, list):
                 m = np.array(m)
@@ -858,7 +894,12 @@ class NestedSampler:
         obj._flow_proposal.initialise()
         if weights_file is None:
             weights_file = obj._flow_proposal.weights_file
-        obj._flow_proposal.flow.reload_weights(weights_file)
+
+        if weights_file is not None:
+            if os.path.exists(weights_file):
+                obj._flow_proposal.flow.reload_weights(weights_file)
+        else:
+            logger.warning('Could not reload weights for flow')
         obj.resumed = True
         return obj
 
