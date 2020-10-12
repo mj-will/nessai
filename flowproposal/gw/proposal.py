@@ -253,7 +253,10 @@ class GWFlowProposal(FlowProposal):
                     self.add_angle_conversion(p, duplicate=False)
             if isinstance(self.convert_to_angle, dict):
                 for k, v in self.convert_to_angle.items():
-                    self.add_angle_conversion(k, duplicate=v)
+                    if v == 'duplicate':
+                        self.add_angle_conversion(k, duplicate=True)
+                    else:
+                        self.add_angle_conversion(k, duplicate=False)
 
         if self.angular_decomposition:
             if all(p in self.names for p in ['ra', 'dec']):
