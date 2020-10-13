@@ -168,7 +168,7 @@ class FlowSampler:
         d['nested_samples'] = live_points_to_dict(self.nested_samples)
         d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
         d['log_evidence'] = self.ns.log_evidence
-        d['infomation'] = self.ns.information
+        d['information'] = self.ns.information
         d['sampling_time'] = self.ns.sampling_time
         d['training_time'] = self.ns.training_time
         d['population_time'] = self.ns.proposal.population_time
