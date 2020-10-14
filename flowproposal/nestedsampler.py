@@ -485,8 +485,7 @@ class NestedSampler:
 
     def populate_live_points(self):
         """
-        Initialise the pool of `cpnest.parameter.LivePoint` by
-        sampling them from the `cpnest.model.log_prior` distribution
+        Initialise the pool of live points.
         """
         i = 0
         live_points = np.empty(self.nlive,
@@ -598,11 +597,15 @@ class NestedSampler:
 
         # Check for empty should be independent of other checks
         if not self.proposal.populated:
-            if self.train_on_empty:
+            if self.train_on_empty and not self.proposal.populating:
                 train = True
                 if self.force_train:
                     force = True
                 logger.debug('Training flow (proposal empty)')
+
+        if not self.completed_training:
+            train = True
+            force = True
 
         if train:
             if (self.iteration - self.last_updated < self.cooldown and
@@ -761,7 +764,7 @@ class NestedSampler:
             self.checkpoint_iterations += [self.iteration]
         self.sampling_time += \
             (datetime.datetime.now() - self.sampling_start_time)
-        self.start_time = 0
+        self.sampling_start_time = datetime.datetime.now()
         logger.critical('Checkpointing nested sampling')
         safe_file_dump(self, self.resume_file, pickle, save_existing=True)
 
@@ -790,7 +793,8 @@ class NestedSampler:
             # If pool is populated make reset the flag since it is set to
             # false during initialisation
             if hasattr(self._flow_proposal, 'resume_populated'):
-                if self._flow_proposal.resume_populated:
+                if (self._flow_proposal.resume_populated and
+                        self._flow_proposal.indices):
                     self._flow_proposal.populated = True
                     logger.info('Resumed with populated pool')
 
@@ -799,7 +803,6 @@ class NestedSampler:
                 logger.warning('Resumed sampler exitted during training. '
                                'Restarting training.')
                 self._flow_proposal.reset_model_weights()
-                self.check_state(force=True)
 
             self.resumed = False
 

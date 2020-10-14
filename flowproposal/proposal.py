@@ -299,6 +299,7 @@ class FlowProposal(RejectionProposal):
         self._flow_config = None
         self.initialised = False
         self.populated = False
+        self.populating = False    # Flag used for resuming during population
         self.indices = []
         self.training_count = 0
         self.populated_count = 0
@@ -796,7 +797,6 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a fwe MB in size so
             proceed with caution!
         """
-
         block_output = self.output + f'/training/block_{self.training_count}/'
         if not os.path.exists(block_output):
             os.makedirs(block_output, exist_ok=True)
@@ -1069,6 +1069,7 @@ class FlowProposal(RejectionProposal):
         warn_zero = True
         if not self.keep_samples or not self.indices:
             self.x = np.array([], dtype=self.x_dtype)
+            self.indices = []
             z_samples = np.empty([0, self.dims])
         counter = 0
         zero_counter = 0
@@ -1250,12 +1251,14 @@ class FlowProposal(RejectionProposal):
             New live point
         """
         if not self.populated:
+            self.populating = True
             if self.update_poolsize:
                 self.update_poolsize_scale(self.ns_acceptance)
             st = datetime.datetime.now()
             while not self.populated:
                 self.populate(worst_point, N=self.poolsize)
             self.population_time += (datetime.datetime.now() - st)
+            self.populating = False
         # new sample is drawn randomly from proposed points
         # popping from right end is faster
         index = self.indices.pop()
@@ -1276,10 +1279,11 @@ class FlowProposal(RejectionProposal):
         else:
             state['mask'] = None
         state['pool'] = None
-        if state['populated']:
+        if state['populated'] and self.indices:
             state['resume_populated'] = True
         else:
             state['resumed_populated'] = False
+
         # user provides model and config for resume
         # flow can be reconstructed from resume
         del state['model']
