@@ -41,6 +41,10 @@ class GWFlowProposal(FlowProposal):
         self._default_inversion_parameters = ['mass_ratio', 'a_1', 'a_2',
                                               'luminosity_distance']
 
+        self._default_angles = ['psi', 'phase', 'iota', 'theta_jn', 'dec',
+                                'ra', 'tilt_1', 'tilt_2', 'cos_theta_jn',
+                                'cos_tilt_1', 'cos_tilt_2']
+
     def set_reparameterisations(self, reparameterisations):
         """
         Set the relevant reparamterisation flags
@@ -314,10 +318,25 @@ class GWFlowProposal(FlowProposal):
             self._reparameterisations.append('time')
 
         if self.angular_decomposition:
+            if self.rescale_angles:
+                if not isinstance(self.rescale_angles, list):
+                    if isinstance(self.rescale_angles, bool):
+                        self.rescale_angles = self._default_angles
+                    elif isinstance(self.rescale_angles, str):
+                        if self.rescale_angles == 'all':
+                            self.rescale_angles = self._default_angles
+                        else:
+                            raise ValueError(
+                                'Unknown value for rescale_angles: '
+                                f'{self.rescale_angles}')
+                logger.debug(f'Angles to rescale {self.rescale_angles}')
+            else:
+                self.rescale_angles = []
+
             logger.debug('Checking source angles')
             for a in ['psi', 'theta_jn', 'iota', 'phase', 'cos_theta_jn']:
                 if a in self.names:
-                    if self.rescale_angles:
+                    if a in self.rescale_angles:
                         scale = 2. * np.pi / np.ptp(self.model.bounds[a])
                     else:
                         scale = 1.0
@@ -326,6 +345,7 @@ class GWFlowProposal(FlowProposal):
                     else:
                         zero = 'bound'
                     self.setup_angle(a, scale=scale, zero=zero)
+
             logger.debug('Checking spin angles')
             for i in [1, 2]:
                 if ((a := f'tilt_{i}') in self.names or
@@ -334,7 +354,7 @@ class GWFlowProposal(FlowProposal):
                         zero = 'centre'
                     else:
                         zero = 'bound'
-                    if self.rescale_angles:
+                    if a in self.rescale_angles:
                         scale = 2. * np.pi / np.ptp(self.model.bounds[a])
                     else:
                         scale = 1.0
