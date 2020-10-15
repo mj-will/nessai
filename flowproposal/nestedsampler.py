@@ -190,9 +190,16 @@ class NestedSampler:
             self.setup_output(output, resume_file)
         self.output = output
 
+        # Timing
         self.training_time = datetime.timedelta()
-        self.completed_training = True
         self.sampling_time = datetime.timedelta()
+        self.sampling_start_time = datetime.datetime.now()
+
+        # Resume flags
+        self.completed_training = True
+        self.finalised = False
+
+        # History
         self.likelihood_evaluations = []
         self.training_iterations = []
         self.likelihood_calls = 0
@@ -203,9 +210,7 @@ class NestedSampler:
         self.population_acceptance = []
         self.population_radii = []
         self.population_iterations = []
-
         self.checkpoint_iterations = []
-        self.finalised = False
 
         if max_iteration is None:
             self.max_iteration = np.inf
@@ -301,6 +306,11 @@ class NestedSampler:
     @property
     def information(self):
         return self.state.info[-1]
+
+    @property
+    def current_sampling_time(self):
+        return self.sampling_time \
+                + (datetime.datetime.now() - self.sampling_start_time)
 
     def setup_output(self, output, resume_file=None):
         """
@@ -715,7 +725,11 @@ class NestedSampler:
 
         ax[-1].set_xlabel('Iteration')
 
-        plt.tight_layout()
+        fig.suptitle(f'Sampling time: {self.current_sampling_time}',
+                     fontsize=16)
+
+        fig.tight_layout()
+        fig.subplots_adjust(top=0.95)
 
         fig.savefig(f'{self.output}/state.png')
 
@@ -771,9 +785,9 @@ class NestedSampler:
             self.checkpoint_iterations += [self.iteration]
         self.sampling_time += \
             (datetime.datetime.now() - self.sampling_start_time)
-        self.sampling_start_time = datetime.datetime.now()
         logger.critical('Checkpointing nested sampling')
         safe_file_dump(self, self.resume_file, pickle, save_existing=True)
+        self.sampling_start_time = datetime.datetime.now()
 
     def nested_sampling_loop(self, save=True):
         """
