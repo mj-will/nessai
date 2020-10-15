@@ -43,7 +43,7 @@ class GWFlowProposal(FlowProposal):
 
         self._default_angles = ['psi', 'phase', 'iota', 'theta_jn', 'dec',
                                 'ra', 'tilt_1', 'tilt_2', 'cos_theta_jn',
-                                'cos_tilt_1', 'cos_tilt_2']
+                                'cos_tilt_1', 'cos_tilt_2', 'phi_12', 'phi_jl']
 
     def set_reparameterisations(self, reparameterisations):
         """
