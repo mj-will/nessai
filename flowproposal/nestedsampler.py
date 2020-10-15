@@ -647,64 +647,71 @@ class NestedSampler:
         it = (np.arange(len(self.min_likelihood))) * (self.nlive // 10)
         it[-1] = self.iteration
 
+        colours = ['#4575b4', '#d73027', '#fee090']
+
+        ls = ['-', '--', ':']
+
         for t in self.training_iterations:
             for a in ax:
-                a.axvline(t, ls='-', alpha=0.7, color='k')
+                a.axvline(t, ls='-', color='lightgrey')
 
         if not self.train_on_empty:
             for p in self.population_iterations:
                 for a in ax:
-                    a.axvline(p, ls='-', alpha=0.7, color='tab:orange')
+                    a.axvline(p, ls='-', color='tab:orange')
 
         for i in self.checkpoint_iterations:
             for a in ax:
-                a.axvline(i, ls='-', alpha=0.7, color='tab:pink')
+                a.axvline(i, ls='-', color='tab:pink')
 
-        ax[0].plot(it, self.min_likelihood, label='Min logL', c='lightblue')
-        ax[0].plot(it, self.max_likelihood, label='Max logL', c='darkblue')
+        ax[0].plot(it, self.min_likelihood, label='Min logL',
+                   c=colours[0], ls=ls[0])
+        ax[0].plot(it, self.max_likelihood, label='Max logL',
+                   c=colours[1], ls=ls[1])
         ax[0].set_ylabel('logL')
         ax[0].legend(frameon=False)
 
         g = np.min([len(self.state.gradients), self.iteration])
         ax[1].plot(np.arange(g), np.abs(self.state.gradients[:g]),
-                   c='darkblue', label='Gradient')
+                   c=colours[0], label='Gradient')
         ax[1].set_ylabel(r'$|d\log L/d \log X|$')
         ax[1].set_yscale('log')
 
-        ax[2].plot(it, self.likelihood_evaluations, c='darkblue',
+        ax[2].plot(it, self.likelihood_evaluations, c=colours[0], ls=ls[0],
                    label='Evalutions')
         ax[2].set_ylabel('logL evaluations')
 
-        ax[3].plot(it, self.logZ_history, label='logZ', c='darkblue')
+        ax[3].plot(it, self.logZ_history, label='logZ', c=colours[0], ls=ls[0])
         ax[3].set_ylabel('logZ')
         ax[3].legend(frameon=False)
 
         ax_dz = plt.twinx(ax[3])
-        ax_dz.plot(it, self.dZ_history, label='dZ', c='lightblue')
+        ax_dz.plot(it, self.dZ_history, label='dZ', c=colours[1], ls=ls[1])
         ax_dz.set_ylabel('dZ')
         handles, labels = ax[3].get_legend_handles_labels()
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
         ax[3].legend(handles + handles_dz, labels + labels_dz, frameon=False)
 
-        ax[4].plot(it, self.mean_acceptance_history, c='darkblue',
+        ax[4].plot(it, self.mean_acceptance_history, c=colours[0],
                    label='Proposal')
         ax[4].plot(self.population_iterations, self.population_acceptance,
-                   c='lightblue', label='Population')
+                   c=colours[1], ls=ls[1], label='Population')
         ax[4].set_ylabel('Acceptance')
         ax[4].set_ylim((-0.1, 1.1))
         handles, labels = ax[4].get_legend_handles_labels()
 
         ax_r = plt.twinx(ax[4])
         ax_r.plot(self.population_iterations, self.population_radii,
-                  label='Radius', color='tab:orange')
+                  label='Radius', color=colours[2], ls=ls[2])
         ax_r.set_ylabel('Population radius')
         handles_r, labels_r = ax_r.get_legend_handles_labels()
         ax[4].legend(handles + handles_r, labels + labels_r, frameon=False)
 
         if len(self.rolling_p):
             it = (np.arange(len(self.rolling_p)) + 1) * self.nlive
-            ax[5].plot(it, self.rolling_p, 'o', c='darkblue', label='p-value')
+            ax[5].plot(it, self.rolling_p, 'o', c=colours[0], label='p-value')
         ax[5].set_ylabel('p-value')
+        ax[5].set_ylim([-0.1, 1.1])
 
         ax[-1].set_xlabel('Iteration')
 
