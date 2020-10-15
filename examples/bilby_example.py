@@ -7,7 +7,6 @@ import bilby
 import numpy as np
 import torch
 
-
 torch.set_num_threads(1)
 
 # The output from the sampler will be saved to:
@@ -46,7 +45,7 @@ likelihood = SimpleGaussianLikelihood()
 flow_config = dict(
         max_epochs=50,
         patience=10,
-        model_config=dict(n_blocks=4, n_neurons=8, n_layers=2,
+        model_config=dict(n_blocks=2, n_neurons=8, n_layers=2,
                           device_tag='cpu',
                           kwargs=dict(batch_norm_between_layers=True))
         )
@@ -59,7 +58,7 @@ flow_config = dict(
 result = bilby.run_sampler(outdir=outdir, label=label, resume=False, plot=True,
                            likelihood=likelihood, priors=priors,
                            sampler='flowproposal', nlive=1000,
-                           maximum_uninformed=1000, flow_config=flow_config,
+                           maximum_uninformed=2000, flow_config=flow_config,
                            rescale_parameters=True,
                            injection_parameters={'x': 0.0, 'y': 0.0},
                            proposal_plots=True, analytic_priors=True,
