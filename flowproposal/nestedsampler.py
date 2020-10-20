@@ -657,7 +657,7 @@ class NestedSampler:
         it = (np.arange(len(self.min_likelihood))) * (self.nlive // 10)
         it[-1] = self.iteration
 
-        colours = ['#4575b4', '#d73027', '#fee090']
+        colours = ['#4575b4', '#d73027', '#fad117']
 
         ls = ['-', '--', ':']
 
