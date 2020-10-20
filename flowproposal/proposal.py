@@ -396,7 +396,7 @@ class FlowProposal(RejectionProposal):
         elif self.latent_prior == 'uniform':
             from .utils import draw_uniform
             self.draw_latent_prior = draw_uniform
-        elif self.latent_prior == 'uniform_nsphere':
+        elif self.latent_prior in ['uniform_nsphere', 'uniform_nball']:
             from .utils import draw_nsphere
             self.draw_latent_prior = draw_nsphere
         else:
@@ -1062,7 +1062,8 @@ class FlowProposal(RejectionProposal):
             logger.info(f'Populating proposal with lantent radius: {r:.5}')
         self.r = r
         if self.latent_prior == 'uniform_nsphere':
-            self.alt_dist = get_uniform_distribution(self.dims, self.r,
+            self.alt_dist = get_uniform_distribution(self.dims,
+                                                     self.r * self.fuzz,
                                                      device=self.flow.device)
 
         warn = True
@@ -1159,13 +1160,17 @@ class FlowProposal(RejectionProposal):
                     else:
                         log_p = self.flow.model.base_distribution_log_prob(
                             z_tensor).cpu().numpy()
-                fig, axs = plt.subplots(2, 1, figsize=(3, 6))
+
+                fig, axs = plt.subplots(3, 1, figsize=(3, 9))
                 axs = axs.ravel()
                 axs[0].hist(self.x['logL'], 20, histtype='step', label='log q')
                 axs[1].hist(self.x['logL'] - log_p, 20, histtype='step',
                             label='log J')
+                axs[2].hist(np.sqrt(np.sum(z_samples ** 2, axis=1)), 20,
+                            histtype='step', label='Latent radius')
                 axs[0].set_xlabel('Log q')
                 axs[1].set_xlabel('Log |J|')
+                axs[2].set_xlabel('r')
                 plt.tight_layout()
                 fig.savefig(
                     f'{self.output}/pool_{self.populated_count}_log_q.png')
