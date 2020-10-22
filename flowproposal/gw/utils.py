@@ -6,6 +6,7 @@ def angle_to_cartesian(alpha, r=None, scale=1.0):
     """
     Decompose an angle into a real and imaginary part
     """
+    alpha = np.asarray(alpha)
     rescaled_alpha = alpha * scale
     if r is None:
         r = stats.chi.rvs(2, size=alpha.size)
