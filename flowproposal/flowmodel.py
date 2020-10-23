@@ -8,7 +8,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from .flows import setup_model, weight_reset
 from .plot import plot_loss
-from .utils import NumpyEncoder, compute_minimum_distances
+from .utils import FPJSONEncoder, compute_minimum_distances
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,7 @@ class FlowModel:
                 str(config['model_config']['flow'])
 
         with open(output_file, "w") as f:
-            json.dump(config, f, indent=4, cls=NumpyEncoder)
+            json.dump(config, f, indent=4, cls=FPJSONEncoder)
 
     def _setup_from_input_dict(self, config):
         """
@@ -231,11 +231,17 @@ class FlowModel:
         model.train()
         train_loss = 0
 
+        if hasattr(model, 'loss_function'):
+            loss_fn = model.loss_function
+        else:
+            def loss_fn(data):
+                return -model.log_prob(data).mean()
+
         for idx, data in enumerate(loader):
             data = (data[0]
                     + noise_scale * torch.randn_like(data[0])).to(self.device)
             self.optimiser.zero_grad()
-            loss = -model.log_prob(data).mean()
+            loss = loss_fn(data)
             train_loss += loss.item()
             loss.backward()
             clip_grad_norm_(model.parameters(), 5.)
@@ -263,10 +269,16 @@ class FlowModel:
         model.eval()
         val_loss = 0
 
+        if hasattr(model, 'loss_function'):
+            loss_fn = model.loss_function
+        else:
+            def loss_fn(data):
+                return -model.log_prob(data).mean()
+
         for idx, data in enumerate(loader):
             data = data[0].to(self.device)
             with torch.no_grad():
-                val_loss += -model.log_prob(data).mean().item()
+                val_loss += loss_fn(data).item()
 
         return val_loss / len(loader)
 
@@ -333,7 +345,7 @@ class FlowModel:
         logger.info(f"Patience: {patience}")
         history = dict(loss=[], val_loss=[])
 
-        self.weights_file = output + 'model.pt'
+        current_weights_file = output + 'model.pt'
         logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
@@ -356,7 +368,8 @@ class FlowModel:
                 break
 
         self.model.load_state_dict(best_model)
-        torch.save(self.model.state_dict(), self.weights_file)
+        torch.save(self.model.state_dict(), current_weights_file)
+        self.weights_file = current_weights_file
         self.model.eval()
 
         if plot:
@@ -416,17 +429,15 @@ class FlowModel:
 
         Returns
         -------
-        z : :obj:`torch.Tensor`
+        z : :obj:`np.ndarray`
             Samples in the latent space
-        log_prob : :obj:`torch.Tensor`
+        log_prob : :obj:`np.ndarray`
             Log probabilties for each samples
         """
         x = torch.Tensor(x.astype(np.float32)).to(self.device)
         self.model.eval()
         with torch.no_grad():
-            z, log_J = self.model.forward(x, None)
-            log_prob = self.model.base_distribution_log_prob(z, None)
-            log_prob += log_J
+            z, log_prob = self.model.forward_and_log_prob(x)
 
         z = z.detach().cpu().numpy()
         log_prob = log_prob.detach().cpu().numpy()
@@ -452,9 +463,9 @@ class FlowModel:
 
         Returns
         -------
-        samples : :obj:`torch.Tensor`
+        samples : :obj:`np.ndarray`
             Tensor containing samples in the latent space
-        log_prob : :obj:`torch.Tensor`
+        log_prob : :obj:`np.ndarray`
             Tensor containing the log probabaility that corresponds to each
             sample
         """
