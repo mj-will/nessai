@@ -339,6 +339,7 @@ class FlowProposal(RejectionProposal):
         self.pool = pool
         self.n_pool = n_pool
         if multiprocessing:
+            logger.info('Using multiprocessing')
             if not self.check_acceptance:
                 self.check_acceptance = True
             self.setup_pool()
@@ -429,6 +430,8 @@ class FlowProposal(RejectionProposal):
         Setup the multiprocessing pool
         """
         if self.pool is None:
+            logger.info(
+                f'Starting multiprocessing pool with {self.n_pool} processes')
             import multiprocessing
             self.pool = multiprocessing.Pool(
                 processes=self.n_pool,
@@ -827,6 +830,7 @@ class FlowProposal(RejectionProposal):
                                                    rescale=True)
             self.alt_dist = None
             z_gen, _ = self.flow.sample_and_log_prob(N=x.size)
+
             plot_1d_comparison(z_training_data, z_gen,
                                labels=['z_live_points', 'z_generated'],
                                convert_to_live_points=True,
