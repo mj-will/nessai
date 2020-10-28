@@ -53,9 +53,6 @@ def update_config(d):
                          kwargs=dict(batch_norm_between_layers=True,
                                      linear_transform='lu'))
 
-    if 'model_config' in d.keys():
-        default_model.update(d['model_config'])
-
     default = dict(lr=0.001,
                    annealing=False,
                    batch_size=100,
@@ -64,12 +61,16 @@ def update_config(d):
                    patience=20,
                    noise_scale=0.0)
 
-    if not isinstance(d, dict):
-        raise TypeError('Must pass a dictionary to update the default '
-                        'trainer settings')
-    else:
-        default.update(d)
+    if d is None:
         default['model_config'] = default_model
+    else:
+        if not isinstance(d, dict):
+            raise TypeError('Must pass a dictionary to update the default '
+                            'trainer settings')
+        else:
+            default.update(d)
+            default_model.update(d.get('model_config', {}))
+            default['model_config'] = default_model
 
     return default
 
@@ -92,9 +93,10 @@ class FlowModel:
         Path for output, this includes weights files and the loss plot.
     """
     def __init__(self, config=None, output='./'):
+        self.model = None
         self.initialised = False
         self.output = output
-        self._setup_from_input_dict(config)
+        self.setup_from_input_dict(config)
         self.weights_file = None
 
     def save_input(self, config, output_file=None):
@@ -127,7 +129,7 @@ class FlowModel:
         with open(output_file, "w") as f:
             json.dump(config, f, indent=4, cls=FPJSONEncoder)
 
-    def _setup_from_input_dict(self, config):
+    def setup_from_input_dict(self, config):
         """
         Setup the trainer from a dictionary, all keys in the dictionary are
         added as methods to the ocject. Input is automatically saved.
@@ -173,12 +175,11 @@ class FlowModel:
             * Initialiseing the optimiser
         """
         self.update_mask()
-        self.model_config = update_config(self.model_config)
         self.model, self.device = setup_model(self.model_config)
         self.optimiser = self.get_optimiser()
         self.initialised = True
 
-    def _prep_data(self, samples, val_size, batch_size):
+    def prep_data(self, samples, val_size, batch_size):
         """
         Prep data and return dataloaders for training
         """
@@ -193,10 +194,10 @@ class FlowModel:
         logger.debug(f'{x_train.shape} training samples')
         logger.debug(f'{x_val.shape} validation samples')
 
-        if not isinstance(batch_size, int):
+        if not type(batch_size) is int:
             if batch_size == 'all':
                 batch_size = x_train.shape[0]
-            elif batch_size is not None:
+            else:
                 raise RuntimeError(f'Unknown batch size: {batch_size}')
         train_tensor = torch.from_numpy(x_train.astype(np.float32))
         train_dataset = torch.utils.data.TensorDataset(train_tensor)
@@ -326,8 +327,8 @@ class FlowModel:
         else:
             noise_scale = self.noise_scale
 
-        train_loader, val_loader = self._prep_data(samples, val_size=val_size,
-                                                   batch_size=self.batch_size)
+        train_loader, val_loader = self.prep_data(samples, val_size=val_size,
+                                                  batch_size=self.batch_size)
 
         if max_epochs is None:
             max_epochs = self.max_epochs
@@ -477,6 +478,8 @@ class FlowModel:
             Tensor containing the log probabaility that corresponds to each
             sample
         """
+        if self.model is None:
+            raise RuntimeError('Model is not initialised yet!')
         if self.model.training:
             self.model.eval()
         if z is None:
