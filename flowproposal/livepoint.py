@@ -91,12 +91,10 @@ def numpy_array_to_live_points(array, names):
     structed_array
         Numpy structed array with fields given by names plus logP and logL
     """
-    array = array.ravel().view(dtype=[(n, DEFAULT_FLOAT_DTYPE) for n in names])
-    array = rfn.append_fields(array, ['logP', 'logL'],
-                              data=[*np.zeros([array.size, 2]).T],
-                              dtypes=[DEFAULT_FLOAT_DTYPE, LOGL_DTYPE],
-                              usemask=False)
-    return array
+    struct_array = np.zeros((array.shape[0]), dtype=get_dtype(names))
+    for i, n in enumerate(names):
+        struct_array[n] = array[:, i]
+    return struct_array
 
 
 def dict_to_live_points(d):
