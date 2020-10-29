@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from nflows.transforms.normalization import BatchNorm
+from nflows.transforms.lu import LULinear
+from nflows.transforms.permutations import RandomPermutation
 from nflows.nn.nde.made import MaskedLinear
 from nflows.nn.nets import MLP
 
@@ -108,6 +110,11 @@ def weight_reset(module):
         module.bias.data.zero_()
         module.running_mean.zero_()
         module.running_var.fill_(1)
+    elif isinstance(module, LULinear):
+        module.cache.invalidate()
+        module._initialize(identity_init=True)
+    elif isinstance(module, RandomPermutation):
+        module._permutation = torch.randperm(len(module._permutation))
     elif any(isinstance(module, layer) for layer in layers):
         module.reset_parameters()
 

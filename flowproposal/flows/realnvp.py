@@ -97,7 +97,8 @@ class FlexibleRealNVP(NFlow):
             elif linear_transform == 'lu':
                 return transforms.CompositeTransform([
                     transforms.RandomPermutation(features=features),
-                    transforms.LULinear(features, identity_init=True)
+                    transforms.LULinear(features, identity_init=True,
+                                        using_cache=True)
                 ])
             elif linear_transform == 'svd':
                 return transforms.CompositeTransform([
