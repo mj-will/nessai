@@ -204,7 +204,7 @@ def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
     return np.random.randn(N, dims)
 
 
-def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0):
+def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, sigma=1):
     """
     Draw N points from a truncated gaussian with a given a radius
 
@@ -225,10 +225,9 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0):
         Array of samples with shape (N, dims)
     """
     r *= fuzz
-    p = np.empty([0])
-    while p.shape[0] < N:
-        p = np.concatenate([p, stats.chi.rvs(dims, size=N)])
-        p = p[p < r]
+    u_max = stats.chi.cdf(r / sigma, df=dims)
+    u = np.random.uniform(0, u_max, N)
+    p = sigma * stats.chi.ppf(u, df=dims)
     x = np.random.randn(p.size, dims)
     points = (p * x.T / np.sqrt(np.sum(x**2., axis=1))).T
     return points
