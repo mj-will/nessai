@@ -1078,12 +1078,14 @@ class FlowProposal(RejectionProposal):
 
         warn = True
         if not self.keep_samples or not self.indices:
-            self.x = np.array([], dtype=self.x_dtype)
+            self.x = np.empty(N,  dtype=self.x_dtype)
             self.indices = []
-            z_samples = np.empty([0, self.dims])
+            z_samples = np.empty([N, self.dims])
+
         counter = 0
         proposed = 0
-        while len(self.x) < N:
+        accepted = 0
+        while accepted < N:
             while True:
                 z = self.draw_latent_prior(self.dims, r=self.r,
                                            N=self.drawsize, fuzz=self.fuzz,
@@ -1113,13 +1115,16 @@ class FlowProposal(RejectionProposal):
                     warn = False
 
             # array of indices to take random draws from
-            self.x = np.concatenate([self.x, x[indices]], axis=0)
-            z_samples = np.concatenate([z_samples, z[indices]], axis=0)
+            n = min(len(indices), N - accepted)
+            self.x[accepted:(accepted+n)] = x[indices][:n]
+            z_samples[accepted:(accepted+n), ...] = z[indices][:n]
+            accepted += n
 
             if counter % 10 == 0:
-                logger.debug(f'Accepted {self.x.size} / {N} points')
+                logger.debug(f'Accepted {accepted} / {N} points')
             counter += 1
 
+        # TODO: this can be removed
         if self.exact_poolsize:
             self.x = self.x[:N]
             z_samples = z_samples[:N]
