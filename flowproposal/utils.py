@@ -7,6 +7,7 @@ from nflows.distributions.uniform import BoxUniform
 import numpy as np
 from scipy import stats, spatial
 import torch
+from torch.distributions import MultivariateNormal
 
 from .livepoint import live_points_to_dict
 
@@ -170,6 +171,29 @@ def get_uniform_distribution(dims, r, device='cpu'):
     """
     r = r * torch.ones(dims, device=device)
     return BoxUniform(low=-r, high=r)
+
+
+def get_multivariate_normal(dims, sigma=1, device='cpu'):
+    """
+    Return a Pytorch distribution that is normally distributed in n dims
+    with a given standard deviation sigma.
+
+    Parameters
+    ----------
+    dims: int
+        Number of dimensions
+    sigma: float, optional (1)
+        Standard deviation
+    device: str, optional (cpu)
+        Device on which the distribution is placed.
+
+    Returns
+    -------
+        Instance of MultivariateNormal with correct sigma and dims
+    """
+    loc = torch.zeros(dims).to(device).double()
+    scale_tril = sigma * torch.eye(dims).to(device).double()
+    return MultivariateNormal(loc, scale_tril=scale_tril)
 
 
 def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):

@@ -16,7 +16,12 @@ from .livepoint import (
         DEFAULT_FLOAT_DTYPE
         )
 from .plot import plot_live_points, plot_acceptance, plot_1d_comparison
-from .utils import get_uniform_distribution, detect_edge, save_live_points
+from .utils import (
+    get_uniform_distribution,
+    get_multivariate_normal,
+    detect_edge,
+    save_live_points
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -288,7 +293,8 @@ class FlowProposal(RejectionProposal):
                  update_bounds=True, max_radius=False, pool=None, n_pool=None,
                  multiprocessing=False, max_poolsize_scale=50,
                  update_poolsize=False, save_training_data=False,
-                 compute_radius_with_all=False, **kwargs):
+                 compute_radius_with_all=False, draw_latent_kwargs={},
+                 **kwargs):
         """
         Initialise
         """
@@ -386,6 +392,8 @@ class FlowProposal(RejectionProposal):
         self.flow_config = flow_config
 
         self.clip = self.flow_config.get('clip', False)
+
+        self.draw_latent_kwargs = draw_latent_kwargs
 
         if self.latent_prior == 'truncated_gaussian':
             from .utils import draw_truncated_gaussian
@@ -606,7 +614,7 @@ class FlowProposal(RejectionProposal):
         Verify the rescaling functions are invertible
         """
         logger.info('Verifying rescaling functions')
-        x = self.model.new_point(N=5000)
+        x = self.model.new_point(N=1000)
         for inversion in ['lower', 'upper', 'both', False]:
             self.check_state(x)
             logger.debug(f'Testing: {inversion}')
@@ -1065,30 +1073,28 @@ class FlowProposal(RejectionProposal):
                     r = self.max_radius
             logger.info(f'Populating proposal with lantent radius: {r:.5}')
         self.r = r
-        if self.latent_prior == 'uniform_nsphere':
-            self.alt_dist = get_uniform_distribution(self.dims,
-                                                     self.r * self.fuzz,
-                                                     device=self.flow.device)
+
+        self.alt_dist = self.get_alt_distribution()
 
         warn = True
-        warn_zero = True
         if not self.keep_samples or not self.indices:
             self.x = np.array([], dtype=self.x_dtype)
             self.indices = []
             z_samples = np.empty([0, self.dims])
         counter = 0
-        zero_counter = 0
         proposed = 0
         while len(self.x) < N:
             while True:
                 z = self.draw_latent_prior(self.dims, r=self.r,
-                                           N=self.drawsize, fuzz=self.fuzz)
+                                           N=self.drawsize, fuzz=self.fuzz,
+                                           **self.draw_latent_kwargs)
                 if z.size:
                     break
             proposed += z.shape[0]
             x, log_q = self.backward_pass(z, rescale=True)
             if not x.size:
                 continue
+
             if self.truncate:
                 cut = log_q >= worst_q
                 x = x[cut]
@@ -1099,34 +1105,6 @@ class FlowProposal(RejectionProposal):
             log_u = np.log(np.random.rand(x.shape[0]))
             indices = np.where((log_w - log_u) >= 0)[0]
 
-            if counter > np.inf and not self.x.size and not self.zero_reset:
-                logger.warning('No samples after 100 tries, reset radius')
-                self.r *= 0.99
-                logger.warning(f'New radius: {r}')
-                self.x = np.array([], dtype=self.x_dtype)
-                z_samples = np.empty([0, self.dims])
-                counter = 0
-                continue
-
-            if not len(indices) or (len(indices) / self.drawsize < 0.001):
-                if warn_zero:
-                    logger.warning(
-                        'Rejection sampling produced almost zero samples!'
-                        )
-                    warn_zero = False
-                zero_counter += 1
-                if (zero_counter == self.zero_reset and
-                        self.x.size < (N // 2) and
-                        self.latent_prior == 'truncated_gaussian'):
-                    logger.warning(
-                        'Proposal is too ineffcient, reducing radius'
-                        )
-                    self.r *= 0.99
-                    logger.warning(f'New radius: {r}')
-                    self.x = np.array([], dtype=self.x_dtype)
-                    z_samples = np.empty([0, self.dims])
-                    zero_counter = 0
-                    continue
             if len(indices) / self.drawsize < 0.01:
                 if warn:
                     logger.warning(
@@ -1209,6 +1187,19 @@ class FlowProposal(RejectionProposal):
         logger.info(f'Proposal populated with {len(self.indices)} samples')
         logger.info(
             f'Overall proposal acceptance: {self.x.size / proposed:.4}')
+
+    def get_alt_distribution(self):
+        """
+        Get a distribution for the latent prior used to draw samples.
+        """
+        if self.latent_prior in ['uniform_nsphere', 'uniform_nball']:
+            return get_uniform_distribution(self.dims, self.r * self.fuzz,
+                                            device=self.flow.device)
+        elif self.latent_prior == 'truncated_gaussian':
+            if 'sigma' in self.draw_latent_kwargs:
+                return get_multivariate_normal(
+                    self.dims, sigma=self.draw_latent_kwargs['sigma'],
+                    device=self.flow.device)
 
     def evaluate_likelihoods(self):
         """
