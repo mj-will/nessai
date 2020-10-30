@@ -145,24 +145,12 @@ class Model:
         """
         pass
 
-    def log_likelihood_batch(self, x):
-        """
-        Returns the log likelihood for a batch of sampler. By default
-        this loops over `log_likelihood`.
-        """
-        return np.asarray([self.log_likelihood(p) for p in x])
-
     def evaluate_log_likelihood(self, x):
         """
-        Evaluate the log-likelihood and track the number of calls. Uses
-        `log_likelihood_batch` if `x.size` > 1.
+        Evaluate the log-likelihood and track the number of calls
         """
-        if x.size > 1:
-            self.likelihood_evaluations += x.size
-            return self.log_likelihood_batch(x)
-        else:
-            self.likelihood_evaluations += 1
-            return self.log_likelihood(x)
+        self.likelihood_evaluations += 1
+        return self.log_likelihood(x)
 
     def verify_model(self):
         """

@@ -21,7 +21,7 @@ class FlowSampler:
 
     Parameters
     ----------
-    model : :obj:`flowproposal.model.Model`
+    model : :obj:`nessai.model.Model`
         User-defined model
     output : str, optional (./)
         Output directory
@@ -109,7 +109,7 @@ class FlowSampler:
             self.save_results(f'{self.output}/result.json')
 
         if plot:
-            from flowproposal import plot
+            from nessai import plot
 
             plot.plot_likelihood_evaluations(
                     self.ns.likelihood_evaluations,

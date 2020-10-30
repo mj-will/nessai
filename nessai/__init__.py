@@ -1,6 +1,6 @@
 import logging
 
-logging.getLogger('flowproposal').addHandler(logging.NullHandler())
+logging.getLogger('nessai').addHandler(logging.NullHandler())
 
 __version__ = '0.0.1'
 
