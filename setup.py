@@ -22,7 +22,6 @@ setuptools.setup(
         'Paper': ''
     },
     license='MIT',
-    python_requires='>=3.8',
     classifiers=[
         'Programming Language :: Python :: 3.8',
         'License :: OSI Approved :: MIT License',
@@ -30,8 +29,10 @@ setuptools.setup(
     ],
     keywords=['nested sampling normalising flows machine learning'],
     packages=['nessai'],
+    python_requires='>=3.8',
     install_requires=requirements,
-    test_require=dev_requirements,
-    dev_require=dev_requirements,
+    extras_require={
+        'dev': dev_requirements,
+    },
     test_suite='tests'
 )
