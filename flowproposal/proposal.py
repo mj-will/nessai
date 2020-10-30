@@ -242,9 +242,6 @@ class FlowProposal(RejectionProposal):
         'truncated_gaussian'.
     poolsize: int, optional
         Size of the proposal pool. Defaults to 10000.
-    exact_poolsize: bool, optional
-        If True extra samples are discarded when populating the pool. Defaults
-        to True
     drawsize: int, optional
         Number of points to simultaneosly draw when populating the proposal
         Defaults to 10000
@@ -285,7 +282,7 @@ class FlowProposal(RejectionProposal):
 
     def __init__(self, model, flow_config=None, output='./', poolsize=10000,
                  rescale_parameters=False, latent_prior='truncated_gaussian',
-                 fuzz=1.0, keep_samples=False, exact_poolsize=True, plot='min',
+                 fuzz=1.0, keep_samples=False, plot='min',
                  fixed_radius=False, drawsize=10000, check_acceptance=False,
                  truncate=False, zero_reset=None, detect_edges=False,
                  rescale_bounds=[-1, 1], expansion_fraction=0.0,
@@ -329,7 +326,6 @@ class FlowProposal(RejectionProposal):
         self.latent_prior = latent_prior
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
-        self.exact_poolsize = exact_poolsize
         self.update_bounds = update_bounds
         self.check_acceptance = check_acceptance
         self.rescale_bounds = rescale_bounds
@@ -1125,11 +1121,6 @@ class FlowProposal(RejectionProposal):
                              f'acceptance: {accepted/proposed:.4}')
                 percent += 0.1
 
-        # TODO: this can be removed
-        if self.exact_poolsize:
-            self.x = self.x[:N]
-            z_samples = z_samples[:N]
-
         if (p := self._plot_pool) and plot:
             if p == 'all':
                 plot_live_points(
@@ -1492,10 +1483,6 @@ class AugmentedFlowProposal(FlowProposal):
             if counter % 10 == 0:
                 logger.debug(f'Accepted {self.x.size} / {N} points')
             counter += 1
-
-        if self.exact_poolsize:
-            self.x = self.x[:N]
-            z_samples = z_samples[:N]
 
         if plot:
             plot_live_points(
