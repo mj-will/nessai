@@ -1,4 +1,4 @@
-# NesSAI: Nested Sampling with Aritfical Intelligence
+# NesSAI: Nested Sampling with Aritificial Intelligence
 
 Please note that this package is still in early development and is not publicly available.
 
@@ -36,4 +36,4 @@ pip install git+https://git.ligo.org/michael.williams/bilby.git@flowproposal-sam
 
 ## Contributing
 
-Please see the guidelines our guidelines [here]()https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md.
+Please see the guidelines our guidelines [here](https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md).
