@@ -1072,7 +1072,6 @@ class FlowProposal(RejectionProposal):
 
         self.alt_dist = self.get_alt_distribution()
 
-        warn = True
         if not self.keep_samples or not self.indices:
             self.x = np.empty(N,  dtype=self.x_dtype)
             self.indices = []
@@ -1081,6 +1080,8 @@ class FlowProposal(RejectionProposal):
         proposed = 0
         accepted = 0
         percent = 0.1
+        warn = True
+
         while accepted < N:
             while True:
                 z = self.draw_latent_prior(self.dims, r=self.r,
@@ -1103,8 +1104,8 @@ class FlowProposal(RejectionProposal):
             log_u = np.log(np.random.rand(x.shape[0]))
             indices = np.where((log_w - log_u) >= 0)[0]
 
-            if len(indices) / self.drawsize < 0.01:
-                if warn:
+            if warn:
+                if len(indices) / self.drawsize < 0.01:
                     logger.warning(
                         'Rejection sampling accepted less than 1 percent of '
                         f'samples! ({len(indices) / self.drawsize})')
