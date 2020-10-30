@@ -46,7 +46,6 @@ def test_likelihood_evaluations(model):
     """
     Test `evaluate_log_likelihood` and ensure the counter increases.
     """
-    n_eval = model.likelihood_evaluations
     new_points = model.new_point(N=1)
     log_l = model.evaluate_log_likelihood(new_points)
 
