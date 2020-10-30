@@ -42,17 +42,16 @@ def test_new_point_multiple(model):
     assert (log_q == 0).all()
 
 
-@pytest.mark.parametrize("N", [1, 100])
-def test_likelihood_evaluations(model, N):
+def test_likelihood_evaluations(model):
     """
     Test `evaluate_log_likelihood` and ensure the counter increases.
     """
     n_eval = model.likelihood_evaluations
-    new_points = model.new_point(N=N)
+    new_points = model.new_point(N=1)
     log_l = model.evaluate_log_likelihood(new_points)
 
-    assert log_l.size == N
-    assert (model.likelihood_evaluations - n_eval) == N
+    assert log_l.size == 1
+    assert model.likelihood_evaluations == 1
 
 
 def test_verify_new_point():
