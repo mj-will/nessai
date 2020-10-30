@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from flowproposal.flowmodel import update_config, FlowModel
+from nessai.flowmodel import update_config, FlowModel
 
 
 @pytest.fixture()
@@ -41,7 +41,7 @@ def test_init_no_config(tmpdir):
 
 def test_init_config_class(tmpdir):
     """Test the init and save methods when specifying `flow` as a class"""
-    from flowproposal.flows import FlexibleRealNVP
+    from nessai.flows import FlexibleRealNVP
     output = str(tmpdir.mkdir('no_config'))
     config = dict(model_config=dict(flow=FlexibleRealNVP))
     fm = FlowModel(config=config, output=output)
