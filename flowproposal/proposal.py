@@ -1082,9 +1082,9 @@ class FlowProposal(RejectionProposal):
             self.indices = []
             z_samples = np.empty([N, self.dims])
 
-        counter = 0
         proposed = 0
         accepted = 0
+        percent = 0.1
         while accepted < N:
             while True:
                 z = self.draw_latent_prior(self.dims, r=self.r,
@@ -1120,9 +1120,10 @@ class FlowProposal(RejectionProposal):
             z_samples[accepted:(accepted+n), ...] = z[indices][:n]
             accepted += n
 
-            if counter % 10 == 0:
-                logger.debug(f'Accepted {accepted} / {N} points')
-            counter += 1
+            if accepted > percent * N:
+                logger.debug(f'Accepted {accepted} / {N} points, '
+                             f'acceptance: {accepted/proposed:.4}')
+                percent += 0.1
 
         # TODO: this can be removed
         if self.exact_poolsize:
