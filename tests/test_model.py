@@ -1,14 +1,13 @@
 import numpy as np
 import pytest
 
-from flowproposal.model import Model
+from nessai.model import Model
 
 
 def test_no_names(model):
     """
     Test the behaviour of the model if the names list is empty
     """
-    from flowproposal.model import Model
     m = Model()
     assert m.dims is None
 

@@ -2,8 +2,7 @@
 import numpy as np
 import pytest
 
-import flowproposal.utils as utils
-
+import nessai.utils as utils
 
 from conftest import cuda
 

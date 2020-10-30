@@ -436,7 +436,7 @@ def compute_minimum_distances(samples, metric='euclidean'):
     return dmin
 
 
-def setup_logger(output=None, label='flowproposal', log_level='INFO'):
+def setup_logger(output=None, label='nessai', log_level='INFO'):
     """
     Setup logger
 
@@ -463,7 +463,7 @@ def setup_logger(output=None, label='flowproposal', log_level='INFO'):
     else:
         level = int(log_level)
 
-    logger = logging.getLogger('flowproposal')
+    logger = logging.getLogger('nessai')
     logger.propagate = False
     logger.setLevel(level)
 

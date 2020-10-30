@@ -1,4 +1,5 @@
-from flowproposal.flowsampler import FlowSampler
+
+from nessai.flowsampler import FlowSampler
 import torch
 
 torch.set_num_threads(1)

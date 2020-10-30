@@ -2,7 +2,7 @@ import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 import pytest
 
-import flowproposal.gw.utils as utils
+import nessai.gw.utils as utils
 
 
 @pytest.mark.parametrize("r, s, zero", [((0, np.pi), 2, 'bound'),
