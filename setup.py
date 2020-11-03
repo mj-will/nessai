@@ -11,11 +11,11 @@ with open('dev_requirements.txt', 'r') as dev_requires_file:
 
 setuptools.setup(
     name='nessai',
-    version='0.0.1',
-    descrption='NesSAI: Nested Sampling with Aritifical Intelligence',
+    use_scm_version=True,
+    description='NesSAI: Nested Sampling with Aritifical Intelligence',
     long_description=long_description,
     author='Michael J. Williams',
-    author_emial='m.williams.4@research.gla.ac.uk',
+    author_email='m.williams.4@research.gla.ac.uk',
     url='https://github.com/mj-will/nessai',
     project_urls={
         'Documentation': '',
@@ -30,6 +30,7 @@ setuptools.setup(
     keywords=['nested sampling normalising flows machine learning'],
     packages=['nessai'],
     python_requires='>=3.8',
+    setup_requires=['setuptools_scm'],
     install_requires=requirements,
     extras_require={
         'dev': dev_requirements,

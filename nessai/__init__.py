@@ -1,8 +1,14 @@
+from importlib.metadata import version, PackageNotFoundError
 import logging
 
-logging.getLogger('nessai').addHandler(logging.NullHandler())
+try:
+    __version__ = version(__name__)
+except PackageNotFoundError:
+    # package is not installed
+    pass
 
-__version__ = '0.0.1'
+logging.getLogger(__name__).addHandler(logging.NullHandler())
+
 
 __all__ = ['flowsampler'
            'nestedsampler'
