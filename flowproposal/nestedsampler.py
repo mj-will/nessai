@@ -142,6 +142,7 @@ class NestedSampler:
                  acceptance_threshold=0.05, analytic_priors=False,
                  maximum_uninformed=1000, training_frequency=1000,
                  uninformed_proposal=None, reset_weights=True,
+                 reset_permutations=False,
                  checkpointing=True, resume_file=None,
                  uninformed_proposal_kwargs={}, seed=None, plot=True,
                  force_train=True, proposal_plots=True, max_iteration=None,
@@ -233,6 +234,7 @@ class NestedSampler:
         self.cooldown = cooldown
         self.memory = memory
         self.reset_weights = float(reset_weights)
+        self.reset_permutations = float(reset_permutations)
         if training_frequency in [None, 'inf', 'None']:
             logger.warning('Proposal will only train when empty')
             self.training_frequency = np.inf
@@ -625,7 +627,12 @@ class NestedSampler:
                 self.completed_training = False
                 if (self.reset_weights and not (self.proposal.training_count
                                                 % self.reset_weights)):
-                    self.proposal.reset_model_weights()
+                    self.proposal.reset_model_weights(weights=True)
+                if (self.reset_permutations and
+                        not (self.proposal.training_count
+                             % self.reset_weights)):
+                    self.proposal.reset_model_weights(
+                        weights=False, permutations=True)
                 training_data = self.live_points.copy()
                 if self.memory:
                     if len(self.nested_samples):
@@ -633,7 +640,7 @@ class NestedSampler:
                             training_data = \
                                 np.concatenate([
                                     training_data,
-                                    self.nested_samples[-self.memory].copy()
+                                    self.nested_samples[-self.memory:].copy()
                                     ])
                 st = datetime.datetime.now()
                 self.proposal.train(training_data)

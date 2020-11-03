@@ -394,6 +394,11 @@ class FlowProposal(RejectionProposal):
         if self.latent_prior == 'truncated_gaussian':
             from .utils import draw_truncated_gaussian
             self.draw_latent_prior = draw_truncated_gaussian
+            if k := (self.flow_config['model_config'].get('kwargs', {})):
+                if v := (k.get('var', False)):
+                    if 'var' not in self.draw_latent_kwargs:
+                        self.draw_latent_kwargs['var'] = v
+
         elif self.latent_prior == 'gaussian':
             logger.warning('Using a gaussian latent prior WITHOUT truncation')
             from .utils import draw_gaussian
@@ -867,11 +872,11 @@ class FlowProposal(RejectionProposal):
         self.populated = False
         self.training_count += 1
 
-    def reset_model_weights(self):
+    def reset_model_weights(self, **kwargs):
         """
         Reset the flow weights
         """
-        self.flow.reset_model()
+        self.flow.reset_model(**kwargs)
 
     def check_prior_bounds(self, x, *args):
         """
@@ -1194,9 +1199,9 @@ class FlowProposal(RejectionProposal):
             return get_uniform_distribution(self.dims, self.r * self.fuzz,
                                             device=self.flow.device)
         elif self.latent_prior == 'truncated_gaussian':
-            if 'sigma' in self.draw_latent_kwargs:
+            if 'var' in self.draw_latent_kwargs:
                 return get_multivariate_normal(
-                    self.dims, sigma=self.draw_latent_kwargs['sigma'],
+                    self.dims, var=self.draw_latent_kwargs['var'],
                     device=self.flow.device)
 
     def evaluate_likelihoods(self):
