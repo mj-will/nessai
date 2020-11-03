@@ -173,27 +173,27 @@ def get_uniform_distribution(dims, r, device='cpu'):
     return BoxUniform(low=-r, high=r)
 
 
-def get_multivariate_normal(dims, sigma=1, device='cpu'):
+def get_multivariate_normal(dims, var=1, device='cpu'):
     """
     Return a Pytorch distribution that is normally distributed in n dims
-    with a given standard deviation sigma.
+    with a given variance.
 
     Parameters
     ----------
     dims: int
         Number of dimensions
-    sigma: float, optional (1)
+    var: float, optional (1)
         Standard deviation
     device: str, optional (cpu)
         Device on which the distribution is placed.
 
     Returns
     -------
-        Instance of MultivariateNormal with correct sigma and dims
+        Instance of MultivariateNormal with correct variance and dims
     """
     loc = torch.zeros(dims).to(device).double()
-    scale_tril = sigma * torch.eye(dims).to(device).double()
-    return MultivariateNormal(loc, scale_tril=scale_tril)
+    covar = var * torch.eye(dims).to(device).double()
+    return MultivariateNormal(loc, covariance_matrix=covar)
 
 
 def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
@@ -228,7 +228,7 @@ def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
     return np.random.randn(N, dims)
 
 
-def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, sigma=1):
+def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1):
     """
     Draw N points from a truncated gaussian with a given a radius
 
@@ -248,6 +248,7 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, sigma=1):
     array_like
         Array of samples with shape (N, dims)
     """
+    sigma = np.sqrt(var)
     r *= fuzz
     u_max = stats.chi.cdf(r / sigma, df=dims)
     u = np.random.uniform(0, u_max, N)
