@@ -190,7 +190,6 @@ class GWFlowProposal(FlowProposal):
 
         self._min = {n: self.model.bounds[n][0] for n in self.model.names}
         self._max = {n: self.model.bounds[n][1] for n in self.model.names}
-
         if isinstance(self.inversion_type, str):
             if self.inversion_type not in ('split', 'duplicate', 'reflexion'):
                 raise RuntimeError(
@@ -698,49 +697,7 @@ class GWFlowProposal(FlowProposal):
         # Sort mass ratio first so that phase, tilt angles and magntiude
         # are correct before applying other rescaling
         if self.mass_inversion:
-            if 'mass_ratio' in self.names:
-                # Find `inverted` part
-                inv = x_prime['mass_ratio_inv'] > 0.
-                x['mass_ratio'][~inv] = \
-                    np.exp(x_prime['mass_ratio_inv'][~inv])
-                x['mass_ratio'][inv] = \
-                    np.exp(-x_prime['mass_ratio_inv'][inv])
-                # for q_inv < 0 conversion is exp(q_inv)
-                # for q_inv > 0 exp(-q_inv)
-                # so Jacobian is log(exp(+/-q_inv))
-                # i.e. q_inv and - q_inv respectively
-                log_J[~inv] += x_prime['mass_ratio_inv'][~inv]
-                log_J[inv] -= x_prime['mass_ratio_inv'][inv]
-
-            elif 'component_masses' in self._reparameterisations:
-                inv = x_prime['mass_1_dbl'] < x_prime['mass_2_dbl']
-                x_prime[['mass_1_dbl', 'mass_2_dbl']][inv] = \
-                    x_prime[['mass_2_dbl', 'mass_1_dbl']][inv]
-                x['mass_1'], lj = inverse_rescale_minus_one_to_one(
-                    x_prime['mass_1_dbl'],
-                    xmin=self.model.bounds['mass_1'][0],
-                    xmax=self.model.bounds['mass_1'][1])
-                log_J += lj
-                x['mass_2'], lj = inverse_rescale_minus_one_to_one(
-                    x_prime['mass_2_dbl'],
-                    xmin=self.model.bounds['mass_2'][0],
-                    xmax=self.model.bounds['mass_2'][1])
-                log_J += lj
-
-            if 'phase' in self._search_angles:
-                a = self._search_angles['phase']
-                x_prime[a['x']][inv] *= -1
-                x_prime[a['y']][inv] *= -1
-
-            if all(t in self._search_angles for t in ['tilt_1', 'tilt_2']):
-                t1 = self._search_angles['tilt_1']
-                t2 = self._search_angles['tilt_2']
-                x_prime[[t1['x'], t1['y'], t2['x'], t2['y']]][inv] = \
-                    x_prime[[t2['x'], t2['y'], t1['x'], t1['y']]][inv]
-
-            elif any(t in self._search_angles for t in ['tilt_1', 'tilt_2']):
-                raise RuntimeError(
-                    'Cannot use q-inversion with only one tilt angle')
+            raise NotImplementedError
 
         if 'sky' in self._reparameterisations:
             x[self.sky_angles[0]], x[self.sky_angles[1]], r, lj = \
