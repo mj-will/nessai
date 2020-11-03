@@ -6,7 +6,7 @@ import os
 import torch
 from torch.nn.utils import clip_grad_norm_
 
-from .flows import setup_model, weight_reset
+from .flows import setup_model, reset_weights, reset_permutations
 from .plot import plot_loss
 from .utils import FPJSONEncoder, compute_minimum_distances
 
@@ -409,13 +409,21 @@ class FlowModel:
         logger.debug(f'Reloading weights from {weights_file}')
         self.load_weights(weights_file)
 
-    def reset_model(self):
+    def reset_model(self, weights=True, permutations=False):
         """
         Reset the weights of the model and optimiser
         """
-        logger.debug('Reseting model weights and optimiser')
-        self.model.apply(weight_reset)
+        if not any([weights, permutations]):
+            logger.debug('Nothing to reset')
+            return
+        if weights:
+            self.model.apply(reset_weights)
+            logger.debug('Reset weights')
+        elif permutations:
+            self.model.apply(reset_permutations)
+            logger.debug('Reset linear transforms')
         self.optimiser = self.get_optimiser()
+        logger.debug('Reseting optimiser')
 
     def forward_and_log_prob(self, x):
         """
