@@ -6,6 +6,7 @@ import sys
 
 import numpy as np
 
+from . import __version__ as version
 from .livepoint import live_points_to_dict
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
@@ -148,6 +149,7 @@ class FlowSampler:
             * (self.ns.nlive // 10)
         iterations[-1] = self.ns.iteration
         d = dict()
+        d['version'] = version
         d['history'] = dict(
                 iterations=iterations,
                 min_likelihood=self.ns.min_likelihood,

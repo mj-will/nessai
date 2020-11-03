@@ -455,6 +455,7 @@ def setup_logger(output=None, label='nessai', log_level='INFO'):
     -------
     logger
     """
+    from . import __version__ as version
     if type(log_level) is str:
         try:
             level = getattr(logging, log_level.upper())
@@ -493,6 +494,8 @@ def setup_logger(output=None, label='nessai', log_level='INFO'):
 
     for handler in logger.handlers:
         handler.setLevel(level)
+
+    logger.info(f'Running Nessai version {version}')
 
     return logger
 
