@@ -142,7 +142,7 @@ def cartesian_to_azimuth_zenith(x, y, z):
     return azimuth, zenith, dL, - 2. * np.log(dL) - np.log(np.sin(zenith))
 
 
-def zero_one_to_cartesian(theta, duplicate=False):
+def zero_one_to_cartesian(theta, mode='split'):
     """
     Convert a variable defined on [0,1] to an angle on [-pi, pi] and
     to Cartesian coordinates with a radius drawn from a chi distribution
@@ -161,11 +161,16 @@ def zero_one_to_cartesian(theta, duplicate=False):
     log_J: array_like
         Determinant of the log-Jacobian
     """
-    if duplicate:
+    theta = theta.copy()
+    if mode == 'duplicate':
         theta = np.concatenate([theta, -theta])
-    else:
+    elif mode == 'split':
         neg = np.random.choice(theta.size, theta.size // 2, replace=False)
         theta[neg] *= -1
+    elif mode == 'half':
+        pass
+    else:
+        raise RuntimeError(f'Unknown mode: {mode}')
     return angle_to_cartesian(theta, scale=np.pi)
 
 

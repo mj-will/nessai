@@ -101,18 +101,31 @@ def test_cartesian_to_az_zen_to_cartesian():
     assert_allclose(sky[3], -cart_out[3])
 
 
-@pytest.mark.parametrize("duplicate", [True, False])
-def test_zero_one_to_cartesian_duplicate(duplicate):
+@pytest.mark.parametrize("mode", ['split', 'duplicate', 'half'])
+def test_zero_one_to_cartesian(mode):
     """
-    Test duplicate is correctly applied when mapping [0, 1] to
-    cartesian coordinates.
+    Test is correctly applied when mapping [0, 1] to
+    cartesian coordinates with a given mode.
     """
     x = np.random.rand(1000)
-    cart = utils.zero_one_to_cartesian(x, duplicate)
-    if duplicate:
+    cart = utils.zero_one_to_cartesian(x, mode=mode)
+    x_out = utils.cartesian_to_zero_one(cart[0], cart[1])
+
+    if mode == 'duplicate':
+        assert_allclose(x, x_out[0][:x.size])
+        assert_allclose(x, x_out[0][x.size:])
         assert_equal([c.size for c in cart], [2 * x.size for _ in cart])
     else:
+        assert_allclose(x, x_out[0])
         assert_equal([c.size for c in cart], [x.size for _ in cart])
+
+    if mode == 'half':
+        assert (cart[1] >= 0).all()
+    else:
+        assert ((cart[0] < 0) & (cart[1] < 0)).any()
+        assert ((cart[0] > 0) & (cart[1] > 0)).any()
+        assert ((cart[0] < 0) & (cart[1] > 0)).any()
+        assert ((cart[0] > 0) & (cart[1] < 0)).any()
 
 
 def test_cartesian_to_zero_one():

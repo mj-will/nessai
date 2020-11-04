@@ -165,7 +165,7 @@ class GWFlowProposal(FlowProposal):
 
         logger.debug(f'Added {name} to parameters with log inversion')
 
-    def add_angle_conversion(self, name, duplicate=False):
+    def add_angle_conversion(self, name, mode='split'):
         radial_name = name + '_radial'
         self.names.append(radial_name)
         self.rescaled_names.append(radial_name)
@@ -177,7 +177,7 @@ class GWFlowProposal(FlowProposal):
 
         self._angle_conversion[name] = {
             'name': name, 'radial': radial_name,
-            'x': x_name, 'y': y_name, 'apply': True, 'duplicate': duplicate}
+            'x': x_name, 'y': y_name, 'apply': True, 'mode': mode}
 
         logger.debug(f'{name} will be converted to an angle')
 
@@ -231,14 +231,21 @@ class GWFlowProposal(FlowProposal):
                         self.add_log_inversion(p)
 
         if self.inversion:
+            logger.info(f'Inversion types: {self.inversion_type}')
             if isinstance(self.inversion, list):
                 for p in self.inversion:
-                    self.add_inversion(p)
+                    if p in self.names:
+                        self.add_inversion(p)
+                    else:
+                        logger.debug(f'Cannot apply inversion to {p}, '
+                                     'parameter not being sampled')
             else:
                 for p in self._default_inversion_parameters:
                     if p in self.names:
                         self.add_inversion(p)
-            logger.info(f'Inversion types: {self.inversion_type}')
+                    else:
+                        logger.debug(f'Cannot apply inversion to {p}, '
+                                     'parameter not being sampled')
 
         if self.log_radial:
             log_radial = ['luminosity_distance', 'a_1', 'a_2']
@@ -253,13 +260,19 @@ class GWFlowProposal(FlowProposal):
         if self.convert_to_angle:
             if isinstance(self.convert_to_angle, list):
                 for p in self.convert_to_angle:
-                    self.add_angle_conversion(p, duplicate=False)
+                    if p in self.names:
+                        self.add_angle_conversion(p, mode='split')
+                    else:
+                        logger.debug(f'Cannot convert {p} to angle, '
+                                     'parameter not being sampled')
             if isinstance(self.convert_to_angle, dict):
                 for k, v in self.convert_to_angle.items():
-                    if v == 'duplicate':
-                        self.add_angle_conversion(k, duplicate=True)
+                    if k in self.names:
+                        self.add_angle_conversion(k, mode=v)
                     else:
-                        self.add_angle_conversion(k, duplicate=False)
+                        logger.debug(f'Cannot convert {k} to angle, '
+                                     'parameter not being sampled')
+
         else:
             self.convert_to_angle = []
 
@@ -573,17 +586,17 @@ class GWFlowProposal(FlowProposal):
                     xmax=self.model.bounds[c['name']][1])
                 log_J += lj
                 # if computing the radius, set duplicate=True
-                if compute_radius or c['duplicate']:
+                if compute_radius or c['mode'] == 'duplicate':
                     x_prime = np.concatenate([x_prime, x_prime])
                     x = np.concatenate([x,  x])
                     log_J = np.concatenate([log_J, log_J])
                     x_prime[c['x']], x_prime[c['y']], lj = \
-                        zero_one_to_cartesian(p, duplicate=True)
+                        zero_one_to_cartesian(p, mode='duplicate')
                     log_J += lj
 
                 else:
                     x_prime[c['x']], x_prime[c['y']], lj = \
-                        zero_one_to_cartesian(p, duplicate=False)
+                        zero_one_to_cartesian(p, mode=c['mode'])
 
                     log_J += lj
 
