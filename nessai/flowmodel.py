@@ -477,7 +477,8 @@ class FlowModel:
             Tensor containing the log probabaility that corresponds to each
             sample
         """
-        self.model.eval()
+        if self.model.training:
+            self.model.eval()
         if z is None:
             with torch.no_grad():
                 x, log_prob = self.model.sample_and_log_prob(N)
