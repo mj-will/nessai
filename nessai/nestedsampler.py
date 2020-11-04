@@ -883,6 +883,10 @@ class NestedSampler:
         logger.info(f'Total population time: {self.proposal.population_time}')
         logger.info(
             f'Total likelihood evaluations: {self.likelihood_calls:3d}')
+        if self.proposal.logl_eval_time.total_seconds():
+            logger.info(
+                'Time spent evaluating likelihood: '
+                f'{self.proposal.logl_eval_time}')
 
         return self.state.logZ, np.array(self.nested_samples)
 

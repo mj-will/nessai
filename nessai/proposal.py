@@ -307,6 +307,7 @@ class FlowProposal(RejectionProposal):
         self.training_count = 0
         self.populated_count = 0
         self.population_time = datetime.timedelta()
+        self.logl_eval_time = datetime.timedelta()
         self.names = []
         self.training_data = None
         self.save_training_data = save_training_data
@@ -367,8 +368,8 @@ class FlowProposal(RejectionProposal):
                     self._plot_pool = True
                     self._plot_training = False
                 elif plot == 'minimal' or plot == 'min':
-                    self._plot_pool = 'minimal'
-                    self._plot_training = 'minimal'
+                    self._plot_pool = True
+                    self._plot_training = True
                 else:
                     logger.warning(
                         f'Unknown plot argument: {plot}, setting all false'
@@ -1167,7 +1168,9 @@ class FlowProposal(RejectionProposal):
             logger.debug(
                 f'Current approximate acceptance {self.approx_acceptance[-1]}'
                 )
+            st = datetime.datetime.now()
             self.evaluate_likelihoods()
+            self.logl_eval_time += (datetime.datetime.now() - st)
             self.acceptance.append(
                 self.compute_acceptance(worst_point['logL'])
                 )
