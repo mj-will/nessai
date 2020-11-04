@@ -4,7 +4,7 @@ from scipy import stats
 import torch
 import pytest
 
-from flowproposal.flows.distributions import MultivariateNormal
+from nessai.flows.distributions import MultivariateNormal
 
 
 @pytest.fixture
