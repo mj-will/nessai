@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
-# Example of using FlowProposal
+# Example of using nessai
 
 from scipy.stats import norm
 from scipy.special import xlogy
 import torch
 
-from flowproposal.flowsampler import FlowSampler
-from flowproposal.model import Model
-from flowproposal.utils import setup_logger
+from nessai.flowsampler import FlowSampler
+from nessai.model import Model
+from nessai.utils import setup_logger
 
 # This prevents torch from using all of the available threads when
 # running on the CPU
@@ -69,7 +69,7 @@ class Gaussian(Model):
 flow_config = dict(
         max_epochs=50,
         patience=10,
-        model_config=dict(n_blocks=2, n_neurons=8, n_layers=2,
+        model_config=dict(n_blocks=2, n_neurons=4, n_layers=1,
                           device_tag='cpu',
                           kwargs=dict(batch_norm_between_layers=True))
         )
@@ -77,7 +77,7 @@ flow_config = dict(
 # The FlowSampler object is used to managed the sampling as has more
 # configuration options
 fp = FlowSampler(Gaussian(), output=output, resume=False, nlive=1000,
-                 plot=True, flow_config=flow_config, training_frequency=1000,
+                 plot=True, flow_config=flow_config, training_frequency=None,
                  maximum_uninformed=1000, rescale_parameters=True, seed=1234)
 
 # And go!

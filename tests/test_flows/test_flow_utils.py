@@ -2,7 +2,7 @@
 from nflows.transforms.permutations import RandomPermutation
 import torch
 
-from flowproposal.flows.utils import reset_permutations
+from nessai.flows.utils import reset_permutations
 
 
 def test_weight_reset_permutation():

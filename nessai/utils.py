@@ -460,7 +460,7 @@ def compute_minimum_distances(samples, metric='euclidean'):
     return dmin
 
 
-def setup_logger(output=None, label='flowproposal', log_level='INFO'):
+def setup_logger(output=None, label='nessai', log_level='INFO'):
     """
     Setup logger
 
@@ -479,6 +479,7 @@ def setup_logger(output=None, label='flowproposal', log_level='INFO'):
     -------
     logger
     """
+    from . import __version__ as version
     if type(log_level) is str:
         try:
             level = getattr(logging, log_level.upper())
@@ -487,7 +488,7 @@ def setup_logger(output=None, label='flowproposal', log_level='INFO'):
     else:
         level = int(log_level)
 
-    logger = logging.getLogger('flowproposal')
+    logger = logging.getLogger('nessai')
     logger.propagate = False
     logger.setLevel(level)
 
@@ -517,6 +518,8 @@ def setup_logger(output=None, label='flowproposal', log_level='INFO'):
 
     for handler in logger.handlers:
         handler.setLevel(level)
+
+    logger.info(f'Running Nessai version {version}')
 
     return logger
 

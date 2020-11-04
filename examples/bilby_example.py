@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Example of using FlowProposal with Bilby (Requires seperate installation)
+# Example of using Nessai with Bilby (Requires seperate installation)
 # See 2d_gaussian.py for a more detailed explanation
 
 import bilby
@@ -34,7 +34,7 @@ class SimpleGaussianLikelihood(bilby.Likelihood):
         return -0.5*(x ** 2. + y ** 2.) - np.log(2.0 * np.pi)
 
 
-# Define priors (this provides the bounds that are then used in FlowProposal)
+# Define priors (this provides the bounds that are then used in Nessai)
 priors = dict(x=bilby.core.prior.Uniform(-10, 10, 'x'),
               y=bilby.core.prior.Uniform(-10, 10, 'y'))
 
@@ -57,7 +57,7 @@ flow_config = dict(
 # population stage
 result = bilby.run_sampler(outdir=outdir, label=label, resume=False, plot=True,
                            likelihood=likelihood, priors=priors,
-                           sampler='flowproposal', nlive=1000,
+                           sampler='nessai', nlive=1000,
                            maximum_uninformed=2000, flow_config=flow_config,
                            rescale_parameters=True,
                            injection_parameters={'x': 0.0, 'y': 0.0},

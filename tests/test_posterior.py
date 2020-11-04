@@ -1,5 +1,6 @@
 import pytest
-from flowproposal.posterior import (
+
+from nessai.posterior import (
         logsubexp
         )
 

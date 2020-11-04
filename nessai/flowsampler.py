@@ -6,6 +6,7 @@ import sys
 
 import numpy as np
 
+from . import __version__ as version
 from .livepoint import live_points_to_dict
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
@@ -21,7 +22,7 @@ class FlowSampler:
 
     Parameters
     ----------
-    model : :obj:`flowproposal.model.Model`
+    model : :obj:`nessai.model.Model`
         User-defined model
     output : str, optional (./)
         Output directory
@@ -109,7 +110,7 @@ class FlowSampler:
             self.save_results(f'{self.output}/result.json')
 
         if plot:
-            from flowproposal import plot
+            from nessai import plot
 
             plot.plot_likelihood_evaluations(
                     self.ns.likelihood_evaluations,
@@ -148,6 +149,7 @@ class FlowSampler:
             * (self.ns.nlive // 10)
         iterations[-1] = self.ns.iteration
         d = dict()
+        d['version'] = version
         d['history'] = dict(
                 iterations=iterations,
                 min_likelihood=self.ns.min_likelihood,

@@ -112,7 +112,7 @@ class NestedSampler:
 
     Parameters
     ----------
-    model: :obj:`flowproposal.Model`
+    model: :obj:`nessai.Model`
         User defined model
     nlive: int, optional
         Number of live points. Defaults to 1000
@@ -895,7 +895,7 @@ class NestedSampler:
         ----------
         filename : str
             Pickle pickle to resume from
-        model : :obj:`flowproposal.model.Model`
+        model : :obj:`nessai.model.Model`
             User-defined model
         flow_config : dict, optional
             Dictionary for configuring the flow
