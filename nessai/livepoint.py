@@ -91,9 +91,13 @@ def numpy_array_to_live_points(array, names):
     structed_array
         Numpy structed array with fields given by names plus logP and logL
     """
+    if array.size == 0:
+        return np.empty(0, dtype=get_dtype(names))
+    if array.ndim == 1:
+        array = array[np.newaxis, :]
     struct_array = np.zeros((array.shape[0]), dtype=get_dtype(names))
     for i, n in enumerate(names):
-        struct_array[n] = array[:, i]
+        struct_array[n] = array[..., i]
     return struct_array
 
 
