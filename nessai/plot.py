@@ -26,12 +26,13 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     df = df[np.isfinite(df).all(1)]
 
     if c is not None:
-        fig = sns.PairGrid(df, corner=True, diag_sharey=False)
-        fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
-        fig.map_offdiag(sns.scatterplot, hue=df[c],
-                        **pairplot_kwargs['plot_kws'])
+        hue = df[c]
     else:
-        fig = sns.pairplot(df, **pairplot_kwargs)
+        hue = None
+    fig = sns.PairGrid(df, corner=True, diag_sharey=False)
+    fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
+    fig.map_offdiag(sns.scatterplot, hue=hue,
+                    **pairplot_kwargs['plot_kws'])
 
     if bounds is not None:
         for i, v in enumerate(bounds.values()):

@@ -1,5 +1,14 @@
 # Contributing to nessai
 
+## Installation
+
+To install nessai and contribute clone the repo and install the additional dependenies with:
+
+```console
+$ cd nessai
+$ pip install -e .[dev]
+```
+
 ## Format checking
 
 We use [pre-commit](https://pre-commit.com/) to check the quality of code before commiting, this includes checking code meets [PEP8](https://www.python.org/dev/peps/pep-0008/) style guidelines.
@@ -7,7 +16,7 @@ We use [pre-commit](https://pre-commit.com/) to check the quality of code before
 This requires some setup:
 
 ```console
-$ pip install pre-commit
+$ pip install pre-commit # Should already be installed
 $ cd nessai
 $ pre-commit install
 ```

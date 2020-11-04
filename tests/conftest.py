@@ -3,7 +3,7 @@ import pytest
 from scipy.stats import norm
 import torch
 
-from flowproposal.model import Model
+from nessai.model import Model
 
 cuda = pytest.mark.skipif(not torch.cuda.is_available(),
                           reason="test requires CUDA")

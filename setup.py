@@ -1,27 +1,39 @@
 import setuptools
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+with open('README.md', 'r') as f:
+    long_description = f.read()
+
+with open('requirements.txt', 'r') as requires_file:
+    requirements = requires_file.read().split('\n')
+
+with open('dev_requirements.txt', 'r') as dev_requires_file:
+    dev_requirements = dev_requires_file.read().split('\n')
 
 setuptools.setup(
-    name="flowproposal",
-    version="0.0.1",
-    author="Michael J. Williams",
-    url="https://gilsay.physics.gla.ac.uk/gitlab/michael.williams/flowproposal",
+    name='nessai',
+    use_scm_version=True,
+    description='NesSAI: Nested Sampling with Aritifical Intelligence',
+    long_description=long_description,
+    author='Michael J. Williams',
+    author_email='m.williams.4@research.gla.ac.uk',
+    url='https://github.com/mj-will/nessai',
+    project_urls={
+        'Documentation': '',
+        'Paper': ''
+    },
+    license='MIT',
     classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent",
+        'Programming Language :: Python :: 3.8',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: OS Independent',
     ],
+    keywords=['nested sampling normalising flows machine learning'],
+    packages=['nessai'],
     python_requires='>=3.8',
-    packages=setuptools.find_packages(),
-    install_requires=[
-        'numpy',
-        'matplotlib',
-        'seaborn',
-        'pandas',
-        'tqdm',
-        'scipy',
-        'nflows'
-        ],
+    setup_requires=['setuptools_scm'],
+    install_requires=requirements,
+    extras_require={
+        'dev': dev_requirements,
+    },
+    test_suite='tests'
 )
