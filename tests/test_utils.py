@@ -130,7 +130,6 @@ def test_get_uniform_distribution_cpu():
 
 
 @cuda
-@pytest.mark.xfail(raises=RuntimeError)
 def test_get_uniform_distribution_cuda():
     """
     Test function for getting uniform torch distrbution over n dimensions
