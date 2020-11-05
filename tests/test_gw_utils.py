@@ -128,6 +128,16 @@ def test_zero_one_to_cartesian(mode):
         assert ((cart[0] > 0) & (cart[1] < 0)).any()
 
 
+def test_zero_one_to_cartesain_incorrect_mode():
+    """
+    Test to ensure that an incorrect mode raises an error
+    """
+    x = np.random.rand(1000)
+    with pytest.raises(RuntimeError) as excinfo:
+        utils.zero_one_to_cartesian(x, mode='roar')
+    assert 'Unknown mode' in str(excinfo.value)
+
+
 def test_cartesian_to_zero_one():
     """
     Test to ensure values are mapped to [0, 1]
