@@ -198,21 +198,13 @@ class FlowModel:
                 batch_size = x_train.shape[0]
             elif batch_size is not None:
                 raise RuntimeError(f'Unknown batch size: {batch_size}')
-        train_tensor = torch.from_numpy(x_train.astype(np.float32))
-        train_dataset = torch.utils.data.TensorDataset(train_tensor)
-        train_loader = torch.utils.data.DataLoader(train_dataset,
-                                                   batch_size=batch_size,
-                                                   shuffle=True)
+        train_tensor = \
+            torch.from_numpy(x_train.astype(np.float32)).to(self.device)
+        val_tensor = torch.from_numpy(x_val.astype(np.float32)).to(self.device)
 
-        val_tensor = torch.from_numpy(x_val.astype(np.float32))
-        val_dataset = torch.utils.data.TensorDataset(val_tensor)
-        val_loader = torch.utils.data.DataLoader(val_dataset,
-                                                 batch_size=x_val.shape[0],
-                                                 shuffle=False)
+        return train_tensor, val_tensor
 
-        return train_loader, val_loader
-
-    def _train(self, loader, noise_scale=0.0):
+    def _train(self, tensor, noise_scale=0.0):
         """
         Loop over the data and update the weights
 
@@ -237,22 +229,23 @@ class FlowModel:
             def loss_fn(data):
                 return -model.log_prob(data).mean()
 
-        for idx, data in enumerate(loader):
-            data = (data[0]
-                    + noise_scale * torch.randn_like(data[0])).to(self.device)
+        n = 0
+        for data in tensor.split(self.batch_size):
+            data += noise_scale * torch.randn_like(data)
             self.optimiser.zero_grad()
             loss = loss_fn(data)
             train_loss += loss.item()
             loss.backward()
             clip_grad_norm_(model.parameters(), 5.)
             self.optimiser.step()
+            n += 1
 
         if self.annealing:
             self.scheduler.step()
 
-        return train_loss / len(loader)
+        return train_loss / n
 
-    def _validate(self, loader):
+    def _validate(self, tensor):
         """
         Loop over the data and get validation loss
 
@@ -274,13 +267,13 @@ class FlowModel:
         else:
             def loss_fn(data):
                 return -model.log_prob(data).mean()
-
-        for idx, data in enumerate(loader):
-            data = data[0].to(self.device)
+        n = 0
+        for data in tensor.split(self.batch_size):
             with torch.no_grad():
                 val_loss += loss_fn(data).item()
+            n += 1
 
-        return val_loss / len(loader)
+        return val_loss / n
 
     def train(self, samples, max_epochs=None, patience=None, output=None,
               val_size=None, plot=True):
@@ -326,7 +319,7 @@ class FlowModel:
         else:
             noise_scale = self.noise_scale
 
-        train_loader, val_loader = self._prep_data(samples, val_size=val_size,
+        train_tensor, val_tensor = self._prep_data(samples, val_size=val_size,
                                                    batch_size=self.batch_size)
 
         if max_epochs is None:
@@ -349,8 +342,8 @@ class FlowModel:
         logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
-            loss = self._train(train_loader, noise_scale=noise_scale)
-            val_loss = self._validate(val_loader)
+            loss = self._train(train_tensor, noise_scale=noise_scale)
+            val_loss = self._validate(val_tensor)
             history['loss'].append(loss)
             history['val_loss'].append(val_loss)
 
