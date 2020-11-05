@@ -7,6 +7,7 @@ from nflows.distributions.uniform import BoxUniform
 import numpy as np
 from scipy import stats, spatial
 import torch
+from torch.distributions import MultivariateNormal
 
 from .livepoint import live_points_to_dict
 
@@ -172,6 +173,29 @@ def get_uniform_distribution(dims, r, device='cpu'):
     return BoxUniform(low=-r, high=r)
 
 
+def get_multivariate_normal(dims, var=1, device='cpu'):
+    """
+    Return a Pytorch distribution that is normally distributed in n dims
+    with a given variance.
+
+    Parameters
+    ----------
+    dims: int
+        Number of dimensions
+    var: float, optional (1)
+        Standard deviation
+    device: str, optional (cpu)
+        Device on which the distribution is placed.
+
+    Returns
+    -------
+        Instance of MultivariateNormal with correct variance and dims
+    """
+    loc = torch.zeros(dims).to(device).double()
+    covar = var * torch.eye(dims).to(device).double()
+    return MultivariateNormal(loc, covariance_matrix=covar)
+
+
 def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     """
     Draw from a uniform distribution on [0, 1], deals with extra input
@@ -204,7 +228,7 @@ def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
     return np.random.randn(N, dims)
 
 
-def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0):
+def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1):
     """
     Draw N points from a truncated gaussian with a given a radius
 
@@ -224,11 +248,11 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0):
     array_like
         Array of samples with shape (N, dims)
     """
+    sigma = np.sqrt(var)
     r *= fuzz
-    p = np.empty([0])
-    while p.shape[0] < N:
-        p = np.concatenate([p, stats.chi.rvs(dims, size=N)])
-        p = p[p < r]
+    u_max = stats.chi.cdf(r / sigma, df=dims)
+    u = np.random.uniform(0, u_max, N)
+    p = sigma * stats.chi.ppf(u, df=dims)
     x = np.random.randn(p.size, dims)
     points = (p * x.T / np.sqrt(np.sum(x**2., axis=1))).T
     return points

@@ -65,7 +65,8 @@ class FlexibleRealNVP(NFlow):
         dropout_probability=0.0,
         batch_norm_within_layers=False,
         batch_norm_between_layers=False,
-        linear_transform=None
+        linear_transform=None,
+        distribution=None,
     ):
 
         if use_volume_preserving:
@@ -153,7 +154,10 @@ class FlexibleRealNVP(NFlow):
             if batch_norm_between_layers:
                 layers.append(transforms.BatchNorm(features=features))
 
+        if distribution is None:
+            distribution = StandardNormal([features])
+
         super().__init__(
             transform=transforms.CompositeTransform(layers),
-            distribution=StandardNormal([features]),
+            distribution=distribution,
         )

@@ -1,5 +1,6 @@
 
 import numpy as np
+from scipy import stats
 import pytest
 
 import nessai.utils as utils
@@ -137,3 +138,19 @@ def test_get_uniform_distribution_cuda():
     """
     dist = utils.get_uniform_distribution(10, 1, device='cuda')
     assert dist.sample().get_device() != -1
+
+
+@pytest.mark.parametrize("r, var, fuzz", [
+    (1.0, 1.0, 1.0), (2.0, 1.0, 1.0), (2.0, 2.0, 1.0), (4.0, 2.0, 1.5),
+    (7.0, 4.0, 2.0)])
+@pytest.mark.flaky(run=5)
+def test_draw_truncated_gaussian_1d(r, var, fuzz):
+    """
+    Test drawing from a truncated Gaussian in 1d
+    """
+    s = utils.draw_truncated_gaussian(1, r, var=var, N=1000, fuzz=fuzz)
+    sigma = np.sqrt(var)
+    d = stats.truncnorm(-r * fuzz / sigma, r * fuzz / sigma,
+                        loc=0, scale=sigma)
+    _, p = stats.kstest(np.squeeze(s), d.cdf)
+    assert p >= 0.05

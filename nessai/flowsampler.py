@@ -174,6 +174,8 @@ class FlowSampler:
         d['sampling_time'] = self.ns.sampling_time.total_seconds()
         d['training_time'] = self.ns.training_time.total_seconds()
         d['population_time'] = self.ns.proposal.population_time.total_seconds()
+        if (t := self.ns.proposal.logl_eval_time.total_seconds()):
+            d['likelihood_evaluation_time'] = t
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=FPJSONEncoder)

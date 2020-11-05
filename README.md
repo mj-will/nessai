@@ -1,4 +1,4 @@
-# NesSAI: Nested Sampling with Aritificial Intelligence
+# NesSAI: Nested Sampling with Artificial Intelligence
 
 Please note that this package is still in early development and is not publicly available.
 
@@ -6,7 +6,7 @@ Please note that this package is still in early development and is not publicly 
 
 NOTE: this packages requieres python >= 3.8
 
-Nessai current is not available to install from `pypa`, so for now installation requires installing from source.
+Nessai current is not available to install from `PyPI`, so for now installation requires installing from source.
 
 First clone the repo:
 

@@ -1,18 +1,17 @@
 import logging
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 from nflows.transforms.normalization import BatchNorm
 from nflows.transforms.lu import LULinear
 from nflows.transforms.permutations import RandomPermutation
-from nflows.nn.nde.made import MaskedLinear
 from nflows.nn.nets import MLP
 
 from .realnvp import FlexibleRealNVP
 from .maf import MaskedAutoregressiveFlow
 from .nsf import NeuralSplineFlow
+from .distributions import MultivariateNormal
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +42,11 @@ def setup_model(config):
                 k['activation'] = activations[k['activation']]
             except KeyError as e:
                 raise RuntimeError(f'Unknown activation function {e}')
+
+        if 'var' in k and 'distribution' not in k:
+            k['distribution'] = MultivariateNormal([config['n_inputs']],
+                                                   var=k['var'])
+            k.pop('var')
 
         kwargs.update(k)
 
@@ -82,27 +86,22 @@ def setup_model(config):
     return model, device
 
 
-def weight_reset(module):
+def reset_weights(module):
     """
-    Reset parameters of a given module in place
-
-    Checks the following modules from torch.nn
-    * Batchnorm1d
-    * Conv1d
-    * Conv2d
-    * Linear
+    Reset parameters of a given module in place using `reset_parameters`
+    method.
 
     Also checks the following modules from nflows
     * nflows.transforms.normalization.BatchNorm
-    * nflows.nn.nde.made.MaskedLinear
 
     Parameters
     ----------
     module : :obj:`torch.nn.Module`
         Module to reset
     """
-    layers = [nn.Conv1d, nn.Conv2d, nn.Linear, nn.BatchNorm1d, MaskedLinear]
-    if isinstance(module, BatchNorm):
+    if hasattr(module, 'reset_parameters'):
+        module.reset_parameters()
+    elif isinstance(module, BatchNorm):
         # nflows BatchNorm does not have a weight reset, so must
         # be done manually
         constant = np.log(np.exp(1 - module.eps) - 1)
@@ -110,13 +109,18 @@ def weight_reset(module):
         module.bias.data.zero_()
         module.running_mean.zero_()
         module.running_var.fill_(1)
-    elif isinstance(module, LULinear):
+
+
+def reset_permutations(module):
+    """
+    Resets permutations and linear transforms to their original initialisation
+    since these do not have a `reset_parameters` method
+    """
+    if isinstance(module, LULinear):
         module.cache.invalidate()
         module._initialize(identity_init=True)
     elif isinstance(module, RandomPermutation):
         module._permutation = torch.randperm(len(module._permutation))
-    elif any(isinstance(module, layer) for layer in layers):
-        module.reset_parameters()
 
 
 class CustomMLP(MLP):
