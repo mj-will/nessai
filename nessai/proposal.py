@@ -314,6 +314,10 @@ class FlowProposal(RejectionProposal):
         self.x = None
         self.samples = None
         self.rescaled_names = []
+        self.acceptance = []
+        self.approx_acceptance = []
+        self._edges = {}
+        self._inversion_test_type = None
 
         self.output = output
         self._poolsize = poolsize
@@ -334,10 +338,14 @@ class FlowProposal(RejectionProposal):
         self.zero_reset = zero_reset
         self.boundary_inversion = boundary_inversion
         self.inversion_type = inversion_type
+        self.flow_config = flow_config
+
         self.detect_edges = detect_edges
-        self._edges = {}
+        self.configure_edge_detection()
 
         self.compute_radius_with_all = compute_radius_with_all
+        self.max_radius = float(max_radius)
+        self.configure_fixed_radius(fixed_radius)
 
         self.pool = pool
         self.n_pool = n_pool
@@ -347,118 +355,13 @@ class FlowProposal(RejectionProposal):
                 self.check_acceptance = True
             self.setup_pool()
 
-        self._inversion_test_type = None
-        if self.detect_edges:
-            self._allow_none = True
-            self._edge_cutoff = 0.2
-        else:
-            # Will always return an edge
-            self._allow_none = False
-            self._edge_cutoff = 0.0
-
-        if plot:
-            if isinstance(plot, str):
-                if plot == 'all':
-                    self._plot_pool = 'all'
-                    self._plot_training = 'all'
-                elif plot == 'train':
-                    self._plot_pool = False
-                    self._plot_training = 'all'
-                elif plot == 'pool':
-                    self._plot_pool = True
-                    self._plot_training = False
-                elif plot == 'minimal' or plot == 'min':
-                    self._plot_pool = True
-                    self._plot_training = True
-                else:
-                    logger.warning(
-                        f'Unknown plot argument: {plot}, setting all false'
-                        )
-                    self._plot_pool = False
-                    self._plot_training = False
-            else:
-                self._plot_pool = True
-                self._plot_training = True
-
-        else:
-            self._plot_pool = False
-            self._plot_training = False
-
-        self.acceptance = []
-        self.approx_acceptance = []
-        self.flow_config = flow_config
+        self.configure_plotting(plot)
 
         self.clip = self.flow_config.get('clip', False)
 
         self.draw_latent_kwargs = draw_latent_kwargs
-
-        if self.latent_prior == 'truncated_gaussian':
-            from .utils import draw_truncated_gaussian
-            self.draw_latent_prior = draw_truncated_gaussian
-            if k := (self.flow_config['model_config'].get('kwargs', {})):
-                if v := (k.get('var', False)):
-                    if 'var' not in self.draw_latent_kwargs:
-                        self.draw_latent_kwargs['var'] = v
-
-        elif self.latent_prior == 'gaussian':
-            logger.warning('Using a gaussian latent prior WITHOUT truncation')
-            from .utils import draw_gaussian
-            self.draw_latent_prior = draw_gaussian
-        elif self.latent_prior == 'uniform':
-            from .utils import draw_uniform
-            self.draw_latent_prior = draw_uniform
-        elif self.latent_prior in ['uniform_nsphere', 'uniform_nball']:
-            from .utils import draw_nsphere
-            self.draw_latent_prior = draw_nsphere
-        else:
-            raise RuntimeError(
-                f'Unknown latent prior: {self.latent_prior}, choose from: '
-                'truncated_gaussian (default), gaussian, '
-                'uniform, uniform_nsphere'
-                )
-        # Alternative latent distribution for use with uniform sphere
-        # Allows for training with Gaussian prior and sampling with
-        # uniform prior
+        self.configure_latent_prior()
         self.alt_dist = None
-
-        if fixed_radius:
-            try:
-                self.fixed_radius = float(fixed_radius)
-            except ValueError:
-                logger.error(
-                    'Fixed radius enabled but could not be converted to a '
-                    'float. Setting fixed_radius=False'
-                    )
-                self.fixed_radius = False
-        else:
-            self.fixed_radius = False
-
-        self.max_radius = float(max_radius)
-
-    def setup_pool(self):
-        """
-        Setup the multiprocessing pool
-        """
-        if self.pool is None:
-            logger.info(
-                f'Starting multiprocessing pool with {self.n_pool} processes')
-            import multiprocessing
-            self.pool = multiprocessing.Pool(
-                processes=self.n_pool,
-                initializer=_initialize_global_variables,
-                initargs=(self.model,)
-            )
-
-    def close_pool(self):
-        """
-        Close the the multiprocessing pool
-        """
-        if getattr(self, "pool", None) is not None:
-            logger.info("Starting to close worker pool.")
-            self.pool.close()
-            self.pool.join()
-            self.pool = None
-            logger.info("Finished closing worker pool.")
 
     @property
     def poolsize(self):
@@ -497,6 +400,112 @@ class FlowProposal(RejectionProposal):
     def x_prime_dtype(self):
         """Return the dtype for the x prime space"""
         return get_dtype(self.rescaled_names, DEFAULT_FLOAT_DTYPE)
+
+    def setup_pool(self):
+        """
+        Setup the multiprocessing pool
+        """
+        if self.pool is None:
+            logger.info(
+                f'Starting multiprocessing pool with {self.n_pool} processes')
+            import multiprocessing
+            self.pool = multiprocessing.Pool(
+                processes=self.n_pool,
+                initializer=_initialize_global_variables,
+                initargs=(self.model,)
+            )
+
+    def close_pool(self):
+        """
+        Close the the multiprocessing pool
+        """
+        if getattr(self, "pool", None) is not None:
+            logger.info("Starting to close worker pool.")
+            self.pool.close()
+            self.pool.join()
+            self.pool = None
+            logger.info("Finished closing worker pool.")
+
+    def configure_plotting(self, plot):
+        """Configure plotting"""
+        if plot:
+            if isinstance(plot, str):
+                if plot == 'all':
+                    self._plot_pool = 'all'
+                    self._plot_training = 'all'
+                elif plot == 'train':
+                    self._plot_pool = False
+                    self._plot_training = 'all'
+                elif plot == 'pool':
+                    self._plot_pool = True
+                    self._plot_training = False
+                elif plot == 'minimal' or plot == 'min':
+                    self._plot_pool = True
+                    self._plot_training = True
+                else:
+                    logger.warning(
+                        f'Unknown plot argument: {plot}, setting all false'
+                        )
+                    self._plot_pool = False
+                    self._plot_training = False
+            else:
+                self._plot_pool = True
+                self._plot_training = True
+
+        else:
+            self._plot_pool = False
+            self._plot_training = False
+
+    def configure_latent_prior(self):
+        """Configure the latent prior"""
+        if self.latent_prior == 'truncated_gaussian':
+            from .utils import draw_truncated_gaussian
+            self.draw_latent_prior = draw_truncated_gaussian
+            if k := (self.flow_config['model_config'].get('kwargs', {})):
+                if v := (k.get('var', False)):
+                    if 'var' not in self.draw_latent_kwargs:
+                        self.draw_latent_kwargs['var'] = v
+
+        elif self.latent_prior == 'gaussian':
+            logger.warning('Using a gaussian latent prior WITHOUT truncation')
+            from .utils import draw_gaussian
+            self.draw_latent_prior = draw_gaussian
+        elif self.latent_prior == 'uniform':
+            from .utils import draw_uniform
+            self.draw_latent_prior = draw_uniform
+        elif self.latent_prior in ['uniform_nsphere', 'uniform_nball']:
+            from .utils import draw_nsphere
+            self.draw_latent_prior = draw_nsphere
+        else:
+            raise RuntimeError(
+                f'Unknown latent prior: {self.latent_prior}, choose from: '
+                'truncated_gaussian (default), gaussian, '
+                'uniform, uniform_nsphere'
+                )
+
+    def configure_fixed_radius(self, fixed_radius):
+        """Configure the fixed radius"""
+        if fixed_radius:
+            try:
+                self.fixed_radius = float(fixed_radius)
+            except ValueError:
+                logger.error(
+                    'Fixed radius enabled but could not be converted to a '
+                    'float. Setting fixed_radius=False'
+                    )
+                self.fixed_radius = False
+        else:
+            self.fixed_radius = False
+
+    def configure_edge_detection(self):
+        """Configure parameters for edge detection"""
+        if self.detect_edges:
+            self._allow_none = True
+            self._edge_cutoff = 0.2
+        else:
+            # Will always return an edge
+            self._allow_none = False
+            self._edge_cutoff = 0.0
 
     def initialise(self):
         """
@@ -545,48 +554,52 @@ class FlowProposal(RejectionProposal):
             if self._poolsize_scale < 1.:
                 self._poolsize_scale = 1.
 
-    def set_rescaling(self):
+    def set_boundary_inversion(self):
         """
-        Set function and parameter names for rescaling
+        Setup boundary inversion
         """
-        self.names = self.model.names.copy()
-        self.rescaled_names = self.names.copy()
-        # if rescale, update names
-
-        if (b := self.boundary_inversion):
+        if self.boundary_inversion:
             if not self.rescale_parameters:
                 raise RuntimeError('Boundary inversion requires rescaling')
 
-            if not isinstance(b, list):
-                if isinstance(self.rescale_parameters, list):
-                    b = self.rescale_parameters
-                else:
-                    b = self.names.copy()
-            else:
-                if not set(b).issubset(self.names):
-                    raise RuntimeError(
+            if (isinstance(self.boundary_inversion, list) and
+                    not set(self.boundary_inversion).issubset(self.names)):
+                raise RuntimeError(
                             'Boundaries are not in known parameters')
-            self.boundary_inversion = b
-            logger.info(
-                    'Appyling boundary inversion to: '
-                    f'{self.boundary_inversion}'
-                    )
+            elif isinstance(self.rescale_parameters, list):
+                self.boundary_inversion = self.rescale_parameters
+            else:
+                self.boundary_inversion = self.names.copy()
+
+            logger.info('Appyling boundary inversion to: '
+                        f'{self.boundary_inversion}')
+
             if self.inversion_type not in ('split', 'duplicate'):
                 raise RuntimeError(
                         f'Unknown inversion type: {self.inversion_type}')
 
             self.rescale_bounds = [0, 1]
             self.update_bounds = True
-            self._edges = {n: None for n in b}
+            self._edges = {n: None for n in self.boundary_inversion}
             logger.info(f'Changing bounds to {self.rescale_bounds}')
         else:
             self.boundary_inversion = []
+
+    def set_rescaling(self):
+        """
+        Set function and parameter names for rescaling
+        """
+        self.names = self.model.names.copy()
+        self.rescaled_names = self.names.copy()
+
+        self.set_boundary_inversion()
 
         if self.rescale_parameters:
             # if rescale is a list, there are the parameters to rescale
             # else all parameters are rescale
             if not isinstance(self.rescale_parameters, list):
                 self.rescale_parameters = self.names.copy()
+
             for i, rn in enumerate(self.rescaled_names):
                 if rn in self.rescale_parameters:
                     self.rescaled_names[i] += '_prime'
