@@ -28,7 +28,7 @@ setuptools.setup(
         'Operating System :: OS Independent',
     ],
     keywords=['nested sampling normalising flows machine learning'],
-    packages=['nessai'],
+    packages=setuptools.find_packages(),
     python_requires='>=3.8',
     setup_requires=['setuptools_scm'],
     install_requires=requirements,
