@@ -474,10 +474,7 @@ class GWFlowProposal(FlowProposal):
                 if c['flip'] is None:
                     c['flip'] = detect_edge(
                         x_prime[c['rescaled_name']],
-                        bounds=[0, 1],
-                        cutoff=self._edge_cutoff,
-                        mode_range=self._edge_mode_range)
-                    logger.debug(f"Log inversion for {c['name']}: {c['flip']}")
+                        **self.detect_edges_kwargs)
 
                 if c['flip'] == 'lower':
                     x_prime[c['rescaled_name']] = \
@@ -510,11 +507,9 @@ class GWFlowProposal(FlowProposal):
                         both = False
                     c['flip'] = detect_edge(
                         x[c['name']],
-                        bounds=[c['min'], c['max']],
-                        cutoff=self._edge_cutoff,
-                        allow_none=self._allow_none,
-                        both=both,
-                        test=self._inversion_test_type)
+                        allow_both=both,
+                        test=self._inversion_test_type,
+                        **self.detect_edges_kwargs)
                     logger.debug(f"Inversion for {c['name']}: {c['flip']}")
 
                 if c['flip']:

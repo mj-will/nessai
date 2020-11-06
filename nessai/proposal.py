@@ -284,13 +284,14 @@ class FlowProposal(RejectionProposal):
                  rescale_parameters=False, latent_prior='truncated_gaussian',
                  fuzz=1.0, keep_samples=False, plot='min',
                  fixed_radius=False, drawsize=10000, check_acceptance=False,
-                 truncate=False, zero_reset=None, detect_edges=False,
+                 truncate=False, zero_reset=None,
                  rescale_bounds=[-1, 1], expansion_fraction=0.0,
                  boundary_inversion=False, inversion_type='duplicate',
                  update_bounds=True, max_radius=False, pool=None, n_pool=None,
                  multiprocessing=False, max_poolsize_scale=50,
                  update_poolsize=False, save_training_data=False,
                  compute_radius_with_all=False, draw_latent_kwargs={},
+                 detect_edges=False, detect_edges_kwargs={},
                  **kwargs):
         """
         Initialise
@@ -341,7 +342,7 @@ class FlowProposal(RejectionProposal):
         self.flow_config = flow_config
 
         self.detect_edges = detect_edges
-        self.configure_edge_detection()
+        self.configure_edge_detection(detect_edges_kwargs)
 
         self.compute_radius_with_all = compute_radius_with_all
         self.max_radius = float(max_radius)
@@ -497,15 +498,17 @@ class FlowProposal(RejectionProposal):
         else:
             self.fixed_radius = False
 
-    def configure_edge_detection(self):
+    def configure_edge_detection(self, d):
         """Configure parameters for edge detection"""
+        default = dict(cutoff=0.2)
         if self.detect_edges:
-            self._allow_none = True
-            self._edge_cutoff = 0.2
+            d['allow_none'] = True
         else:
-            # Will always return an edge
-            self._allow_none = False
-            self._edge_cutoff = 0.0
+            d['allow_none'] = False
+            d['cutoff'] = 0.0
+        default.update(d)
+        self.detect_edges_kwargs = default
+        logger.debug(f'detect edges kwargs: {self.detect_edges_kwargs}')
 
     def initialise(self):
         """
@@ -687,10 +690,8 @@ class FlowProposal(RejectionProposal):
                     if self._edges[n] is None:
                         self._edges[n] = detect_edge(
                             x_prime[rn],
-                            [0, 1],
-                            cutoff=self._edge_cutoff,
-                            allow_none=self._allow_none,
-                            test=self._inversion_test_type
+                            test=self._inversion_test_type,
+                            **self.detect_edges_kwargs
                             )
 
                     if self._edges[n]:

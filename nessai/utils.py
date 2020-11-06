@@ -376,64 +376,52 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
             np.log(xmax - xmin) - np.log(2))
 
 
-def detect_edge(x, bounds, percent=0.1, cutoff=0.1, nbins='fd',
-                both=False, allow_none=False, test=None):
+def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
+                allow_both=False, allow_none=False, test=None):
     """
     Detect edges in input distributions based on the density.
-
-    Checks if data is uniform over the interval specified by the bounds and if
-    the data is normally distributed about the mid-point of the bounds
 
     Parameters
     ----------
     x: array_like
         Samples
-    bounds: list
-        Lower and upper bound
     percent: float (0.1)
         Percentage of interval used to check edges
     cutoff: float (0.1)
         Minimum fraction of the maximum density contained within the
         percentage of the interval specified
-    both: bool
+    allow_both: bool
         Allow function to return both instead of force either upper or lower
     allow_none: bool
         Allow for neither lower or upper bound to be returned
+    test : None or str
+        If not None this skips the process and just returns the value of test.
+        This is used to verify the inversion in all possible scenarios.
     """
+    bounds = ['lower', 'upper']
     if test is not None:
         return test
     hist, bins = np.histogram(x, bins=nbins, density=True)
-    n = int(len(bins) * percent)
+    n = max(int(len(bins) * percent), 1)
     bounds_fraction = \
         np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (bins[1] - bins[0])
-    uniform_p = stats.kstest(x, 'uniform', args=(bounds[0], np.ptp(bounds)))[1]
-    normal_p = stats.kstest(x, 'norm', args=(np.sum(bounds) / 2,))[1]
-    max_density = hist.max() * (bins[1] - bins[0])
+    max_idx = np.argmax(hist)
+    max_density = hist[max_idx] * (bins[1] - bins[0])
     logger.debug(f'Max. density: {max_density:.3f}')
-    if uniform_p >= 0.05:
-        logger.debug('Samples pass KS test for uniform')
-        if both:
-            return 'both'
-        else:
-            return np.random.choice(['lower', 'upper'])
-    elif normal_p >= 0.05 and allow_none:
-        logger.debug('Samples pass KS test for normal distribution')
-        return False
+
+    if max_idx <= n:
+        return bounds[0]
+    elif max_idx >= (len(bins) - n):
+        return bounds[1]
     elif not np.any(bounds_fraction > cutoff * max_density) and allow_none:
         logger.debug('Density too low at both bounds')
         return False
     else:
-        if np.all(bounds_fraction > cutoff * max_density) and both:
+        if np.all(bounds_fraction > cutoff * max_density) and allow_both:
             logger.debug('Both bounds above cutoff')
             return 'both'
         else:
-            bound = np.argmax(bounds_fraction)
-            if bound == 0:
-                return 'lower'
-            elif bound == 1:
-                return 'upper'
-            else:
-                raise RuntimeError('Bounds were not computed correctly')
+            return bounds[np.argmax(bounds_fraction)]
 
 
 def compute_minimum_distances(samples, metric='euclidean'):
