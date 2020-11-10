@@ -302,7 +302,8 @@ class GWFlowProposal(FlowProposal):
                 if 'luminosity_distance' not in self.names or \
                         'luminosity_distance' in self._log_inversion or \
                         'luminosity_distance' in self._inversion or \
-                        'luminosity_distance' in self.convert_to_angle:
+                        'luminosity_distance' in self.convert_to_angle or \
+                        'luminosity_distance' in self.default_rescaling:
                     self.names.append('sky_radial')
                     self.distance = 'sky_radial'
                     self.rescaled_names.append('sky_z')
@@ -581,7 +582,8 @@ class GWFlowProposal(FlowProposal):
                     xmax=self.model.bounds[c['name']][1])
                 log_J += lj
                 # if computing the radius, set duplicate=True
-                if compute_radius or c['mode'] == 'duplicate':
+                if ((c['mode'] == 'split' and compute_radius)
+                        or c['mode'] == 'duplicate'):
                     x_prime = np.concatenate([x_prime, x_prime])
                     x = np.concatenate([x,  x])
                     log_J = np.concatenate([log_J, log_J])
