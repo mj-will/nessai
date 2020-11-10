@@ -50,6 +50,9 @@ def setup_model(config):
 
         kwargs.update(k)
 
+    if not isinstance(config['n_inputs'], int):
+        raise TypeError('Number of inputs (n_inputs) must be an int')
+
     if 'flow' in config and (c := config['flow']) is not None:
         model = c(config['n_inputs'], config['n_neurons'], config['n_blocks'],
                   config['n_layers'], **kwargs)

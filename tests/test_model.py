@@ -4,12 +4,32 @@ import pytest
 from nessai.model import Model
 
 
-def test_no_names(model):
-    """
-    Test the behaviour of the model if the names list is empty
-    """
-    m = Model()
-    assert m.dims is None
+@pytest.fixture(scope='function')
+def empty_model():
+    return Model()
+
+
+def test_dims_no_names(empty_model):
+    """Test the behaviour dims when names is empty"""
+    assert empty_model.dims is None
+
+
+def test_dims(empty_model):
+    """Ensure dims are correct"""
+    empty_model.names = ['x', 'y']
+    assert empty_model.dims == 2
+
+
+def test_lower_bounds(empty_model):
+    """Check the lower bounds are correctly set"""
+    empty_model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    assert (empty_model.lower_bounds == [-1, -1]).all()
+
+
+def test_upper_bounds(empty_model):
+    """Check the upper bounds are correctly set"""
+    empty_model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    assert (empty_model.upper_bounds == [1, 1]).all()
 
 
 def test_new_point(model):
@@ -46,7 +66,6 @@ def test_likelihood_evaluations(model):
     """
     Test `evaluate_log_likelihood` and ensure the counter increases.
     """
-    n_eval = model.likelihood_evaluations
     new_points = model.new_point(N=1)
     log_l = model.evaluate_log_likelihood(new_points)
 

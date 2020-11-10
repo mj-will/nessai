@@ -60,6 +60,8 @@ class NeuralSplineFlow(NFlow):
         batch_norm_between_layers=False,
         apply_unconditional_transform=False,
         linear_transform='permutation',
+        tails='linear',
+        tail_bound=1.0,
         **kwargs
     ):
         if batch_norm_between_layers:
@@ -102,6 +104,8 @@ class NeuralSplineFlow(NFlow):
                 transform_net_create_fn=create_resnet,
                 num_bins=num_bins,
                 apply_unconditional_transform=apply_unconditional_transform,
+                tails=tails,
+                tail_bound=tail_bound,
                 **kwargs)
 
         transforms_list = []
