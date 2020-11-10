@@ -384,7 +384,19 @@ def plot_acceptance(*acceptance, filename=None, labels=None):
 
 def plot_trace(log_x, nested_samples, labels=None, filename=None):
     """
-    Produce trace plot for all of the parameters
+    Produce trace plot for all of the parameters.
+
+    Parameters
+    ----------
+    log_x : array_like
+        Array of log prior volumnes
+    nested_samples : array_like
+        Structured array of nested samples to plot
+    labels : list, optional
+        List of labels to use instead of the names of parameters
+    filename : str, optional
+        Filename for saving the plot, if none plot is not saved and figure
+        is returned instead.
     """
     nested_samples = np.asarray(nested_samples)
     names = nested_samples.dtype.names[:-2]
@@ -410,4 +422,6 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
 
     if filename is not None:
         fig.savefig(filename, bbox_inches='tight')
-    plt.close(fig)
+        plt.close(fig)
+    else:
+        return fig
