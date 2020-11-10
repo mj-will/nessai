@@ -11,7 +11,7 @@ import torch
 from tqdm import tqdm
 
 from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
-from .plot import plot_indices
+from .plot import plot_indices, plot_trace
 from .posterior import logsubexp, log_integrate_log_trap
 from .utils import (
     safe_file_dump,
@@ -740,6 +740,14 @@ class NestedSampler:
 
         fig.savefig(f'{self.output}/state.png')
 
+    def plot_trace(self):
+        """
+        Make trace plots for the nested samples
+        """
+        if self.nested_samples:
+            plot_trace(self.state.log_vols[1:], self.nested_samples,
+                       filename=f'{self.output}/trace.png')
+
     def update_state(self, force=False):
         """
         Update state after replacing a live point
@@ -772,6 +780,7 @@ class NestedSampler:
                                            'insertion_indices_'
                                            f'{self.iteration}.png'))
                 self.plot_state()
+                self.plot_trace()
 
             if self.uninformed_sampling:
                 self.block_acceptance = 0.

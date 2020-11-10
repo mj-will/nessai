@@ -380,3 +380,34 @@ def plot_acceptance(*acceptance, filename=None, labels=None):
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)
+
+
+def plot_trace(log_x, nested_samples, labels=None, filename=None):
+    """
+    Produce trace plot for all of the parameters
+    """
+    nested_samples = np.asarray(nested_samples)
+    names = nested_samples.dtype.names[:-2]
+
+    if labels is None:
+        labels = names
+
+    if not len(labels) == len(names):
+        raise RuntimeError(
+            'Missing labels. List of labels does not have enough entries '
+            f'({len(labels)}) for parameters: {nested_samples.dtype.names}')
+
+    fig, axes = plt.subplots(len(labels), 1, figsize=(5, 3 * len(labels)),
+                             sharex=True)
+    axes = axes.ravel()
+
+    for i, name in enumerate(names):
+        axes[i].plot(log_x, nested_samples[name], ',')
+        axes[i].set_ylabel(labels[i])
+
+    axes[-1].set_xlabel('log X')
+    axes[-1].invert_xaxis()
+
+    if filename is not None:
+        fig.savefig(filename, bbox_inches='tight')
+    plt.close(fig)
