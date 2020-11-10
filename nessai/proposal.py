@@ -500,7 +500,7 @@ class FlowProposal(RejectionProposal):
 
     def configure_edge_detection(self, d):
         """Configure parameters for edge detection"""
-        default = dict(cutoff=0.2)
+        default = dict(cutoff=0.5)
         if self.detect_edges:
             d['allow_none'] = True
         else:
