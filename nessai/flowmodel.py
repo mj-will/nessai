@@ -55,6 +55,7 @@ def update_config(d):
 
     default = dict(lr=0.001,
                    annealing=False,
+                   clip_grad_norm=5,
                    batch_size=100,
                    val_size=0.1,
                    max_epochs=500,
@@ -239,13 +240,15 @@ class FlowModel:
                 return -model.log_prob(data).mean()
 
         for idx, data in enumerate(loader):
-            data = (data[0]
-                    + noise_scale * torch.randn_like(data[0])).to(self.device)
+            if noise_scale:
+                data[0] += noise_scale * torch.randn_like(data[0])
+            data = data[0].to(self.device)
             self.optimiser.zero_grad()
             loss = loss_fn(data)
             train_loss += loss.item()
             loss.backward()
-            clip_grad_norm_(model.parameters(), 5.)
+            if self.clip_grad_norm:
+                clip_grad_norm_(model.parameters(), self.clip_grad_norm)
             self.optimiser.step()
 
         if self.annealing:
@@ -344,7 +347,9 @@ class FlowModel:
         logger.info("Training parameters:")
         logger.info(f"Max. epochs: {max_epochs}")
         logger.info(f"Patience: {patience}")
-        history = dict(loss=[], val_loss=[])
+
+        if plot:
+            history = dict(loss=[], val_loss=[])
 
         current_weights_file = output + 'model.pt'
         logger.debug(f'Training with {samples.shape[0]} samples')
@@ -352,8 +357,9 @@ class FlowModel:
 
             loss = self._train(train_loader, noise_scale=noise_scale)
             val_loss = self._validate(val_loader)
-            history['loss'].append(loss)
-            history['val_loss'].append(val_loss)
+            if plot:
+                history['loss'].append(loss)
+                history['val_loss'].append(val_loss)
 
             if val_loss < best_val_loss:
                 best_epoch = epoch
