@@ -876,12 +876,6 @@ class NestedSampler:
                     self._flow_proposal.populated = True
                     logger.info('Resumed with populated pool')
 
-            # If process exited during training make sure to re-train
-            if not self.completed_training:
-                logger.warning('Resumed sampler exitted during training. '
-                               'Restarting training.')
-                self._flow_proposal.reset_model_weights()
-
             self.resumed = False
 
     def finalise(self, save):
@@ -1005,9 +999,10 @@ class NestedSampler:
             obj._flow_proposal \
                .flow_config['model_config']['kwargs']['mask'] = m
         obj._flow_proposal.initialise()
+
         if weights_file is None:
             weights_file = obj._flow_proposal.weights_file
-
+        # Flow might have exited before any weights were saved.
         if weights_file is not None:
             if os.path.exists(weights_file):
                 obj._flow_proposal.flow.reload_weights(weights_file)
