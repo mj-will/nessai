@@ -283,7 +283,7 @@ def replace_in_list(target_list, targets, replacements):
             replacements = list(replacements)
 
     if not all([t in target_list for t in targets]):
-        raise ValueError(f'Target(s) not in target list: {targets}')
+        raise ValueError(f'Targets {targets} not in list: {target_list}')
 
     for t, r in zip(targets, replacements):
         i = target_list.index(t)
@@ -376,64 +376,54 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
             np.log(xmax - xmin) - np.log(2))
 
 
-def detect_edge(x, bounds, percent=0.1, cutoff=0.1, nbins='fd',
-                both=False, allow_none=False, test=None):
+def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
+                allow_both=False, allow_none=False, test=None):
     """
     Detect edges in input distributions based on the density.
-
-    Checks if data is uniform over the interval specified by the bounds and if
-    the data is normally distributed about the mid-point of the bounds
 
     Parameters
     ----------
     x: array_like
         Samples
-    bounds: list
-        Lower and upper bound
     percent: float (0.1)
         Percentage of interval used to check edges
     cutoff: float (0.1)
         Minimum fraction of the maximum density contained within the
         percentage of the interval specified
-    both: bool
+    allow_both: bool
         Allow function to return both instead of force either upper or lower
     allow_none: bool
         Allow for neither lower or upper bound to be returned
+    test : None or str
+        If not None this skips the process and just returns the value of test.
+        This is used to verify the inversion in all possible scenarios.
     """
     if test is not None:
         return test
+    bounds = ['lower', 'upper']
+    if nbins == 'auto':
+        nbins = auto_bins(x)
     hist, bins = np.histogram(x, bins=nbins, density=True)
-    n = int(len(bins) * percent)
+    n = max(int(len(bins) * percent), 1)
     bounds_fraction = \
         np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (bins[1] - bins[0])
-    uniform_p = stats.kstest(x, 'uniform', args=(bounds[0], np.ptp(bounds)))[1]
-    normal_p = stats.kstest(x, 'norm', args=(np.sum(bounds) / 2,))[1]
-    max_density = hist.max() * (bins[1] - bins[0])
+    max_idx = np.argmax(hist)
+    max_density = hist[max_idx] * (bins[1] - bins[0])
     logger.debug(f'Max. density: {max_density:.3f}')
-    if uniform_p >= 0.05:
-        logger.debug('Samples pass KS test for uniform')
-        if both:
-            return 'both'
-        else:
-            return np.random.choice(['lower', 'upper'])
-    elif normal_p >= 0.05 and allow_none:
-        logger.debug('Samples pass KS test for normal distribution')
-        return False
+
+    if max_idx <= n:
+        return bounds[0]
+    elif max_idx >= (len(bins) - n):
+        return bounds[1]
     elif not np.any(bounds_fraction > cutoff * max_density) and allow_none:
         logger.debug('Density too low at both bounds')
         return False
     else:
-        if np.all(bounds_fraction > cutoff * max_density) and both:
+        if np.all(bounds_fraction > cutoff * max_density) and allow_both:
             logger.debug('Both bounds above cutoff')
             return 'both'
         else:
-            bound = np.argmax(bounds_fraction)
-            if bound == 0:
-                return 'lower'
-            elif bound == 1:
-                return 'upper'
-            else:
-                raise RuntimeError('Bounds were not computed correctly')
+            return bounds[np.argmax(bounds_fraction)]
 
 
 def compute_minimum_distances(samples, metric='euclidean'):
@@ -640,3 +630,77 @@ def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
         logger.debug(
             f'Setting maximum number of PyTorch threads to {pytorch_threads}')
         torch.set_num_threads(pytorch_threads)
+
+
+def _hist_bin_fd(x):
+    """
+    The Freedman-Diaconis histogram bin estimator.
+
+    See original Numpy implementation.
+
+    Parameters
+    ----------
+    x : array_like
+        Input data that is to be histogrammed, trimmed to range. May not
+        be empty.
+    Returns
+    -------
+    h : An estimate of the optimal bin width for the given data.
+    """
+    iqr = np.subtract(*np.percentile(x, [75, 25]))
+    return 2.0 * iqr * x.size ** (-1.0 / 3.0)
+
+
+def _hist_bin_sturges(x):
+    """
+    Sturges histogram bin estimator.
+
+    See original Numpy implementation.
+
+    Parameters
+    ----------
+    x : array_like
+        Input data that is to be histogrammed, trimmed to range. May not
+        be empty.
+    Returns
+    -------
+    h : An estimate of the optimal bin width for the given data.
+    """
+    return np.ptp(x) / (np.log2(x.size) + 1.0)
+
+
+def auto_bins(x, max_bins=50):
+    """
+    Compute the number bins for a histogram using numpy.histogram_bin_edges
+    but enforece a maximum number of bins.
+
+    Parameters
+    ----------
+    array : array_like
+        Input data
+    bins : int or sequence of scalars or str, optional
+        Method for determining number of bins, see numpy documentation
+    max_bins : int, optional (1000)
+        Maximum number of bins
+
+    Returns
+    -------
+    int
+        Number of bins
+    """
+    x = np.asarray(x)
+    fd_bw = _hist_bin_fd(x)
+    sturges_bw = _hist_bin_sturges(x)
+    if fd_bw:
+        bw = min(fd_bw, sturges_bw)
+    else:
+        bw = sturges_bw
+
+    if bw:
+        n_bins = int(np.ceil(np.ptp(x)) / bw)
+    else:
+        n_bins = 1
+
+    nbins = min(n_bins, max_bins)
+    assert isinstance(nbins, int)
+    return nbins

@@ -145,7 +145,7 @@ class NestedSampler:
                  reset_permutations=False,
                  checkpointing=True, resume_file=None,
                  uninformed_proposal_kwargs={}, seed=None, plot=True,
-                 force_train=True, proposal_plots=True, max_iteration=None,
+                 proposal_plots=True, max_iteration=None,
                  retrain_acceptance=True, uninformed_acceptance_threshold=None,
                  **kwargs):
         """
@@ -165,7 +165,6 @@ class NestedSampler:
         self.rejected = 1
 
         self.checkpointing = checkpointing
-        self.last_updated = 0
         self.iteration = 0
         self.acceptance_history = deque(maxlen=(nlive // 10))
         self.mean_acceptance_history = []
@@ -203,7 +202,6 @@ class NestedSampler:
         # History
         self.likelihood_evaluations = []
         self.training_iterations = []
-        self.likelihood_calls = 0
         self.min_likelihood = []
         self.max_likelihood = []
         self.logZ_history = []
@@ -219,6 +217,7 @@ class NestedSampler:
             self.max_iteration = max_iteration
 
         self.acceptance_threshold = acceptance_threshold
+
         if uninformed_acceptance_threshold is None:
             if self.acceptance_threshold < 0.1:
                 self.uninformed_acceptance_threshold = \
@@ -229,8 +228,8 @@ class NestedSampler:
         else:
             self.uninformed_acceptance_threshold = \
                 uninformed_acceptance_threshold
+
         self.train_on_empty = train_on_empty
-        self.force_train = True
         self.cooldown = cooldown
         self.memory = memory
         self.reset_weights = float(reset_weights)
@@ -257,16 +256,13 @@ class NestedSampler:
                     flow_class = FlowProposal
                 else:
                     raise RuntimeError(f'Unknown flow class: {flow_class}')
-            self._flow_proposal = \
-                flow_class(model, flow_config=flow_config,
-                           output=proposal_output, plot=proposal_plots,
-                           **kwargs)
         else:
             from .proposal import FlowProposal
-            self._flow_proposal = \
-                FlowProposal(model, flow_config=flow_config,
-                             output=proposal_output, plot=proposal_plots,
-                             **kwargs)
+            flow_class = FlowProposal
+
+        self._flow_proposal = flow_class(
+            model, flow_config=flow_config, output=proposal_output,
+            plot=proposal_plots, **kwargs)
 
         # Uninformed proposal is used for prior sampling
         # If maximum uninformed is greater than 0, the it will be used for
@@ -310,9 +306,21 @@ class NestedSampler:
         return self.state.info[-1]
 
     @property
+    def likelihood_calls(self):
+        return self.model.likelihood_evaluations
+
+    @property
     def current_sampling_time(self):
         return self.sampling_time \
                 + (datetime.datetime.now() - self.sampling_start_time)
+
+    @property
+    def last_updated(self):
+        """Last time the normalising flow was retraining"""
+        if self.training_iterations:
+            return self.training_iterations[-1]
+        else:
+            return 0
 
     def setup_output(self, output, resume_file=None):
         """
@@ -473,9 +481,11 @@ class NestedSampler:
                 self.acceptance_history.append(1 / count)
                 break
             else:
+                # Only get here if the yield sample returns worse point
+                # which can only happen if the pool is empty
                 self.rejected += 1
-                self.check_state(rejected=True)
-                # if retrained in whilst proposing a sample then update the
+                self.check_state()
+                # if retrained whilst proposing a sample then update the
                 # iteration count since will be zero otherwise
                 if not self.block_iteration:
                     self.block_iteration += 1
@@ -556,6 +566,9 @@ class NestedSampler:
             self.populate_live_points()
             flags[2] = True
 
+        if self.condition > self.tolerance:
+            self.finalised = False
+
         if all(flags):
             self.initialised = True
 
@@ -566,92 +579,136 @@ class NestedSampler:
         """
         return np.mean(self.acceptance_history)
 
-    def check_state(self, force=False, rejected=False):
+    def check_proposal_switch(self):
+        """
+        Check if the proposal should be switch from uninformed to
+        flowproposal given the current state.
+
+        Returns
+        -------
+        bool
+            Flag to indicated if proposal was switched
+        """
+        if ((self.mean_acceptance < self.uninformed_acceptance_threshold)
+                or (self.iteration >= self.maximum_uninformed)):
+            logger.warning('Switching to FlowProposal')
+            # Make sure the pool is closed
+            if self.proposal.pool is not None:
+                self.proposal.close_pool()
+            self.proposal = self._flow_proposal
+            self.proposal.ns_acceptance = self.mean_block_acceptance
+            self.uninformed_sampling = False
+            return True
+        # If using uninformed sampling, don't check training
+        else:
+            return False
+
+    def check_training(self):
+        """
+        Check if the normalising flow should be trained
+
+        Checks that can force training:
+            - Training was previously stopped before completion
+            - The pool is empty and the proposal was not in the process
+              of populating when stopped.
+        Checks that cannot force training is still on cooldown:
+            - Acceptance falls below threshold and `retrain_acceptance` is
+              true
+            - The number of iterations since last training is equal to the
+              training frequency
+
+        Returns
+        -------
+        train : bool
+            Try to train if true
+        force : bool
+            Force the training irrespective of cooldown
+        """
+        if not self.completed_training:
+            logger.debug('Training flow (resume)')
+            return True, True
+        elif (not self.proposal.populated and
+                self.train_on_empty and
+                not self.proposal.populating):
+            logger.debug('Training flow (proposal empty)')
+            return True, True
+        elif (self.mean_block_acceptance < self.acceptance_threshold and
+                self.retrain_acceptance):
+            logger.debug('Training flow (acceptance)')
+            return True, False
+        elif (self.iteration - self.last_updated) == self.training_frequency:
+            logger.debug('Training flow (iteration)')
+            return True, False
+        else:
+            return False, False
+
+    def check_flow_model_reset(self):
+        """
+        Check if the normalising flow model should be reset
+        """
+        if (self.reset_weights and
+                not (self.proposal.training_count % self.reset_weights)):
+            self.proposal.reset_model_weights(weights=True)
+
+        if (self.reset_permutations and
+                not (self.proposal.training_count % self.reset_weights)):
+            self.proposal.reset_model_weights(weights=False, permutations=True)
+
+    def train_proposal(self, force=False):
+        """
+        Try to trin the proposal. Proposal will not train if cooldown is not
+        exceeded unless force is True.
+
+        Parameters
+        ----------
+        force : bool
+            Override training checks
+        """
+        if (self.iteration - self.last_updated < self.cooldown and
+                not force):
+            logger.debug('Not training, still cooling down!')
+        else:
+            self.completed_training = False
+            self.check_flow_model_reset()
+
+            training_data = self.live_points.copy()
+            if self.memory and (len(self.nested_samples) >= self.memory):
+                training_data = np.concatenate([
+                    training_data, self.nested_samples[-self.memory:].copy()])
+
+            st = datetime.datetime.now()
+            self.proposal.train(training_data)
+            self.training_time += (datetime.datetime.now() - st)
+            self.training_iterations.append(self.iteration)
+
+            self.block_iteration = 0
+            self.block_acceptance = 0.
+            if self.checkpointing:
+                self.checkpoint(periodic=True)
+            self.completed_training = True
+
+    def check_state(self, force=False):
         """
         Check if state should be updated prior to drawing a new sample
 
-        Force will overide the cooldown mechanism, rejected will not.
+        Force will overide the cooldown mechanism.
         """
+
         if self.uninformed_sampling:
-            if ((self.mean_acceptance < self.uninformed_acceptance_threshold)
-                    or (self.iteration >= self.maximum_uninformed)):
-                logger.warning('Switching to FlowProposal')
-                # Make sure the pool is closed
-                if self.proposal.pool is not None:
-                    self.porposal.close_pool()
-                self.proposal = self._flow_proposal
-                self.proposal.ns_acceptance = self.mean_block_acceptance
-                self.uninformed_sampling = False
-            # If using uninformed sampling, don't check training
+            if self.check_proposal_switch():
+                force = True
             else:
                 return
-        # Should the proposal be trained
-        train = False
         # General overide
+        train = False
         if force:
             train = True
             logger.debug('Training flow (force)')
-        elif (self.mean_block_acceptance < self.acceptance_threshold and
-                self.iteration - self.last_updated < self.cooldown and
-                self.retrain_acceptance):
-            train = True
-            logger.debug('Training flow (acceptance)')
-        elif (rejected and
-                self.mean_block_acceptance < self.acceptance_threshold and
-                self.retrain_acceptance):
-            logger.debug('Training flow (rejected + acceptance)')
-            train = True
+        elif not train:
+            train, force = self.check_training()
 
-        elif not ((self.iteration - self.last_updated)
-                  % self.training_frequency):
-            train = True
-            logger.debug('Training flow (iteration)')
-
-        # Check for empty should be independent of other checks
-        if not self.proposal.populated:
-            if self.train_on_empty and not self.proposal.populating:
-                train = True
-                if self.force_train:
-                    force = True
-                logger.debug('Training flow (proposal empty)')
-
-        if not self.completed_training:
-            train = True
-            force = True
-
-        if train:
-            if (self.iteration - self.last_updated < self.cooldown and
-                    not force):
-                logger.debug('Not training, still cooling down!')
-            else:
-                self.completed_training = False
-                if (self.reset_weights and not (self.proposal.training_count
-                                                % self.reset_weights)):
-                    self.proposal.reset_model_weights(weights=True)
-                if (self.reset_permutations and
-                        not (self.proposal.training_count
-                             % self.reset_weights)):
-                    self.proposal.reset_model_weights(
-                        weights=False, permutations=True)
-                training_data = self.live_points.copy()
-                if self.memory:
-                    if len(self.nested_samples):
-                        if len(self.nested_samples) >= self.memory:
-                            training_data = \
-                                np.concatenate([
-                                    training_data,
-                                    self.nested_samples[-self.memory:].copy()
-                                    ])
-                st = datetime.datetime.now()
-                self.proposal.train(training_data)
-                self.training_time += (datetime.datetime.now() - st)
-                self.training_iterations.append(self.iteration)
-                self.last_updated = self.iteration
-                self.block_iteration = 0
-                self.block_acceptance = 0.
-                if self.checkpointing:
-                    self.checkpoint(periodic=True)
-                self.completed_training = True
+        if train or force:
+            self.train_proposal(force=force)
 
     def plot_state(self):
         """
@@ -805,6 +862,46 @@ class NestedSampler:
         safe_file_dump(self, self.resume_file, pickle, save_existing=True)
         self.sampling_start_time = datetime.datetime.now()
 
+    def check_resume(self):
+        """
+        Check the normalising flow is correctly configured is the sampler
+        was resumed.
+        """
+        if self.resumed:
+            # If pool is populated make reset the flag since it is set to
+            # false during initialisation
+            if hasattr(self._flow_proposal, 'resume_populated'):
+                if (self._flow_proposal.resume_populated and
+                        self._flow_proposal.indices):
+                    self._flow_proposal.populated = True
+                    logger.info('Resumed with populated pool')
+
+            # If process exited during training make sure to re-train
+            if not self.completed_training:
+                logger.warning('Resumed sampler exitted during training. '
+                               'Restarting training.')
+                self._flow_proposal.reset_model_weights()
+
+            self.resumed = False
+
+    def finalise(self, save):
+        """
+        Finalise things after sampling
+        """
+        logger.info('Finalising')
+        for i, p in enumerate(self.live_points):
+            self.state.increment(p['logL'], nlive=self.nlive-i)
+            self.nested_samples.append(p)
+
+        # Refine evidence estimate
+        self.update_state(force=True)
+        self.state.finalise()
+        # output the chain and evidence
+        if save:
+            self.write_nested_samples_to_file()
+            self.write_evidence_to_file()
+        self.finalised = True
+
     def nested_sampling_loop(self, save=True):
         """
         Main nested sampling loop
@@ -826,22 +923,7 @@ class NestedSampler:
                 self.write_evidence_to_file()
             return 0
 
-        if self.resumed:
-            # If pool is populated make reset the flag since it is set to
-            # false during initialisation
-            if hasattr(self._flow_proposal, 'resume_populated'):
-                if (self._flow_proposal.resume_populated and
-                        self._flow_proposal.indices):
-                    self._flow_proposal.populated = True
-                    logger.info('Resumed with populated pool')
-
-            # If process exited during training make sure to re-train
-            if not self.completed_training:
-                logger.warning('Resumed sampler exitted during training. '
-                               'Restarting training.')
-                self._flow_proposal.reset_model_weights()
-
-            self.resumed = False
+        self.check_resume()
 
         self.update_state()
 
@@ -861,21 +943,8 @@ class NestedSampler:
 
         # final adjustments
         # avoid repeating final adjustments if resuming a completed run.
-        if not self.finalised:
-            for i, p in enumerate(self.live_points):
-                self.state.increment(p['logL'], nlive=self.nlive-i)
-                self.nested_samples.append(p)
-
-            # Refine evidence estimate
-            self.update_state(force=True)
-            self.state.finalise()
-            self.info = self.state.info
-            self.likelihood_calls = self.model.likelihood_evaluations
-            # output the chain and evidence
-            if save:
-                self.write_nested_samples_to_file()
-                self.write_evidence_to_file()
-            self.finalised = True
+        if not self.finalised and (self.condition <= self.tolerance):
+            self.finalise(save)
 
         logger.critical(f'Final evidence: {self.state.logZ:.3f} +/- '
                         f'{np.sqrt(self.state.info[-1] / self.nlive):.3f}')

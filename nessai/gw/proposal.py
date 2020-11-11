@@ -302,7 +302,8 @@ class GWFlowProposal(FlowProposal):
                 if 'luminosity_distance' not in self.names or \
                         'luminosity_distance' in self._log_inversion or \
                         'luminosity_distance' in self._inversion or \
-                        'luminosity_distance' in self.convert_to_angle:
+                        'luminosity_distance' in self.convert_to_angle or \
+                        'luminosity_distance' in self.default_rescaling:
                     self.names.append('sky_radial')
                     self.distance = 'sky_radial'
                     self.rescaled_names.append('sky_z')
@@ -474,10 +475,7 @@ class GWFlowProposal(FlowProposal):
                 if c['flip'] is None:
                     c['flip'] = detect_edge(
                         x_prime[c['rescaled_name']],
-                        bounds=[0, 1],
-                        cutoff=self._edge_cutoff,
-                        mode_range=self._edge_mode_range)
-                    logger.debug(f"Log inversion for {c['name']}: {c['flip']}")
+                        **self.detect_edges_kwargs)
 
                 if c['flip'] == 'lower':
                     x_prime[c['rescaled_name']] = \
@@ -510,11 +508,9 @@ class GWFlowProposal(FlowProposal):
                         both = False
                     c['flip'] = detect_edge(
                         x[c['name']],
-                        bounds=[c['min'], c['max']],
-                        cutoff=self._edge_cutoff,
-                        allow_none=self._allow_none,
-                        both=both,
-                        test=self._inversion_test_type)
+                        allow_both=both,
+                        test=self._inversion_test_type,
+                        **self.detect_edges_kwargs)
                     logger.debug(f"Inversion for {c['name']}: {c['flip']}")
 
                 if c['flip']:
@@ -586,7 +582,8 @@ class GWFlowProposal(FlowProposal):
                     xmax=self.model.bounds[c['name']][1])
                 log_J += lj
                 # if computing the radius, set duplicate=True
-                if compute_radius or c['mode'] == 'duplicate':
+                if ((c['mode'] == 'split' and compute_radius)
+                        or c['mode'] == 'duplicate'):
                     x_prime = np.concatenate([x_prime, x_prime])
                     x = np.concatenate([x,  x])
                     log_J = np.concatenate([log_J, log_J])
