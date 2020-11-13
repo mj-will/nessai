@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-import flowproposal.livepoint as lp
+import nessai.livepoint as lp
 
 
 @pytest.fixture

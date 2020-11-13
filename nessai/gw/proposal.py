@@ -16,8 +16,6 @@ from ..utils import (
 from .utils import (
     angle_to_cartesian,
     cartesian_to_angle,
-    sky_to_cartesian,
-    cartesian_to_sky,
     zero_one_to_cartesian,
     cartesian_to_zero_one)
 
@@ -42,6 +40,10 @@ class GWFlowProposal(FlowProposal):
 
         self._default_inversion_parameters = ['mass_ratio', 'a_1', 'a_2',
                                               'luminosity_distance']
+
+        self._default_angles = ['psi', 'phase', 'iota', 'theta_jn', 'dec',
+                                'ra', 'tilt_1', 'tilt_2', 'cos_theta_jn',
+                                'cos_tilt_1', 'cos_tilt_2', 'phi_12', 'phi_jl']
 
     def set_reparameterisations(self, reparameterisations):
         """
@@ -85,7 +87,7 @@ class GWFlowProposal(FlowProposal):
             logger.info(f'{k}: {v}')
             setattr(self, k, v)
 
-    def setup_angle(self, name, radial_name=False, scale=1.0):
+    def setup_angle(self, name, radial_name=False, scale=1.0, zero='bound'):
         """
         Add an angular parameter to the list of reparameterisations
         """
@@ -101,7 +103,7 @@ class GWFlowProposal(FlowProposal):
 
         self._search_angles[name] = {
             'angle': name, 'radial': radial_name,
-            'x': x_name, 'y': y_name, 'scale': scale}
+            'x': x_name, 'y': y_name, 'scale': scale, 'zero': zero}
 
         logger.debug(f'Added {name} with config: {self._search_angles[name]}')
 
@@ -163,7 +165,7 @@ class GWFlowProposal(FlowProposal):
 
         logger.debug(f'Added {name} to parameters with log inversion')
 
-    def add_angle_conversion(self, name, duplicate=False):
+    def add_angle_conversion(self, name, mode='split'):
         radial_name = name + '_radial'
         self.names.append(radial_name)
         self.rescaled_names.append(radial_name)
@@ -175,7 +177,7 @@ class GWFlowProposal(FlowProposal):
 
         self._angle_conversion[name] = {
             'name': name, 'radial': radial_name,
-            'x': x_name, 'y': y_name, 'apply': True, 'duplicate': duplicate}
+            'x': x_name, 'y': y_name, 'apply': True, 'mode': mode}
 
         logger.debug(f'{name} will be converted to an angle')
 
@@ -188,7 +190,6 @@ class GWFlowProposal(FlowProposal):
 
         self._min = {n: self.model.bounds[n][0] for n in self.model.names}
         self._max = {n: self.model.bounds[n][1] for n in self.model.names}
-
         if isinstance(self.inversion_type, str):
             if self.inversion_type not in ('split', 'duplicate', 'reflexion'):
                 raise RuntimeError(
@@ -206,7 +207,7 @@ class GWFlowProposal(FlowProposal):
                     {p: self.inversion_type for
                      p in self.inversion_parameters}
 
-        elif isinstance(self.inversion_type, dict):
+        elif isinstance(self.inversion_type, dict) and self.inversion_type:
             if self.inversion is True:
                 self.inversion = list(self.inversion_type.keys())
             elif self.log_inversion is True:
@@ -230,14 +231,21 @@ class GWFlowProposal(FlowProposal):
                         self.add_log_inversion(p)
 
         if self.inversion:
+            logger.info(f'Inversion types: {self.inversion_type}')
             if isinstance(self.inversion, list):
                 for p in self.inversion:
-                    self.add_inversion(p)
+                    if p in self.names:
+                        self.add_inversion(p)
+                    else:
+                        logger.debug(f'Cannot apply inversion to {p}, '
+                                     'parameter not being sampled')
             else:
                 for p in self._default_inversion_parameters:
                     if p in self.names:
                         self.add_inversion(p)
-            logger.info(f'Inversion types: {self.inversion_type}')
+                    else:
+                        logger.debug(f'Cannot apply inversion to {p}, '
+                                     'parameter not being sampled')
 
         if self.log_radial:
             log_radial = ['luminosity_distance', 'a_1', 'a_2']
@@ -252,19 +260,50 @@ class GWFlowProposal(FlowProposal):
         if self.convert_to_angle:
             if isinstance(self.convert_to_angle, list):
                 for p in self.convert_to_angle:
-                    self.add_angle_conversion(p, duplicate=False)
+                    if p in self.names:
+                        self.add_angle_conversion(p, mode='split')
+                    else:
+                        logger.debug(f'Cannot convert {p} to angle, '
+                                     'parameter not being sampled')
             if isinstance(self.convert_to_angle, dict):
                 for k, v in self.convert_to_angle.items():
-                    self.add_angle_conversion(k, duplicate=v)
+                    if k in self.names:
+                        self.add_angle_conversion(k, mode=v)
+                    else:
+                        logger.debug(f'Cannot convert {k} to angle, '
+                                     'parameter not being sampled')
+
+        else:
+            self.convert_to_angle = []
 
         if self.angular_decomposition:
             if all(p in self.names for p in ['ra', 'dec']):
+                from .utils import ra_dec_to_cartesian, cartesian_to_ra_dec
+                self.sky_angles = ['ra', 'dec']
+                self.sky_to_cartesian = ra_dec_to_cartesian
+                self.cartesian_to_sky = cartesian_to_ra_dec
+            elif all(p in self.names for p in ['azimuth', 'zenith']):
+                from .utils import (azimuth_zenith_to_cartesian,
+                                    cartesian_to_azimuth_zenith)
+                self.sky_angles = ['azimuth', 'zenith']
+                self.sky_to_cartesian = azimuth_zenith_to_cartesian
+                self.cartesian_to_sky = cartesian_to_azimuth_zenith
+            elif any(p in self.names for p in
+                     ['ra', 'dec', 'azimuth', 'zenith']):
+                raise RuntimeError(
+                    'Cannot use angular decompoisiton with only'
+                    'one of the two sky angles')
+            else:
+                self.sky_angles = []
+
+            if self.sky_angles:
                 replace_in_list(self.rescaled_names,
-                                ['ra', 'dec'], ['sky_x', 'sky_y'])
+                                self.sky_angles, ['sky_x', 'sky_y'])
                 if 'luminosity_distance' not in self.names or \
                         'luminosity_distance' in self._log_inversion or \
                         'luminosity_distance' in self._inversion or \
-                        'luminosity_distance' in self.convert_to_angle:
+                        'luminosity_distance' in self.convert_to_angle or \
+                        'luminosity_distance' in self.default_rescaling:
                     self.names.append('sky_radial')
                     self.distance = 'sky_radial'
                     self.rescaled_names.append('sky_z')
@@ -273,11 +312,9 @@ class GWFlowProposal(FlowProposal):
                     replace_in_list(self.rescaled_names, [self.distance],
                                     ['sky_z'])
                 self._reparameterisations.append('sky')
-
-            elif any(p in self.names for p in ['ra', 'dec']):
-                raise RuntimeError(
-                    'Cannot use angular decompoisiton with only'
-                    'one of the two sky angles')
+                logger.info(
+                    'Using angular decomposition of sky for: '
+                    f'{self.sky_angles}')
 
         if 'geocent_time' in self.names:
             self.time = 'geocent_time'
@@ -296,18 +333,43 @@ class GWFlowProposal(FlowProposal):
             self._reparameterisations.append('time')
 
         if self.angular_decomposition:
+            if self.rescale_angles:
+                if not isinstance(self.rescale_angles, list):
+                    if isinstance(self.rescale_angles, bool):
+                        self.rescale_angles = self._default_angles
+                    elif isinstance(self.rescale_angles, str):
+                        if self.rescale_angles == 'all':
+                            self.rescale_angles = self._default_angles
+                        else:
+                            raise ValueError(
+                                'Unknown value for rescale_angles: '
+                                f'{self.rescale_angles}')
+                logger.debug(f'Angles to rescale {self.rescale_angles}')
+            else:
+                self.rescale_angles = []
+
             logger.debug('Checking source angles')
-            for a in ['psi', 'theta_jn', 'iota', 'phase']:
+            for a in ['psi', 'theta_jn', 'iota', 'phase', 'cos_theta_jn']:
                 if a in self.names:
-                    if self.rescale_angles:
+                    if a in self.rescale_angles:
                         scale = 2. * np.pi / np.ptp(self.model.bounds[a])
                     else:
                         scale = 1.0
-                    self.setup_angle(a, scale=scale)
+                    if a in ['cos_theta_jn']:
+                        zero = 'centre'
+                    else:
+                        zero = 'bound'
+                    self.setup_angle(a, scale=scale, zero=zero)
+
             logger.debug('Checking spin angles')
             for i in [1, 2]:
-                if (a := f'tilt_{i}') in self.names:
-                    if self.rescale_angles:
+                if ((a := f'tilt_{i}') in self.names or
+                   (a := f'cos_tilt_{i}') in self.names):
+                    if 'cos' in a:
+                        zero = 'centre'
+                    else:
+                        zero = 'bound'
+                    if a in self.rescale_angles:
                         scale = 2. * np.pi / np.ptp(self.model.bounds[a])
                     else:
                         scale = 1.0
@@ -316,13 +378,13 @@ class GWFlowProposal(FlowProposal):
                                  radial in self._inversion or
                                  radial in self._angle_conversion or
                                  radial in self.default_rescaling)):
-                        self.setup_angle(a, radial, scale=scale)
+                        self.setup_angle(a, radial, scale=scale, zero=zero)
                     else:
-                        self.setup_angle(a, scale=scale)
+                        self.setup_angle(a, scale=scale, zero=zero)
 
             for a in ['phi_jl', 'phi_12']:
                 if a in self.names:
-                    self.setup_angle(a, scale=1.0)
+                    self.setup_angle(a, scale=1.0, zero='bound')
 
         if self.mass_inversion:
             if 'mass_ratio' in self.names:
@@ -413,10 +475,7 @@ class GWFlowProposal(FlowProposal):
                 if c['flip'] is None:
                     c['flip'] = detect_edge(
                         x_prime[c['rescaled_name']],
-                        bounds=[0, 1],
-                        cutoff=self._edge_cutoff,
-                        mode_range=self._edge_mode_range)
-                    logger.debug(f"Log inversion for {c['name']}: {c['flip']}")
+                        **self.detect_edges_kwargs)
 
                 if c['flip'] == 'lower':
                     x_prime[c['rescaled_name']] = \
@@ -449,11 +508,9 @@ class GWFlowProposal(FlowProposal):
                         both = False
                     c['flip'] = detect_edge(
                         x[c['name']],
-                        bounds=[c['min'], c['max']],
-                        cutoff=self._edge_cutoff,
-                        allow_none=self._allow_none,
-                        both=both,
-                        test=self._inversion_test_type)
+                        allow_both=both,
+                        test=self._inversion_test_type,
+                        **self.detect_edges_kwargs)
                     logger.debug(f"Inversion for {c['name']}: {c['flip']}")
 
                 if c['flip']:
@@ -525,17 +582,18 @@ class GWFlowProposal(FlowProposal):
                     xmax=self.model.bounds[c['name']][1])
                 log_J += lj
                 # if computing the radius, set duplicate=True
-                if compute_radius or c['duplicate']:
+                if ((c['mode'] == 'split' and compute_radius)
+                        or c['mode'] == 'duplicate'):
                     x_prime = np.concatenate([x_prime, x_prime])
                     x = np.concatenate([x,  x])
                     log_J = np.concatenate([log_J, log_J])
                     x_prime[c['x']], x_prime[c['y']], lj = \
-                        zero_one_to_cartesian(p, duplicate=True)
+                        zero_one_to_cartesian(p, mode='duplicate')
                     log_J += lj
 
                 else:
                     x_prime[c['x']], x_prime[c['y']], lj = \
-                        zero_one_to_cartesian(p, duplicate=False)
+                        zero_one_to_cartesian(p, mode=c['mode'])
 
                     log_J += lj
 
@@ -561,7 +619,8 @@ class GWFlowProposal(FlowProposal):
                 r = None
 
             x_prime['sky_x'], x_prime['sky_y'], x_prime['sky_z'], lj = \
-                sky_to_cartesian(x['ra'], x['dec'], r)
+                self.sky_to_cartesian(x[self.sky_angles[0]],
+                                      x[self.sky_angles[1]], r)
             log_J += lj
 
         if 'time' in self._reparameterisations:
@@ -648,53 +707,12 @@ class GWFlowProposal(FlowProposal):
         # Sort mass ratio first so that phase, tilt angles and magntiude
         # are correct before applying other rescaling
         if self.mass_inversion:
-            if 'mass_ratio' in self.names:
-                # Find `inverted` part
-                inv = x_prime['mass_ratio_inv'] > 0.
-                x['mass_ratio'][~inv] = \
-                    np.exp(x_prime['mass_ratio_inv'][~inv])
-                x['mass_ratio'][inv] = \
-                    np.exp(-x_prime['mass_ratio_inv'][inv])
-                # for q_inv < 0 conversion is exp(q_inv)
-                # for q_inv > 0 exp(-q_inv)
-                # so Jacobian is log(exp(+/-q_inv))
-                # i.e. q_inv and - q_inv respectively
-                log_J[~inv] += x_prime['mass_ratio_inv'][~inv]
-                log_J[inv] -= x_prime['mass_ratio_inv'][inv]
-
-            elif 'component_masses' in self._reparameterisations:
-                inv = x_prime['mass_1_dbl'] < x_prime['mass_2_dbl']
-                x_prime[['mass_1_dbl', 'mass_2_dbl']][inv] = \
-                    x_prime[['mass_2_dbl', 'mass_1_dbl']][inv]
-                x['mass_1'], lj = inverse_rescale_minus_one_to_one(
-                    x_prime['mass_1_dbl'],
-                    xmin=self.model.bounds['mass_1'][0],
-                    xmax=self.model.bounds['mass_1'][1])
-                log_J += lj
-                x['mass_2'], lj = inverse_rescale_minus_one_to_one(
-                    x_prime['mass_2_dbl'],
-                    xmin=self.model.bounds['mass_2'][0],
-                    xmax=self.model.bounds['mass_2'][1])
-                log_J += lj
-
-            if 'phase' in self._search_angles:
-                a = self._search_angles['phase']
-                x_prime[a['x']][inv] *= -1
-                x_prime[a['y']][inv] *= -1
-
-            if all(t in self._search_angles for t in ['tilt_1', 'tilt_2']):
-                t1 = self._search_angles['tilt_1']
-                t2 = self._search_angles['tilt_2']
-                x_prime[[t1['x'], t1['y'], t2['x'], t2['y']]][inv] = \
-                    x_prime[[t2['x'], t2['y'], t1['x'], t1['y']]][inv]
-
-            elif any(t in self._search_angles for t in ['tilt_1', 'tilt_2']):
-                raise RuntimeError(
-                    'Cannot use q-inversion with only one tilt angle')
+            raise NotImplementedError
 
         if 'sky' in self._reparameterisations:
-            x['ra'], x['dec'], r, lj = cartesian_to_sky(
-                x_prime['sky_x'], x_prime['sky_y'], x_prime['sky_z'])
+            x[self.sky_angles[0]], x[self.sky_angles[1]], r, lj = \
+                self.cartesian_to_sky(x_prime['sky_x'], x_prime['sky_y'],
+                                      x_prime['sky_z'])
             log_J += lj
 
             if self.distance == 'luminosity_distance':
@@ -723,7 +741,8 @@ class GWFlowProposal(FlowProposal):
         if self._search_angles:
             for a in self._search_angles.values():
                 x[a['angle']], r, lj = cartesian_to_angle(
-                    x_prime[a['x']], x_prime[a['y']], scale=a['scale'])
+                    x_prime[a['x']], x_prime[a['y']], scale=a['scale'],
+                    zero=a['zero'])
                 log_J += lj
                 # if the radial parameter is defined in the model
                 # rescale it using the bounds

@@ -5,11 +5,13 @@ import seaborn as sns
 import torch
 import pandas as pd
 
+from .utils import auto_bins
+
 sns.set()
 sns.set_style('ticks')
 
 pairplot_kwargs = dict(corner=True, kind='scatter',
-                       diag_kws=dict(histtype='step', bins='fd', lw=1.5,
+                       diag_kws=dict(histtype='step', bins='auto', lw=1.5,
                                      density=True, color='teal'),
                        plot_kws=dict(s=1.0, edgecolor=None, palette='viridis',
                                      color='teal'))
@@ -26,12 +28,13 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     df = df[np.isfinite(df).all(1)]
 
     if c is not None:
-        fig = sns.PairGrid(df, corner=True, diag_sharey=False)
-        fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
-        fig.map_offdiag(sns.scatterplot, hue=df[c],
-                        **pairplot_kwargs['plot_kws'])
+        hue = df[c]
     else:
-        fig = sns.pairplot(df, **pairplot_kwargs)
+        hue = None
+    fig = sns.PairGrid(df, corner=True, diag_sharey=False)
+    fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
+    fig.map_offdiag(sns.scatterplot, hue=hue,
+                    **pairplot_kwargs['plot_kws'])
 
     if bounds is not None:
         for i, v in enumerate(bounds.values()):
@@ -94,7 +97,8 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
                       for lp in live_points])
         for j, lp in enumerate(live_points):
             axs[i].hist(lp[f][np.isfinite(lp[f])],
-                        'fd', histtype='step',
+                        bins=auto_bins(lp[f][np.isfinite(lp[f])]),
+                        histtype='step',
                         range=(xmin, xmax), density=True, label=labels[j],
                         **hist_kwargs)
         axs[i].set_xlabel(f)
@@ -141,7 +145,7 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
     if not indices:
         return
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    nbins = len(np.histogram_bin_edges(indices, 'fd')) - 1
+    nbins = min(len(np.histogram_bin_edges(indices, 'auto')) - 1, 1000)
     if plot_breakdown:
         for i in range(len(indices) // nlive):
             ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
@@ -304,3 +308,48 @@ def plot_acceptance(*acceptance, filename=None, labels=None):
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
     plt.close(fig)
+
+
+def plot_trace(log_x, nested_samples, labels=None, filename=None):
+    """
+    Produce trace plot for all of the parameters.
+
+    Parameters
+    ----------
+    log_x : array_like
+        Array of log prior volumnes
+    nested_samples : array_like
+        Structured array of nested samples to plot
+    labels : list, optional
+        List of labels to use instead of the names of parameters
+    filename : str, optional
+        Filename for saving the plot, if none plot is not saved and figure
+        is returned instead.
+    """
+    nested_samples = np.asarray(nested_samples)
+    names = nested_samples.dtype.names[:-2]
+
+    if labels is None:
+        labels = names
+
+    if not len(labels) == len(names):
+        raise RuntimeError(
+            'Missing labels. List of labels does not have enough entries '
+            f'({len(labels)}) for parameters: {nested_samples.dtype.names}')
+
+    fig, axes = plt.subplots(len(labels), 1, figsize=(5, 3 * len(labels)),
+                             sharex=True)
+    axes = axes.ravel()
+
+    for i, name in enumerate(names):
+        axes[i].plot(log_x, nested_samples[name], ',')
+        axes[i].set_ylabel(labels[i])
+
+    axes[-1].set_xlabel('log X')
+    axes[-1].invert_xaxis()
+
+    if filename is not None:
+        fig.savefig(filename, bbox_inches='tight')
+        plt.close(fig)
+    else:
+        return fig

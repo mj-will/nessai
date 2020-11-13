@@ -41,7 +41,9 @@ class Model:
 
     def new_point(self, N=1):
         """
-        Create a new LivePoint, drawn from within bounds
+        Create a new LivePoint, drawn from within bounds.
+
+        Note: See `new_point_log_prob` if changing this method.
 
         Parameters
         ----------
@@ -60,13 +62,17 @@ class Model:
         else:
             return self._single_new_point()
 
-    def new_point_log_prob(self, p):
+    def new_point_log_prob(self, x):
         """
-        Computes the proposal probabaility for a new point
+        Computes the proposal probabaility for a new point.
+
+        This does not assume the that points will be drawn according to the
+        prior. If `new_point` is redefined this method must be updated to
+        match.
 
         Parameters
         ----------
-        p: array_like
+        x: array_like
             Points in a structured array
 
         Returns
@@ -74,7 +80,7 @@ class Model:
         array_like
             Log proposal probability for each point
         """
-        return np.zeros(p.size)
+        return np.zeros(x.size)
 
     def _single_new_point(self):
         """
@@ -122,18 +128,6 @@ class Model:
             new_points = np.concatenate([new_points, p[np.isfinite(logP)]])
         return new_points
 
-    def log_likelihood(self, x):
-        """
-        returns log likelihood of given parameter
-        """
-        pass
-
-    def log_likelihood_batch(self, x):
-        """
-        Returns the log likelihood for a batch of sampler
-        """
-        pass
-
     def log_prior(self, x):
         """
         Returns log of prior.
@@ -145,7 +139,16 @@ class Model:
         """
         pass
 
+    def log_likelihood(self, x):
+        """
+        returns log likelihood of given parameter
+        """
+        pass
+
     def evaluate_log_likelihood(self, x):
+        """
+        Evaluate the log-likelihood and track the number of calls
+        """
         self.likelihood_evaluations += 1
         return self.log_likelihood(x)
 
@@ -165,14 +168,14 @@ class Model:
 
         logP = -np.inf
         counter = 0
-        while (logP == -np.inf):
+        while (logP == -np.inf) or (logP == np.inf):
             x = numpy_array_to_live_points(
                     np.random.uniform(self.lower_bounds, self.upper_bounds,
                                       [1, self.dims]),
                     self.names)
             logP = self.log_prior(x)
             counter += 1
-            if counter == 10000:
+            if counter == 1000:
                 raise RuntimeError('Could not draw valid point from within '
                                    'the prior after 10000 tries, check the '
                                    'log prior function.')
