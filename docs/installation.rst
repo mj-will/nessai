@@ -6,36 +6,40 @@ Some of the dependencies are not available for Conda, so installation is slightl
 
 NOTE: this packages requieres python >= 3.8
 
+
+Installing nessai
+=================
+
 PyTorch
 -------
 
-Many of the dependencies are shared with Pytorch, so first install the version of Pytorch in your Python environment. See the Pytorch homepage for instructions: https://pytorch.org/.
+Nessai requires PyTorch will can be installed using `pip` or `conda`. It's recommend to first install the correct version on PyTorch for your system and then proceed with the usual installation. See the Pytorch homepage for instructions: https://pytorch.org/.
 
-NOTE: GPU support is currently disabled but should be added in the future.
+NOTE: GPU support is currently supported but not recommended as for the majority of use-cases training on the GPU is slower than CPU
 
-Installing FlowProposal
------------------------
+Nessai
+------
 
-First clone the repository (cloning with SSH requires having the host for Gilsay configured):
-
-.. code-block:: console
-    $ git clone https://gilsay.physics.gla.ac.uk/gitlab/michael.williams/flowproposal.git
-
-Then to install the package (in the Python environemt you want to use):
+Nessai can be installed using `pip`
 
 .. code-block:: console
 
-    $ cd flowproposal
+    $ pip install nessai
 
-    $ python setup.py install
+This will install the dependencies needed but the version of `torch` will no necessarily be the correct version for your system unless you followed the previous step.
 
-Any missing dependencies should be installed.
+Nessai for development
+----------------------
 
-Adding bilby
-------------
+To install nessai for development purposes see the contribution guidelines.
+
+
+
+Using nessai with bilby
+=======================
 
 This pacakge requieres a fork of Bilby that includes the sampler, it can be installed by running (this requires pip):
 
 ```
-pip install git+https://git.ligo.org/michael.williams/bilby.git@flowproposal-sampler#egg=bilby
+pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sampler#egg=bilby
 ```
