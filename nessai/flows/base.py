@@ -143,14 +143,14 @@ class NFlow(BaseFlow):
         Apply the forward transformation and return samples in the latent
         space and log |J|
         """
-        return self._transform.forward(x)
+        return self._transform.forward(x, context=context)
 
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
         data space and log |J| (not log probability)
         """
-        return self._transform.inverse(z)
+        return self._transform.inverse(z, context=context)
 
     def sample(self, num_samples, context=None):
         """
@@ -159,9 +159,9 @@ class NFlow(BaseFlow):
 
         Does NOT need to be specified by the user
         """
-        noise = self._distribution.sample(num_samples)
+        noise = self._distribution.sample(num_samples, context=context)
 
-        samples, _ = self._transform.inverse(noise)
+        samples, _ = self._transform.inverse(noise, context=context)
 
         return samples
 
@@ -172,8 +172,8 @@ class NFlow(BaseFlow):
 
         Does NOT need to specified by the user
         """
-        noise, logabsdet = self._transform(inputs)
-        log_prob = self._distribution.log_prob(noise)
+        noise, logabsdet = self._transform(inputs, context=context)
+        log_prob = self._distribution.log_prob(noise, context=context)
         return log_prob + logabsdet
 
     def base_distribution_log_prob(self, z, context=None):
@@ -181,7 +181,7 @@ class NFlow(BaseFlow):
         Computes the log probability of samples in the latent for
         the base distribution in the flow.
         """
-        return self._distribution.log_prob(z)
+        return self._distribution.log_prob(z, context=context)
 
     def forward_and_log_prob(self, x, context=None):
         """
@@ -195,8 +195,8 @@ class NFlow(BaseFlow):
         :obj:`torch.Tensor`
             Tensor of log probabilities of the samples
         """
-        z, log_J = self.forward(x)
-        log_prob = self.base_distribution_log_prob(z)
+        z, log_J = self.forward(x, context=context)
+        log_prob = self.base_distribution_log_prob(z, context=context)
         return z, log_prob + log_J
 
     def sample_and_log_prob(self, N, context=None):
@@ -207,8 +207,9 @@ class NFlow(BaseFlow):
         For flows, this is more efficient that calling `sample` and `log_prob`
         separately.
         """
-        z, log_prob = self._distribution.sample_and_log_prob(N)
+        z, log_prob = self._distribution.sample_and_log_prob(
+            N, context=context)
 
-        samples, logabsdet = self._transform.inverse(z)
+        samples, logabsdet = self._transform.inverse(z, context=context)
 
         return samples, log_prob - logabsdet
