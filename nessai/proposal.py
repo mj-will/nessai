@@ -393,6 +393,11 @@ class FlowProposal(RejectionProposal):
         return len(self.rescaled_names)
 
     @property
+    def flow_dims(self):
+        """Return the number of dimensions for the normalising flow"""
+        return self.rescaled_dims
+
+    @property
     def x_dtype(self):
         """Return the dtype for the x space"""
         return get_dtype(self.names, DEFAULT_FLOAT_DTYPE)
@@ -527,9 +532,9 @@ class FlowProposal(RejectionProposal):
         if self.expansion_fraction and self.expansion_fraction is not None:
             logger.info('Overwritting fuzz factor with expansion fraction')
             self.fuzz = \
-                (1 + self.expansion_fraction) ** (1 / self.rescaled_dims)
+                (1 + self.expansion_fraction) ** (1 / self.flow_dims)
             logger.info(f'New fuzz factor: {self.fuzz}')
-        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+        self.flow_config['model_config']['n_inputs'] = self.flow_dims
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
         self.populated = False
@@ -810,6 +815,15 @@ class FlowProposal(RejectionProposal):
         if self.boundary_inversion:
             self._edges = {n: None for n in self.boundary_inversion}
 
+    def train_on_data(self, x_prime, output):
+        """
+        Function that takes live points converts to numpy array and calls
+        the train function. Live points should be in the X' (x prime) space.
+        """
+        x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
+        self.flow.train(x_prime_array,
+                        output=output, plot=self._plot_training)
+
     def train(self, x, plot=True):
         """
         Train the normalising flow given some of the live points.
@@ -843,11 +857,8 @@ class FlowProposal(RejectionProposal):
         if self.rescale_parameters and self._plot_training == 'all' and plot:
             plot_live_points(x_prime, c='logL',
                              filename=block_output + 'x_prime_samples.png')
-        # Convert to numpy array for training and remove likelihoods and priors
-        # Since the names of parameters may have changes, pull names from flows
-        x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
-        self.flow.train(x_prime_array,
-                        output=block_output, plot=self._plot_training)
+
+        self.train_on_data(x_prime, block_output)
 
         if self._plot_training and plot:
             z_training_data, _ = self.forward_pass(self.training_data,
@@ -1315,6 +1326,162 @@ class FlowProposal(RejectionProposal):
         self.__dict__ = state
 
 
+class UniformFlowProposal(FlowProposal):
+
+    def __init__(self, model, uniform_parameters, **kwargs):
+        super(UniformFlowProposal, self).__init__(model, **kwargs)
+
+        self.uniform_parameters = uniform_parameters
+
+    @property
+    def uniform_dims(self):
+        """Number of uniform parameters"""
+        return len(self.uniform_parameters)
+
+    @property
+    def flow_dims(self):
+        """Return the number of dimensions for the normalising flow"""
+        return self.rescaled_dims - self.uniform_dims
+
+    def set_rescaling(self):
+        """
+        Set function and parameter names for rescaling
+        """
+        self.names = self.model.names.copy()
+        self.rescaled_names = self.names.copy()
+
+        self.set_uniform_parameters()
+
+        self.set_boundary_inversion()
+
+        if self.rescale_parameters:
+            # if rescale is a list, there are the parameters to rescale
+            # else all parameters are rescale
+            if not isinstance(self.rescale_parameters, list):
+                self.rescale_parameters = self.rescaled_names.copy()
+
+            self.rescale_parameters = list(set(self.rescale_parameters)
+                                           - set(self.uniform_parameters))
+
+            for i, rn in enumerate(self.rescaled_names):
+                if rn in self.rescale_parameters:
+                    self.rescaled_names[i] += '_prime'
+
+            self._min = {n: self.model.bounds[n][0] for n in self.model.names}
+            self._max = {n: self.model.bounds[n][1] for n in self.model.names}
+            self._rescale_factor = np.ptp(self.rescale_bounds)
+            self._rescale_shift = self.rescale_bounds[0]
+
+            self.rescale = self._rescale_to_bounds
+            self.inverse_rescale = self._inverse_rescale_to_bounds
+            logger.info(f'Set to rescale inputs to {self.rescale_bounds}')
+
+            if self.update_bounds:
+                logger.info(
+                    'Rescaling will use min and max of current live points')
+            else:
+                logger.info('Rescaling will use model bounds')
+
+        logger.info(f'x space parameters: {self.names}')
+        logger.info(f'parameters to rescale {self.rescale_parameters}')
+        logger.info(f'x prime space parameters: {self.rescaled_names}')
+
+    def set_uniform_parameters(self):
+        """
+        Set the uniform parameters
+        """
+        self.uniform_min = \
+            [self.model.bounds[n][0] for n in self.uniform_parameters]
+        self.uniform_max = \
+            [self.model.bounds[n][1] for n in self.uniform_parameters]
+
+        self._uniform_log_prob = \
+            -np.log(np.ptp([self.uniform_min, self.uniform_max]))
+
+    def initialise(self):
+        """
+        Initialise the proposal class.
+
+        This includes:
+            * Setting up the rescaling
+            * Verifying the rescaling is invertible
+            * Intitialising the FlowModel
+        """
+        if not os.path.exists(self.output):
+            os.makedirs(self.output, exist_ok=True)
+
+        self.set_rescaling()
+        self.verify_rescaling()
+        if self.expansion_fraction and self.expansion_fraction is not None:
+            logger.info('Overwritting fuzz factor with expansion fraction')
+            self.fuzz = \
+                (1 + self.expansion_fraction) ** (1 / self.flow_dims)
+            logger.info(f'New fuzz factor: {self.fuzz}')
+        self.flow_config['model_config']['n_inputs'] = self.flow_dims
+        self.flow_config['model_config']['kwargs']['context_features'] = \
+            self.uniform_dims
+        self.flow = FlowModel(config=self.flow_config, output=self.output)
+        self.flow.initialise()
+        self.populated = False
+        self.initialised = True
+
+    def sample_uniform_parameters(self, n):
+        """
+        Draw n parameters from a uniform distribution
+        """
+        x = np.random.uniform(self.uniform_min, self.uniform_max,
+                              (n, self.uniform_dims))
+        log_prob = self._uniform_log_prob * np.ones(n)
+        return x, log_prob
+
+    def backward_pass(self, z, rescale=True):
+        """
+        A backwards pass from the model (latent -> real)
+
+        Parameters
+        ----------
+        z : array_like
+            Structured array of points in the latent space
+        rescale : bool, optional (True)
+            Apply inverse rescaling function
+
+        Returns
+        -------
+        x : array_like
+            Samples in the latent sapce
+        log_prob : array_like
+            Log probabilties corresponding to each sample (including the
+            Jacobian)
+        """
+        # Compute the log probability
+        try:
+            x_flow, log_prob = self.flow.sample_and_log_prob(
+                z=z, alt_dist=self.alt_dist)
+        except AssertionError:
+            return np.array([]), np.array([])
+
+        valid = np.isfinite(log_prob)
+        x_flow, log_prob = x_flow[valid], log_prob[valid]
+        x_uniform, log_prob_uniform = \
+            self.sample_uniform_parameters(x_flow.shape[0])
+        log_prob += log_prob_uniform
+        x = np.concatenate([x_flow, x_uniform], axis=1)
+        x = numpy_array_to_live_points(
+            x.astype(DEFAULT_FLOAT_DTYPE), self.rescaled_names)
+        # Apply rescaling in rescale=True
+        if rescale:
+            x, log_J = self.inverse_rescale(x)
+            # Include Jacobian for the rescaling
+            log_prob -= log_J
+            x, log_prob = self.check_prior_bounds(x, log_prob)
+        return x, log_prob
+
+        def log_prior(x):
+            """
+            Compute the log prior
+            """
+
+
 class AugmentedFlowProposal(FlowProposal):
 
     def __init__(self, model, augment_features=1, **kwargs):
@@ -1341,11 +1508,11 @@ class AugmentedFlowProposal(FlowProposal):
 
         self.set_rescaling()
 
-        m = np.ones(self.rescaled_dims)
+        m = np.ones(self.flow_dims)
         m[-self.augment_features:] = -1
         self.flow_config['model_config']['kwargs']['mask'] = m
 
-        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+        self.flow_config['model_config']['n_inputs'] = self.flow_dims
 
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()

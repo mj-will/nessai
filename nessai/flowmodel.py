@@ -180,7 +180,7 @@ class FlowModel:
         self.optimiser = self.get_optimiser()
         self.initialised = True
 
-    def prep_data(self, samples, val_size, batch_size):
+    def prep_data(self, samples, val_size, batch_size, context=None):
         """
         Prep data and return dataloaders for training
         """
@@ -200,14 +200,25 @@ class FlowModel:
                 batch_size = x_train.shape[0]
             else:
                 raise RuntimeError(f'Unknown batch size: {batch_size}')
-        train_tensor = torch.from_numpy(x_train.astype(np.float32))
-        train_dataset = torch.utils.data.TensorDataset(train_tensor)
+
+        train_tensor = torch.from_numpy(x_train).float()
+        val_tensor = torch.from_numpy(x_val.astype(np.float32))
+
+        if context is not None:
+            train_context_tensor = torch.from_numpy(x_train).float()
+            train_dataset = torch.utils.data.TensorDataset(
+                train_tensor, train_context_tensor)
+            val_context_tensor = torch.from_numpy(x_val).float()
+            val_dataset = torch.utils.data.TensorDataset(
+                val_tensor, val_context_tensor)
+        else:
+            train_dataset = torch.utils.data.TensorDataset(train_tensor)
+            val_dataset = torch.utils.data.TensorDataset(val_tensor)
+
         train_loader = torch.utils.data.DataLoader(train_dataset,
                                                    batch_size=batch_size,
                                                    shuffle=True)
 
-        val_tensor = torch.from_numpy(x_val.astype(np.float32))
-        val_dataset = torch.utils.data.TensorDataset(val_tensor)
         val_loader = torch.utils.data.DataLoader(val_dataset,
                                                  batch_size=x_val.shape[0],
                                                  shuffle=False)
@@ -236,15 +247,19 @@ class FlowModel:
         if hasattr(model, 'loss_function'):
             loss_fn = model.loss_function
         else:
-            def loss_fn(data):
-                return -model.log_prob(data).mean()
+            def loss_fn(data, context):
+                return -model.log_prob(data, context).mean()
 
         for idx, data in enumerate(loader):
             if noise_scale:
                 data[0] += noise_scale * torch.randn_like(data[0])
+            if len(data) > 1:
+                context = data[1].to(self.device)
+            else:
+                context = None
             data = data[0].to(self.device)
             self.optimiser.zero_grad()
-            loss = loss_fn(data)
+            loss = loss_fn(data, context)
             train_loss += loss.item()
             loss.backward()
             if self.clip_grad_norm:
@@ -276,18 +291,22 @@ class FlowModel:
         if hasattr(model, 'loss_function'):
             loss_fn = model.loss_function
         else:
-            def loss_fn(data):
-                return -model.log_prob(data).mean()
+            def loss_fn(data, context):
+                return -model.log_prob(data, context).mean()
 
         for idx, data in enumerate(loader):
+            if len(data) > 1:
+                context = data[1].to(self.device)
+            else:
+                context = None
             data = data[0].to(self.device)
             with torch.no_grad():
-                val_loss += loss_fn(data).item()
+                val_loss += loss_fn(data, context).item()
 
         return val_loss / len(loader)
 
-    def train(self, samples, max_epochs=None, patience=None, output=None,
-              val_size=None, plot=True):
+    def train(self, samples, context=None, max_epochs=None, patience=None,
+              output=None, val_size=None, plot=True):
         """
         Train the flow on a set of samples.
 
@@ -330,8 +349,10 @@ class FlowModel:
         else:
             noise_scale = self.noise_scale
 
-        train_loader, val_loader = self.prep_data(samples, val_size=val_size,
-                                                  batch_size=self.batch_size)
+        train_loader, val_loader = self.prep_data(samples,
+                                                  val_size=val_size,
+                                                  batch_size=self.batch_size,
+                                                  context=context)
 
         if max_epochs is None:
             max_epochs = self.max_epochs
