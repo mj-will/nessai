@@ -205,10 +205,11 @@ class FlowModel:
         val_tensor = torch.from_numpy(x_val.astype(np.float32))
 
         if context is not None:
-            train_context_tensor = torch.from_numpy(x_train).float()
+            context_train, context_val = context[:n], context[n:]
+            train_context_tensor = torch.from_numpy(context_train).float()
             train_dataset = torch.utils.data.TensorDataset(
                 train_tensor, train_context_tensor)
-            val_context_tensor = torch.from_numpy(x_val).float()
+            val_context_tensor = torch.from_numpy(context_val).float()
             val_dataset = torch.utils.data.TensorDataset(
                 val_tensor, val_context_tensor)
         else:
@@ -453,7 +454,7 @@ class FlowModel:
         self.optimiser = self.get_optimiser()
         logger.debug('Reseting optimiser')
 
-    def forward_and_log_prob(self, x):
+    def forward_and_log_prob(self, x, context=None):
         """
         Forward pass through the model and return the samples in the latent
         space with their log probabilties
@@ -471,15 +472,17 @@ class FlowModel:
             Log probabilties for each samples
         """
         x = torch.Tensor(x.astype(np.float32)).to(self.device)
+        if context is not None:
+            context = torch.from_numpy(context).float().to(self.device)
         self.model.eval()
         with torch.no_grad():
-            z, log_prob = self.model.forward_and_log_prob(x)
+            z, log_prob = self.model.forward_and_log_prob(x, context=context)
 
         z = z.detach().cpu().numpy()
         log_prob = log_prob.detach().cpu().numpy()
         return z, log_prob
 
-    def sample_and_log_prob(self, N=1, z=None, alt_dist=None):
+    def sample_and_log_prob(self, N=1, z=None, context=None, alt_dist=None):
         """
         Generate samples from samples drawn from the base distribution or
         and alternative distribution from provided latent samples
@@ -509,7 +512,11 @@ class FlowModel:
             raise RuntimeError('Model is not initialised yet!')
         if self.model.training:
             self.model.eval()
-        if z is None:
+
+        if context is not None:
+            if isinstance(context, np.ndarray):
+                context = torch.from_numpy(context).float().to(self.device)
+        if z is None and context is None:
             with torch.no_grad():
                 x, log_prob = self.model.sample_and_log_prob(N)
         else:
@@ -522,7 +529,7 @@ class FlowModel:
                 if isinstance(z, np.ndarray):
                     z = torch.Tensor(z.astype(np.float32)).to(self.device)
                 log_prob = log_prob_fn(z)
-                x, log_J = self.model.inverse(z, context=None)
+                x, log_J = self.model.inverse(z, context=context)
                 log_prob -= log_J
 
         x = x.detach().cpu().numpy()

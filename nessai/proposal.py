@@ -1106,7 +1106,7 @@ class FlowProposal(RejectionProposal):
         if not self.keep_samples or not self.indices:
             self.x = np.empty(N,  dtype=self.x_dtype)
             self.indices = []
-            z_samples = np.empty([N, self.dims])
+            z_samples = np.empty([N, self.flow_dims])
 
         proposed = 0
         accepted = 0
@@ -1115,7 +1115,7 @@ class FlowProposal(RejectionProposal):
 
         while accepted < N:
             while True:
-                z = self.draw_latent_prior(self.dims, r=self.r,
+                z = self.draw_latent_prior(self.flow_dims, r=self.r,
                                            N=self.drawsize, fuzz=self.fuzz,
                                            **self.draw_latent_kwargs)
                 if z.size:
@@ -1224,12 +1224,12 @@ class FlowProposal(RejectionProposal):
         Get a distribution for the latent prior used to draw samples.
         """
         if self.latent_prior in ['uniform_nsphere', 'uniform_nball']:
-            return get_uniform_distribution(self.dims, self.r * self.fuzz,
+            return get_uniform_distribution(self.flow_dims, self.r * self.fuzz,
                                             device=self.flow.device)
         elif self.latent_prior == 'truncated_gaussian':
             if 'var' in self.draw_latent_kwargs:
                 return get_multivariate_normal(
-                    self.dims, var=self.draw_latent_kwargs['var'],
+                    self.flow_dims, var=self.draw_latent_kwargs['var'],
                     device=self.flow.device)
 
     def evaluate_likelihoods(self):
@@ -1343,6 +1343,10 @@ class UniformFlowProposal(FlowProposal):
         """Return the number of dimensions for the normalising flow"""
         return self.rescaled_dims - self.uniform_dims
 
+    @property
+    def flow_names(self):
+        return list(set(self.rescaled_names) - set(self.uniform_parameters))
+
     def set_rescaling(self):
         """
         Set function and parameter names for rescaling
@@ -1425,6 +1429,16 @@ class UniformFlowProposal(FlowProposal):
         self.populated = False
         self.initialised = True
 
+    def train_on_data(self, x_prime, output):
+        """
+        Function that takes live points converts to numpy array and calls
+        the train function. Live points should be in the X' (x prime) space.
+        """
+        x_prime_array = live_points_to_array(x_prime, self.flow_names)
+        context = live_points_to_array(x_prime, self.uniform_parameters)
+        self.flow.train(x_prime_array, context=context, output=output,
+                        plot=self._plot_training)
+
     def sample_uniform_parameters(self, n):
         """
         Draw n parameters from a uniform distribution
@@ -1434,7 +1448,45 @@ class UniformFlowProposal(FlowProposal):
         log_prob = self._uniform_log_prob * np.ones(n)
         return x, log_prob
 
-    def backward_pass(self, z, rescale=True):
+    def forward_pass(self, x, rescale=True, compute_radius=True):
+        """
+        Pass a vector of points through the model
+
+        Parameters
+        ----------
+        x : array_like
+            Live points to map to the latent space
+        rescale : bool, optional (True)
+            Apply rescaling function
+        compute_radius : bool, optional (True)
+            Flag parsed to rescaling for rescaling specific to radius
+            computation
+
+        Returns
+        -------
+        x : array_like
+            Samples in the latent sapce
+        log_prob : array_like
+            Log probabilties corresponding to each sample (including the
+            jacobian)
+        """
+        log_J = 0
+        if rescale:
+            x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
+            log_J += log_J_rescale
+
+        x_flow = live_points_to_array(x, names=self.flow_names)
+        context = live_points_to_array(x, names=self.uniform_parameters)
+
+        if x_flow.ndim == 1:
+            x_flow = x_flow[np.newaxis, :]
+        if x_flow.shape[0] == 1:
+            if self.clip:
+                x_flow = np.clip(x_flow, *self.clip)
+        z, log_prob = self.flow.forward_and_log_prob(x_flow, context=context)
+        return z, log_prob + log_J
+
+    def backward_pass(self, z, context=None, rescale=True, log_prob=0):
         """
         A backwards pass from the model (latent -> real)
 
@@ -1453,19 +1505,22 @@ class UniformFlowProposal(FlowProposal):
             Log probabilties corresponding to each sample (including the
             Jacobian)
         """
-        # Compute the log probability
+        if context is None:
+            context, log_prob_context = \
+                self.sample_uniform_parameters(z.shape[0])
+            log_prob += log_prob_context
+
         try:
-            x_flow, log_prob = self.flow.sample_and_log_prob(
-                z=z, alt_dist=self.alt_dist)
+            x_flow, log_prob_flow = self.flow.sample_and_log_prob(
+                z=z, context=context, alt_dist=self.alt_dist)
         except AssertionError:
             return np.array([]), np.array([])
 
+        log_prob += log_prob_flow
+
+        x = np.concatenate([x_flow, context], axis=1)
         valid = np.isfinite(log_prob)
-        x_flow, log_prob = x_flow[valid], log_prob[valid]
-        x_uniform, log_prob_uniform = \
-            self.sample_uniform_parameters(x_flow.shape[0])
-        log_prob += log_prob_uniform
-        x = np.concatenate([x_flow, x_uniform], axis=1)
+        x, log_prob = x[valid], log_prob[valid]
         x = numpy_array_to_live_points(
             x.astype(DEFAULT_FLOAT_DTYPE), self.rescaled_names)
         # Apply rescaling in rescale=True
@@ -1475,11 +1530,6 @@ class UniformFlowProposal(FlowProposal):
             log_prob -= log_J
             x, log_prob = self.check_prior_bounds(x, log_prob)
         return x, log_prob
-
-        def log_prior(x):
-            """
-            Compute the log prior
-            """
 
 
 class AugmentedFlowProposal(FlowProposal):
