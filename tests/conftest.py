@@ -43,3 +43,39 @@ def flow_config():
                               kwargs=dict(batch_norm_between_layers=False))
             )
     return d
+
+
+_requires_dependency_cache = dict()
+
+
+def requires_dependency(name):
+    """Decorator to declare required dependencies for tests.
+
+    See git issue for original implementation:
+    https://github.com/astropy/astropy/issues/5543
+
+    Examples
+    --------
+
+    ::
+
+        from gammapy.utils.testing import requires_dependency
+
+        @requires_dependency('scipy')
+        def test_using_scipy():
+            import scipy
+            ...
+    """
+    if name in _requires_dependency_cache:
+        skip_it = _requires_dependency_cache[name]
+    else:
+        try:
+            __import__(name)
+            skip_it = False
+        except ImportError:
+            skip_it = True
+
+        _requires_dependency_cache[name] = skip_it
+
+    reason = 'Missing dependency: {}'.format(name)
+    return pytest.mark.skipif(skip_it, reason=reason)

@@ -1,5 +1,15 @@
+import logging
 import numpy as np
 import scipy.stats as stats
+
+logger = logging.getLogger(__name__)
+
+try:
+    import lalsimulation as lalsim
+    from lal import MSUN_SI as m_sol
+except ImportError:
+    logger.debug(
+        'Could not import LAL functions, running with reduced functionality')
 
 
 def angle_to_cartesian(alpha, r=None, scale=1.0):
@@ -196,3 +206,38 @@ def cartesian_to_zero_one(x, y):
     theta = np.abs(np.arctan2(y, x)) / np.pi
     radius = np.sqrt(x ** 2. + y ** 2.)
     return theta, radius, -np.log(radius)
+
+
+def _spin_jacobian(sx, sy, sz):
+    return -0.5 * np.log(1 + (sz ** 2 / (sx ** 2 + sy ** 2))) \
+            + np.log(sx ** 2 + sy ** 2 + sz ** 2)
+
+
+@np.vectorize
+def transform_from_precessing_parameters(theta_jn, phi_jl, theta_1, theta_2,
+                                         phi_12, a_1, a_2, m1, m2, f_ref,
+                                         phase):
+    f_ref = float(f_ref)
+    m1 *= m_sol
+    m2 *= m_sol
+    iota, s1x, s1y, s1z, s2x, s2y, s2z = \
+        lalsim.SimInspiralTransformPrecessingNewInitialConditions(
+                theta_jn, phi_jl, theta_1, theta_2, phi_12, a_1, a_2, m1, m2,
+                f_ref, phase)
+
+    log_J = _spin_jacobian(s1x, s1y, s1z)
+    log_J += _spin_jacobian(s2x, s2y, s2z)
+    return iota, s1x, s1y, s1z, s2x, s2y, s2z, log_J
+
+
+@np.vectorize
+def transform_to_precessing_parameters(iota, s1x, s1y, s1z, s2x, s2y, s2z,
+                                       m1, m2, f_ref, phase):
+    f_ref = float(f_ref)
+    theta_jn, phi_jl, theta_1, theta_2, phi_12, a_1, a_2 = \
+        lalsim.SimInspiralTransformPrecessingWvf2PE(
+            iota, s1x, s1y, s1z, s2x, s2y, s2z, m1, m2, f_ref, phase)
+
+    log_J = -_spin_jacobian(s1x, s1y, s1z)
+    log_J -= _spin_jacobian(s2x, s2y, s2z)
+    return theta_jn, phi_jl, theta_1, theta_2, phi_12, a_1, a_2, log_J
