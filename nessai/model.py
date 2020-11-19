@@ -2,6 +2,7 @@
 import numpy as np
 
 from .livepoint import (
+        parameters_to_live_point,
         numpy_array_to_live_points,
         get_dtype,
         DEFAULT_FLOAT_DTYPE
@@ -94,9 +95,9 @@ class Model:
         """
         logP = -np.inf
         while (logP == -np.inf):
-            p = numpy_array_to_live_points(
+            p = parameters_to_live_point(
                     np.random.uniform(self.lower_bounds, self.upper_bounds,
-                                      [1, self.dims]),
+                                      self.dims),
                     self.names)
             logP = self.log_prior(p)
         return p
