@@ -1107,7 +1107,7 @@ class FlowProposal(RejectionProposal):
         Convert the array to samples ready to be used
         """
         if self.use_x_prime_prior:
-            if plot:
+            if self._plot_pool and plot:
                 plot_1d_comparison(
                     self.training_data_prime, x,
                     labels=['live points', 'pool'],
