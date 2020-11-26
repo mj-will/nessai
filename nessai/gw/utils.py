@@ -280,11 +280,11 @@ class DistanceConverter:
     Object to convert comoving distance to luminosity distance and vice
     versa
     """
-    def __init__(self, dl_min=100, dl_max=3000, units=u.Mpc,
+    def __init__(self, dl_min=100, dl_max=3000, units='Mpc',
                  cosmology='Planck15'):
         self.dl_min = dl_min
         self.dl_max = dl_max
-        self.units = units
+        self.units = u.Unit(units)
         # TODO: this needs to update with bilby
         self.cosmology = cosmo.Planck15
 
