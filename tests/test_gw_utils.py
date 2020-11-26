@@ -11,15 +11,23 @@ from conftest import requires_dependency
                                         ((0, 2 * np.pi), 1, 'bound'),
                                         ((0, 1), np.pi, 'bound'),
                                         ((-np.pi, np.pi), 1, 'centre')])
-def test_angle_to_cartesian_to_angle(r, s, zero):
+@pytest.mark.parametrize('radial', [False, True])
+def test_angle_to_cartesian_to_angle(r, s, zero, radial):
     """
     Test the conversion from angle to cartesian and back for a range
     and scale.
     """
-    t = np.random.uniform(r[0], r[1])
-    cart = utils.angle_to_cartesian(t, scale=s)
+    n = 1000
+    t = np.random.uniform(r[0], r[1], n)
+    if radial:
+        radii = np.random.rand(n)
+    else:
+        radii = None
+    cart = utils.angle_to_cartesian(t, r=radii, scale=s)
     t_out = utils.cartesian_to_angle(*cart[:2], scale=s, zero=zero)
     assert_allclose(t, t_out[0])
+    if radial:
+        assert_allclose(radii, t_out[1])
     assert_allclose(cart[-1], -t_out[-1])
 
 

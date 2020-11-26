@@ -3,6 +3,7 @@ import json
 import logging
 import numpy as np
 import os
+import shutil
 import torch
 from torch.nn.utils import clip_grad_norm_
 
@@ -375,12 +376,22 @@ class FlowModel:
                 break
 
         self.model.load_state_dict(best_model)
-        torch.save(self.model.state_dict(), current_weights_file)
-        self.weights_file = current_weights_file
+        self.save_weights(current_weights_file)
         self.model.eval()
 
         if plot:
             plot_loss(epoch, history, output=output)
+
+    def save_weights(self, weights_file):
+        """
+        Save the weights file. If the file already exists move it to
+        `model.py.old` and then save the file.
+        """
+        if os.path.exists(weights_file):
+            shutil.move(weights_file, weights_file + '.old')
+
+        torch.save(self.model.state_dict(), weights_file)
+        self.weights_file = weights_file
 
     def load_weights(self, weights_file):
         """

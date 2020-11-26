@@ -34,6 +34,8 @@ def angle_to_cartesian(alpha, r=None, scale=1.0):
     rescaled_alpha = alpha * scale
     if r is None:
         r = stats.chi.rvs(2, size=alpha.size)
+    elif any(r < 0):
+        raise RuntimeError('Radius cannot be negative.')
     x = r * np.cos(rescaled_alpha)
     y = r * np.sin(rescaled_alpha)
     return x, y, np.log(r)

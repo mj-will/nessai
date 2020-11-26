@@ -13,6 +13,7 @@ from tqdm import tqdm
 from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_indices, plot_trace
 from .posterior import logsubexp, log_integrate_log_trap
+from .proposal import FlowProposal
 from .utils import (
     safe_file_dump,
     compute_indices_ks_test,
@@ -218,22 +219,12 @@ class NestedSampler:
 
         self.acceptance_threshold = acceptance_threshold
 
-        if uninformed_acceptance_threshold is None:
-            if self.acceptance_threshold < 0.1:
-                self.uninformed_acceptance_threshold = \
-                    0.1 * self.acceptance_threshold
-            else:
-                self.uninformed_acceptance_threshold = \
-                    self.acceptance_threshold
-        else:
-            self.uninformed_acceptance_threshold = \
-                uninformed_acceptance_threshold
-
         self.train_on_empty = train_on_empty
         self.cooldown = cooldown
         self.memory = memory
         self.reset_weights = float(reset_weights)
         self.reset_permutations = float(reset_permutations)
+
         if training_frequency in [None, 'inf', 'None']:
             logger.warning('Proposal will only train when empty')
             self.training_frequency = np.inf
@@ -244,52 +235,17 @@ class NestedSampler:
 
         self.initialised = False
 
-        logger.info(f'Parsing kwargs to FlowProposal: {kwargs}')
-        proposal_output = self.output + '/proposal/'
-        if flow_class is not None:
-            if isinstance(flow_class, str):
-                if flow_class == 'GWFlowProposal':
-                    from .gw.proposal import GWFlowProposal
-                    flow_class = GWFlowProposal
-                elif flow_class == 'FlowProposal':
-                    from .proposal import FlowProposal
-                    flow_class = FlowProposal
-                else:
-                    raise RuntimeError(f'Unknown flow class: {flow_class}')
-        else:
-            from .proposal import FlowProposal
-            flow_class = FlowProposal
-
-        self._flow_proposal = flow_class(
-            model, flow_config=flow_config, output=proposal_output,
-            plot=proposal_plots, **kwargs)
+        self.setup_uninformed_proposal(uninformed_proposal,
+                                       analytic_priors,
+                                       maximum_uninformed,
+                                       uninformed_acceptance_threshold,
+                                       **uninformed_proposal_kwargs)
+        self.setup_flow_proposal(flow_class, flow_config, proposal_plots,
+                                 **kwargs)
 
         # Uninformed proposal is used for prior sampling
         # If maximum uninformed is greater than 0, the it will be used for
         # another n interation or until it becomes inefficient
-        if uninformed_proposal is not None:
-            self._uninformed_proposal = \
-                uninformed_proposal(model,
-                                    **uninformed_proposal_kwargs)
-        else:
-            if analytic_priors:
-                from .proposal import AnalyticProposal
-                self._uninformed_proposal = \
-                    AnalyticProposal(model,
-                                     **uninformed_proposal_kwargs)
-            else:
-                from .proposal import RejectionProposal
-                self._uninformed_proposal = \
-                    RejectionProposal(model,
-                                      poolsize=self.nlive,
-                                      **uninformed_proposal_kwargs)
-
-        if not maximum_uninformed or maximum_uninformed is None:
-            self.uninformed_sampling = False
-            self.maximum_uninformed = 0
-        else:
-            self.uninformed_sampling = True
-            self.maximum_uninformed = maximum_uninformed
 
         self.store_live_points = False
         if self.store_live_points:
@@ -321,6 +277,105 @@ class NestedSampler:
             return self.training_iterations[-1]
         else:
             return 0
+
+    def setup_uninformed_proposal(self,
+                                  uninformed_proposal,
+                                  analytic_priors,
+                                  maximum_uninformed,
+                                  uninformed_acceptance_threshold,
+                                  **kwargs):
+        """
+        Setup the uninformed proposal method (is NOT trained)
+
+        Parameters
+        ----------
+        uninformed_proposal : None or obj
+            Class to use for uninformed proposal
+        analytic_priors : bool
+            If True `AnalyticProposal` is used to directly sample from the
+            priors rather than using rejection sampling.
+        maximum_uninformed : {False, None, int, float}
+            Maximum number of iterations before switching to FlowProposal.
+            If None, no max is set. If False uninformed sampling is not used.
+        uninformed_acceptance_threshold :  float or None:
+            Threshold to use for uninformed proposal, once reached proposal
+            method will switch. If None acceptance_threshold is used if
+            greater than 0.1 else 10 x acceptance_threshold is used.
+        kwargs
+            Kwargs are parsed to init method for uninformed proposal class
+        """
+        if not maximum_uninformed:
+            self.uninformed_sampling = False
+            self.maximum_uninformed = 0
+        elif maximum_uninformed is None:
+            self.uninformed_sampling = True
+            self.maximum_uninformed = np.inf
+        else:
+            self.uninformed_sampling = True
+            self.maximum_uninformed = maximum_uninformed
+
+        if uninformed_acceptance_threshold is None:
+            if self.acceptance_threshold < 0.1:
+                self.uninformed_acceptance_threshold = \
+                    10 * self.acceptance_threshold
+            else:
+                self.uninformed_acceptance_threshold = \
+                    self.acceptance_threshold
+        else:
+            self.uninformed_acceptance_threshold = \
+                uninformed_acceptance_threshold
+
+        if uninformed_proposal is None:
+            if analytic_priors:
+                from .proposal import AnalyticProposal as uninformed_proposal
+            else:
+                from .proposal import RejectionProposal as uninformed_proposal
+                kwargs['poolsize'] = self.nlive
+
+        logger.debug(f'Using uninformed proposal: {uninformed_proposal}')
+        logger.debug(f'Parsing kwargs to uniformed proposal: {kwargs}')
+        self._uninformed_proposal = uninformed_proposal(self.model, **kwargs)
+
+    def setup_flow_proposal(self, flow_class, flow_config, proposal_plots,
+                            **kwargs):
+        """
+        Set up the flow-based proposal method
+
+        Parameters
+        ----------
+        flow_class : None or obj
+            Class to use for proposal. If None FlowProposal is used.
+        flow_config : dict
+            Configuration dictionary parsed to the class
+        proposal_plots : bool or str
+            Configuration of plottinmg in proposal class
+        **kwargs :
+            Kwargs parsed to init function
+        """
+        proposal_output = self.output + '/proposal/'
+
+        if not self.plot:
+            proposal_plots = False
+
+        if flow_class is not None:
+            if isinstance(flow_class, str):
+                if flow_class == 'GWFlowProposal':
+                    from .gw.proposal import GWFlowProposal as flow_class
+                elif flow_class == 'FlowProposal':
+                    flow_class = FlowProposal
+                else:
+                    raise RuntimeError(f'Unknown flow class: {flow_class}')
+            elif not issubclass(flow_class, FlowProposal):
+                raise RuntimeError('Flow class must be string or class that '
+                                   'inherits from FlowProposal')
+        else:
+            flow_class = FlowProposal
+
+        logger.debug(f'Using flow class: {flow_class}')
+        logger.info(f'Parsing kwargs to FlowProposal: {kwargs}')
+        self._flow_proposal = flow_class(
+            self.model, flow_config=flow_config, output=proposal_output,
+            plot=proposal_plots, **kwargs)
 
     def setup_output(self, output, resume_file=None):
         """
@@ -664,8 +719,7 @@ class NestedSampler:
         force : bool
             Override training checks
         """
-        if (self.iteration - self.last_updated < self.cooldown and
-                not force):
+        if (self.iteration - self.last_updated < self.cooldown and not force):
             logger.debug('Not training, still cooling down!')
         else:
             self.completed_training = False
@@ -828,20 +882,22 @@ class NestedSampler:
         if not (self.iteration % self.nlive) or force:
             if not force:
                 self.check_insertion_indices()
-            if self.plot:
-                if not force:
+                if self.plot:
                     plot_indices(self.insertion_indices[-self.nlive:],
                                  self.nlive,
                                  plot_breakdown=False,
                                  filename=(f'{self.output}/diagnostics/'
                                            'insertion_indices_'
                                            f'{self.iteration}.png'))
+
+            if self.plot:
                 self.plot_state()
                 self.plot_trace()
 
             if self.uninformed_sampling:
                 self.block_acceptance = 0.
                 self.block_iteration = 0
+
         self.proposal.ns_acceptance = self.mean_block_acceptance
 
     def checkpoint(self, periodic=False):

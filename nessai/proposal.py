@@ -155,9 +155,9 @@ class RejectionProposal(Proposal):
         x :  structed_arrays
             Array of points
         """
-        log_p = self.model.log_prior(x)
+        x['logP'] = self.model.log_prior(x)
         log_q = self.log_proposal(x)
-        log_w = log_p - log_q
+        log_w = x['logP'] - log_q
         log_w -= np.nanmax(log_w)
         return log_w
 
@@ -836,7 +836,12 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a fwe MB in size so
             proceed with caution!
         """
-        block_output = self.output + f'/training/block_{self.training_count}/'
+        if (plot and self._plot_training) or self.save_training_data:
+            block_output = \
+                self.output + f'/training/block_{self.training_count}/'
+        else:
+            block_output = self.output
+
         if not os.path.exists(block_output):
             os.makedirs(block_output, exist_ok=True)
 
@@ -1067,12 +1072,12 @@ class FlowProposal(RejectionProposal):
             Array of log proposal probabilties.
         """
         if self.use_x_prime_prior:
-            log_p = self.log_prior_x_prime(x)
+            x['logP'] = self.log_prior_x_prime(x)
         else:
-            log_p = self.log_prior(x)
-        x['logP'] = log_p
+            x['logP'] = self.log_prior(x)
+
         x['logL'] = log_q
-        log_w = log_p - log_q
+        log_w = x['logP'] - log_q
         log_w -= np.max(log_w)
         return log_w
 
@@ -1083,7 +1088,7 @@ class FlowProposal(RejectionProposal):
         x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
 
         if not x.size:
-            return False, False
+            return x, log_q
 
         if self.truncate:
             cut = log_q >= worst_q

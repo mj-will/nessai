@@ -124,13 +124,9 @@ def dict_to_live_points(d):
         return np.array((*list(d.values()), 0., 0.),
                         dtype=get_dtype(d.keys(), DEFAULT_FLOAT_DTYPE))
     else:
-        array = np.zeros(N, dtype=[(n, DEFAULT_FLOAT_DTYPE) for n in d.keys()])
+        array = np.zeros(N, dtype=get_dtype(list(d.keys())))
         for k, v in d.items():
             array[k] = v
-        array = rfn.append_fields(array, ['logP', 'logL'],
-                                  data=[*np.zeros([array.size, 2]).T],
-                                  dtypes=[DEFAULT_FLOAT_DTYPE, LOGL_DTYPE],
-                                  usemask=False)
         return array
 
 
