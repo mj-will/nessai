@@ -1369,7 +1369,7 @@ class FlowProposal(RejectionProposal):
         if self.update_bounds:
             if self.training_data is not None:
                 self.check_state(self.training_data)
-            elif self.training_data is None and not self.training_count:
+            elif self.training_data is None and self.training_count:
                 raise RuntimeError(
                     'Could not resume! Missing training data!')
 
