@@ -84,6 +84,12 @@ class Proposal:
         """
         logger.info('This proposal method cannot be trained')
 
+    def resume(self, model):
+        """
+        Resume the proposal with the model
+        """
+        self.model = model
+
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['model']
@@ -848,8 +854,8 @@ class FlowProposal(RejectionProposal):
         if self.save_training_data:
             save_live_points(x, f'{block_output}/training_data.json')
 
-        self.check_state(x)
         self.training_data = x.copy()
+        self.check_state(self.training_data)
 
         if self._plot_training == 'all' and plot:
             plot_live_points(x, c='logL',
@@ -962,13 +968,16 @@ class FlowProposal(RejectionProposal):
         if rescale:
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
             log_J += log_J_rescale
+
         x = live_points_to_array(x, names=self.rescaled_names)
+
         if x.ndim == 1:
             x = x[np.newaxis, :]
         if x.shape[0] == 1:
             if self.clip:
                 x = np.clip(x, *self.clip)
         z, log_prob = self.flow.forward_and_log_prob(x)
+
         return z, log_prob + log_J
 
     def backward_pass(self, z, rescale=True):
@@ -1137,6 +1146,7 @@ class FlowProposal(RejectionProposal):
         if self.fixed_radius:
             r = self.fixed_radius
         else:
+            logger.debug(f'Populating with worst point: {worst_point}')
             if self.compute_radius_with_all:
                 logger.debug('Using previous live points to compute radius')
                 worst_point = self.training_data
@@ -1331,6 +1341,37 @@ class FlowProposal(RejectionProposal):
             plt.tight_layout()
             fig.savefig(
                 f'{self.output}/pool_{self.populated_count}_log_q.png')
+
+    def resume(self, model, flow_config, weights_file=None):
+        """
+        Resume the proposal
+        """
+        self.model = model
+        self.flow_config = flow_config
+
+        if (m := self.mask) is not None:
+            if isinstance(m, list):
+                m = np.array(m)
+            self.flow_config['model_config']['kwargs']['mask'] = m
+
+        self.initialise()
+
+        if weights_file is None:
+            weights_file = self.weights_file
+
+        # Flow might have exited before any weights were saved.
+        if weights_file is not None:
+            if os.path.exists(weights_file):
+                self.flow.reload_weights(weights_file)
+        else:
+            logger.warning('Could not reload weights for flow')
+
+        if self.update_bounds:
+            if self.training_data is not None:
+                self.check_state(self.training_data)
+            elif self.training_data is None and self.training_count:
+                raise RuntimeError(
+                    'Could not resume! Missing training data!')
 
     def __getstate__(self):
         state = self.__dict__.copy()

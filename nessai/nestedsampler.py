@@ -1044,25 +1044,9 @@ class NestedSampler:
             obj = pickle.load(f)
         model.likelihood_evaluations += obj.likelihood_evaluations[-1]
         obj.model = model
-        obj._uninformed_proposal.model = model
-        obj._flow_proposal.model = model
-        obj._flow_proposal.flow_config = flow_config
+        obj._uninformed_proposal.resume(model)
+        obj._flow_proposal.resume(model, flow_config, weights_file)
 
-        if (m := obj._flow_proposal.mask) is not None:
-            if isinstance(m, list):
-                m = np.array(m)
-            obj._flow_proposal \
-               .flow_config['model_config']['kwargs']['mask'] = m
-        obj._flow_proposal.initialise()
-
-        if weights_file is None:
-            weights_file = obj._flow_proposal.weights_file
-        # Flow might have exited before any weights were saved.
-        if weights_file is not None:
-            if os.path.exists(weights_file):
-                obj._flow_proposal.flow.reload_weights(weights_file)
-        else:
-            logger.warning('Could not reload weights for flow')
         obj.resumed = True
         return obj
 
