@@ -103,9 +103,7 @@ class AnalyticProposal(Proposal):
 
         Ouput is independent of the input
         """
-        x = self.model.new_point()
-        x['logP'] = self.model.log_prior(x)
-        return x
+        return self.model.new_point()
 
 
 class RejectionProposal(Proposal):
