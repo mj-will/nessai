@@ -180,7 +180,6 @@ class NestedSampler:
         self.resumed = False
         self.tolerance = stopping
         self.condition = np.inf
-        self.worst = 0
         self.logLmin = -np.inf
         self.logLmax = -np.inf
         self.nested_samples = []
