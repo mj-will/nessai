@@ -162,9 +162,9 @@ def test_precessing_parameters():
     theta_2 = np.arccos(np.random.uniform(-1, 1, n))
     a_1 = np.random.uniform(0, 0.99, n)
     a_2 = np.random.uniform(0, 0.99, n)
-    m1 = 36 * np.ones(n)
-    m2 = 29 * np.ones(n)
-    phase = np.zeros(n)
+    m1 = 36.0
+    m2 = 29.0
+    phase = 0.0
     f_ref = 50.0
 
     array_in = (theta_jn, phi_jl, theta_1, theta_2, phi_12, a_1, a_2)
@@ -176,4 +176,4 @@ def test_precessing_parameters():
         *array_inter[:-1], m1, m2, f_ref, phase)
 
     np.testing.assert_array_almost_equal(array_in, array_out[:-1])
-    assert all(array_inter[-1] == - array_out[-1])
+    np.testing.assert_array_almost_equal(array_inter[-1], -array_out[-1])
