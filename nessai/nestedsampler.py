@@ -737,9 +737,9 @@ class NestedSampler:
 
             self.block_iteration = 0
             self.block_acceptance = 0.
+            self.completed_training = True
             if self.checkpointing:
                 self.checkpoint(periodic=True)
-            self.completed_training = True
 
     def check_state(self, force=False):
         """
