@@ -1414,10 +1414,13 @@ class FlowProposal(RejectionProposal):
 
 class UniformFlowProposal(FlowProposal):
 
-    def __init__(self, model, uniform_parameters, **kwargs):
+    def __init__(self, model, uniform_parameters=False, **kwargs):
         super(UniformFlowProposal, self).__init__(model, **kwargs)
 
-        self.uniform_parameters = uniform_parameters
+        if not uniform_parameters or uniform_parameters is None:
+            self.uniform_parameters = []
+        else:
+            self.uniform_parameters = uniform_parameters
 
     @property
     def uniform_dims(self):
