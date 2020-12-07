@@ -704,3 +704,35 @@ def auto_bins(x, max_bins=50):
     nbins = min(n_bins, max_bins)
     assert isinstance(nbins, int)
     return nbins
+
+
+def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert):
+    """
+    Determine the values of the prior min and max in the rescaled
+    space.
+
+    Parameters
+    ----------
+    prior_min : float
+        Mininum of the prior
+    prior_max : float
+        Maximum of the prior
+    x_min : float
+        New minimum
+    x_max : float
+        New maximum
+    invert : false or {'upper', 'lower', 'both'}
+        Type of inversion
+    """
+    lower = (prior_min - x_min) / (x_max - x_min)
+    upper = (prior_max - x_min) / (x_max - x_min)
+    if not invert:
+        return 2 * lower - 1, 2 * upper - 1
+    elif invert == 'upper':
+        return lower - 1, 1 - lower
+    elif invert == 'lower':
+        return -upper, upper
+    elif invert == 'both':
+        return -0.5, 1.5
+    else:
+        raise RuntimeError

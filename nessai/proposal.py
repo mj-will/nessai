@@ -84,6 +84,12 @@ class Proposal:
         """
         logger.info('This proposal method cannot be trained')
 
+    def resume(self, model):
+        """
+        Resume the proposal with the model
+        """
+        self.model = model
+
     def __getstate__(self):
         state = self.__dict__.copy()
         del state['model']
@@ -155,9 +161,9 @@ class RejectionProposal(Proposal):
         x :  structed_arrays
             Array of points
         """
-        log_p = self.model.log_prior(x)
+        x['logP'] = self.model.log_prior(x)
         log_q = self.log_proposal(x)
-        log_w = log_p - log_q
+        log_w = x['logP'] - log_q
         log_w -= np.nanmax(log_w)
         return log_w
 
@@ -319,6 +325,7 @@ class FlowProposal(RejectionProposal):
         self.approx_acceptance = []
         self._edges = {}
         self._inversion_test_type = None
+        self.use_x_prime_prior = False
 
         self.output = output
         self._poolsize = poolsize
@@ -406,6 +413,17 @@ class FlowProposal(RejectionProposal):
     def x_prime_dtype(self):
         """Return the dtype for the x prime space"""
         return get_dtype(self.rescaled_names, DEFAULT_FLOAT_DTYPE)
+
+    @property
+    def population_dtype(self):
+        """
+        dtype used for populating the proposal, depends on if the prior
+        is defined in the x space or x-prime space
+        """
+        if self.use_x_prime_prior:
+            return self.x_prime_dtype
+        else:
+            return self.x_dtype
 
     def setup_pool(self):
         """
@@ -838,21 +856,28 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a fwe MB in size so
             proceed with caution!
         """
-        block_output = self.output + f'/training/block_{self.training_count}/'
+        if (plot and self._plot_training) or self.save_training_data:
+            block_output = \
+                self.output + f'/training/block_{self.training_count}/'
+        else:
+            block_output = self.output
+
         if not os.path.exists(block_output):
             os.makedirs(block_output, exist_ok=True)
 
         if self.save_training_data:
             save_live_points(x, f'{block_output}/training_data.json')
 
-        self.check_state(x)
         self.training_data = x.copy()
+        self.check_state(self.training_data)
 
         if self._plot_training == 'all' and plot:
             plot_live_points(x, c='logL',
                              filename=block_output + 'x_samples.png')
 
         x_prime, log_J = self.rescale(x)
+
+        self.training_data_prime = x_prime.copy()
 
         if self.rescale_parameters and self._plot_training == 'all' and plot:
             plot_live_points(x_prime, c='logL',
@@ -863,7 +888,6 @@ class FlowProposal(RejectionProposal):
         if self._plot_training and plot:
             z_training_data, _ = self.forward_pass(self.training_data,
                                                    rescale=True)
-            self.alt_dist = None
             z_gen = np.random.randn(x.size, self.flow_dims)
 
             plot_1d_comparison(z_training_data, z_gen,
@@ -955,13 +979,16 @@ class FlowProposal(RejectionProposal):
         if rescale:
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
             log_J += log_J_rescale
+
         x = live_points_to_array(x, names=self.rescaled_names)
+
         if x.ndim == 1:
             x = x[np.newaxis, :]
         if x.shape[0] == 1:
             if self.clip:
                 x = np.clip(x, *self.clip)
         z, log_prob = self.flow.forward_and_log_prob(x)
+
         return z, log_prob + log_J
 
     def backward_pass(self, z, rescale=True):
@@ -1044,6 +1071,9 @@ class FlowProposal(RejectionProposal):
         """
         return self.model.log_prior(x)
 
+    def log_prior_x_prime(self, x):
+        raise NotImplementedError()
+
     def compute_weights(self, x, log_q):
         """
         Compute weights for the samples.
@@ -1061,12 +1091,51 @@ class FlowProposal(RejectionProposal):
         log_q : array_like
             Array of log proposal probabilties.
         """
-        log_p = self.log_prior(x)
-        x['logP'] = log_p
+        if self.use_x_prime_prior:
+            x['logP'] = self.log_prior_x_prime(x)
+        else:
+            x['logP'] = self.log_prior(x)
+
         x['logL'] = log_q
-        log_w = log_p - log_q
+        log_w = x['logP'] - log_q
         log_w -= np.max(log_w)
         return log_w
+
+    def rejection_sampling(self, z, worst_q=None):
+        """
+        Perform rejection sampling
+        """
+        x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
+
+        if not x.size:
+            return x, log_q
+
+        if self.truncate:
+            cut = log_q >= worst_q
+            x = x[cut]
+            log_q = log_q[cut]
+
+        # rescale given priors used initially, need for priors
+        log_w = self.compute_weights(x, log_q)
+        log_u = np.log(np.random.rand(x.shape[0]))
+        indices = np.where(log_w >= log_u)[0]
+
+        return z[indices], x[indices]
+
+    def convert_to_samples(self, x, plot=True):
+        """
+        Convert the array to samples ready to be used
+        """
+        if self.use_x_prime_prior:
+            if self._plot_pool and plot:
+                plot_1d_comparison(
+                    self.training_data_prime, x,
+                    labels=['live points', 'pool'],
+                    filename=(f'{self.output}/pool_prime_'
+                              + f'{self.populated_count}.png'))
+
+            x, _ = self.inverse_rescale(x)
+        return x[self.model.names + ['logP', 'logL']]
 
     def populate(self, worst_point, N=10000, plot=True):
         """
@@ -1088,6 +1157,7 @@ class FlowProposal(RejectionProposal):
         if self.fixed_radius:
             r = self.fixed_radius
         else:
+            logger.debug(f'Populating with worst point: {worst_point}')
             if self.compute_radius_with_all:
                 logger.debug('Using previous live points to compute radius')
                 worst_point = self.training_data
@@ -1104,7 +1174,7 @@ class FlowProposal(RejectionProposal):
         self.alt_dist = self.get_alt_distribution()
 
         if not self.keep_samples or not self.indices:
-            self.x = np.empty(N,  dtype=self.x_dtype)
+            self.x = np.empty(N,  dtype=self.population_dtype)
             self.indices = []
             z_samples = np.empty([N, self.flow_dims])
 
@@ -1114,99 +1184,49 @@ class FlowProposal(RejectionProposal):
         warn = True
 
         while accepted < N:
-            while True:
-                z = self.draw_latent_prior(self.flow_dims, r=self.r,
-                                           N=self.drawsize, fuzz=self.fuzz,
-                                           **self.draw_latent_kwargs)
-                if z.size:
-                    break
+
+            z = self.draw_latent_prior(self.flow_dims, r=self.r,
+                                       N=self.drawsize, fuzz=self.fuzz,
+                                       **self.draw_latent_kwargs)
+
             proposed += z.shape[0]
-            x, log_q = self.backward_pass(z, rescale=True)
+
+            z, x = self.rejection_sampling(z, worst_q)
+
             if not x.size:
                 continue
 
-            if self.truncate:
-                cut = log_q >= worst_q
-                x = x[cut]
-                log_q = log_q[cut]
-
-            # rescale given priors used initially, need for priors
-            log_w = self.compute_weights(x, log_q)
-            log_u = np.log(np.random.rand(x.shape[0]))
-            indices = np.where((log_w - log_u) >= 0)[0]
-
             if warn:
-                if len(indices) / self.drawsize < 0.01:
+                if x.size / self.drawsize < 0.01:
                     logger.warning(
                         'Rejection sampling accepted less than 1 percent of '
-                        f'samples! ({len(indices) / self.drawsize})')
+                        f'samples! ({x.size / self.drawsize})')
                     warn = False
 
-            # array of indices to take random draws from
-            n = min(len(indices), N - accepted)
-            self.x[accepted:(accepted+n)] = x[indices][:n]
-            z_samples[accepted:(accepted+n), ...] = z[indices][:n]
+            n = min(x.size, N - accepted)
+            self.x[accepted:(accepted+n)] = x[:n]
+            z_samples[accepted:(accepted+n), ...] = z[:n]
             accepted += n
-
             if accepted > percent * N:
-                logger.debug(f'Accepted {accepted} / {N} points, '
-                             f'acceptance: {accepted/proposed:.4}')
+                logger.info(f'Accepted {accepted} / {N} points, '
+                            f'acceptance: {accepted/proposed:.4}')
                 percent += 0.1
 
-        if (p := self._plot_pool) and plot:
-            if p == 'all':
-                plot_live_points(
-                    self.x, c='logL',
-                    filename=f'{self.output}/pool_{self.populated_count}.png')
-            else:
-                plot_1d_comparison(
-                    self.training_data,
-                    self.x,
-                    labels=['live points', 'pool'],
-                    filename=f'{self.output}/pool_{self.populated_count}.png')
-                z_tensor = torch.from_numpy(z_samples).to(self.flow.device)
-                with torch.no_grad():
-                    if self.alt_dist is not None:
-                        log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
-                    else:
-                        log_p = self.flow.model.base_distribution_log_prob(
-                            z_tensor).cpu().numpy()
+        self.samples = self.convert_to_samples(self.x, plot=plot)
 
-                fig, axs = plt.subplots(3, 1, figsize=(3, 9))
-                axs = axs.ravel()
-                axs[0].hist(self.x['logL'], 20, histtype='step', label='log q')
-                axs[1].hist(self.x['logL'] - log_p, 20, histtype='step',
-                            label='log J')
-                axs[2].hist(np.sqrt(np.sum(z_samples ** 2, axis=1)), 20,
-                            histtype='step', label='Latent radius')
-                axs[0].set_xlabel('Log q')
-                axs[1].set_xlabel('Log |J|')
-                axs[2].set_xlabel('r')
-                plt.tight_layout()
-                fig.savefig(
-                    f'{self.output}/pool_{self.populated_count}_log_q.png')
-
-        self.samples = self.x[self.model.names + ['logP', 'logL']]
+        if self._plot_pool and plot:
+            self.plot_pool(z_samples, self.samples)
 
         if self.check_acceptance:
             self.approx_acceptance.append(self.compute_acceptance(worst_q))
             logger.debug(
-                f'Current approximate acceptance {self.approx_acceptance[-1]}'
-                )
+                f'Current approximate acceptance {self.approx_acceptance[-1]}')
             st = datetime.datetime.now()
             self.evaluate_likelihoods()
             self.logl_eval_time += (datetime.datetime.now() - st)
             self.acceptance.append(
-                self.compute_acceptance(worst_point['logL'])
-                )
+                self.compute_acceptance(worst_point['logL']))
             logger.debug(f'Current acceptance {self.acceptance[-1]}')
-            if self._plot_pool and plot:
-                plot_acceptance(
-                    self.approx_acceptance,
-                    self.acceptance,
-                    labels=['approx', 'analytic'],
-                    filename=f'{self.output}/proposal_acceptance.png'
-                    )
         else:
             self.samples['logL'] = np.zeros(self.samples.size,
                                             dtype=self.samples['logL'].dtype)
@@ -1299,6 +1319,72 @@ class FlowProposal(RejectionProposal):
             logger.debug('Proposal pool is empty')
         # make live point and return
         return new_sample
+
+    def plot_pool(self, z, x):
+        """
+        Plot the pool
+        """
+        if self._plot_pool == 'all':
+            plot_live_points(
+                x, c='logL',
+                filename=f'{self.output}/pool_{self.populated_count}.png')
+        else:
+            plot_1d_comparison(
+                self.training_data, x, labels=['live points', 'pool'],
+                filename=f'{self.output}/pool_{self.populated_count}.png')
+
+            z_tensor = torch.from_numpy(z).to(self.flow.device)
+            with torch.no_grad():
+                if self.alt_dist is not None:
+                    log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
+                else:
+                    log_p = self.flow.model.base_distribution_log_prob(
+                        z_tensor).cpu().numpy()
+
+            fig, axs = plt.subplots(3, 1, figsize=(3, 9))
+            axs = axs.ravel()
+            axs[0].hist(x['logL'], 20, histtype='step', label='log q')
+            axs[1].hist(x['logL'] - log_p, 20, histtype='step',
+                        label='log J')
+            axs[2].hist(np.sqrt(np.sum(z ** 2, axis=1)), 20,
+                        histtype='step', label='Latent radius')
+            axs[0].set_xlabel('Log q')
+            axs[1].set_xlabel('Log |J|')
+            axs[2].set_xlabel('r')
+            plt.tight_layout()
+            fig.savefig(
+                f'{self.output}/pool_{self.populated_count}_log_q.png')
+
+    def resume(self, model, flow_config, weights_file=None):
+        """
+        Resume the proposal
+        """
+        self.model = model
+        self.flow_config = flow_config
+
+        if (m := self.mask) is not None:
+            if isinstance(m, list):
+                m = np.array(m)
+            self.flow_config['model_config']['kwargs']['mask'] = m
+
+        self.initialise()
+
+        if weights_file is None:
+            weights_file = self.weights_file
+
+        # Flow might have exited before any weights were saved.
+        if weights_file is not None:
+            if os.path.exists(weights_file):
+                self.flow.reload_weights(weights_file)
+        else:
+            logger.warning('Could not reload weights for flow')
+
+        if self.update_bounds:
+            if self.training_data is not None:
+                self.check_state(self.training_data)
+            elif self.training_data is None and self.training_count:
+                raise RuntimeError(
+                    'Could not resume! Missing training data!')
 
     def __getstate__(self):
         state = self.__dict__.copy()

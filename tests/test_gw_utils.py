@@ -4,20 +4,30 @@ import pytest
 
 import nessai.gw.utils as utils
 
+from conftest import requires_dependency
+
 
 @pytest.mark.parametrize("r, s, zero", [((0, np.pi), 2, 'bound'),
                                         ((0, 2 * np.pi), 1, 'bound'),
                                         ((0, 1), np.pi, 'bound'),
                                         ((-np.pi, np.pi), 1, 'centre')])
-def test_angle_to_cartesian_to_angle(r, s, zero):
+@pytest.mark.parametrize('radial', [False, True])
+def test_angle_to_cartesian_to_angle(r, s, zero, radial):
     """
     Test the conversion from angle to cartesian and back for a range
     and scale.
     """
-    t = np.random.uniform(r[0], r[1])
-    cart = utils.angle_to_cartesian(t, scale=s)
+    n = 1000
+    t = np.random.uniform(r[0], r[1], n)
+    if radial:
+        radii = np.random.rand(n)
+    else:
+        radii = None
+    cart = utils.angle_to_cartesian(t, r=radii, scale=s)
     t_out = utils.cartesian_to_angle(*cart[:2], scale=s, zero=zero)
     assert_allclose(t, t_out[0])
+    if radial:
+        assert_allclose(radii, t_out[1])
     assert_allclose(cart[-1], -t_out[-1])
 
 
@@ -145,3 +155,33 @@ def test_cartesian_to_zero_one():
     cart = np.random.randn(2, 1000)
     x, _, _ = utils.cartesian_to_zero_one(*cart)
     assert np.logical_and(x >= 0, x <= 1).all()
+
+
+@requires_dependency('lal')
+def test_precessing_parameters():
+    """
+    Test to ensure spin coversions are invertible
+    """
+    n = 1000
+    theta_jn = np.arccos(np.random.uniform(-1, 1, n))
+    phi_jl = np.random.uniform(0, 2 * np.pi, n)
+    phi_12 = np.random.uniform(0, 2 * np.pi, n)
+    theta_1 = np.arccos(np.random.uniform(-1, 1, n))
+    theta_2 = np.arccos(np.random.uniform(-1, 1, n))
+    a_1 = np.random.uniform(0, 0.99, n)
+    a_2 = np.random.uniform(0, 0.99, n)
+    m1 = 36.0
+    m2 = 29.0
+    phase = 0.0
+    f_ref = 50.0
+
+    array_in = (theta_jn, phi_jl, theta_1, theta_2, phi_12, a_1, a_2)
+
+    array_inter = utils.transform_from_precessing_parameters(
+        *array_in, m1, m2, f_ref, phase)
+
+    array_out = utils.transform_to_precessing_parameters(
+        *array_inter[:-1], m1, m2, f_ref, phase)
+
+    np.testing.assert_array_almost_equal(array_in, array_out[:-1])
+    np.testing.assert_array_almost_equal(array_inter[-1], -array_out[-1])
