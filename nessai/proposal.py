@@ -864,7 +864,7 @@ class FlowProposal(RejectionProposal):
             z_training_data, _ = self.forward_pass(self.training_data,
                                                    rescale=True)
             self.alt_dist = None
-            z_gen, _ = self.flow.sample_and_log_prob(N=x.size)
+            z_gen = np.random.randn(x.size, self.flow_dims)
 
             plot_1d_comparison(z_training_data, z_gen,
                                labels=['z_live_points', 'z_generated'],
@@ -1394,13 +1394,16 @@ class UniformFlowProposal(FlowProposal):
         """
         Set the uniform parameters
         """
-        self.uniform_min = \
-            [self.model.bounds[n][0] for n in self.uniform_parameters]
-        self.uniform_max = \
-            [self.model.bounds[n][1] for n in self.uniform_parameters]
+        if self.uniform_parameters:
+            self.uniform_min = \
+                [self.model.bounds[n][0] for n in self.uniform_parameters]
+            self.uniform_max = \
+                [self.model.bounds[n][1] for n in self.uniform_parameters]
 
-        self._uniform_log_prob = \
-            -np.log(np.ptp([self.uniform_min, self.uniform_max]))
+            self._uniform_log_prob = \
+                -np.log(np.ptp([self.uniform_min, self.uniform_max]))
+        else:
+            logger.info('No uniform parameters to set')
 
     def initialise(self):
         """
@@ -1422,8 +1425,9 @@ class UniformFlowProposal(FlowProposal):
                 (1 + self.expansion_fraction) ** (1 / self.flow_dims)
             logger.info(f'New fuzz factor: {self.fuzz}')
         self.flow_config['model_config']['n_inputs'] = self.flow_dims
-        self.flow_config['model_config']['kwargs']['context_features'] = \
-            self.uniform_dims
+        if self.uniform_dims:
+            self.flow_config['model_config']['kwargs']['context_features'] = \
+                self.uniform_dims
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
         self.populated = False
@@ -1435,7 +1439,7 @@ class UniformFlowProposal(FlowProposal):
         the train function. Live points should be in the X' (x prime) space.
         """
         x_prime_array = live_points_to_array(x_prime, self.flow_names)
-        context = live_points_to_array(x_prime, self.uniform_parameters)
+        context = self.get_context(x_prime)
         self.flow.train(x_prime_array, context=context, output=output,
                         plot=self._plot_training)
 
@@ -1443,10 +1447,22 @@ class UniformFlowProposal(FlowProposal):
         """
         Draw n parameters from a uniform distribution
         """
-        x = np.random.uniform(self.uniform_min, self.uniform_max,
-                              (n, self.uniform_dims))
-        log_prob = self._uniform_log_prob * np.ones(n)
-        return x, log_prob
+        if self.uniform_parameters:
+            x = np.random.uniform(self.uniform_min, self.uniform_max,
+                                  (n, self.uniform_dims))
+            log_prob = self._uniform_log_prob * np.ones(n)
+            return x, log_prob
+        else:
+            return None
+
+    def get_context(self, x):
+        """
+        Get the context parameters if empty return None
+        """
+        if self.uniform_parameters:
+            return live_points_to_array(x, self.uniform_parameters)
+        else:
+            return None
 
     def forward_pass(self, x, rescale=True, compute_radius=True):
         """
@@ -1476,7 +1492,7 @@ class UniformFlowProposal(FlowProposal):
             log_J += log_J_rescale
 
         x_flow = live_points_to_array(x, names=self.flow_names)
-        context = live_points_to_array(x, names=self.uniform_parameters)
+        context = self.get_context(x)
 
         if x_flow.ndim == 1:
             x_flow = x_flow[np.newaxis, :]
@@ -1505,7 +1521,7 @@ class UniformFlowProposal(FlowProposal):
             Log probabilties corresponding to each sample (including the
             Jacobian)
         """
-        if context is None:
+        if context is None and self.uniform_parameters:
             context, log_prob_context = \
                 self.sample_uniform_parameters(z.shape[0])
             log_prob += log_prob_context
@@ -1517,8 +1533,11 @@ class UniformFlowProposal(FlowProposal):
             return np.array([]), np.array([])
 
         log_prob += log_prob_flow
+        if context is not None:
+            x = np.concatenate([x_flow, context], axis=1)
+        else:
+            x = x_flow
 
-        x = np.concatenate([x_flow, context], axis=1)
         valid = np.isfinite(log_prob)
         x, log_prob = x[valid], log_prob[valid]
         x = numpy_array_to_live_points(
