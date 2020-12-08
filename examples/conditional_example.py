@@ -36,7 +36,7 @@ class Gaussian(Model):
 
     names = ['x', 'y', 'z']
     # dictionary of bounds bounds
-    bounds = {'x': [-10, 10], 'y': [-10, 10], 'z': [-10, 10]}
+    bounds = {'x': [-10, 10], 'y': [-10, 10], 'z': [-1, 1]}
 
     def log_prior(self, x):
         """
@@ -58,8 +58,8 @@ class Gaussian(Model):
         x, y, logP, logL
         """
         log_l = 0
-        for pn in ['x', 'y']:
-            log_l += norm.logpdf(x[pn])
+        log_l += norm.logpdf(x['x'] - x['z'])
+        log_l += norm.logpdf(x['y'] - x['z'])
         return log_l
 
 
@@ -80,8 +80,9 @@ flow_config = dict(
 fp = FlowSampler(Gaussian(), output=output, resume=False, nlive=1000,
                  plot=True, flow_config=flow_config, training_frequency=None,
                  maximum_uninformed=1000, rescale_parameters=True, seed=1234,
-                 proposal_plots=False,
-                 uniform_parameters=['z'], flow_class=UniformFlowProposal)
+                 proposal_plots=True, uniform_parameters=False,
+                 flow_class=UniformFlowProposal, poolsize=1000,
+                 update_poolsize=True)
 
 # And go!
 fp.run(plot=True)
