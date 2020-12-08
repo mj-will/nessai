@@ -518,8 +518,9 @@ class GWFlowProposal(FlowProposal):
         if self.update_bounds:
             self._min = {n: np.min(x[n]) for n in self.model.names}
             self._max = {n: np.max(x[n]) for n in self.model.names}
-            if self.use_x_prime_prior:
-                self.update_rescaled_bounds()
+
+        if self.use_x_prime_prior:
+            self.update_rescaled_bounds()
 
     def update_rescaled_bounds(self, rescaled_names=None,
                                xmin=None, xmax=None):
