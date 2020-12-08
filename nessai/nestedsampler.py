@@ -255,8 +255,7 @@ class NestedSampler:
         self.logZ = None
         self.state = _NSintegralState(self.nlive)
         self.plot = plot
-        self.output_file, self.evidence_file, self.resume_file = \
-            self.setup_output(output, resume_file)
+        self.resume_file = self.setup_output(output, resume_file)
         self.output = output
 
         # Timing
@@ -452,22 +451,22 @@ class NestedSampler:
         """
         Set up the output folder
 
-        -----------
-        Parameters:
-        output: string
-            folder where the results will be stored
-        -----------
-        Returns:
-            output_file, evidence_file, resume_file: tuple
-                output_file:   file where the nested samples will be written
-                evidence_file: file where the evidence will be written
-                resume_file:   file used for checkpointing the algorithm
+        Parameters
+        ----------
+        output : str
+            Directory where the results will be stored
+        resume_file : optional
+            Specific file to use for checkpointing. If not specified the
+            default is used (nested_sampler_resume.pkl)
+
+        Returns
+        -------
+        resume_file : str
+            File used for checkpointing
         """
         if not os.path.exists(output):
             os.makedirs(output, exist_ok=True)
-        chain_filename = "chain_" + str(self.nlive) + ".txt"
-        output_file = os.path.join(output, chain_filename)
-        evidence_file = os.path.join(output, chain_filename + "_evidence.txt")
+
         if resume_file is None:
             resume_file = os.path.join(output, "nested_sampler_resume.pkl")
         else:
@@ -476,24 +475,7 @@ class NestedSampler:
         if self.plot:
             os.makedirs(output + '/diagnostics/', exist_ok=True)
 
-        return output_file, evidence_file, resume_file
-
-    def write_nested_samples_to_file(self):
-        """
-        Writes the nested samples to a text file
-        """
-        ns = np.array(self.nested_samples)
-        np.savetxt(self.output_file, ns,
-                   header='\t'.join(self.live_points.dtype.names))
-
-    def write_evidence_to_file(self):
-        """
-        Write the evidence logZ and maximum likelihood to the evidence_file
-        """
-        with open(self.evidence_file, 'w') as f:
-            f.write('{0:.5f} {1:.5f} {2:.5f}\n'.format(self.state.logZ,
-                                                       self.logLmax,
-                                                       self.state.info[-1]))
+        return resume_file
 
     def setup_random_seed(self, seed):
         """
@@ -1020,7 +1002,7 @@ class NestedSampler:
 
             self.resumed = False
 
-    def finalise(self, save):
+    def finalise(self):
         """
         Finalise things after sampling
         """
@@ -1033,19 +1015,11 @@ class NestedSampler:
         self.update_state(force=True)
         self.state.finalise()
         # output the chain and evidence
-        if save:
-            self.write_nested_samples_to_file()
-            self.write_evidence_to_file()
         self.finalised = True
 
-    def nested_sampling_loop(self, save=True):
+    def nested_sampling_loop(self):
         """
         Main nested sampling loop
-
-        Parameters
-        ----------
-        save : bool, optional (True)
-            Save results after sampling
         """
         self.sampling_start_time = datetime.datetime.now()
         if not self.initialised:
@@ -1054,9 +1028,6 @@ class NestedSampler:
         if self.prior_sampling:
             for i in range(self.nlive):
                 self.nested_samples = self.params.copy()
-            if save:
-                self.write_nested_samples_to_file()
-                self.write_evidence_to_file()
             return 0
 
         self.check_resume()
@@ -1080,7 +1051,7 @@ class NestedSampler:
         # final adjustments
         # avoid repeating final adjustments if resuming a completed run.
         if not self.finalised and (self.condition <= self.tolerance):
-            self.finalise(save)
+            self.finalise()
 
         logger.critical(f'Final evidence: {self.state.logZ:.3f} +/- '
                         f'{np.sqrt(self.state.info[-1] / self.nlive):.3f}')
