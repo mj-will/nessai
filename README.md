@@ -36,4 +36,4 @@ pip install git+https://git.ligo.org/michael.williams/bilby.git@flowproposal-sam
 
 ## Contributing
 
-Please see the guidelines our guidelines [here](https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md).
+Please see the guidelines [here](https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md).
