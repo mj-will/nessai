@@ -142,12 +142,13 @@ class NestedSampler:
                  train_on_empty=True, cooldown=100, memory=False,
                  acceptance_threshold=0.05, analytic_priors=False,
                  maximum_uninformed=1000, training_frequency=1000,
-                 uninformed_proposal=None, reset_weights=True,
+                 uninformed_proposal=None, reset_weights=False,
                  reset_permutations=False,
                  checkpointing=True, resume_file=None,
                  uninformed_proposal_kwargs={}, seed=None, plot=True,
                  proposal_plots=True, max_iteration=None,
                  retrain_acceptance=True, uninformed_acceptance_threshold=None,
+                 reset_acceptance=False,
                  **kwargs):
         """
         Initialise all necessary arguments and
@@ -173,6 +174,7 @@ class NestedSampler:
         self.mean_block_acceptance = 1.
         self.block_iteration = 0
         self.retrain_acceptance = retrain_acceptance
+        self.reset_acceptance = reset_acceptance
 
         self.insertion_indices = []
         self.rolling_p = []
@@ -221,8 +223,8 @@ class NestedSampler:
         self.train_on_empty = train_on_empty
         self.cooldown = cooldown
         self.memory = memory
-        self.reset_weights = float(reset_weights)
-        self.reset_permutations = float(reset_permutations)
+
+        self.configure_flow_reset(reset_weights, reset_permutations)
 
         if training_frequency in [None, 'inf', 'None']:
             logger.warning('Proposal will only train when empty')
@@ -431,6 +433,16 @@ class NestedSampler:
         if self.seed is not None:
             np.random.seed(seed=self.seed)
             torch.manual_seed(self.seed)
+
+    def configure_flow_reset(self, reset_weights, reset_permutations):
+        if isinstance(reset_weights, (int, float)):
+            self.reset_weights = float(reset_weights)
+        else:
+            raise RuntimeError
+        if isinstance(reset_permutations, (int, float)):
+            self.reset_permutations = float(reset_permutations)
+        else:
+            raise RuntimeError
 
     def check_insertion_indices(self, rolling=True, filename=None):
         """
@@ -700,6 +712,11 @@ class NestedSampler:
         """
         Check if the normalising flow model should be reset
         """
+        if (self.reset_acceptance
+                and self.mean_block_acceptance < self.acceptance_threshold):
+            self.proposal.reset_model_weights(weights=True, permutations=True)
+            return
+
         if (self.reset_weights and
                 not (self.proposal.training_count % self.reset_weights)):
             self.proposal.reset_model_weights(weights=True)
