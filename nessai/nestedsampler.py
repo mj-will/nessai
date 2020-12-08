@@ -115,45 +115,112 @@ class NestedSampler:
     ----------
     model: :obj:`nessai.Model`
         User defined model
-    nlive: int, optional
+    nlive : int, optional
         Number of live points. Defaults to 1000
-    output: str
-        Path for output, if None, output is not saved. Defaults to None.
-    seed: int
-        seed for the initialisation of the pseudorandom chain
-    prior_sampling: boolean
-        produce nlive samples from the prior.
-        Default: False
-    stopping: float
+    output : str
+        Path for output
+    stopping : float (0.1)
         Stop when remaining samples wouldn't change logZ estimate by this much.
-        Defaults to 0.1.
-    n_periodic_checkpoint: int
-        checkpoint the sampler every n_periodic_checkpoint iterations
-        Default: None (disabled)
-
-    retrain_acceptance: bool, True
-        If true use mean acceptance of samples produce with current flow
+    max_iteration : int (None)
+        Maximum number of iterations to run before force sampler to stop.
+        If stopping criteria is met before max. is reached sampler will stop.
+    checkpoint : bool (True)
+        Boolean to toggle checkpointing, must be enable to resume sampler
+    resume_file : str (None)
+        If specified sampler will be resumed from this file. Still requieres
+        correct model.
+    seed : int
+        seed for the initialisation of the pseudorandom chain
+    plot : bool (True)
+        Boolean to toggle plotting
+    proposal_plots : bool (True)
+        Boolean to enable additional plots for the population stage of the
+        sampler. Overwritten by plot.
+    prior_sampling : bool (False)
+        produce nlive samples from the prior.
+    analytic_priors : bool (False)
+        Boolean that indicates that the `new_point` method in the model
+        draws directly from the priors meaning rejection sampling is not
+        needed.
+    maximum_uninformed : int (1000)
+        Maximum number of iterations before forcing the sampler to switch to
+        using the proposal method with the flow.
+    uninformed_proposal : :obj:`nessai.proposal.Proposal`: (None)
+        Class to use for inintial sampling before training the flow. If
+        None RejectionProposal or AnalyticProposal are used depending if
+        `analytic_priors` is False or True.
+    uninformed_acceptance_threshold : float (None)
+        Acceptance threshold for initialing sampling, if acceptance falls
+        below this value sampler switches to flow-based proposal. If None
+        then value is set to 10 times `acceptance_threshold`
+    uninformed_proposal_kwargs : dict, ({})
+        Dictionary of keyword argument to parase to the class use for
+        the intial sampling when it is initialised.
+    flow_class : :obj:`nessai.proposal.FlowProposal`
+        Class to use for flow-based proposal method
+    flow_config : dict ({})
+        Dictionary used to configure instance of `nessai.flowmodel.FlowModel`,
+        this includes configuring the normalising flow and the training.
+    training_frequency : int (None)
+        Number of iterations between re-training the flow. If None flow
+        is only re-trained based on other criteria.
+    train_on_empty : bool (True)
+        If true the flow is retrained every time the proposal pool is
+        empty. If false it is only training according to the other criteria.
+    cooldown : int (100)
+        Minimum number of iterations between training. Can be overridden if
+        `train_on_empty=True` and the pool is empty.
+    memory : int, False (False)
+        Number of old live points to use in training. If False only the current
+        live points are used.
+    reset_weights : bool, int, (False)
+        Boolean to toggle reseting the flow weights whenever re-training.
+        If an interger is specified the flow is reset every nth time it is
+        trained.
+    reset_permuations: bool, int, (False)
+        Boolean to toggle reseting the permuation layers in the flow whenever
+        re-training. If an interger is specified the flow is reset every nth
+        time it is trained.
+    reset_acceptance : bool, (True)
+        If true use mean acceptance of samples produced with current flow
         as a criteria for retraining
-
+    retrain_acceptance : bool (False)
+        Force the flow to be reset if the acceptance falls below the acceptance
+        threshold. Requiers `reset_acceptance=True`
+    acceptance_threshold : float (0.01)
+        Threshold to determine if the flow should be retrained, will not
+        retrain if cooldown is not satisfied.
+    kwargs :
+        Keyword arguments parsed to the flow proposal class
     """
 
-    def __init__(self, model, nlive=1000, output=None, prior_sampling=False,
-                 stopping=0.1, flow_class=None, flow_config={},
-                 train_on_empty=True, cooldown=100, memory=False,
-                 acceptance_threshold=0.05, analytic_priors=False,
-                 maximum_uninformed=1000, training_frequency=1000,
-                 uninformed_proposal=None, reset_weights=False,
+    def __init__(self, model, nlive=1000, output=None,
+                 stopping=0.1,
+                 max_iteration=None,
+                 checkpointing=True,
+                 resume_file=None,
+                 seed=None,
+                 plot=True,
+                 proposal_plots=True,
+                 prior_sampling=False,
+                 analytic_priors=False,
+                 maximum_uninformed=1000,
+                 uninformed_proposal=None,
+                 uninformed_acceptance_threshold=None,
+                 uninformed_proposal_kwargs={},
+                 flow_class=None,
+                 flow_config={},
+                 training_frequency=None,
+                 train_on_empty=True,
+                 cooldown=100,
+                 memory=False,
+                 reset_weights=False,
                  reset_permutations=False,
-                 checkpointing=True, resume_file=None,
-                 uninformed_proposal_kwargs={}, seed=None, plot=True,
-                 proposal_plots=True, max_iteration=None,
-                 retrain_acceptance=True, uninformed_acceptance_threshold=None,
+                 retrain_acceptance=True,
                  reset_acceptance=False,
+                 acceptance_threshold=0.01,
                  **kwargs):
-        """
-        Initialise all necessary arguments and
-        variables for the algorithm
-        """
+
         logger.info('Initialising nested sampler')
 
         model.verify_model()
@@ -236,13 +303,13 @@ class NestedSampler:
 
         self.initialised = False
 
-        self.setup_uninformed_proposal(uninformed_proposal,
-                                       analytic_priors,
-                                       maximum_uninformed,
-                                       uninformed_acceptance_threshold,
-                                       **uninformed_proposal_kwargs)
-        self.setup_flow_proposal(flow_class, flow_config, proposal_plots,
-                                 **kwargs)
+        self.configure_uninformed_proposal(uninformed_proposal,
+                                           analytic_priors,
+                                           maximum_uninformed,
+                                           uninformed_acceptance_threshold,
+                                           **uninformed_proposal_kwargs)
+        self.configure_flow_proposal(flow_class, flow_config, proposal_plots,
+                                     **kwargs)
 
         # Uninformed proposal is used for prior sampling
         # If maximum uninformed is greater than 0, the it will be used for
@@ -279,12 +346,12 @@ class NestedSampler:
         else:
             return 0
 
-    def setup_uninformed_proposal(self,
-                                  uninformed_proposal,
-                                  analytic_priors,
-                                  maximum_uninformed,
-                                  uninformed_acceptance_threshold,
-                                  **kwargs):
+    def configure_uninformed_proposal(self,
+                                      uninformed_proposal,
+                                      analytic_priors,
+                                      maximum_uninformed,
+                                      uninformed_acceptance_threshold,
+                                      **kwargs):
         """
         Setup the uninformed proposal method (is NOT trained)
 
@@ -337,8 +404,8 @@ class NestedSampler:
         logger.debug(f'Parsing kwargs to uniformed proposal: {kwargs}')
         self._uninformed_proposal = uninformed_proposal(self.model, **kwargs)
 
-    def setup_flow_proposal(self, flow_class, flow_config, proposal_plots,
-                            **kwargs):
+    def configure_flow_proposal(self, flow_class, flow_config, proposal_plots,
+                                **kwargs):
         """
         Set up the flow-based proposal method
 
@@ -371,6 +438,9 @@ class NestedSampler:
                                    'inherits from FlowProposal')
         else:
             flow_class = FlowProposal
+
+        if kwargs.get('poolsize', None) is None:
+            kwargs['poolsize'] = self.nlive
 
         logger.debug(f'Using flow class: {flow_class}')
         logger.info(f'Parsing kwargs to FlowProposal: {kwargs}')
