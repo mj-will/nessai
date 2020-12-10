@@ -69,7 +69,7 @@ class Proposal:
         """
         New a new point given the old point
         """
-        return None
+        raise NotImplementedError
 
     def train(self, x, **kwargs):
         """
