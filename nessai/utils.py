@@ -376,9 +376,9 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
             np.log(xmax - xmin) - np.log(2))
 
 
-def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
-                allow_both=False, allow_none=False, test=None,
-                allowed_bounds=['lower', 'upper']):
+def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
+                allow_both=False, allow_none=False,
+                allowed_bounds=['lower', 'upper'], test=None):
     """
     Detect edges in input distributions based on the density.
 
@@ -386,6 +386,9 @@ def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
     ----------
     x: array_like
         Samples
+    x_range : array_like, optional
+        Lower and upper bounds used to check inversion, if not specified
+        min and max of data are used.
     percent: float (0.1)
         Percentage of interval used to check edges
     cutoff: float (0.1)
@@ -406,7 +409,7 @@ def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
         raise RuntimeError(f'Unknown allowed bounds: {allowed_bounds}')
     if nbins == 'auto':
         nbins = auto_bins(x)
-    hist, bins = np.histogram(x, bins=nbins, density=True)
+    hist, bins = np.histogram(x, bins=nbins, density=True, range=x_range)
     n = max(int(len(bins) * percent), 1)
     bounds_fraction = \
         np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (bins[1] - bins[0])
