@@ -885,6 +885,7 @@ class GWFlowProposal(FlowProposal):
                     self._dc3_invert = detect_edge(
                                 dc3,
                                 allow_both=False,
+                                allowed_bounds=['upper'],
                                 test=self._inversion_test_type,
                                 **self.detect_edges_kwargs)
                 else:
