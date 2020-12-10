@@ -377,7 +377,8 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
 
 
 def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
-                allow_both=False, allow_none=False, test=None):
+                allow_both=False, allow_none=False, test=None,
+                allowed_bounds=['lower', 'upper']):
     """
     Detect edges in input distributions based on the density.
 
@@ -401,6 +402,8 @@ def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
     if test is not None:
         return test
     bounds = ['lower', 'upper']
+    if not all(b in bounds for b in allowed_bounds):
+        raise RuntimeError(f'Unknown allowed bounds: {allowed_bounds}')
     if nbins == 'auto':
         nbins = auto_bins(x)
     hist, bins = np.histogram(x, bins=nbins, density=True)
@@ -411,15 +414,21 @@ def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
     max_density = hist[max_idx] * (bins[1] - bins[0])
     logger.debug(f'Max. density: {max_density:.3f}')
 
-    if max_idx <= n:
+    for i, b in enumerate(bounds):
+        if b not in allowed_bounds:
+            bounds.pop(i)
+            bounds_fraction = np.delete(bounds_fraction, i)
+
+    if max_idx <= n and 'lower' in bounds:
         return bounds[0]
-    elif max_idx >= (len(bins) - n):
-        return bounds[1]
+    elif max_idx >= (len(bins) - n) and 'upper' in bounds:
+        return bounds[-1]
     elif not np.any(bounds_fraction > cutoff * max_density) and allow_none:
         logger.debug('Density too low at both bounds')
         return False
     else:
-        if np.all(bounds_fraction > cutoff * max_density) and allow_both:
+        if (np.all(bounds_fraction > cutoff * max_density) and allow_both and
+                len(bounds) > 1):
             logger.debug('Both bounds above cutoff')
             return 'both'
         else:
