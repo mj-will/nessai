@@ -518,8 +518,9 @@ class GWFlowProposal(FlowProposal):
         if self.update_bounds:
             self._min = {n: np.min(x[n]) for n in self.model.names}
             self._max = {n: np.max(x[n]) for n in self.model.names}
-            if self.use_x_prime_prior:
-                self.update_rescaled_bounds()
+
+        if self.use_x_prime_prior:
+            self.update_rescaled_bounds()
 
     def update_rescaled_bounds(self, rescaled_names=None,
                                xmin=None, xmax=None):
@@ -882,10 +883,12 @@ class GWFlowProposal(FlowProposal):
             if self._dc3_invert is None:
                 if 'dc3' in self.inversion:
                     self._dc3_invert = detect_edge(
-                                dc3,
-                                allow_both=False,
-                                test=self._inversion_test_type,
-                                **self.detect_edges_kwargs)
+                            dc3,
+                            x_range=[self._dc3_prior_min, self._dc3_prior_max],
+                            allow_both=False,
+                            allowed_bounds=['upper'],
+                            test=self._inversion_test_type,
+                            **self.detect_edges_kwargs)
                 else:
                     self._dc3_invert = False
 

@@ -33,11 +33,12 @@ class FlowSampler:
     weights_files : str, optional
         Weights files used to resume sampler that replaces the weights file
         saved internally.
+    exit_code : int, optional (130)
+        Exit code to use when forceably exiting the sampler.
     kwargs :
         Keyword arguments parsed to NestedSampler. See NestedSampler for
         details
     """
-
     def __init__(self, model, output='./', resume=True,
                  resume_file='nested_sampler_resume.pkl', weights_file=None,
                  exit_code=130, **kwargs):
@@ -90,13 +91,20 @@ class FlowSampler:
         except AttributeError:
             logger.debug('Can not set signal attributes on this system')
 
-    def run(self, resume=False, plot=True, save=True):
+    def run(self, plot=True, save=True):
         """
         Run the nested samper
+
+        Parameters
+        ----------
+        plot : bool, optional (True)
+            Toggle plots produced once the sampler has converged
+        save : bool, opitional (True)
+            Toggle automatic saving of results
         """
         self.ns.initialise()
         self.logZ, self.nested_samples = \
-            self.ns.nested_sampling_loop(save=save)
+            self.ns.nested_sampling_loop()
         logger.info((f'Total sampling time: {self.ns.sampling_time}'))
 
         logger.info('Starting post processing')
@@ -128,7 +136,12 @@ class FlowSampler:
 
     def save_kwargs(self, kwargs):
         """
-        Save the key-word arguments used
+        Save the dictionary of keyword arguments used.
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary of kwargs to save
         """
         d = kwargs.copy()
         with open(f'{self.output}/config.json', 'w') as wf:
@@ -143,7 +156,12 @@ class FlowSampler:
 
     def save_results(self, filename):
         """
-        Save the results from sampling
+        Save the results from sampling to a specific file.
+
+        Parameters
+        ----------
+        filename : str
+            Name of file to save results to.
         """
         iterations = np.arange(len(self.ns.min_likelihood)) \
             * (self.ns.nlive // 10)

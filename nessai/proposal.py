@@ -69,7 +69,7 @@ class Proposal:
         """
         New a new point given the old point
         """
-        return None
+        raise NotImplementedError
 
     def train(self, x, **kwargs):
         """
@@ -228,7 +228,7 @@ class FlowProposal(RejectionProposal):
 
     Parameters
     ----------
-    model: obj:`flowproposal.model.Model`
+    model: obj:`nessai.model.Model`
         User defined model
     flow_config: dict, optional
         Configuration for training the normalising flow. If None, uses default
@@ -286,22 +286,40 @@ class FlowProposal(RejectionProposal):
         used.
     """
 
-    def __init__(self, model, flow_config=None, output='./', poolsize=10000,
-                 rescale_parameters=False, latent_prior='truncated_gaussian',
-                 fuzz=1.0, keep_samples=False, plot='min',
-                 fixed_radius=False, drawsize=10000, check_acceptance=False,
-                 truncate=False, zero_reset=None,
-                 rescale_bounds=[-1, 1], expansion_fraction=0.0,
-                 boundary_inversion=False, inversion_type='duplicate',
-                 update_bounds=True, max_radius=False, pool=None, n_pool=None,
-                 multiprocessing=False, max_poolsize_scale=50,
-                 update_poolsize=False, save_training_data=False,
-                 compute_radius_with_all=False, draw_latent_kwargs={},
-                 detect_edges=False, detect_edges_kwargs={},
+    def __init__(self,
+                 model,
+                 flow_config=None,
+                 output='./',
+                 poolsize=None,
+                 rescale_parameters=False,
+                 latent_prior='truncated_gaussian',
+                 fuzz=1.0,
+                 keep_samples=False,
+                 plot='min',
+                 fixed_radius=False,
+                 drawsize=None,
+                 check_acceptance=False,
+                 truncate=False,
+                 zero_reset=None,
+                 rescale_bounds=[-1, 1],
+                 expansion_fraction=0.0,
+                 boundary_inversion=False,
+                 inversion_type='split',
+                 update_bounds=True,
+                 min_radius=False,
+                 max_radius=False,
+                 pool=None,
+                 n_pool=None,
+                 multiprocessing=False,
+                 max_poolsize_scale=10,
+                 update_poolsize=True,
+                 save_training_data=False,
+                 compute_radius_with_all=False,
+                 draw_latent_kwargs={},
+                 detect_edges=False,
+                 detect_edges_kwargs={},
                  **kwargs):
-        """
-        Initialise
-        """
+
         super(FlowProposal, self).__init__(model)
         logger.debug('Initialising FlowProposal')
 
@@ -328,15 +346,11 @@ class FlowProposal(RejectionProposal):
         self.use_x_prime_prior = False
 
         self.output = output
-        self._poolsize = poolsize
-        self._poolsize_scale = 1.0
-        self.update_poolsize = update_poolsize
-        self.max_poolsize_scale = max_poolsize_scale
-        self.ns_acceptance = 1.
-        self.drawsize = drawsize
-        self.fuzz = fuzz
-        self.expansion_fraction = expansion_fraction
-        self.latent_prior = latent_prior
+
+        self.configure_population(poolsize, drawsize, update_poolsize,
+                                  max_poolsize_scale, fuzz, expansion_fraction,
+                                  latent_prior)
+
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
         self.update_bounds = update_bounds
@@ -352,8 +366,8 @@ class FlowProposal(RejectionProposal):
         self.configure_edge_detection(detect_edges_kwargs)
 
         self.compute_radius_with_all = compute_radius_with_all
-        self.max_radius = float(max_radius)
         self.configure_fixed_radius(fixed_radius)
+        self.configure_min_max_radius(min_radius, max_radius)
 
         self.pool = pool
         self.n_pool = n_pool
@@ -370,6 +384,10 @@ class FlowProposal(RejectionProposal):
         self.draw_latent_kwargs = draw_latent_kwargs
         self.configure_latent_prior()
         self.alt_dist = None
+
+        if kwargs:
+            logger.warning(
+                f'Extra kwargs were parsed to FlowProposal: {kwargs}')
 
     @property
     def poolsize(self):
@@ -419,6 +437,28 @@ class FlowProposal(RejectionProposal):
             return self.x_prime_dtype
         else:
             return self.x_dtype
+
+    def configure_population(self, poolsize, drawsize, update_poolsize,
+                             max_poolsize_scale, fuzz, expansion_fraction,
+                             latent_prior):
+        """
+        Configure settings related to population
+        """
+        if poolsize is None:
+            raise RuntimeError('Must specify a poolsize!')
+
+        if drawsize is None:
+            drawsize = poolsize
+
+        self._poolsize = poolsize
+        self._poolsize_scale = 1.0
+        self.update_poolsize = update_poolsize
+        self.max_poolsize_scale = max_poolsize_scale
+        self.ns_acceptance = 1.
+        self.drawsize = drawsize
+        self.fuzz = fuzz
+        self.expansion_fraction = expansion_fraction
+        self.latent_prior = latent_prior
 
     def setup_pool(self):
         """
@@ -515,6 +555,20 @@ class FlowProposal(RejectionProposal):
                 self.fixed_radius = False
         else:
             self.fixed_radius = False
+
+    def configure_min_max_radius(self, min_radius, max_radius):
+        """
+        Configure the mininum and maximum radius
+        """
+        if isinstance(min_radius, (int, float)):
+            self.min_radius = float(min_radius)
+        else:
+            raise RuntimeError
+
+        if isinstance(max_radius, (int, float)):
+            self.max_radius = float(max_radius)
+        else:
+            raise RuntimeError
 
     def configure_edge_detection(self, d):
         """Configure parameters for edge detection"""
@@ -879,6 +933,11 @@ class FlowProposal(RejectionProposal):
                                                    rescale=True)
             z_gen = np.random.randn(x.size, self.dims)
 
+            fig = plt.figure()
+            plt.hist(np.sqrt(np.sum(z_training_data ** 2, axis=1)), 'auto')
+            plt.xlabel('Radius')
+            fig.savefig(block_output + 'radial_dist.png')
+
             plot_1d_comparison(z_training_data, z_gen,
                                labels=['z_live_points', 'z_generated'],
                                convert_to_live_points=True,
@@ -1154,9 +1213,10 @@ class FlowProposal(RejectionProposal):
                                                  rescale=True,
                                                  compute_radius=True)
             r, worst_q = self.radius(worst_z, worst_q)
-            if self.max_radius:
-                if r > self.max_radius:
-                    r = self.max_radius
+            if self.max_radius and r > self.max_radius:
+                r = self.max_radius
+            if self.min_radius and r < self.min_radius:
+                r = self.min_radius
             logger.info(f'Populating proposal with lantent radius: {r:.5}')
         self.r = r
 
