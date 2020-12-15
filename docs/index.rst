@@ -15,6 +15,14 @@ Welcome to nessai's documentation!
 
    installation
    running-the-sampler
-   code-overview
-   proposal-configuration
+   sampler-configuration
    normalising-flows-configuration
+   code-overview
+
+
+Indices and tables
+==================
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
