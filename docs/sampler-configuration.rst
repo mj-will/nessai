@@ -10,9 +10,8 @@ General configuration
 
 These are general settings which apply to the whole algorithm:
 
-* ``nlive``: number of live points
-* ``stopping``: the stopping criteria
-
+.. autoclass:: nessai.nestedsampler.NestedSampler
+    :members: None
 
 For a complete list see :py:class:`nessai.nestedsampler.NestedSampler`
 
