@@ -1,4 +1,3 @@
-from matplotlib import ticker
 from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -269,7 +268,7 @@ def plot_flows(model, n_inputs, N=1000, inputs=None, cond_inputs=None,
         for j, c in zip(points, colours):
             ax[i].plot(o[j, 0], o[j, 1], ',', c=c)
         ax[i].set_title(f'Flow {i}')
-    plt.tight_layout()
+    fig.tight_layout()
     fig.savefig(output + 'flows.png')
 
 
@@ -285,9 +284,10 @@ def plot_loss(epoch, history, output='./'):
     plt.ylabel('Negative log-likelihood')
     plt.legend()
     plt.tight_layout()
-    plt.yscale('symlog')
-    ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
-    ax.yaxis.set_minor_formatter(ticker.FormatStrFormatter("%.2f"))
+    if any(h < 0 for h in history['loss']):
+        plt.yscale('symlog')
+    else:
+        plt.yscale('log')
     fig.savefig(output + 'loss.png')
     plt.close('all')
 

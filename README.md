@@ -30,9 +30,8 @@ By default the CPU only version of PyTroch will installed, to install a differen
 This package requieres a fork of Bilby that includes the sampler, it can be installed by running (this requires pip):
 
 ```console
-pip install git+https://git.ligo.org/michael.williams/bilby.git@flowproposal-sampler#egg=bilby
+pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sampler#egg=bilby
 ```
-
 
 ## Contributing
 
