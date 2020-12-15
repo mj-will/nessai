@@ -20,50 +20,18 @@ The user MUST define these two methods, the inputs to both is a structured numpy
 - ``log_prior``: return the log-prior probability of a live point (and enforce the bounds)
 - ``log_likelihood``: return the log-likelihood probability of a live point (must be finite)
 
-The input to both methods are a live point `x` which is an instance of a structured numpy array with one field for each parameters in ``names`` and two additional fields ``logP`` and ``logL``. Each parameter can be accessed using the name of each field like you would a dictionary.
+The input to both methods are a live point ``x`` which is an instance of a structured numpy array with one field for each parameters in ``names`` and two additional fields ``logP`` and ``logL``. Each parameter can be accessed using the name of each field like you would a dictionary.
 
 For examples of using live points see: :doc:`using-livepoints`
 
 Example model
 -------------
 
-Here's an example of what a model could look like:
+Here's an example of a simple model taken from one of the examples:
 
-.. code-block:: python
-
-    class GaussianModel(Model):
-        """
-        A simple two-dimensional Guassian likelihood
-        """
-        def __init__(self):
-            self.names = ['x', 'y']
-            self.bounds = {'x': [-10, 10], 'y': [-10, 10]}
-
-        def log_prior(self, x):
-            """
-            Returns log of prior given a live point.
-            """
-            log_p = 0.
-            # Iterate through each parameter (x and y)
-            # since the live points are a structured array we can
-            # get each value using just the name
-            for i, n in enumerate(self.names):
-                log_p += xlogy(1, (x[n] >= self.bounds[n][0])
-                               & (x[n] <= self.bounds[n][1]))
-                - xlogy(1, self.bounds[n][1] - self.bounds[n][0])
-            return log_p
-
-        def log_likelihood(self, x):
-            """
-            Returns log likelihood of given live point
-            """
-            log_l = 0
-            # Use a Guassian pdf and iterate through the parameters
-            for pn in self.names:
-                log_l += norm.logpdf(x[pn])
-            return log_l
-
-
+.. literalinclude:: ../examples/2d_gaussian.py
+    :language: python
+    :pyobject: GaussianModel
 
 
 Initialising and running the sampler
@@ -73,6 +41,29 @@ Once a modelled is defined, create an instance of :py:class:`nessai.flowsampler.
 
 .. code-block:: python
 
-    sampler = FlowSampler(Gaussian(), output=output)
+    from nessai.flowsampler import FlowSampler
 
+    # Initialise sampler with the model
+    sampler = FlowSampler(Gaussian(), output='./')
     sampler.run()
+
+
+Sampler output
+==============
+
+Once the sampler has converged the results and other automatically generated plots with be saved in the directory specified as ``output``. By default this will include:
+
+* ``result.json``: a json file which contains various fields, the most relevant of which are ``posterior_samples``, ``log_evidence`` and ``information``.
+* ``posterior_distribution.png``: a corner-style plot of the posterior distribution.
+* ``trace.png``: a trace plot which shows the nested samples for each sampled parameter for the entire sampling process.
+* ``state.png``: the *state* plot which shows various statistics tracked by the sampler.
+* ``insertion_indices.png``: the distribution of insertion indices for all of the nested samples.
+* ``logXlogL.png``: the evolution of the maximum log-likelihood versus the log prior volume.
+* two resume files (``.pkl``) used for resuming the sampler.
+* ``config.json``: the exact configuration used for the sampler.
+
+
+Complete examples
+=================
+
+For complete examples see :doc:`gaussian-example` and the `example directory <https://github.com/mj-will/nessai/tree/master/examples>`_.

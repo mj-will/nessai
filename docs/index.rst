@@ -17,6 +17,7 @@ Welcome to nessai's documentation!
    running-the-sampler
    sampler-configuration
    normalising-flows-configuration
+   gaussian-example
    code-overview
 
 
