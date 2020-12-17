@@ -89,7 +89,7 @@ class FlowSampler:
             signal.signal(signal.SIGINT, self.safe_exit)
             signal.signal(signal.SIGALRM, self.safe_exit)
         except AttributeError:
-            logger.debug('Can not set signal attributes on this system')
+            logger.critical('Can not set signal attributes on this system')
 
     def run(self, plot=True, save=True):
         """
@@ -203,11 +203,8 @@ class FlowSampler:
         Safely exit. This includes closing the multiprocessing pool.
         """
         logger.warning(f'Trying to safely exit with code {signum}')
-
+        self.ns.proposal.close_pool(code=signum)
         self.ns.checkpoint()
-
-        if self.ns.proposal.pool is not None:
-            self.ns.proposal.close_pool()
 
         logger.warning(f'Exiting with code: {self.exit_code}')
         sys.exit(self.exit_code)

@@ -50,13 +50,17 @@ class Proposal:
     model: obj
         User-defined model
     """
-    def __init__(self, model):
+    def __init__(self, model, n_pool=None):
         self.model = model
         self.populated = True
         self.initialised = False
         self.training_count = 0
         self.population_acceptance = None
+        self.population_time = datetime.timedelta()
+        self.logl_eval_time = datetime.timedelta()
         self.r = None
+        self.n_pool = n_pool
+        self.samples = []
         self.pool = None
 
     def initialise(self):
@@ -64,6 +68,56 @@ class Proposal:
         Initialise the proposal
         """
         self.initialised = True
+
+    def configure_pool(self):
+        """
+        Configure the multiprocessing pool
+        """
+        if self.pool is None and self.n_pool is not None:
+            logger.info(
+                f'Starting multiprocessing pool with {self.n_pool} processes')
+            import multiprocessing
+            self.pool = multiprocessing.Pool(
+                processes=self.n_pool,
+                initializer=_initialize_global_variables,
+                initargs=(self.model,)
+            )
+        else:
+            logger.info('n_pool is none, no multiprocessing pool')
+
+    def close_pool(self, code=None):
+        """
+        Close the the multiprocessing pool
+        """
+        if getattr(self, "pool", None) is not None:
+            logger.info("Starting to close worker pool.")
+            if code == 2:
+                self.pool.terminate()
+            else:
+                self.pool.close()
+            self.pool.join()
+            self.pool = None
+            logger.info("Finished closing worker pool.")
+
+    def evaluate_likelihoods(self):
+        """
+        Evaluate the likelihoods for the pool of live points.
+
+        If the multiprocessing pool has been started, the samples will be map
+        using `pool.map`.
+        """
+        st = datetime.datetime.now()
+        if self.pool is None:
+            for s in self.samples:
+                s['logL'] = self.model.evaluate_log_likelihood(s)
+        else:
+            try:
+                self.samples['logL'] = self.pool.map(_log_likelihood_wrapper,
+                                                     self.samples)
+                self.model.likelihood_evaluations += self.samples.size
+            except Exception as e:
+                logger.critical(e)
+        self.logl_eval_time += (datetime.datetime.now() - st)
 
     def draw(self, old_param):
         """
@@ -92,6 +146,7 @@ class Proposal:
 
     def __getstate__(self):
         state = self.__dict__.copy()
+        state['pool'] = None
         del state['model']
         return state
 
@@ -103,13 +158,33 @@ class AnalyticProposal(Proposal):
     This assumes the `new_point` method of the model draws points
     from the prior
     """
-    def draw(self, old_param):
+    def populate(self):
         """
-        Draw directly from the analytic priors.
+        Populate the pool by drawing from the priors
+        """
+        self.samples = self.model.new_point(N=1000)
+        if self.pool is not None:
+            self.evaluate_likelihoods()
+        self.populated = True
 
-        Ouput is independent of the input
+    def draw(self, old_sample):
         """
-        return self.model.new_point()
+        Propose a new sample. Draws from the pool if it is populated, else
+        it populates the pool.
+
+        Parameters
+        ----------
+        old_sample : structured_array
+            Old sample, this is not used in the proposal method
+        """
+        if not self.populated:
+            st = datetime.datetime.now()
+            self.populate()
+            self.population_time += (datetime.datetime.now() - st)
+        new_sample = self.samples.pop()
+        if not self.samples:
+            self.populated = False
+        return new_sample
 
 
 class RejectionProposal(Proposal):
@@ -124,8 +199,8 @@ class RejectionProposal(Proposal):
     poolsize : int
         Number of new samples to store in the pool
     """
-    def __init__(self, model, poolsize=1000):
-        super(RejectionProposal, self).__init__(model)
+    def __init__(self, model, poolsize=1000, **kwargs):
+        super(RejectionProposal, self).__init__(model, **kwargs)
         self._poolsize = poolsize
         self.populated = False
         self._acceptance_checked = True
@@ -201,6 +276,8 @@ class RejectionProposal(Proposal):
         self.samples = x[indices]
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
         self.population_acceptance = self.samples.size / self.poolsize
+        if self.pool is not None:
+            self.evaluate_likelihoods()
         self.populated = True
 
     def draw(self, old_sample):
@@ -214,7 +291,9 @@ class RejectionProposal(Proposal):
             Old sample, this is not used in the proposal method
         """
         if not self.populated:
+            st = datetime.datetime.now()
             self.populate()
+            self.population_time += (datetime.datetime.now() - st)
         index = self.indices.pop()
         new_sample = self.samples[index]
         if not self.indices:
@@ -331,8 +410,6 @@ class FlowProposal(RejectionProposal):
         self.indices = []
         self.training_count = 0
         self.populated_count = 0
-        self.population_time = datetime.timedelta()
-        self.logl_eval_time = datetime.timedelta()
         self.names = []
         self.training_data = None
         self.save_training_data = save_training_data
@@ -375,7 +452,6 @@ class FlowProposal(RejectionProposal):
             logger.info('Using multiprocessing')
             if not self.check_acceptance:
                 self.check_acceptance = True
-            self.setup_pool()
 
         self.configure_plotting(plot)
 
@@ -386,6 +462,7 @@ class FlowProposal(RejectionProposal):
         self.alt_dist = None
 
         if kwargs:
+            kwargs.pop('max_threads', None)
             logger.warning(
                 f'Extra kwargs were parsed to FlowProposal: {kwargs}')
 
@@ -459,31 +536,6 @@ class FlowProposal(RejectionProposal):
         self.fuzz = fuzz
         self.expansion_fraction = expansion_fraction
         self.latent_prior = latent_prior
-
-    def setup_pool(self):
-        """
-        Setup the multiprocessing pool
-        """
-        if self.pool is None:
-            logger.info(
-                f'Starting multiprocessing pool with {self.n_pool} processes')
-            import multiprocessing
-            self.pool = multiprocessing.Pool(
-                processes=self.n_pool,
-                initializer=_initialize_global_variables,
-                initargs=(self.model,)
-            )
-
-    def close_pool(self):
-        """
-        Close the the multiprocessing pool
-        """
-        if getattr(self, "pool", None) is not None:
-            logger.info("Starting to close worker pool.")
-            self.pool.close()
-            self.pool.join()
-            self.pool = None
-            logger.info("Finished closing worker pool.")
 
     def configure_plotting(self, plot):
         """Configure plotting"""
@@ -1268,9 +1320,7 @@ class FlowProposal(RejectionProposal):
             self.approx_acceptance.append(self.compute_acceptance(worst_q))
             logger.debug(
                 f'Current approximate acceptance {self.approx_acceptance[-1]}')
-            st = datetime.datetime.now()
             self.evaluate_likelihoods()
-            self.logl_eval_time += (datetime.datetime.now() - st)
             self.acceptance.append(
                 self.compute_acceptance(worst_point['logL']))
             logger.debug(f'Current acceptance {self.acceptance[-1]}')
@@ -1298,21 +1348,6 @@ class FlowProposal(RejectionProposal):
                 return get_multivariate_normal(
                     self.dims, var=self.draw_latent_kwargs['var'],
                     device=self.flow.device)
-
-    def evaluate_likelihoods(self):
-        """
-        Evaluate the likelihoods for the pool of live points.
-
-        If the multiprocessing pool has been started, the samples will be map
-        using `pool.map`.
-        """
-        if self.pool is None:
-            for s in self.samples:
-                s['logL'] = self.model.evaluate_log_likelihood(s)
-        else:
-            self.samples['logL'] = self.pool.map(_log_likelihood_wrapper,
-                                                 self.samples)
-            self.model.likelihood_evaluations += self.samples.size
 
     def compute_acceptance(self, logL):
         """
