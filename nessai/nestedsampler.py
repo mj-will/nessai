@@ -25,7 +25,7 @@ sns.set_style('ticks')
 logger = logging.getLogger(__name__)
 
 
-class _NSintegralState(object):
+class _NSintegralState:
     """
     Stores the state of the nested sampling integrator
     """
