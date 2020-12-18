@@ -21,7 +21,8 @@ from .utils import (
     get_multivariate_normal,
     detect_edge,
     save_live_points,
-    InterpolatedDistribution
+    InterpolatedDistribution,
+    rescale_minus_one_to_one
     )
 
 logger = logging.getLogger(__name__)
@@ -700,6 +701,8 @@ class FlowProposal(RejectionProposal):
             x = np.array([x], dtype=x.dtype)
 
         for n, rn in zip(self.names, self.rescaled_names):
+            if n not in self.model.names:
+                continue
             if n in self.rescale_parameters:
                 x_prime[rn] = self._rescale_factor \
                              * ((x[n] - self._min[n])
@@ -753,6 +756,8 @@ class FlowProposal(RejectionProposal):
         x = np.zeros([x_prime.size], dtype=self.x_dtype)
         log_J = np.zeros(x_prime.size)
         for n, rn in zip(self.names, self.rescaled_names):
+            if n not in self.model.names:
+                continue
             if n in self.rescale_parameters:
                 if n in self.boundary_inversion:
                     inv = x_prime[rn] < 0.
@@ -829,8 +834,8 @@ class FlowProposal(RejectionProposal):
             Array of training live points which can be used to set parameters
         """
         if self.update_bounds:
-            self._min = {n: np.min(x[n]) for n in self.names}
-            self._max = {n: np.max(x[n]) for n in self.names}
+            self._min = {n: np.min(x[n]) for n in self.model.names}
+            self._max = {n: np.max(x[n]) for n in self.model.names}
         if self.boundary_inversion:
             self._edges = {n: None for n in self.boundary_inversion}
 
@@ -1416,7 +1421,8 @@ class FlowProposal(RejectionProposal):
 class ConditionalFlowProposal(FlowProposal):
 
     def __init__(self, model, uniform_parameters=False,
-                 conditional_likelihood=False, **kwargs):
+                 conditional_likelihood=False, transform_likelihood=False,
+                 **kwargs):
         super(ConditionalFlowProposal, self).__init__(model, **kwargs)
 
         self.conditional_parameters = []
@@ -1427,6 +1433,7 @@ class ConditionalFlowProposal(FlowProposal):
             self.uniform_parameters = uniform_parameters
 
         self.conditional_likelihood = conditional_likelihood
+        self.transform_likelihood = transform_likelihood
 
         self.conditional = any([self.uniform_parameters,
                                 self.conditional_likelihood])
@@ -1479,7 +1486,7 @@ class ConditionalFlowProposal(FlowProposal):
             self._rescale_factor = np.ptp(self.rescale_bounds)
             self._rescale_shift = self.rescale_bounds[0]
 
-            self.rescale = self._rescale_to_bounds
+            # self.rescale = self._rescale_to_bounds
             self.inverse_rescale = self._inverse_rescale_to_bounds
             logger.info(f'Set to rescale inputs to {self.rescale_bounds}')
 
@@ -1488,16 +1495,41 @@ class ConditionalFlowProposal(FlowProposal):
                     'Rescaling will use min and max of current live points')
             else:
                 logger.info('Rescaling will use model bounds')
+        else:
+            self.rescale_parameters = []
 
         logger.info(f'x space parameters: {self.names}')
         logger.info(f'parameters to rescale {self.rescale_parameters}')
         logger.info(f'x prime space parameters: {self.rescaled_names}')
+
+    def check_state(self, x):
+        """
+        Operations that need to checked before training. These include
+        updating the bounds for rescaling and resetting the bounds for
+        inversion.
+
+        Parameters
+        ----------
+        x: array_like
+            Array of training live points which can be used to set parameters
+        """
+        if self.update_bounds:
+            self._min = {n: np.min(x[n]) for n in self.model.names}
+            self._max = {n: np.max(x[n]) for n in self.model.names}
+        if self.boundary_inversion:
+            self._edges = {n: None for n in self.boundary_inversion}
+        if self.transform_likelihood:
+            self._min_logl = np.min(x['logL'])
+            self._max_logl = np.max(x['logL'])
 
     def set_likelihood_parameter(self):
         if self.conditional_likelihood:
             self.likelihood_index = len(self.conditional_parameters)
             self.conditional_parameters += ['logL']
             self.likelihood_distribution = InterpolatedDistribution('logL')
+        if self.transform_likelihood:
+            self.names.append('logL_train')
+            self.rescaled_names.append('logL_train')
 
     def set_uniform_parameters(self):
         """
@@ -1545,11 +1577,27 @@ class ConditionalFlowProposal(FlowProposal):
         self.populated = False
         self.initialised = True
 
+    def add_auxiliary_parameters(self, x):
+        """
+        Add additional parameters which are not included in the default
+        model.
+        """
+        if 'logL_train' in x.dtype.names:
+            x['logL_train'], _ = rescale_minus_one_to_one(
+                x['logL'], self._min_logl, self._max_logl)
+        return x
+
+    def rescale(self, x, compute_radius=False):
+        x_prime, log_J = self._rescale_to_bounds(x, compute_radius)
+        x_prime = self.add_auxiliary_parameters(x_prime)
+        return x_prime, log_J
+
     def train_on_data(self, x_prime, output):
         """
         Function that takes live points converts to numpy array and calls
         the train function. Live points should be in the X' (x prime) space.
         """
+        x_prime = self.add_auxiliary_parameters(x_prime)
         x_prime_array = live_points_to_array(x_prime, self.flow_names)
         context = self.get_context(x_prime)
         self.train_context(context)
