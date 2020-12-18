@@ -5,7 +5,7 @@ import shutil
 
 from nflows.distributions.uniform import BoxUniform
 import numpy as np
-from scipy import stats, spatial
+from scipy import stats, spatial, interpolate
 import torch
 from torch.distributions import MultivariateNormal
 
@@ -736,3 +736,106 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert):
         return -0.5, 1.5
     else:
         raise RuntimeError
+
+
+class InterpolatedDistribution:
+    """
+    Object the approximates the CDF and inverse CDF
+    of a distribution given samples.
+
+    Parameters
+    ----------
+    names : str
+        Name for the parmeter
+    samples : array_like, optional
+        Initial array of samples to use for interpolation
+    """
+    def __init__(self, name, samples=None):
+        logger.debug('Initialising interpolated dist for: {name}')
+        self.name = name
+        self._cdf_interp = None
+        self._inv_cdf_interp = None
+        self.samples = None
+        if samples is not None:
+            self.update_dist(samples, reset=True)
+
+    def update_samples(self, samples, reset=False, **kwargs):
+        """
+        Update the samples used for the interpolation
+
+        Parameters
+        ----------
+        samples : array_like
+            Samples used for the update
+        reset : bool, optional
+            If True new samples are used to replace previous samples.
+            If False samples are added to existing samples
+        **kwargs
+            Arbitrary keyword arguments parsed to scipy.interpolate.splrep
+        """
+        if samples.ndim > 1:
+            raise RuntimeError('Samples must be a 1-dimensional array')
+        if reset or self.samples is None:
+            self.samples = np.sort(samples)
+        else:
+            self.samples = \
+                np.sort(np.concatenate([self.samples, samples], axis=-1))
+        cdf = np.arange(self.samples.size) / (self.samples.size - 1)
+        assert self.samples.size == cdf.size
+        self._cdf_interp = interpolate.splrep(self.samples, cdf, **kwargs)
+        self._inv_cdf_interp = interpolate.splrep(cdf, self.samples, **kwargs)
+
+    def cdf(self, x, **kwargs):
+        """
+        Compute the interpolated CDF
+
+        Parameters
+        ----------
+        x : array_like
+            Samples to compute CDF for
+        **kwargs
+            Arbitrary keyword arguments parsed to scipy.interpolate.splev
+
+        Returns
+        -------
+        array_like
+            Values of the CDF for each sample in x
+        """
+        return interpolate.splev(x, self._cdf_interp, **kwargs)
+
+    def inverse_cdf(self, u, **kwargs):
+        """
+        Compute the interpolated inverse CDF
+
+        Parameters
+        ----------
+        x : array_like
+            Samples to compute the inverse CDF for
+        **kwargs
+            Arbitrary keyword arguments parsed to scipy.interpolate.splev
+
+        Returns
+        -------
+        array_like
+            Values of the inverse CDF for each sample in x
+        """
+        return interpolate.splev(u, self._inv_cdf_interp, **kwargs)
+
+    def sample(self, n=1, **kwargs):
+        """
+        Draw a sample from the approximated distribution
+
+        Parameters
+        ----------
+        n : int, optional
+            Number of samples to draw
+        **kwargs
+           Arbitrary keyword arguments parsed to `inverse_cdf`
+
+        Returns
+        -------
+        array_like
+            Array of n samples drawn from the interpolate distribution
+        """
+        u = np.random.rand(n)
+        return self.inverse_cdf(u, **kwargs)

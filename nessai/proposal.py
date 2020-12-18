@@ -20,7 +20,8 @@ from .utils import (
     get_uniform_distribution,
     get_multivariate_normal,
     detect_edge,
-    save_live_points
+    save_live_points,
+    InterpolatedDistribution
     )
 
 logger = logging.getLogger(__name__)
@@ -883,7 +884,7 @@ class FlowProposal(RejectionProposal):
             plot_live_points(x_prime, c='logL',
                              filename=block_output + 'x_prime_samples.png')
 
-        self.train_on_data(x_prime, block_output)
+        self.train_on_data(self.training_data_prime, block_output)
 
         if self._plot_training and plot:
             z_training_data, _ = self.forward_pass(self.training_data,
@@ -1412,15 +1413,23 @@ class FlowProposal(RejectionProposal):
         self.__dict__ = state
 
 
-class UniformFlowProposal(FlowProposal):
+class ConditionalFlowProposal(FlowProposal):
 
-    def __init__(self, model, uniform_parameters=False, **kwargs):
-        super(UniformFlowProposal, self).__init__(model, **kwargs)
+    def __init__(self, model, uniform_parameters=False,
+                 conditional_likelihood=False, **kwargs):
+        super(ConditionalFlowProposal, self).__init__(model, **kwargs)
+
+        self.conditional_parameters = []
 
         if not uniform_parameters or uniform_parameters is None:
             self.uniform_parameters = []
         else:
             self.uniform_parameters = uniform_parameters
+
+        self.conditional_likelihood = conditional_likelihood
+
+        self.conditional = any([self.uniform_parameters,
+                                self.conditional_likelihood])
 
     @property
     def uniform_dims(self):
@@ -1436,6 +1445,10 @@ class UniformFlowProposal(FlowProposal):
     def flow_names(self):
         return list(set(self.rescaled_names) - set(self.uniform_parameters))
 
+    @property
+    def conditional_dims(self):
+        return len(self.conditional_parameters)
+
     def set_rescaling(self):
         """
         Set function and parameter names for rescaling
@@ -1444,6 +1457,7 @@ class UniformFlowProposal(FlowProposal):
         self.rescaled_names = self.names.copy()
 
         self.set_uniform_parameters()
+        self.set_likelihood_parameter()
 
         self.set_boundary_inversion()
 
@@ -1479,11 +1493,20 @@ class UniformFlowProposal(FlowProposal):
         logger.info(f'parameters to rescale {self.rescale_parameters}')
         logger.info(f'x prime space parameters: {self.rescaled_names}')
 
+    def set_likelihood_parameter(self):
+        if self.conditional_likelihood:
+            self.likelihood_index = len(self.conditional_parameters)
+            self.conditional_parameters += ['logL']
+            self.likelihood_distribution = InterpolatedDistribution('logL')
+
     def set_uniform_parameters(self):
         """
         Set the uniform parameters
         """
         if self.uniform_parameters:
+            self.uniform_indices = np.arange(len(self.uniform_parametrs)) \
+                                   + len(self.conditional_parameters)
+            self.conditional_parameters += self.uniform_parameters
             self.uniform_min = \
                 [self.model.bounds[n][0] for n in self.uniform_parameters]
             self.uniform_max = \
@@ -1514,9 +1537,9 @@ class UniformFlowProposal(FlowProposal):
                 (1 + self.expansion_fraction) ** (1 / self.flow_dims)
             logger.info(f'New fuzz factor: {self.fuzz}')
         self.flow_config['model_config']['n_inputs'] = self.flow_dims
-        if self.uniform_dims:
+        if self.conditional:
             self.flow_config['model_config']['kwargs']['context_features'] = \
-                self.uniform_dims
+                    self.conditional_dims
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
         self.populated = False
@@ -1529,8 +1552,30 @@ class UniformFlowProposal(FlowProposal):
         """
         x_prime_array = live_points_to_array(x_prime, self.flow_names)
         context = self.get_context(x_prime)
+        self.train_context(context)
         self.flow.train(x_prime_array, context=context, output=output,
                         plot=self._plot_training)
+
+    def train_context(self, context):
+        if self.conditional_likelihood:
+            self.likelihood_distribution.update_samples(
+                    context[:, self.likelihood_index], reset=True)
+
+    def sample_context_parameters(self, n):
+        """
+        Draw n samples from the context distributions
+        """
+        context = np.empty([n, self.conditional_dims])
+        log_prob = np.zeros(n,)
+        if self.uniform_parameters:
+            u, log_prob_u = self.samples_uniform_parameters
+            context[:, self.uniform_indices] = u
+            log_prob += log_prob_u
+        if self.conditional_likelihood:
+            context[:, self.likelihood_index] = \
+                self.likelihood_distribution.sample(n)
+
+        return context, log_prob
 
     def sample_uniform_parameters(self, n):
         """
@@ -1548,10 +1593,15 @@ class UniformFlowProposal(FlowProposal):
         """
         Get the context parameters if empty return None
         """
+        context = np.empty([x.size, self.conditional_dims])
         if self.uniform_parameters:
-            return live_points_to_array(x, self.uniform_parameters)
-        else:
-            return None
+            context[:, self.uniform_indices] = \
+                live_points_to_array(x, self.uniform_parameters)
+        if self.conditional_likelihood:
+            context[:, self.likelihood_index] = x['logL'].flatten()
+
+        if context.size:
+            return context
 
     def forward_pass(self, x, rescale=True, compute_radius=True):
         """
@@ -1610,9 +1660,9 @@ class UniformFlowProposal(FlowProposal):
             Log probabilties corresponding to each sample (including the
             Jacobian)
         """
-        if context is None and self.uniform_parameters:
+        if context is None and self.conditional:
             context, log_prob_context = \
-                self.sample_uniform_parameters(z.shape[0])
+                self.sample_context_parameters(z.shape[0])
             log_prob += log_prob_context
 
         try:
@@ -1622,8 +1672,8 @@ class UniformFlowProposal(FlowProposal):
             return np.array([]), np.array([])
 
         log_prob += log_prob_flow
-        if context is not None:
-            x = np.concatenate([x_flow, context], axis=1)
+        if context is not None and self.uniform_parameters:
+            x = np.concatenate([x_flow, context[:-1]], axis=1)
         else:
             x = x_flow
 
