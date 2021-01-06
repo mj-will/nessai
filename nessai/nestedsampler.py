@@ -341,9 +341,7 @@ class NestedSampler:
     @property
     def proposal_population_time(self):
         t = self._uninformed_proposal.population_time
-        print(t)
         t += self._flow_proposal.population_time
-        print(t)
         return t
 
     @property
@@ -557,7 +555,6 @@ class NestedSampler:
 
                 if newparam['logP'] != -np.inf:
                     if not newparam['logL']:
-                        print('Here?')
                         newparam['logL'] = \
                             self.model.evaluate_log_likelihood(newparam)
                     if newparam['logL'] > self.logLmin:
