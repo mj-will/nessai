@@ -792,7 +792,7 @@ class NestedSampler:
             self.proposal.reset_model_weights(weights=True)
 
         if (self.reset_permutations and
-                not (self.proposal.training_count % self.reset_weights)):
+                not (self.proposal.training_count % self.reset_permutations)):
             self.proposal.reset_model_weights(weights=False, permutations=True)
 
     def train_proposal(self, force=False):
