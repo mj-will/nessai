@@ -61,6 +61,7 @@ class Proposal:
         self.r = None
         self.n_pool = n_pool
         self.samples = []
+        self.indices = []
         self.pool = None
 
     def initialise(self):
@@ -158,11 +159,16 @@ class AnalyticProposal(Proposal):
     This assumes the `new_point` method of the model draws points
     from the prior
     """
+    def __init__(self, *args, **kwargs):
+        super(AnalyticProposal, self).__init__(*args, **kwargs)
+        self.populated = False
+
     def populate(self):
         """
         Populate the pool by drawing from the priors
         """
         self.samples = self.model.new_point(N=1000)
+        self.indices = np.random.permutation(self.samples.shape[0]).tolist()
         if self.pool is not None:
             self.evaluate_likelihoods()
         self.populated = True
@@ -181,8 +187,9 @@ class AnalyticProposal(Proposal):
             st = datetime.datetime.now()
             self.populate()
             self.population_time += (datetime.datetime.now() - st)
-        new_sample = self.samples.pop()
-        if not self.samples:
+        index = self.indices.pop()
+        new_sample = self.samples[index]
+        if not self.indices:
             self.populated = False
         return new_sample
 
