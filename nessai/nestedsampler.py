@@ -196,6 +196,7 @@ class NestedSampler:
                  stopping=0.1,
                  max_iteration=None,
                  checkpointing=True,
+                 checkpoint_on_training=False,
                  resume_file=None,
                  seed=None,
                  plot=True,
@@ -234,6 +235,7 @@ class NestedSampler:
         self.rejected = 1
 
         self.checkpointing = checkpointing
+        self.checkpoint_on_training = checkpoint_on_training
         self.iteration = 0
         self.acceptance_history = deque(maxlen=(nlive // 10))
         self.mean_acceptance_history = []
@@ -551,7 +553,9 @@ class NestedSampler:
             while True:
                 counter += 1
                 newparam = self.proposal.draw(oldparam.copy())
-                newparam['logP'] = self.model.log_prior(newparam)
+
+                if not newparam['logP']:
+                    newparam['logP'] = self.model.log_prior(newparam)
 
                 if newparam['logP'] != -np.inf:
                     if not newparam['logL']:
@@ -561,9 +565,9 @@ class NestedSampler:
                         self.logLmax = max(self.logLmax, newparam['logL'])
                         oldparam = newparam.copy()
                         break
-                if (1 / counter) < self.acceptance_threshold:
-                    self.max_count += 1
-                    break
+                # if (1 / counter) < self.acceptance_threshold:
+                #     self.max_count += 1
+                #     break
                 # Only here if proposed and then empty
                 # This returns the old point and allows for a training check
                 if not self.proposal.populated:
@@ -824,7 +828,7 @@ class NestedSampler:
             self.block_iteration = 0
             self.block_acceptance = 0.
             self.completed_training = True
-            if self.checkpointing:
+            if self.checkpoint_on_training:
                 self.checkpoint(periodic=True)
 
     def check_state(self, force=False):
@@ -973,6 +977,7 @@ class NestedSampler:
                 f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
                 f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
                 f"logLmax: {self.logLmax:.2f}")
+            self.checkpoint(periodic=True)
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
@@ -1088,8 +1093,7 @@ class NestedSampler:
         self.check_insertion_indices(rolling=False)
 
         # This includes updating the total sampling time
-        if self.checkpointing:
-            self.checkpoint(periodic=True)
+        self.checkpoint(periodic=True)
 
         logger.info(f'Total sampling time: {self.sampling_time}')
         logger.info(f'Total training time: {self.training_time}')

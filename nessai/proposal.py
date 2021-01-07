@@ -168,6 +168,7 @@ class AnalyticProposal(Proposal):
         Populate the pool by drawing from the priors
         """
         self.samples = self.model.new_point(N=1000)
+        self.samples['logP'] = self.model.log_prior(self.samples)
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
         if self.pool is not None:
             self.evaluate_likelihoods()
@@ -1242,6 +1243,7 @@ class FlowProposal(RejectionProposal):
                               + f'{self.populated_count}.png'))
 
             x, _ = self.inverse_rescale(x)
+            x['logP'] = self.model.log_prior(x)
         return x[self.model.names + ['logP', 'logL']]
 
     def populate(self, worst_point, N=10000, plot=True):
