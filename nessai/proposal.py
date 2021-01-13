@@ -53,7 +53,7 @@ class Proposal:
     def __init__(self, model, n_pool=None):
         self.model = model
         self.populated = True
-        self.initialised = False
+        self._initialised = False
         self.training_count = 0
         self.population_acceptance = None
         self.population_time = datetime.timedelta()
@@ -63,6 +63,23 @@ class Proposal:
         self.samples = []
         self.indices = []
         self.pool = None
+
+    @property
+    def initialised(self):
+        """Boolean that indicates if the proposal is initialised or not."""
+        return self._initialised
+
+    @initialised.setter
+    def initialised(self, boolean):
+        """Setter for initialised
+
+        If value is set to true, the proposal method is tested with `test_draw`
+        """
+        if boolean:
+            self._initialised = boolean
+            self.test_draw()
+        else:
+            self._initialised = boolean
 
     def initialise(self):
         """
@@ -75,6 +92,8 @@ class Proposal:
         Configure the multiprocessing pool
         """
         if self.pool is None and self.n_pool is not None:
+            if hasattr(self, 'check_acceptance') and not self.check_acceptance:
+                self.check_acceptance = True
             logger.info(
                 f'Starting multiprocessing pool with {self.n_pool} processes')
             import multiprocessing
@@ -126,6 +145,21 @@ class Proposal:
         """
         raise NotImplementedError
 
+    def test_draw(self):
+        """
+        Test the draw method to ensure it returns a sample in the correct
+        format and the the log prior is computed.
+        """
+        logger.debug(f'Testing {self.__class__.__name__} draw method')
+
+        test_point = self.model.new_point()
+        new_point = self.draw(test_point)
+
+        if new_point['logP'] != self.model.log_prior(new_point):
+            raise RuntimeError('Log prior of new point is incorrect!')
+
+        logger.debug(f'{self.__class__.__name__} passed draw test')
+
     def train(self, x, **kwargs):
         """
         Train the proposal method
@@ -163,11 +197,11 @@ class AnalyticProposal(Proposal):
         super(AnalyticProposal, self).__init__(*args, **kwargs)
         self.populated = False
 
-    def populate(self):
+    def populate(self, N=1000):
         """
         Populate the pool by drawing from the priors
         """
-        self.samples = self.model.new_point(N=1000)
+        self.samples = self.model.new_point(N=N)
         self.samples['logP'] = self.model.log_prior(self.samples)
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
         if self.pool is not None:
@@ -272,14 +306,16 @@ class RejectionProposal(Proposal):
         self._population_acceptance = acceptance
         self._acceptance_checked = False
 
-    def populate(self):
+    def populate(self, N=None):
         """
         Populate the pool by drawing from the proposal distribution and
         using rejection sampling.
         """
+        if N is None:
+            N = self.poolsize
         x = self.draw_proposal()
         log_w = self.compute_weights(x)
-        log_u = np.log(np.random.rand(self.poolsize))
+        log_u = np.log(np.random.rand(N))
         indices = np.where((log_w - log_u) >= 0)[0]
         self.samples = x[indices]
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
@@ -378,7 +414,7 @@ class FlowProposal(RejectionProposal):
                  flow_config=None,
                  output='./',
                  poolsize=None,
-                 rescale_parameters=False,
+                 rescale_parameters=True,
                  latent_prior='truncated_gaussian',
                  fuzz=1.0,
                  keep_samples=False,
@@ -389,7 +425,7 @@ class FlowProposal(RejectionProposal):
                  truncate=False,
                  zero_reset=None,
                  rescale_bounds=[-1, 1],
-                 expansion_fraction=0.0,
+                 expansion_fraction=1.0,
                  boundary_inversion=False,
                  inversion_type='split',
                  update_bounds=True,
@@ -397,7 +433,6 @@ class FlowProposal(RejectionProposal):
                  max_radius=False,
                  pool=None,
                  n_pool=None,
-                 multiprocessing=False,
                  max_poolsize_scale=10,
                  update_poolsize=True,
                  save_training_data=False,
@@ -412,7 +447,6 @@ class FlowProposal(RejectionProposal):
 
         self.flow = None
         self._flow_config = None
-        self.initialised = False
         self.populated = False
         self.populating = False    # Flag used for resuming during population
         self.indices = []
@@ -456,10 +490,6 @@ class FlowProposal(RejectionProposal):
 
         self.pool = pool
         self.n_pool = n_pool
-        if multiprocessing:
-            logger.info('Using multiprocessing')
-            if not self.check_acceptance:
-                self.check_acceptance = True
 
         self.configure_plotting(plot)
 
@@ -1285,6 +1315,7 @@ class FlowProposal(RejectionProposal):
 
         if not self.keep_samples or not self.indices:
             self.x = np.empty(N,  dtype=self.population_dtype)
+            self.x['logP'] = np.nan * np.ones(N)
             self.indices = []
             z_samples = np.empty([N, self.dims])
 
@@ -1476,6 +1507,31 @@ class FlowProposal(RejectionProposal):
             elif self.training_data is None and self.training_count:
                 raise RuntimeError(
                     'Could not resume! Missing training data!')
+
+    def test_draw(self):
+        """
+        Test the draw method to ensure it returns a sample in the correct
+        format and the the log prior is computed.
+        """
+        logger.debug(f'Testing {self.__class__.__name__} draw method')
+
+        test_point = self.model.new_point()
+        self.populate(test_point, N=1, plot=False)
+        new_point = self.draw(test_point)
+
+        if new_point['logP'] != self.model.log_prior(new_point):
+            raise RuntimeError('Log prior of new point is incorrect!')
+
+        self.reset()
+
+        logger.debug(f'{self.__class__.__name__} passed draw test')
+
+    def reset(self):
+        """Reset the proposal"""
+        self.samples = None
+        self.x = None
+        self.populated = False
+        self.populated_count = 0
 
     def __getstate__(self):
         state = self.__dict__.copy()
