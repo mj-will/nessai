@@ -199,6 +199,7 @@ class NestedSampler:
                  checkpoint_on_training=False,
                  resume_file=None,
                  seed=None,
+                 n_pool=None,
                  plot=True,
                  proposal_plots=True,
                  prior_sampling=False,
@@ -228,6 +229,7 @@ class NestedSampler:
 
         self.model = model
         self.nlive = nlive
+        self.n_pool = n_pool
         self.live_points = None
         self.prior_sampling = prior_sampling
         self.setup_random_seed(seed)
@@ -419,7 +421,8 @@ class NestedSampler:
 
         logger.debug(f'Using uninformed proposal: {uninformed_proposal}')
         logger.debug(f'Parsing kwargs to uninformed proposal: {kwargs}')
-        self._uninformed_proposal = uninformed_proposal(self.model, **kwargs)
+        self._uninformed_proposal = uninformed_proposal(
+            self.model, n_pool=self.n_pool, **kwargs)
 
     def configure_flow_proposal(self, flow_class, flow_config, proposal_plots,
                                 **kwargs):
@@ -463,7 +466,7 @@ class NestedSampler:
         logger.info(f'Parsing kwargs to FlowProposal: {kwargs}')
         self._flow_proposal = flow_class(
             self.model, flow_config=flow_config, output=proposal_output,
-            plot=proposal_plots, **kwargs)
+            plot=proposal_plots, n_pool=self.n_pool, **kwargs)
 
     def setup_output(self, output, resume_file=None):
         """
@@ -554,9 +557,7 @@ class NestedSampler:
                 counter += 1
                 newparam = self.proposal.draw(oldparam.copy())
 
-                if not newparam['logP']:
-                    newparam['logP'] = self.model.log_prior(newparam)
-
+                # Prior is computed in the proposal
                 if newparam['logP'] != -np.inf:
                     if not newparam['logL']:
                         newparam['logL'] = \
@@ -565,9 +566,6 @@ class NestedSampler:
                         self.logLmax = max(self.logLmax, newparam['logL'])
                         oldparam = newparam.copy()
                         break
-                # if (1 / counter) < self.acceptance_threshold:
-                #     self.max_count += 1
-                #     break
                 # Only here if proposed and then empty
                 # This returns the old point and allows for a training check
                 if not self.proposal.populated:
@@ -948,6 +946,8 @@ class NestedSampler:
         if self.nested_samples:
             plot_trace(self.state.log_vols[1:], self.nested_samples,
                        filename=f'{self.output}/trace.png')
+        else:
+            logger.warning('Could not produce trace plot. No nested samples!')
 
     def update_state(self, force=False):
         """
@@ -1022,7 +1022,7 @@ class NestedSampler:
         was resumed.
         """
         if self.resumed:
-            # If pool is populated make reset the flag since it is set to
+            # If pool is populated reset the flag since it is set to
             # false during initialisation
             if hasattr(self._flow_proposal, 'resume_populated'):
                 if (self._flow_proposal.resume_populated and
@@ -1058,7 +1058,7 @@ class NestedSampler:
         if self.prior_sampling:
             for i in range(self.nlive):
                 self.nested_samples = self.params.copy()
-            return 0
+            return
 
         self.check_resume()
 
