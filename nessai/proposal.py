@@ -15,6 +15,10 @@ from .livepoint import (
         get_dtype,
         DEFAULT_FLOAT_DTYPE
         )
+from .reparameterisations import (
+    CombinedReparameterisation,
+    get_reparameterisation
+    )
 from .plot import plot_live_points, plot_acceptance, plot_1d_comparison
 from .utils import (
     get_uniform_distribution,
@@ -318,6 +322,7 @@ class FlowProposal(RejectionProposal):
                  draw_latent_kwargs={},
                  detect_edges=False,
                  detect_edges_kwargs={},
+                 reparameterisations=None,
                  **kwargs):
 
         super(FlowProposal, self).__init__(model)
@@ -342,8 +347,11 @@ class FlowProposal(RejectionProposal):
         self.acceptance = []
         self.approx_acceptance = []
         self._edges = {}
+        self._reparameterisation = None
         self._inversion_test_type = None
         self.use_x_prime_prior = False
+
+        self.reparameterisations = reparameterisations
 
         self.output = output
 
@@ -669,7 +677,22 @@ class FlowProposal(RejectionProposal):
 
         self.set_boundary_inversion()
 
-        if self.rescale_parameters:
+        if self.reparameterisations:
+            self._reparameterisation = CombinedReparameterisation()
+            for reparam, config in self.reparameterisations.items():
+                rc = get_reparameterisation(reparam)
+                prior_bounds = \
+                    {p: self.model.bounds[p] for p in config['parameters']}
+                r = (rc(prior_bounds=prior_bounds, **config))
+                self._reparameterisation.add_reparameterisations(r)
+
+            self.rescale = self._rescale_w_reparameterisation
+            self.inverse_rescale = \
+                self._inverse_rescale_w_reparameterisation
+
+            self.rescaled_names = self._reparameterisation.prime_parameters
+
+        elif self.rescale_parameters:
             # if rescale is a list, there are the parameters to rescale
             # else all parameters are rescale
             if not isinstance(self.rescale_parameters, list):
@@ -736,6 +759,21 @@ class FlowProposal(RejectionProposal):
 
         self._inversion_test_type = None
         logger.info('Rescaling functions are invertible')
+
+    def _rescale_w_reparameterisation(self, x, compute_radius=False):
+        x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
+        log_J = np.zeros(x_prime.size)
+        x, x_prime, log_J = self._reparameterisation.reparameterise(
+            x, x_prime, log_J)
+        return x_prime, log_J
+
+    def _inverse_rescale_w_reparameterisation(self, x_prime):
+        x = np.zeros([x_prime.size], dtype=self.x_dtype)
+        log_J = np.zeros(x.size)
+        x, x_prime, log_J = self._reparameterisation.inverse_reparameterise(
+            x, x_prime, log_J)
+
+        return x, log_J
 
     def _rescale_to_bounds(self, x, compute_radius=False):
         """
@@ -877,8 +915,12 @@ class FlowProposal(RejectionProposal):
             Array of training live points which can be used to set parameters
         """
         if self.update_bounds:
-            self._min = {n: np.min(x[n]) for n in self.names}
-            self._max = {n: np.max(x[n]) for n in self.names}
+            if self._reparameterisation is not None:
+                self._reparameterisation.update_bounds(
+                        {n: [np.min(x[n]), np.max(x[n])] for n in self.names})
+            else:
+                self._min = {n: np.min(x[n]) for n in self.names}
+                self._max = {n: np.max(x[n]) for n in self.names}
         if self.boundary_inversion:
             self._edges = {n: None for n in self.boundary_inversion}
 
