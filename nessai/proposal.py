@@ -77,7 +77,8 @@ class Proposal:
         """
         if boolean:
             self._initialised = boolean
-            self.test_draw()
+            # TODO: make this useable
+            # self.test_draw()
         else:
             self._initialised = boolean
 
@@ -1276,7 +1277,7 @@ class FlowProposal(RejectionProposal):
             x['logP'] = self.model.log_prior(x)
         return x[self.model.names + ['logP', 'logL']]
 
-    def populate(self, worst_point, N=10000, plot=True):
+    def populate(self, worst_point, N=10000, plot=True, r=None):
         """
         Populate a pool of latent points given the current worst point.
 
@@ -1293,8 +1294,12 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a fwe MB in size so
             proceed with caution!
         """
-        if self.fixed_radius:
+        if r is not None:
+            logger.info(f'Using user inputs for radius {r}')
+            worst_q = None
+        elif self.fixed_radius:
             r = self.fixed_radius
+            worst_q = None
         else:
             logger.debug(f'Populating with worst point: {worst_point}')
             if self.compute_radius_with_all:
@@ -1308,7 +1313,8 @@ class FlowProposal(RejectionProposal):
                 r = self.max_radius
             if self.min_radius and r < self.min_radius:
                 r = self.min_radius
-            logger.info(f'Populating proposal with lantent radius: {r:.5}')
+
+        logger.info(f'Populating proposal with lantent radius: {r:.5}')
         self.r = r
 
         self.alt_dist = self.get_alt_distribution()
@@ -1516,7 +1522,7 @@ class FlowProposal(RejectionProposal):
         logger.debug(f'Testing {self.__class__.__name__} draw method')
 
         test_point = self.model.new_point()
-        self.populate(test_point, N=1, plot=False)
+        self.populate(test_point, N=1, plot=False, r=1.0)
         new_point = self.draw(test_point)
 
         if new_point['logP'] != self.model.log_prior(new_point):
