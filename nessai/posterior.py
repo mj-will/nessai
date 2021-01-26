@@ -14,7 +14,7 @@ def logsubexp(x, y):
     Return
         z: :float: x + np.log1p(-np.exp(y-x))
     """
-    if np.all(x < y):
+    if np.any(x < y):
         raise RuntimeError('cannot take log of negative number '
                            f'{str(x)!s} - {str(y)!s}')
 
