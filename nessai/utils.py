@@ -438,6 +438,33 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
             return bounds[np.argmax(bounds_fraction)]
 
 
+def configure_edge_detection(d, detect_edges):
+    """
+    Configure parameters for edge detection
+
+    Parameters
+    ----------
+    d : dict
+        Dictionary of kwargs parsed to detect_edge
+    detect_edges : bool
+        If true allows for no inversion to be applied
+
+    Returns
+    -------
+    dict
+        Updated kwargs
+    """
+    default = dict(cutoff=0.5)
+    if detect_edges:
+        d['allow_none'] = True
+    else:
+        d['allow_none'] = False
+        d['cutoff'] = 0.0
+    default.update(d)
+    logger.debug(f'detect edges kwargs: {default}')
+    return default
+
+
 def compute_minimum_distances(samples, metric='euclidean'):
     """
     Compute the distance to the nearest neighbour of each sample
