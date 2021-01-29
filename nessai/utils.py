@@ -398,11 +398,17 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
         Allow function to return both instead of force either upper or lower
     allow_none: bool
         Allow for neither lower or upper bound to be returned
-    test : None or str
+    test : str or None
         If not None this skips the process and just returns the value of test.
         This is used to verify the inversion in all possible scenarios.
+
+    Returns
+    -------
+    str or False, {'lower', 'upper', 'both', False}
+        Returns the boundary to apply the inversion or False is no inversion
+        is to be applied
     """
-    if test is not None:
+    if test and test is not None:
         return test
     bounds = ['lower', 'upper']
     if not all(b in bounds for b in allowed_bounds):
