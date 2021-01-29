@@ -1,12 +1,12 @@
 # Nessai: Nested Sampling with Artificial Intelligence
 
-Please note that this package is still in early development and is not publicly available.
+Please note that this package is still in development and is not publicly available. The code will be made public once the accompanying paper is available on arXiv.
 
 ## Installation
 
 NOTE: this packages requieres python >= 3.8
 
-Nessai current is not available to install from `PyPI`, so for now installation requires installing from source.
+Nessai currently is not available to install from `PyPI`, so for now installation requires installing from source.
 
 First clone the repo:
 
@@ -33,9 +33,14 @@ This package requieres a fork of Bilby that includes the sampler, it can be inst
 pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sampler#egg=bilby
 ```
 
+## Documentation
+
+Temporary documentation is avaiable [here](https://ligo.gravity.cf.ac.uk/~michael.williams/glasgow/projects/nessai-documentation/html/index.html) (requires LVK authentication). This will moved to readthedocs once the package is made public.
+
+
 ## Contributing
 
-Please see the guidelines [here](https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md).
+Please see the guidelines guidelines [here](https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md).
 
 
 ## Acknowledgements
@@ -45,11 +50,3 @@ The core nested sampling code, model design and code for computing the posterior
 The normalising flows implemented in Nessai are all either directly imported from [`nflows`](https://github.com/bayesiains/nflows/tree/master/nflows) or heavily based on it.
 
 Other code snippets that draw on existing code reference the source in their corresponding doc-strings.
-
-## Citing Nessai
-
-Please cite the accompanying paper:
-
-```bibtex
-
-```

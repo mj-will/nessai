@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_indices, plot_trace
-from .posterior import logsubexp, log_integrate_log_trap
+from .posterior import log_integrate_log_trap
 from .proposal import FlowProposal
 from .utils import (
     safe_file_dump,
@@ -25,7 +25,7 @@ sns.set_style('ticks')
 logger = logging.getLogger(__name__)
 
 
-class _NSintegralState(object):
+class _NSintegralState:
     """
     Stores the state of the nested sampling integrator
     """
@@ -37,7 +37,6 @@ class _NSintegralState(object):
         """
         Reset the sampler to its initial state at logZ = -infinity
         """
-        self.iteration = 0
         self.logZ = -np.inf
         self.oldZ = -np.inf
         self.logw = 0
@@ -59,7 +58,7 @@ class _NSintegralState(object):
             nlive = self.nlive
         oldZ = self.logZ
         logt = - 1.0 / nlive
-        Wt = self.logw + logL + logsubexp(0, logt)
+        Wt = self.logw + logL + np.log1p(-np.exp(logt))
         self.logZ = np.logaddexp(self.logZ, Wt)
         # Update information estimate
         if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
@@ -73,7 +72,6 @@ class _NSintegralState(object):
 
         # Update history
         self.logw += logt
-        self.iteration += 1
         self.logLs.append(logL)
         self.log_vols.append(self.logw)
         self.gradients.append((self.logLs[-1] - self.logLs[-2])
@@ -95,8 +93,8 @@ class _NSintegralState(object):
         """
         fig = plt.figure()
         plt.plot(self.log_vols, self.logLs)
-        plt.title((f'{self.iteration} iterations. logZ={self.logZ:.2f}'
-                   f'H={self.info[-1] * np.log2(np.e):.2f} bits'))
+        plt.title(f'logZ={self.logZ:.2f}'
+                  f'H={self.info[-1] * np.log2(np.e):.2f} bits')
         plt.grid(which='both')
         plt.xlabel('log prior_volume')
         plt.ylabel('log likelihood')
@@ -198,8 +196,10 @@ class NestedSampler:
                  stopping=0.1,
                  max_iteration=None,
                  checkpointing=True,
+                 checkpoint_on_training=False,
                  resume_file=None,
                  seed=None,
+                 n_pool=None,
                  plot=True,
                  proposal_plots=True,
                  prior_sampling=False,
@@ -223,10 +223,13 @@ class NestedSampler:
 
         logger.info('Initialising nested sampler')
 
+        self.info_enabled = logger.isEnabledFor(logging.INFO)
+
         model.verify_model()
 
         self.model = model
         self.nlive = nlive
+        self.n_pool = n_pool
         self.live_points = None
         self.prior_sampling = prior_sampling
         self.setup_random_seed(seed)
@@ -234,6 +237,7 @@ class NestedSampler:
         self.rejected = 1
 
         self.checkpointing = checkpointing
+        self.checkpoint_on_training = checkpoint_on_training
         self.iteration = 0
         self.acceptance_history = deque(maxlen=(nlive // 10))
         self.mean_acceptance_history = []
@@ -333,6 +337,22 @@ class NestedSampler:
         return self.model.likelihood_evaluations
 
     @property
+    def likelihood_evaluation_time(self):
+        t = self._uninformed_proposal.logl_eval_time
+        t += self._flow_proposal.logl_eval_time
+        return t
+
+    @property
+    def proposal_population_time(self):
+        t = self._uninformed_proposal.population_time
+        t += self._flow_proposal.population_time
+        return t
+
+    @property
+    def acceptance(self):
+        return self.iteration / self.likelihood_calls
+
+    @property
     def current_sampling_time(self):
         return self.sampling_time \
                 + (datetime.datetime.now() - self.sampling_start_time)
@@ -400,8 +420,9 @@ class NestedSampler:
                 kwargs['poolsize'] = self.nlive
 
         logger.debug(f'Using uninformed proposal: {uninformed_proposal}')
-        logger.debug(f'Parsing kwargs to uniformed proposal: {kwargs}')
-        self._uninformed_proposal = uninformed_proposal(self.model, **kwargs)
+        logger.debug(f'Parsing kwargs to uninformed proposal: {kwargs}')
+        self._uninformed_proposal = uninformed_proposal(
+            self.model, n_pool=self.n_pool, **kwargs)
 
     def configure_flow_proposal(self, flow_class, flow_config, proposal_plots,
                                 **kwargs):
@@ -445,7 +466,7 @@ class NestedSampler:
         logger.info(f'Parsing kwargs to FlowProposal: {kwargs}')
         self._flow_proposal = flow_class(
             self.model, flow_config=flow_config, output=proposal_output,
-            plot=proposal_plots, **kwargs)
+            plot=proposal_plots, n_pool=self.n_pool, **kwargs)
 
     def setup_output(self, output, resume_file=None):
         """
@@ -535,19 +556,16 @@ class NestedSampler:
             while True:
                 counter += 1
                 newparam = self.proposal.draw(oldparam.copy())
-                newparam['logP'] = self.model.log_prior(newparam)
 
+                # Prior is computed in the proposal
                 if newparam['logP'] != -np.inf:
                     if not newparam['logL']:
                         newparam['logL'] = \
-                                self.model.evaluate_log_likelihood(newparam)
+                            self.model.evaluate_log_likelihood(newparam)
                     if newparam['logL'] > self.logLmin:
                         self.logLmax = max(self.logLmax, newparam['logL'])
                         oldparam = newparam.copy()
                         break
-                if (1 / counter) < self.acceptance_threshold:
-                    self.max_count += 1
-                    break
                 # Only here if proposed and then empty
                 # This returns the old point and allows for a training check
                 if not self.proposal.populated:
@@ -608,20 +626,18 @@ class NestedSampler:
                 if not self.block_iteration:
                     self.block_iteration += 1
 
-        self.acceptance = self.accepted / (self.accepted + self.rejected)
         self.mean_block_acceptance = self.block_acceptance \
             / self.block_iteration
-        logger.info(f"{self.iteration:5d}: n: {count:3d} "
-                    f"NS_acc: {self.acceptance:.3f} "
-                    f"m_acc: {self.mean_acceptance:.3f} "
-                    f"b_acc: {self.mean_block_acceptance:.3f} "
-                    f"sub_acc: {1 / count:.3f} "
-                    f"H: {self.state.info[-1]:.2f} "
-                    f"logL: {self.logLmin:.5f} --> {proposed['logL']:.5f} "
-                    f"dZ: {self.condition:.3f} "
-                    f"logZ: {self.state.logZ:.3f} "
-                    f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
-                    f"logLmax: {self.logLmax:.2f}")
+
+        if self.info_enabled:
+            logger.info(f"{self.iteration:5d}: n: {count:3d} "
+                        f"b_acc: {self.mean_block_acceptance:.3f} "
+                        f"H: {self.state.info[-1]:.2f} "
+                        f"logL: {self.logLmin:.5f} --> {proposed['logL']:.5f} "
+                        f"dZ: {self.condition:.3f} "
+                        f"logZ: {self.state.logZ:.3f} "
+                        f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
+                        f"logLmax: {self.logLmax:.2f}")
 
     def populate_live_points(self):
         """
@@ -680,6 +696,8 @@ class NestedSampler:
         else:
             self.proposal = self._flow_proposal
 
+        self.proposal.configure_pool()
+
         if live_points and self.live_points is None:
             self.populate_live_points()
             flags[2] = True
@@ -714,6 +732,8 @@ class NestedSampler:
             if self.proposal.pool is not None:
                 self.proposal.close_pool()
             self.proposal = self._flow_proposal
+            if self.proposal.n_pool is not None:
+                self.proposal.configure_pool()
             self.proposal.ns_acceptance = self.mean_block_acceptance
             self.uninformed_sampling = False
             return True
@@ -774,7 +794,7 @@ class NestedSampler:
             self.proposal.reset_model_weights(weights=True)
 
         if (self.reset_permutations and
-                not (self.proposal.training_count % self.reset_weights)):
+                not (self.proposal.training_count % self.reset_permutations)):
             self.proposal.reset_model_weights(weights=False, permutations=True)
 
     def train_proposal(self, force=False):
@@ -806,7 +826,7 @@ class NestedSampler:
             self.block_iteration = 0
             self.block_acceptance = 0.
             self.completed_training = True
-            if self.checkpointing:
+            if self.checkpoint_on_training:
                 self.checkpoint(periodic=True)
 
     def check_state(self, force=False):
@@ -926,6 +946,8 @@ class NestedSampler:
         if self.nested_samples:
             plot_trace(self.state.log_vols[1:], self.nested_samples,
                        filename=f'{self.output}/trace.png')
+        else:
+            logger.warning('Could not produce trace plot. No nested samples!')
 
     def update_state(self, force=False):
         """
@@ -948,6 +970,14 @@ class NestedSampler:
             self.mean_acceptance_history.append(self.mean_acceptance)
 
         if not (self.iteration % self.nlive) or force:
+            logger.warning(
+                f"it: {self.iteration:5d}: "
+                f"n eval: {self.likelihood_calls} "
+                f"H: {self.state.info[-1]:.2f} "
+                f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
+                f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
+                f"logLmax: {self.logLmax:.2f}")
+            self.checkpoint(periodic=True)
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
@@ -992,7 +1022,7 @@ class NestedSampler:
         was resumed.
         """
         if self.resumed:
-            # If pool is populated make reset the flag since it is set to
+            # If pool is populated reset the flag since it is set to
             # false during initialisation
             if hasattr(self._flow_proposal, 'resume_populated'):
                 if (self._flow_proposal.resume_populated and
@@ -1028,11 +1058,14 @@ class NestedSampler:
         if self.prior_sampling:
             for i in range(self.nlive):
                 self.nested_samples = self.params.copy()
-            return 0
+            return
 
         self.check_resume()
 
-        self.update_state()
+        if self.iteration:
+            self.update_state()
+
+        logger.critical('Starting nested sampling loop')
 
         while self.condition > self.tolerance:
 
@@ -1060,18 +1093,17 @@ class NestedSampler:
         self.check_insertion_indices(rolling=False)
 
         # This includes updating the total sampling time
-        if self.checkpointing:
-            self.checkpoint(periodic=True)
+        self.checkpoint(periodic=True)
 
         logger.info(f'Total sampling time: {self.sampling_time}')
         logger.info(f'Total training time: {self.training_time}')
-        logger.info(f'Total population time: {self.proposal.population_time}')
+        logger.info(f'Total population time: {self.proposal_population_time}')
         logger.info(
             f'Total likelihood evaluations: {self.likelihood_calls:3d}')
         if self.proposal.logl_eval_time.total_seconds():
             logger.info(
                 'Time spent evaluating likelihood: '
-                f'{self.proposal.logl_eval_time}')
+                f'{self.likelihood_evaluation_time}')
 
         return self.state.logZ, np.array(self.nested_samples)
 
