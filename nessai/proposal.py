@@ -17,6 +17,7 @@ from .livepoint import (
         )
 from .reparameterisations import (
     CombinedReparameterisation,
+    NullReparameterisation,
     get_reparameterisation
     )
 from .plot import plot_live_points, plot_acceptance, plot_1d_comparison
@@ -24,6 +25,7 @@ from .utils import (
     get_uniform_distribution,
     get_multivariate_normal,
     detect_edge,
+    configure_edge_detection,
     save_live_points
     )
 
@@ -348,7 +350,6 @@ class FlowProposal(RejectionProposal):
         self.approx_acceptance = []
         self._edges = {}
         self._reparameterisation = None
-        self._inversion_test_type = None
         self.use_x_prime_prior = False
 
         self.reparameterisations = reparameterisations
@@ -371,7 +372,8 @@ class FlowProposal(RejectionProposal):
         self.flow_config = flow_config
 
         self.detect_edges = detect_edges
-        self.configure_edge_detection(detect_edges_kwargs)
+        self.detect_edges_kwargs = \
+            configure_edge_detection(detect_edges_kwargs, detect_edges)
 
         self.compute_radius_with_all = compute_radius_with_all
         self.configure_fixed_radius(fixed_radius)
@@ -578,18 +580,6 @@ class FlowProposal(RejectionProposal):
         else:
             raise RuntimeError
 
-    def configure_edge_detection(self, d):
-        """Configure parameters for edge detection"""
-        default = dict(cutoff=0.5)
-        if self.detect_edges:
-            d['allow_none'] = True
-        else:
-            d['allow_none'] = False
-            d['cutoff'] = 0.0
-        default.update(d)
-        self.detect_edges_kwargs = default
-        logger.debug(f'detect edges kwargs: {self.detect_edges_kwargs}')
-
     def initialise(self):
         """
         Initialise the proposal class.
@@ -668,6 +658,72 @@ class FlowProposal(RejectionProposal):
         else:
             self.boundary_inversion = []
 
+    def add_default_reparameterisations(self):
+        """Add any reparmeterisations which are assumed by default"""
+        logger.debug('No default reparameterisations')
+
+    def configure_reparameterisations(self, reparameterisations):
+        logger.info('Adding reparameterisations')
+        self._reparameterisation = CombinedReparameterisation()
+
+        if not isinstance(reparameterisations, dict):
+            raise TypeError('Reparameterisations must be a dictionary, '
+                            f'receieved {type(reparameterisations).__name__}')
+
+        for k, config in reparameterisations.items():
+            if k in self.names:
+                logger.debug(f'Found parameter {k} in model, '
+                             'assuming it is a parameter')
+                if isinstance(config, str) or config is None:
+                    rc, default_config = get_reparameterisation(config)
+                    default_config['parameters'] = k
+                elif isinstance(config, dict):
+                    rc, default_config = \
+                        get_reparameterisation(config['reparameterisation'])
+                    config.pop('reparameterisation')
+                    default_config['parameters'] = k
+                    default_config.update(config)
+                else:
+                    raise RuntimeError(f'Unknown config for: {k}')
+
+                prior_bounds = {k: self.model.bounds[k]}
+            else:
+                logger.debug(f'Assuming {k} is a reparameterisation')
+                try:
+                    rc, default_config = get_reparameterisation(k)
+                    default_config.update(config)
+                except ValueError:
+                    raise RuntimeError(
+                        f'{k} is not a parameter in the model or a known '
+                        'reparameterisation')
+                prior_bounds = \
+                    {p: self.model.bounds[p] for p in config['parameters']}
+
+            if ('boundary_inversion' in default_config and
+                    default_config['boundary_inversion']):
+                self.boundary_inversion = True
+
+            logger.debug(f'Adding {rc.__name__} with config {default_config}')
+            r = (rc(prior_bounds=prior_bounds, **default_config))
+            self._reparameterisation.add_reparameterisations(r)
+
+        self.add_default_reparameterisations()
+
+        if p := (set(self.names) - set(self._reparameterisation.parameters)):
+            logger.info(f'Assuming no rescaling for {p}')
+            r = NullReparameterisation(parameters=list(p))
+            self._reparameterisation.add_reparameterisations(r)
+
+        self.rescale = self._rescale_w_reparameterisation
+        self.inverse_rescale = \
+            self._inverse_rescale_w_reparameterisation
+
+        self.names = self._reparameterisation.parameters
+        self.rescaled_names = self._reparameterisation.prime_parameters
+        self.rescale_parameters = \
+            list(set(self._reparameterisation.parameters)
+                 - set(self._reparameterisation.prime_parameters))
+
     def set_rescaling(self):
         """
         Set function and parameter names for rescaling
@@ -677,28 +733,11 @@ class FlowProposal(RejectionProposal):
 
         self.set_boundary_inversion()
 
-        if self.reparameterisations is not None:
-            logger.info('Adding reparameterisations')
-            self._reparameterisation = CombinedReparameterisation()
-            for reparam, config in self.reparameterisations.items():
-                rc = get_reparameterisation(reparam)
-                prior_bounds = \
-                    {p: self.model.bounds[p] for p in config['parameters']}
-
-                if 'boundary_inversion' in config:
-                    self.boundary_inversion = True
-
-                logger.debug(f'Adding {reparam} with config {config}')
-                r = (rc(prior_bounds=prior_bounds, **config))
-                self._reparameterisation.add_reparameterisations(r)
-
-            self.rescale = self._rescale_w_reparameterisation
-            self.inverse_rescale = \
-                self._inverse_rescale_w_reparameterisation
-
-            self.rescaled_names = self._reparameterisation.prime_parameters
-            self.rescale_parameters = self._reparameterisation.parameters
-
+        if self.model.reparameterisations is not None:
+            self.configure_reparameterisations(self.model.reparameterisations)
+            self.reparameterisations = self.model.reparameterisations
+        elif self.reparameterisations is not None:
+            self.configure_reparameterisations(self.reparameterisations)
         elif self.rescale_parameters:
             # if rescale is a list, there are the parameters to rescale
             # else all parameters are rescale
@@ -738,7 +777,6 @@ class FlowProposal(RejectionProposal):
         for inversion in ['lower', 'upper', 'both', False]:
             self.check_state(x)
             logger.debug(f'Testing: {inversion}')
-            self._inversion_test_type = inversion
             x_prime, log_J = self.rescale(x, test=inversion)
             x_out, log_J_inv = self.inverse_rescale(x_prime)
             if x.size == x_out.size:
@@ -764,14 +802,20 @@ class FlowProposal(RejectionProposal):
                 if not np.allclose(log_J, -log_J_inv):
                     raise RuntimeError('Rescaling Jacobian is not invertible')
 
-        self._inversion_test_type = None
         logger.info('Rescaling functions are invertible')
 
     def _rescale_w_reparameterisation(self, x, compute_radius=False, **kwargs):
         x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
         log_J = np.zeros(x_prime.size)
+
+        if x.size == 1:
+            x = np.array([x], dtype=x.dtype)
+
         x, x_prime, log_J = self._reparameterisation.reparameterise(
             x, x_prime, log_J, **kwargs)
+
+        x_prime['logP'] = x['logP']
+        x_prime['logL'] = x['logL']
         return x_prime, log_J
 
     def _inverse_rescale_w_reparameterisation(self, x_prime, **kwargs):
@@ -780,9 +824,11 @@ class FlowProposal(RejectionProposal):
         x, x_prime, log_J = self._reparameterisation.inverse_reparameterise(
             x, x_prime, log_J, **kwargs)
 
+        x['logP'] = x_prime['logP']
+        x['logL'] = x_prime['logL']
         return x, log_J
 
-    def _rescale_to_bounds(self, x, compute_radius=False):
+    def _rescale_to_bounds(self, x, compute_radius=False, test=False):
         """
         Rescale the inputs to specified bounds
         """
@@ -805,9 +851,10 @@ class FlowProposal(RejectionProposal):
                 if n in self.boundary_inversion:
 
                     if self._edges[n] is None:
+                        logger.debug('Determining edge')
                         self._edges[n] = detect_edge(
                             x_prime[rn],
-                            test=self._inversion_test_type,
+                            test=test,
                             **self.detect_edges_kwargs
                             )
 
@@ -924,11 +971,10 @@ class FlowProposal(RejectionProposal):
         if self.update_bounds:
             logger.debug('Updating bounds')
             if self._reparameterisation is not None:
-                self._reparameterisation.update_bounds(
-                        {n: [np.min(x[n]), np.max(x[n])] for n in self.names})
+                self._reparameterisation.update_bounds(x)
             else:
-                self._min = {n: np.min(x[n]) for n in self.names}
-                self._max = {n: np.max(x[n]) for n in self.names}
+                self._min = {n: np.min(x[n]) for n in self.model.names}
+                self._max = {n: np.max(x[n]) for n in self.model.names}
         if self.boundary_inversion:
             logger.debug('Reseting inversion')
             if self._reparameterisation is not None:
@@ -1734,4 +1780,5 @@ class AugmentedFlowProposal(FlowProposal):
         self.indices = np.random.permutation(self.samples.size).tolist()
         self.populated_count += 1
         self.populated = True
-        logger.info(f'Proposal populated with {len(self.indices)} samples')
+        self.logger.info(
+            f'Proposal populated with {len(self.indices)} samples')
