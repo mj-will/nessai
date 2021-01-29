@@ -17,7 +17,7 @@ def get_gw_reparameterisation(reparameterisation):
     Get a reparameterisation from the default list plus specific GW
     classes.
     """
-    rc, kwargs = default_gw.get(reparameterisation, None)
+    rc, kwargs = default_gw.get(reparameterisation, (None, None))
     if rc is None:
         raise ValueError(
             f'Unknown GW reparameterisation: {reparameterisation}')
@@ -82,6 +82,10 @@ default_gw = {
     'time': (RescaleToBounds, {'offset': True}),
     'sky-ra-dec': (AnglePair, {'convention': 'ra-dec'}),
     'sky-az-zen': (AnglePair, {'convention': 'az-zen'}),
+    'mass_ratio': (RescaleToBounds, {'detect_edges': True,
+                                     'boundary_inversion': True,
+                                     'inversion_type': 'duplicate'}),
+    'mass': (RescaleToBounds, {}),
 }
 
 

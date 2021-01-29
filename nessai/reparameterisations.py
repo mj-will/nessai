@@ -14,9 +14,10 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-def get_reparameterisation(reparameterisation):
+def get_reparameterisation(reparameterisation, extra={}):
     """Function to get a reparmeterisation class from a name"""
-    rc, kwargs = default_reparameterisations.get(reparameterisation, None)
+    rc, kwargs = default_reparameterisations.get(
+        reparameterisation, (None, None))
     if rc is None:
         raise ValueError(f'Unknown reparameterisation: {reparameterisation}')
     else:
@@ -317,6 +318,7 @@ class RescaleToBounds(Reparameterisation):
         if offset:
             self.offsets = {p: b[0] + np.ptp(b) / 2
                             for p, b in self.prior_bounds.items()}
+            logger.debug(f'Offsets: {self.offsets}')
         else:
             self.offsets = {p: 0. for p in self.prior_bounds.keys()}
 
@@ -745,15 +747,18 @@ class AnglePair(Reparameterisation):
 default_reparameterisations = {
     'default': (RescaleToBounds, {}),
     'rescaletobounds': (RescaleToBounds, {}),
+    'offset': (RescaleToBounds, {'offset': True}),
     'inversion': (RescaleToBounds, {'detect_edges': True,
                                     'boundary_inversion': True,
                                     'inversion_type': 'split'}),
     'inversion-duplicate': (RescaleToBounds, {'detect_edges': True,
                                               'boundary_inversion': True,
                                               'inversion_type': 'duplicate'}),
+    'angle': (Angle, {}),
     'angle-pi': (Angle, {'scale': 2.0, 'prior': 'uniform'}),
     'angle-2pi': (Angle, {'scale': 1.0, 'prior': 'uniform'}),
     'angle-sine': (Angle, {'scale': 1.0, 'prior': 'sine'}),
+    'angle-pair': (AnglePair, {}),
     'to-cartesian': (ToCartesian, {}),
     'none': (NullReparameterisation, {}),
     None: (NullReparameterisation, {}),
