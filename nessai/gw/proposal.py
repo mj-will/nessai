@@ -1394,8 +1394,8 @@ class AugmentedGWFlowProposal(GWFlowProposal):
 class GWReparam(FlowProposal):
     """Wrapper for FlowProposal that has defaults for CBC-PE"""
     aliases = {
-        'chirp_mass': ('default', []),
-        'mass_ratio': ('inversion-duplicate', []),
+        'chirp_mass': ('mass', []),
+        'mass_ratio': ('mass_ratio', []),
         'ra': ('sky-ra-dec', ['DEC', 'dec', 'Dec']),
         'dec': ('sky-ra-dec', ['RA', 'ra']),
         'azimuth': ('sky-az-zen', []),
@@ -1414,9 +1414,6 @@ class GWReparam(FlowProposal):
         'a_1': ('to-cartesian', []),
         'a_2': ('to-cartesian', []),
     }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
 
     def get_reparameterisation(self, reparameterisation):
         """Function to get reparameterisations that checks GW defaults and
