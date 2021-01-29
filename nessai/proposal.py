@@ -415,7 +415,6 @@ class FlowProposal(RejectionProposal):
         only applied to these parameters. If False (default )no inversion is
         used.
     """
-
     def __init__(self,
                  model,
                  flow_config=None,
@@ -753,6 +752,10 @@ class FlowProposal(RejectionProposal):
         """Add any reparmeterisations which are assumed by default"""
         logger.debug('No default reparameterisations')
 
+    def get_reparameterisation(self, name):
+        """Get the reparameterisation from the name"""
+        return get_reparameterisation(name)
+
     def configure_reparameterisations(self, reparameterisations):
         logger.info('Adding reparameterisations')
         self._reparameterisation = CombinedReparameterisation()
@@ -766,11 +769,11 @@ class FlowProposal(RejectionProposal):
                 logger.debug(f'Found parameter {k} in model, '
                              'assuming it is a parameter')
                 if isinstance(config, str) or config is None:
-                    rc, default_config = get_reparameterisation(config)
+                    rc, default_config = self.get_reparameterisation(config)
                     default_config['parameters'] = k
                 elif isinstance(config, dict):
-                    rc, default_config = \
-                        get_reparameterisation(config['reparameterisation'])
+                    rc, default_config = self.get_reparameterisation(
+                        config['reparameterisation'])
                     config.pop('reparameterisation')
                     default_config['parameters'] = k
                     default_config.update(config)
@@ -781,7 +784,7 @@ class FlowProposal(RejectionProposal):
             else:
                 logger.debug(f'Assuming {k} is a reparameterisation')
                 try:
-                    rc, default_config = get_reparameterisation(k)
+                    rc, default_config = self.get_reparameterisation(k)
                     default_config.update(config)
                 except ValueError:
                     raise RuntimeError(

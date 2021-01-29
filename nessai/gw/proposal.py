@@ -1415,6 +1415,15 @@ class GWReparam(FlowProposal):
         'a_2': ('to-cartesian', []),
     }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def get_reparameterisation(self, reparameterisation):
+        """Function to get reparameterisations that checks GW defaults and
+        aliases
+        """
+        return get_gw_reparameterisation(reparameterisation)
+
     def add_default_reparameterisations(self):
         """
         Add default reparameterisations for parameters that have not been
