@@ -32,6 +32,8 @@ from .priors import (
     log_spin_prior,
     log_spin_prior_uniform)
 
+from .reparameterisations import get_gw_reparameterisation
+
 logger = logging.getLogger(__name__)
 
 
@@ -1387,3 +1389,54 @@ class AugmentedGWFlowProposal(GWFlowProposal):
         logP = super().log_prior(x)
         logP += self.augmented_prior(x)
         return logP
+
+
+class GWReparam(FlowProposal):
+    """Wrapper for FlowProposal that has defaults for CBC-PE"""
+    aliases = {
+        'chirp_mass': ('default', []),
+        'mass_ratio': ('inversion-duplicate', []),
+        'ra': ('sky-ra-dec', ['DEC', 'dec', 'Dec']),
+        'dec': ('sky-ra-dec', ['RA', 'ra']),
+        'azimuth': ('sky-az-zen', []),
+        'zenith': ('sky-az-zen', []),
+        'theta_1': ('angle-sine', []),
+        'theta_2': ('angle-sine', []),
+        'tilt_1': ('angle-sine', []),
+        'tilt_2': ('angle-sine', []),
+        'theta_jn': ('angle-sine', []),
+        'iota': ('angle-sine', []),
+        'phi_jl': ('angle-2pi', []),
+        'phi_12': ('angle-2pi', []),
+        'phase': ('angle-2pi', []),
+        'psi': ('angle-pi', []),
+        'geocent_time': ('time', []),
+        'a_1': ('to-cartesian', []),
+        'a_2': ('to-cartesian', []),
+    }
+
+    def add_default_reparameterisations(self):
+        """
+        Add default reparameterisations for parameters that have not been
+        specified.
+        """
+        parameters = list(set(self.names)
+                          - set(self._reparameterisation.parameters))
+        logger.debug(f'Adding default reparameterisations for {parameters}')
+
+        for p in parameters:
+            logger.debug(f'Trying to add reparameterisation for {p}')
+            if p in self._reparameterisation.parameters:
+                logger.debug(f'Parameter {p} is already included')
+                continue
+            name, extra_params = self.aliases[p.lower()]
+            if extra_params:
+                p = [p] + [ep for ep in extra_params if ep in self.model.names]
+            else:
+                p = [p]
+
+            prior_bounds = {k: self.model.bounds[k] for k in p}
+
+            reparam, kwargs = get_gw_reparameterisation(name)
+            self._reparameterisation.add_reparameterisation(
+                reparam(parameters=p, prior_bounds=prior_bounds, **kwargs))
