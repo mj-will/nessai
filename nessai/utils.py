@@ -751,7 +751,8 @@ def auto_bins(x, max_bins=50):
     return nbins
 
 
-def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert):
+def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
+                              offset=0):
     """
     Determine the values of the prior min and max in the rescaled
     space.
@@ -769,9 +770,9 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert):
     invert : false or {'upper', 'lower', 'both'}
         Type of inversion
     """
-    lower = (prior_min - x_min) / (x_max - x_min)
-    upper = (prior_max - x_min) / (x_max - x_min)
-    if not invert:
+    lower = (prior_min - offset - x_min) / (x_max - x_min)
+    upper = (prior_max - offset - x_min) / (x_max - x_min)
+    if not invert or invert is None:
         return 2 * lower - 1, 2 * upper - 1
     elif invert == 'upper':
         return lower - 1, 1 - lower
