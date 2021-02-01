@@ -1435,7 +1435,10 @@ class GWReparam(FlowProposal):
             if p in self._reparameterisation.parameters:
                 logger.debug(f'Parameter {p} is already included')
                 continue
-            name, extra_params = self.aliases[p.lower()]
+            name, extra_params = self.aliases.get(p.lower(), (None, None))
+            if name is None:
+                logger.debug(f'{p} is not a known GW parameter')
+                continue
             if extra_params:
                 p = [p] + [ep for ep in extra_params if ep in self.model.names]
             else:
