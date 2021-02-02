@@ -443,14 +443,17 @@ class FlowProposal(RejectionProposal):
                  update_poolsize=True,
                  save_training_data=False,
                  compute_radius_with_all=False,
-                 draw_latent_kwargs={},
+                 draw_latent_kwargs=None,
                  detect_edges=False,
-                 detect_edges_kwargs={},
+                 detect_edges_kwargs=None,
                  reparameterisations=None,
                  **kwargs):
 
         super(FlowProposal, self).__init__(model)
         logger.debug('Initialising FlowProposal')
+
+        self._x_dtype = False
+        self._x_prime_dtype = False
 
         self.flow = None
         self._flow_config = None
@@ -505,7 +508,10 @@ class FlowProposal(RejectionProposal):
 
         self.clip = self.flow_config.get('clip', False)
 
-        self.draw_latent_kwargs = draw_latent_kwargs
+        if draw_latent_kwargs is None:
+            self.draw_latent_kwargs = {}
+        else:
+            self.draw_latent_kwargs = draw_latent_kwargs
         self.configure_latent_prior()
         self.alt_dist = None
 
@@ -545,12 +551,17 @@ class FlowProposal(RejectionProposal):
     @property
     def x_dtype(self):
         """Return the dtype for the x space"""
-        return get_dtype(self.names, DEFAULT_FLOAT_DTYPE)
+        if not self._x_dtype:
+            self._x_dtype = get_dtype(self.names, DEFAULT_FLOAT_DTYPE)
+        return self._x_dtype
 
     @property
     def x_prime_dtype(self):
         """Return the dtype for the x prime space"""
-        return get_dtype(self.rescaled_names, DEFAULT_FLOAT_DTYPE)
+        if not self._x_prime_dtype:
+            self._x_prime_dtype = \
+                get_dtype(self.rescaled_names, DEFAULT_FLOAT_DTYPE)
+        return self._x_prime_dtype
 
     @property
     def population_dtype(self):
@@ -682,6 +693,9 @@ class FlowProposal(RejectionProposal):
         if not os.path.exists(self.output):
             os.makedirs(self.output, exist_ok=True)
 
+        self._x_dtype = False
+        self._x_prime_dtype = False
+
         self.set_rescaling()
         self.verify_rescaling()
         if self.expansion_fraction and self.expansion_fraction is not None:
@@ -730,8 +744,13 @@ class FlowProposal(RejectionProposal):
                 raise RuntimeError(
                             'Boundaries are not in known parameters')
             elif isinstance(self.rescale_parameters, list):
-                self.boundary_inversion = self.rescale_parameters
-            else:
+                if (isinstance(self.boundary_inversion, list) and
+                        not set(self.boundary_inversion).issubset(
+                            self.rescale_parameters)):
+                    raise RuntimeError(
+                                'Boundaries are not in known parameters')
+
+            if not isinstance(self.boundary_inversion, list):
                 self.boundary_inversion = self.names.copy()
 
             logger.info('Appyling boundary inversion to: '
@@ -775,12 +794,16 @@ class FlowProposal(RejectionProposal):
                     rc, default_config = self.get_reparameterisation(
                         config['reparameterisation'])
                     config.pop('reparameterisation')
-                    default_config['parameters'] = k
+
+                    if config.get('parameters', False):
+                        config['parameters'] += [k]
+                    else:
+                        default_config['parameters'] = k
+
                     default_config.update(config)
                 else:
                     raise RuntimeError(f'Unknown config for: {k}')
 
-                prior_bounds = {k: self.model.bounds[k]}
             else:
                 logger.debug(f'Assuming {k} is a reparameterisation')
                 try:
@@ -790,15 +813,21 @@ class FlowProposal(RejectionProposal):
                     raise RuntimeError(
                         f'{k} is not a parameter in the model or a known '
                         'reparameterisation')
-                prior_bounds = \
-                    {p: self.model.bounds[p] for p in config['parameters']}
 
             if ('boundary_inversion' in default_config and
                     default_config['boundary_inversion']):
                 self.boundary_inversion = True
 
+            if isinstance(default_config['parameters'], list):
+                prior_bounds = {p: self.model.bounds[p]
+                                for p in default_config['parameters']}
+            else:
+                prior_bounds = \
+                    {default_config['parameters']:
+                     self.model.bounds[default_config['parameters']]}
+
             logger.debug(f'Adding {rc.__name__} with config {default_config}')
-            r = (rc(prior_bounds=prior_bounds, **default_config))
+            r = rc(prior_bounds=prior_bounds, **default_config)
             self._reparameterisation.add_reparameterisations(r)
 
         self.add_default_reparameterisations()
@@ -807,6 +836,18 @@ class FlowProposal(RejectionProposal):
             logger.info(f'Assuming no rescaling for {p}')
             r = NullReparameterisation(parameters=list(p))
             self._reparameterisation.add_reparameterisations(r)
+
+        if any(r._update_bounds for r in self._reparameterisation.values()):
+            self.update_bounds = True
+        else:
+            self.update_bounds = False
+
+        if self._reparameterisation.has_prime_prior:
+            self.use_x_prime_prior = True
+            self.x_prime_log_prior = self._reparameterisation.x_prime_log_prior
+            logger.info('Using x prime prior')
+        else:
+            logger.info('Prime prior is disabled')
 
         self.rescale = self._rescale_w_reparameterisation
         self.inverse_rescale = \
@@ -868,7 +909,7 @@ class FlowProposal(RejectionProposal):
         """
         logger.info('Verifying rescaling functions')
         x = self.model.new_point(N=1000)
-        for inversion in ['lower', 'upper', 'both', False]:
+        for inversion in ['lower', 'upper', 'both', False, None]:
             self.check_state(x)
             logger.debug(f'Testing: {inversion}')
             x_prime, log_J = self.rescale(x, test=inversion)
@@ -888,7 +929,7 @@ class FlowProposal(RejectionProposal):
                         raise RuntimeError(
                             'Duplicate samples must map to same input values. '
                             'Check the rescaling and inverse rescaling '
-                            'functions.')
+                            f'functions for {f}.')
                 for f in x.dtype.names:
                     if not np.allclose(x[f], x_out[f][:x.size]):
                         raise RuntimeError(
@@ -922,7 +963,7 @@ class FlowProposal(RejectionProposal):
         x['logL'] = x_prime['logL']
         return x, log_J
 
-    def _rescale_to_bounds(self, x, compute_radius=False, test=False):
+    def _rescale_to_bounds(self, x, compute_radius=False, test=None):
         """
         Rescale the inputs to specified bounds
         """
@@ -941,9 +982,7 @@ class FlowProposal(RejectionProposal):
 
                 log_J += (-np.log(self._max[n] - self._min[n])
                           + np.log(self._rescale_factor))
-
                 if n in self.boundary_inversion:
-
                     if self._edges[n] is None:
                         logger.debug('Determining edge')
                         self._edges[n] = detect_edge(
@@ -951,7 +990,6 @@ class FlowProposal(RejectionProposal):
                             test=test,
                             **self.detect_edges_kwargs
                             )
-
                     if self._edges[n]:
                         logger.debug(
                             f'Apply inversion for {n} to '
@@ -1062,6 +1100,12 @@ class FlowProposal(RejectionProposal):
         x: array_like
             Array of training live points which can be used to set parameters
         """
+        if self.boundary_inversion:
+            logger.debug('Reseting inversion')
+            if self._reparameterisation is not None:
+                self._reparameterisation.reset_inversion()
+            else:
+                self._edges = {n: None for n in self.boundary_inversion}
         if self.update_bounds:
             logger.debug('Updating bounds')
             if self._reparameterisation is not None:
@@ -1069,12 +1113,6 @@ class FlowProposal(RejectionProposal):
             else:
                 self._min = {n: np.min(x[n]) for n in self.model.names}
                 self._max = {n: np.max(x[n]) for n in self.model.names}
-        if self.boundary_inversion:
-            logger.debug('Reseting inversion')
-            if self._reparameterisation is not None:
-                self._reparameterisation.reset_inversion()
-            else:
-                self._edges = {n: None for n in self.boundary_inversion}
 
     def train(self, x, plot=True):
         """
@@ -1313,8 +1351,9 @@ class FlowProposal(RejectionProposal):
         """
         return self.model.log_prior(x)
 
-    def log_prior_x_prime(self, x):
-        raise NotImplementedError()
+    def x_prime_log_prior(self, x):
+        """Compute the prior in the prime space"""
+        raise RuntimeError('Prime prior is not implemented')
 
     def compute_weights(self, x, log_q):
         """
@@ -1334,7 +1373,7 @@ class FlowProposal(RejectionProposal):
             Array of log proposal probabilties.
         """
         if self.use_x_prime_prior:
-            x['logP'] = self.log_prior_x_prime(x)
+            x['logP'] = self.x_prime_log_prior(x)
         else:
             x['logP'] = self.log_prior(x)
 

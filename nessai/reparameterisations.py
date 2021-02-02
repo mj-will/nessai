@@ -7,14 +7,21 @@ from .utils import (
     detect_edge,
     configure_edge_detection,
     rescale_zero_to_one,
-    inverse_rescale_zero_to_one
+    inverse_rescale_zero_to_one,
+    determine_rescaled_bounds
 )
+
+from .priors import (
+    log_uniform_prior,
+    log_2d_cartesian_prior,
+    log_2d_cartesian_prior_sine,
+    )
 
 
 logger = logging.getLogger(__name__)
 
 
-def get_reparameterisation(reparameterisation, extra={}):
+def get_reparameterisation(reparameterisation):
     """Function to get a reparmeterisation class from a name"""
     rc, kwargs = default_reparameterisations.get(
         reparameterisation, (None, None))
@@ -33,6 +40,9 @@ class Reparameterisation:
     parameters : str or list
         Name of parameters to reparameterise.
     """
+    _update_bounds = False
+    has_prime_prior = False
+
     def __init__(self, parameters=None, prior_bounds=None):
         if not isinstance(parameters, (str, list)):
             raise TypeError('Parameters must be a str or list.')
@@ -99,13 +109,19 @@ class CombinedReparameterisation(dict):
     """Class to handle mulitple reparameterisations
 
     """
-    def __init__(self, reparameterisations=[]):
+    def __init__(self, reparameterisations=None):
         super().__init__()
-        self.reparmeterisations = {}
+        self.reparameterisations = {}
         self.parameters = []
         self.prime_parameters = []
         self.requires = []
-        self.add_reparameterisations(reparameterisations)
+        if reparameterisations is not None:
+            self.add_reparameterisations(reparameterisations)
+
+    @property
+    def has_prime_prior(self):
+        """Boolean to check if prime prior can be enabled"""
+        return all(r.has_prime_prior for r in self.values())
 
     def _add_reparameterisation(self, reparameterisation):
         if ((r := reparameterisation.requires) and
@@ -176,21 +192,26 @@ class CombinedReparameterisation(dict):
         Update the bounds used for the reparameterisation
         """
         for r in self.values():
-            try:
+            if hasattr(r, 'update_bounds'):
                 logger.debug(f'Updating bounds for: {r.name}')
                 r.update_bounds(x)
-            except Exception as e:
-                print(e)
 
     def reset_inversion(self):
         """
         Reset edges for boundary inversion
         """
         for r in self.values():
-            try:
+            if hasattr(r, 'reset_inversion'):
                 r.reset_inversion()
-            except Exception as e:
-                print(e)
+
+    def x_prime_log_prior(self, x_prime):
+        """
+        Compute the prior in the prime space
+        """
+        log_p = 0
+        for r in self.values():
+            log_p += r.x_prime_log_prior(x_prime)
+        return log_p
 
 
 class NullReparameterisation(Reparameterisation):
@@ -257,11 +278,14 @@ class RescaleToBounds(Reparameterisation):
         Type of prior used, if uniform prime prior is enabled.
     """
     def __init__(self, parameters=None, prior_bounds=None, prior=None,
-                 rescale_bounds=None, boundary_inversion=[],
+                 rescale_bounds=None, boundary_inversion=None,
                  detect_edges=False, inversion_type='split',
-                 detect_edges_kwargs={}, offset=False):
+                 detect_edges_kwargs=None, offset=False, update_bounds=False):
 
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
+
+        self.bounds = None
+        self.detect_edge_prime = False
 
         if rescale_bounds is None:
             logger.debug('Using default rescale bounds: [-1, 1]')
@@ -284,7 +308,7 @@ class RescaleToBounds(Reparameterisation):
         self._rescale_shift = \
             {p: self.rescale_bounds[p][0] for p in self.parameters}
 
-        if boundary_inversion:
+        if boundary_inversion is not None:
             if isinstance(boundary_inversion, list):
                 self.boundary_inversion = \
                     {n: inversion_type for n in boundary_inversion}
@@ -303,17 +327,26 @@ class RescaleToBounds(Reparameterisation):
         for p in self.boundary_inversion:
             self.rescale_bounds[p] = [0, 1]
 
-        self._edges = {n: None for n in self.boundary_inversion}
+        self._update_bounds = update_bounds if not detect_edges else True
+        self._edges = {n: None for n in self.parameters}
         self.detect_edges = detect_edges
-        self.detect_edges_kwargs = \
-            configure_edge_detection(detect_edges_kwargs, detect_edges)
+        if self.boundary_inversion:
+            self.detect_edges_kwargs = \
+                configure_edge_detection(detect_edges_kwargs,
+                                         self.detect_edges)
 
         if self.detect_edges and not self.boundary_inversion:
             raise RuntimeError(
                 'Must enable boundary inversion to detect edges')
 
-        if prior is not None:
-            raise NotImplementedError
+        if prior == 'uniform':
+            self.prior = 'uniform'
+            self.has_prime_prior = True
+            self._prime_prior = log_uniform_prior
+            logger.info('Prime prior enabled')
+        else:
+            self.has_prime_prior = False
+            logger.info('Prime prior disabled')
 
         if offset:
             self.offsets = {p: b[0] + np.ptp(b) / 2
@@ -345,21 +378,29 @@ class RescaleToBounds(Reparameterisation):
         return out, log_j
 
     def _apply_inversion(self, x, x_prime, log_j, p, pp, compute_radius,
-                         test=None, detect_edge_prime=False):
+                         test=None):
         if self._edges[p] is None:
-            if detect_edge_prime:
+            if self.detect_edge_prime:
                 self._edges[p] = detect_edge(x_prime[pp], test=test,
                                              **self.detect_edges_kwargs)
             else:
                 self._edges[p] = detect_edge(x[p], test=test,
                                              **self.detect_edges_kwargs)
 
+            self.update_prime_prior_bounds()
+
         if self._edges[p]:
             logger.debug(f'Apply inversion for {p} to {self._edges[p]} bound')
             logger.debug('Fixing bounds to [0, 1]')
             logger.debug('Rescaling')
-            x_prime[pp], lj = \
-                rescale_zero_to_one(x[p] - self.offsets[p], *self.bounds[p])
+            if self.detect_edge_prime:
+                x_prime[pp], lj = \
+                    rescale_zero_to_one(x_prime[pp] - self.offsets[p],
+                                        *self.bounds[p])
+            else:
+                x_prime[pp], lj = \
+                    rescale_zero_to_one(x[p] - self.offsets[p],
+                                        *self.bounds[p])
             log_j += lj
             if self._edges[p] == 'upper':
                 x_prime[pp] = 1 - x_prime[pp]
@@ -378,9 +419,13 @@ class RescaleToBounds(Reparameterisation):
                 x_prime[pp][inv] *= -1
         else:
             logger.debug(f'Not using inversion for {p}')
-            logger.debug('Rescaling to [-1, 1]')
-            x_prime[pp], lj = \
-                self._rescale_to_bounds(x[p] - self.offsets[p], p)
+            logger.debug(f'Rescaling to {self.rescale_bounds[p]}')
+            if self.detect_edge_prime:
+                x_prime[pp], lj = \
+                    self._rescale_to_bounds(x_prime[pp] - self.offsets[p], p)
+            else:
+                x_prime[pp], lj = \
+                    self._rescale_to_bounds(x[p] - self.offsets[p], p)
             log_j += lj
 
         return x, x_prime, log_j
@@ -394,6 +439,7 @@ class RescaleToBounds(Reparameterisation):
                 x[p] = 1 - x[p]
             x[p], lj = inverse_rescale_zero_to_one(
                 x[p], *self.bounds[p])
+            x[p] += self.offsets[p]
             log_j += lj
         else:
             x[p], lj = self._inverse_rescale_to_bounds(x_prime[pp], p)
@@ -440,32 +486,46 @@ class RescaleToBounds(Reparameterisation):
                 log_j += lj
         return x, x_prime, log_j
 
+    def update_prime_prior_bounds(self):
+        """Update the prior bounds used for the prime prior"""
+        if self.has_prime_prior:
+            self.prime_prior_bounds = \
+                {pp: determine_rescaled_bounds(self.prior_bounds[p][0],
+                                               self.prior_bounds[p][1],
+                                               self.bounds[p][0],
+                                               self.bounds[p][1],
+                                               self._edges[p],
+                                               self.offsets[p])
+                 for p, pp in zip(self.parameters, self.prime_parameters)}
+            logger.debug(f'New prime bounds: {self.prime_prior_bounds}')
+
     def update_bounds(self, x):
         """Update the bounds used for the reparameterisation"""
-        self.bounds = \
-            {p: [np.min(x[p] - self.offsets[p]),
-                 np.max(x[p] - self.offsets[p])]
-             for p in self.parameters}
-        self.prime_prior_bounds = \
-            {pp: self._rescale_to_bounds(np.asarray(self.bounds[p])[0], p)
-             for p, pp in zip(self.parameters, self.prime_parameters)}
+        if self._update_bounds or self.bounds is None:
+            self.bounds = \
+                {p: [np.min(x[p] - self.offsets[p]),
+                     np.max(x[p] - self.offsets[p])]
+                 for p in self.parameters}
+            logger.debug(f'New bounds: {self.bounds}')
+            self.update_prime_prior_bounds()
 
-        logger.debug(f'New bounds: {self.bounds}')
+        else:
+            logger.debug('Update bounds not enabled')
 
     def reset_inversion(self):
         """Reset the edges for inversion"""
-        self._edges = {n: None for n in self.boundary_inversion}
+        self._edges = {n: None for n in self.parameters}
 
     def x_prime_log_prior(self, x_prime):
         """Compute the prior in the prime space assuming a uniform prior"""
-        if self.prime_prior:
+        if self.has_prime_prior:
             log_p = 0
             for pp in self.prime_parameters:
-                # Do something here
-                pass
+                log_p += self._prime_prior(x_prime[pp],
+                                           *self.prime_prior_bounds[pp])
             return log_p
         else:
-            return None
+            raise RuntimeError('Prime prior')
 
 
 class Angle(Reparameterisation):
@@ -492,6 +552,18 @@ class Angle(Reparameterisation):
         self.prime_parameters = [self.angle + '_x', self.angle + '_y']
         self.requires = []
 
+        if prior in ['uniform', 'sine']:
+            self.prior = prior
+            self.has_prime_prior = True
+            if self.prior == 'uniform':
+                self._prime_prior = log_2d_cartesian_prior
+            else:
+                self._prime_prior = log_2d_cartesian_prior_sine
+            logger.info('Prime prior enabled')
+        else:
+            self.has_prime_prior = False
+            logger.info('Prime prior disabled')
+
     @property
     def angle(self):
         return self.parameters[0]
@@ -513,10 +585,10 @@ class Angle(Reparameterisation):
         return self.prime_parameters[1]
 
     def _rescale_radius(self, x, x_prime, log_j, **kwargs):
-        return x[self.radial], x, x_prime, log_j
+        return x[self.parameters[1]], x, x_prime, log_j
 
     def _rescale_angle(self, x, x_prime, log_j, **kwargs):
-        return x[self.angle] * self.scale, x, x_prime, log_j
+        return x[self.parameters[0]] * self.scale, x, x_prime, log_j
 
     def _inverse_rescale_angle(self, x, x_prime, log_j):
         return x, x_prime, log_j
@@ -541,19 +613,33 @@ class Angle(Reparameterisation):
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
         """Convert from Cartesian to an angle"""
-        x[self.radial] = np.sqrt(x_prime[self.x] ** 2 + x_prime[self.y] ** 2)
+        x[self.parameters[1]] = \
+            np.sqrt(x_prime[self.prime_parameters[0]] ** 2
+                    + x_prime[self.prime_parameters[1]] ** 2)
         if self._zero_bound:
-            x[self.angle] = \
-                np.arctan2(x_prime[self.y], x_prime[self.x]) % (2. * np.pi) / \
-                self.scale
+            x[self.parameters[0]] = \
+                np.arctan2(x_prime[self.prime_parameters[1]],
+                           x_prime[self.prime_parameters[0]]) % \
+                (2. * np.pi) / self.scale
         else:
-            x[self.angle] = \
-                np.arctan2(x_prime[self.y], x_prime[self.x]) / self.scale
+            x[self.parameters[0]] = \
+                np.arctan2(x_prime[self.prime_parameters[1]],
+                           x_prime[self.prime_parameters[0]]) / self.scale
 
-        log_j -= np.log(x[self.radial])
+        log_j -= np.log(x[self.parameters[1]])
         x, x_prime, log_j = self._inverse_rescale_angle(x, x_prime, log_j)
 
         return x, x_prime, log_j
+
+    def x_prime_log_prior(self, x_prime):
+        """Compute the prior in the prime space assuming a uniform prior"""
+        if self.has_prime_prior:
+            return self._prime_prior(
+                x_prime[self.prime_parameters[0]],
+                x_prime[self.prime_parameters[1]],
+                k=self.prior_bounds[self.parameters[0]][1])
+        else:
+            raise RuntimeError('Prime prior')
 
 
 class ToCartesian(Angle):
@@ -571,7 +657,7 @@ class ToCartesian(Angle):
     def _rescale_angle(self, x, x_prime, log_j, compute_radius=False,
                        **kwargs):
         angle, lj = rescale_zero_to_one(
-            x[self.angle], *self.prior_bounds[self.angle])
+            x[self.parameters[0]], *self.prior_bounds[self.parameters[0]])
         log_j += lj
         if self.mode == 'duplicate' or compute_radius:
             angle = np.concatenate([-angle, angle])
@@ -580,14 +666,14 @@ class ToCartesian(Angle):
         elif self.mode == 'split':
             neg = np.random.choice(angle.size, angle.size // 2, replace=False)
             angle[neg] *= -1
-        elif self.mode == 'half':
-            pass
+
         angle *= self.scale
         return angle, x, x_prime, log_j
 
     def _inverse_rescale_angle(self, x, x_prime, log_j):
         x[self.angle], lj = inverse_rescale_zero_to_one(
-            np.abs(x[self.angle]), *self.prior_bounds[self.angle])
+            np.abs(x[self.parameters[0]]),
+            *self.prior_bounds[self.parameters[0]])
         log_j += lj
         return x, x_prime, log_j
 
@@ -624,6 +710,11 @@ class AnglePair(Reparameterisation):
 
         self.parameters = parameters
         self.prime_parameters = [f'{m}_{x}' for x in ['x', 'y', 'z']]
+
+        if prior == 'isotropic' and self.chi:
+            self.has_prime_prior = True
+        else:
+            self.has_prime_prior = False
 
         if convention is None:
             if (self.prior_bounds[self.parameters[1]][0] == 0 and
@@ -684,27 +775,36 @@ class AnglePair(Reparameterisation):
         return x, x_prime, log_j
 
     def _inv_az_zen(self, x, x_prime, log_j):
-        x[self.radial] = np.sqrt(x_prime[self.x] ** 2. + x_prime[self.y] ** 2.
-                                 + x_prime[self.z] ** 2.)
+        x[self.parameters[2]] = np.sqrt(
+            x_prime[self.prime_parameters[0]] ** 2. +
+            x_prime[self.prime_parameters[1]] ** 2. +
+            x_prime[self.prime_parameters[2]] ** 2.)
         x[self.parameters[0]] = \
-            np.arctan2(x_prime[self.y], x_prime[self.x]) % (2. * np.pi)
+            np.arctan2(x_prime[self.prime_parameters[1]],
+                       x_prime[self.prime_parameters[0]]) % (2. * np.pi)
         x[self.parameters[1]] = \
-            np.arctan2(np.sqrt(x_prime[self.x] ** 2. + x_prime[self.y] ** 2.0),
-                       x_prime[self.z])
-        log_j += (-2 * np.log(x[self.radial])
+            np.arctan2(np.sqrt(x_prime[self.prime_parameters[0]] ** 2.
+                               + x_prime[self.prime_parameters[1]] ** 2.),
+                       x_prime[self.prime_parameters[2]])
+        log_j += (-2 * np.log(x[self.parameters[2]])
                   - np.log(np.sin(x[self.parameters[1]])))
 
         return x, x_prime, log_j
 
     def _inv_ra_dec(self, x, x_prime, log_j):
-        x[self.radial] = np.sqrt(x_prime[self.x] ** 2. + x_prime[self.y] ** 2.
-                                 + x_prime[self.z] ** 2.)
+        x[self.parameters[2]] = np.sqrt(
+            x_prime[self.prime_parameters[0]] ** 2. +
+            x_prime[self.prime_parameters[1]] ** 2. +
+            x_prime[self.prime_parameters[2]] ** 2.)
         x[self.parameters[0]] = \
-            np.arctan2(x_prime[self.y], x_prime[self.x]) % (2. * np.pi)
+            np.arctan2(x_prime[self.prime_parameters[1]],
+                       x_prime[self.prime_parameters[0]]) % (2. * np.pi)
         x[self.parameters[1]] = \
-            np.arctan2(x_prime[self.z],
-                       np.sqrt(x_prime[self.x] ** 2. + x_prime[self.y] ** 2.0))
-        log_j += (-2 * np.log(x[self.radial])
+            np.arctan2(x_prime[self.prime_parameters[2]],
+                       np.sqrt(x_prime[self.prime_parameters[0]] ** 2.
+                               + x_prime[self.prime_parameters[1]] ** 2.))
+
+        log_j += (-2 * np.log(x[self.parameters[2]])
                   - np.log(np.cos(x[self.parameters[1]])))
         return x, x_prime, log_j
 
@@ -732,16 +832,18 @@ class AnglePair(Reparameterisation):
             return self._inv_ra_dec(x, x_prime, log_j)
         return x, x_prime, log_j
 
-    def log_prime_prior(self, x_prime):
+    def x_prime_log_prior(self, x_prime):
         """
         Log probability of 3d Cartesian coordinates for an isotropic
         distribution of angles and a radial component drawn from a chi
         distribution with three degrees of freedom.
         """
-        if not self.chi:
-            raise RuntimeError('Prime prior not define with radial component')
-        return - 1.5 * np.log(2 * np.pi) \
-               - np.sum(x_prime[self.prime_parameters] ** 2, axis=0) / 2
+        if self.has_prime_prior:
+            return - 1.5 * np.log(2 * np.pi) \
+                   - np.sum([x_prime[pp] ** 2 for pp in self.prime_parameters],
+                            axis=0) / 2
+        else:
+            raise RuntimeError('x prime prior')
 
 
 default_reparameterisations = {
