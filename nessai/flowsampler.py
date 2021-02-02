@@ -41,10 +41,10 @@ class FlowSampler:
     """
     def __init__(self, model, output='./', resume=True,
                  resume_file='nested_sampler_resume.pkl', weights_file=None,
-                 exit_code=130, **kwargs):
+                 exit_code=130, max_threads=1, **kwargs):
 
         configure_threads(
-            max_threads=kwargs.get('max_threads', None),
+            max_threads=max_threads,
             pytorch_threads=kwargs.get('pytorch_threads', None),
             n_pool=kwargs.get('n_pool', None)
             )
