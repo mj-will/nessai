@@ -408,13 +408,18 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
         Returns the boundary to apply the inversion or False is no inversion
         is to be applied
     """
-    if test and test is not None:
-        return test
     bounds = ['lower', 'upper']
+    if test is not None:
+        if test in bounds and test not in allowed_bounds:
+            logger.debug(f'{test} is not an allowed bound, returning False')
+            return False
+        else:
+            return test
     if not all(b in bounds for b in allowed_bounds):
         raise RuntimeError(f'Unknown allowed bounds: {allowed_bounds}')
     if nbins == 'auto':
         nbins = auto_bins(x)
+
     hist, bins = np.histogram(x, bins=nbins, density=True, range=x_range)
     n = max(int(len(bins) * percent), 1)
     bounds_fraction = \
@@ -427,7 +432,6 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
         if b not in allowed_bounds:
             bounds.pop(i)
             bounds_fraction = np.delete(bounds_fraction, i)
-
     if max_idx <= n and 'lower' in bounds:
         return bounds[0]
     elif max_idx >= (len(bins) - n) and 'upper' in bounds:
@@ -461,6 +465,8 @@ def configure_edge_detection(d, detect_edges):
         Updated kwargs
     """
     default = dict(cutoff=0.5)
+    if d is None:
+        d = {}
     if detect_edges:
         d['allow_none'] = True
     else:
