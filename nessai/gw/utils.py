@@ -278,26 +278,76 @@ def rescale_and_sigmoid(x, xmin, xmax):
 
 
 class DistanceConverter:
+    """Base object for converting from a distance parameter to a uniform
+    parameter.
     """
-    Object to convert comoving distance to luminosity distance and vice
-    versa
+    has_conversion = False
+
+    def to_uniform_parameter(self, d):
+        raise NotImplementedError
+
+    def from_uniform_parameter(self, d):
+        raise NotImplementedError
+
+
+class NullDistanceConverter:
+
+    def __init__(self, d_min=None, d_max=None, **kwargs):
+        if kwargs:
+            logger.warning(f'Kwargs {kwargs} will be ignored for distance')
+
+    def to_uniform_parameter(self, d):
+        return d
+
+    def from_uniform_parameter(self, d):
+        return d
+
+
+class ComovingDistanceConverter(DistanceConverter):
     """
-    def __init__(self, dl_min=100, dl_max=3000, units='Mpc',
-                 cosmology='Planck15'):
-        self.dl_min = dl_min
-        self.dl_max = dl_max
+    Object to convert luminosity distance with a prior that is uniform
+    in comoving volume to a parameter with a uniform prior.
+
+    Parameters
+    ----------
+    d_min, d_max : float
+        Minimum and maximum distances
+    units : str, optional
+        Units used for the distance, must be compatible with astropy units.
+    cosomology : str, optional
+        Cosmology used for conversion, must be compatible with astropy.
+    scale : float, optional
+        Rescaling applied to distance after converting to comoving distance.
+    pad : float, optional
+        Padding used for min and max of interpolation range:
+        min = (1 - pad) * d_min and max = (1 + pad) * d_max
+    n_interp : int, optional
+        Length of vector used for generating the look up table.
+    """
+    has_conversion = True
+
+    def __init__(self, d_min=None, d_max=None, units='Mpc',
+                 cosmology='Planck15', scale=1000.0, pad=0.05, n_interp=500):
         self.units = u.Unit(units)
         # TODO: this needs to update with bilby
         self.cosmology = cosmo.Planck15
+        self.scale = np.float64(scale)
+        self.pad = pad
+        self.n_interp = n_interp
+
+        self.dl_min = (1 - self.pad) * d_min
+        self.dl_max = (1 + self.pad) * d_max
 
         self.dc_min = self.cosmology.comoving_distance(cosmo.z_at_value(
-            self.cosmology.luminosity_distance, dl_min * self.units)).value
+            self.cosmology.luminosity_distance, self.dl_min * self.units)
+            ).value
         self.dc_max = self.cosmology.comoving_distance(cosmo.z_at_value(
-            self.cosmology.luminosity_distance, dl_max * self.units)).value
+            self.cosmology.luminosity_distance, self.dl_max * self.units)
+            ).value
 
         logger.debug('Making distance look up table')
 
-        dc_array = np.linspace(self.dc_min, self.dc_max, 500)
+        dc_array = np.linspace(self.dc_min, self.dc_max, self.n_interp)
         dl_array = self.cosmology.luminosity_distance(
             [cosmo.z_at_value(self.cosmology.comoving_distance, d * self.units)
                 for d in dc_array]).value
@@ -305,10 +355,25 @@ class DistanceConverter:
         self.interp_dc2dl = interpolate.splrep(dc_array, dl_array)
         self.interp_dl2dc = interpolate.splrep(dl_array, dc_array)
 
-    def comoving_distance_to_luminosity_distance(self, dc):
-        """Convert comoving distance to luminosity distance"""
-        return interpolate.splev(dc, self.interp_dc2dl, ext=3)
-
-    def luminosity_distance_to_comoving_distance(self, dl):
+    def to_uniform_parameter(self, dl):
         """Convert luminosity distance to comoving distance"""
-        return interpolate.splev(dl, self.interp_dl2dc, ext=3)
+        return (interpolate.splev(dl, self.interp_dl2dc, ext=3) /
+                self.scale) ** 3.
+
+    def from_uniform_parameter(self, dc):
+        """Convert comoving distance to luminosity distance"""
+        return interpolate.splev(self.scale * np.cbrt(dc), self.interp_dc2dl,
+                                 ext=3)
+
+
+def get_distance_converter(prior):
+    """Get a distance converter from the type of prior.
+
+    If the prior is unknown a null converter is returned that has the
+    identity rescaling.
+    """
+    if prior == 'uniform-comoving-volume':
+        return ComovingDistanceConverter
+    else:
+        logger.info(f'Prior {prior} is not known for distance')
+        return NullDistanceConverter

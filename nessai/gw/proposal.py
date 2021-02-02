@@ -23,7 +23,7 @@ from .utils import (
     transform_to_precessing_parameters,
     rescale_and_logit,
     rescale_and_sigmoid,
-    DistanceConverter)
+    ComovingDistanceConverter)
 from .priors import (
     log_uniform_prior,
     log_2d_cartesian_prior,
@@ -549,7 +549,7 @@ class GWFlowProposal(FlowProposal):
         scale_factor : float, (optional)
             Factor used to rescale comoving distance
         kwargs :
-            Keyword arguments parsed to `DistanceConverter`
+            Keyword arguments parsed to `ComovingDistanceConverter`
         """
         if 'luminosity_distance' not in self.names:
             raise RuntimeError('Uniform distance parameter is only compatible '
@@ -557,12 +557,10 @@ class GWFlowProposal(FlowProposal):
         if not self.use_x_prime_prior:
             raise RuntimeError('Cannot use dc3 without x prime prior')
 
-        self.distance_converter = DistanceConverter(
-            dl_min=self.model.bounds['luminosity_distance'][0] * 0.99,
-            dl_max=self.model.bounds['luminosity_distance'][1] * 1.01,
+        self.distance_converter = ComovingDistanceConverter(
+            d_min=self.model.bounds['luminosity_distance'][0],
+            d_max=self.model.bounds['luminosity_distance'][1],
             **kwargs)
-
-        self._d_scale_factor = 1000
 
         self._dc3_prior_min = \
             self.convert_to_dc3(self.model.bounds['luminosity_distance'][0])
@@ -579,17 +577,13 @@ class GWFlowProposal(FlowProposal):
         """
         Convert from uniform distance parameter dc3 to luminosity distance
         """
-        dc = 1000 * np.cbrt(dc3)
-        return (self.distance_converter
-                .comoving_distance_to_luminosity_distance(dc))
+        return self.distance_converter.from_uniform_parameter(dc3)
 
     def convert_to_dc3(self, dl):
         """
         Convert to uniform distance parameter dc3
         """
-        dc = (self.distance_converter
-              .luminosity_distance_to_comoving_distance(dl))
-        return (dc / 1000) ** 3
+        return self.distance_converter.to_uniform_parameter(dl)
 
     def setup_spin_logit(self, fuzz_factor=0.01):
         if 'a_1' in self.names and 'a_2' in self.names:
@@ -795,7 +789,7 @@ class GWFlowProposal(FlowProposal):
 
         return x, x_prime, log_J
 
-    def rescale(self, x, compute_radius=False):
+    def rescale(self, x, compute_radius=False, test=False):
         """
         Rescale from the x space to the x prime space
         """
@@ -889,7 +883,7 @@ class GWFlowProposal(FlowProposal):
                             x_range=[self._dc3_prior_min, self._dc3_prior_max],
                             allow_both=False,
                             allowed_bounds=['upper'],
-                            test=self._inversion_test_type,
+                            test=test,
                             **self.detect_edges_kwargs)
                 else:
                     self._dc3_invert = False
@@ -924,7 +918,7 @@ class GWFlowProposal(FlowProposal):
                     c['invert'] = detect_edge(
                         x[c['name']],
                         allow_both=both,
-                        test=self._inversion_test_type,
+                        test=test,
                         **self.detect_edges_kwargs)
                     logger.debug(f"Inversion for {c['name']}: {c['invert']}")
                     if self.use_x_prime_prior:
@@ -1238,7 +1232,7 @@ class GWFlowProposal(FlowProposal):
         else:
             raise NotImplementedError
 
-    def log_prior_x_prime(self, x_prime):
+    def x_prime_log_prior(self, x_prime):
         """
         Priors redefined in the x_prime space
 
@@ -1413,6 +1407,7 @@ class GWReparam(FlowProposal):
         'geocent_time': ('time', []),
         'a_1': ('to-cartesian', []),
         'a_2': ('to-cartesian', []),
+        'luminosity_distance': ('distance', []),
     }
 
     def get_reparameterisation(self, reparameterisation):
@@ -1445,7 +1440,8 @@ class GWReparam(FlowProposal):
                 p = [p]
 
             prior_bounds = {k: self.model.bounds[k] for k in p}
-
             reparam, kwargs = get_gw_reparameterisation(name)
+            logger.debug(
+                f'Add reparameterisation for {p} with config: {kwargs}')
             self._reparameterisation.add_reparameterisation(
                 reparam(parameters=p, prior_bounds=prior_bounds, **kwargs))
