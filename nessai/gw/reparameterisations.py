@@ -57,6 +57,7 @@ class DistanceReparameterisation(RescaleToBounds):
             self._prime_prior = log_uniform_prior
             self.has_prime_prior = True
             self.detect_edge_prime = True
+            self.requires_prime_prior = True
         else:
             self.has_prime_prior = False
             self.detect_edge_prime = False

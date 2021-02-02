@@ -848,6 +848,11 @@ class FlowProposal(RejectionProposal):
             logger.info('Using x prime prior')
         else:
             logger.info('Prime prior is disabled')
+            if self._reparameterisation.requires_prime_prior:
+                raise RuntimeError(
+                    'One or more reparameterisations require use of the x '
+                    'prime prior but it cannot be enabled with the current '
+                    'settings.')
 
         self.rescale = self._rescale_w_reparameterisation
         self.inverse_rescale = \

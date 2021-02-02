@@ -66,6 +66,7 @@ class Reparameterisation:
         self.prior_bounds = {p: np.asarray(b) for p, b in prior_bounds.items()}
         self.prime_parameters = [p + '_prime' for p in self.parameters]
         self.requires = []
+        self.requires_prime_prior = False
         logger.debug(f'Initialised reparameterisation: {self.name}')
 
     @property
@@ -122,6 +123,11 @@ class CombinedReparameterisation(dict):
     def has_prime_prior(self):
         """Boolean to check if prime prior can be enabled"""
         return all(r.has_prime_prior for r in self.values())
+
+    @property
+    def requires_prime_prior(self):
+        """Boolean to check if any of the priors require the prime space"""
+        return any(r.requires_prime_prior for r in self.values())
 
     def _add_reparameterisation(self, reparameterisation):
         if ((r := reparameterisation.requires) and
