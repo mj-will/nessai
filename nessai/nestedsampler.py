@@ -449,6 +449,8 @@ class NestedSampler:
             if isinstance(flow_class, str):
                 if flow_class == 'GWFlowProposal':
                     from .gw.proposal import GWFlowProposal as flow_class
+                elif flow_class == 'GWReparam':
+                    from .gw.proposal import GWReparam as flow_class
                 elif flow_class == 'FlowProposal':
                     flow_class = FlowProposal
                 else:
@@ -504,6 +506,7 @@ class NestedSampler:
         """
         self.seed = seed
         if self.seed is not None:
+            logger.debug(f'Setting random seed to {seed}')
             np.random.seed(seed=self.seed)
             torch.manual_seed(self.seed)
 
