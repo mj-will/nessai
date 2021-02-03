@@ -27,6 +27,10 @@ def get_gw_reparameterisation(reparameterisation):
         raise ValueError(
             f'Unknown GW reparameterisation: {reparameterisation}')
     else:
+        if kwargs is None:
+            kwargs = {}
+        else:
+            kwargs = kwargs.copy()
         return rc, kwargs
 
 

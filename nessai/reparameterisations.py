@@ -28,6 +28,10 @@ def get_reparameterisation(reparameterisation):
     if rc is None:
         raise ValueError(f'Unknown reparameterisation: {reparameterisation}')
     else:
+        if kwargs is None:
+            kwargs = {}
+        else:
+            kwargs = kwargs.copy()
         return rc, kwargs
 
 
@@ -361,7 +365,7 @@ class RescaleToBounds(Reparameterisation):
         else:
             self.offsets = {p: 0. for p in self.prior_bounds.keys()}
 
-        self.update_bounds(self.prior_bounds)
+        self.set_bounds(self.prior_bounds)
 
     def _rescale_to_bounds(self, x, n):
         out = self._rescale_factor[n] * \
@@ -505,9 +509,16 @@ class RescaleToBounds(Reparameterisation):
                  for p, pp in zip(self.parameters, self.prime_parameters)}
             logger.debug(f'New prime bounds: {self.prime_prior_bounds}')
 
+    def set_bounds(self, prior_bounds):
+        """Set the initial bounds for rescaling"""
+        self.bounds = \
+            {p: prior_bounds[p] - self.offsets[p] for p in self.parameters}
+        logger.debug(f'Initial bounds: {self.bounds}')
+        self.update_prime_prior_bounds()
+
     def update_bounds(self, x):
         """Update the bounds used for the reparameterisation"""
-        if self._update_bounds or self.bounds is None:
+        if self._update_bounds:
             self.bounds = \
                 {p: [np.min(x[p] - self.offsets[p]),
                      np.max(x[p] - self.offsets[p])]
@@ -764,7 +775,7 @@ class AnglePair(Reparameterisation):
         x_prime[self.prime_parameters[0]] = \
             r * np.sin(x[self.parameters[1]]) * np.cos(x[self.parameters[0]])
         x_prime[self.prime_parameters[1]] = \
-            r * np.sin(x[self.parametesr[1]]) * np.sin(x[self.parameters[0]])
+            r * np.sin(x[self.parameters[1]]) * np.sin(x[self.parameters[0]])
         x_prime[self.prime_parameters[2]] = \
             r * np.cos(x[self.parameters[1]])
         log_j += (2 * np.log(r) + np.log(np.sin(x[self.parameters[1]])))
@@ -853,8 +864,8 @@ class AnglePair(Reparameterisation):
 
 
 default_reparameterisations = {
-    'default': (RescaleToBounds, {}),
-    'rescaletobounds': (RescaleToBounds, {}),
+    'default': (RescaleToBounds, None),
+    'rescaletobounds': (RescaleToBounds, None),
     'offset': (RescaleToBounds, {'offset': True}),
     'inversion': (RescaleToBounds, {'detect_edges': True,
                                     'boundary_inversion': True,
@@ -866,8 +877,8 @@ default_reparameterisations = {
     'angle-pi': (Angle, {'scale': 2.0, 'prior': 'uniform'}),
     'angle-2pi': (Angle, {'scale': 1.0, 'prior': 'uniform'}),
     'angle-sine': (Angle, {'scale': 1.0, 'prior': 'sine'}),
-    'angle-pair': (AnglePair, {}),
-    'to-cartesian': (ToCartesian, {}),
-    'none': (NullReparameterisation, {}),
-    None: (NullReparameterisation, {}),
+    'angle-pair': (AnglePair, None),
+    'to-cartesian': (ToCartesian, None),
+    'none': (NullReparameterisation, None),
+    None: (NullReparameterisation, None),
 }
