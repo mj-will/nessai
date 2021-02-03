@@ -709,7 +709,6 @@ class GWFlowProposal(FlowProposal):
         # This allows for an inverison to applied after other rescaling
         if x_array is None:
             x_array = x[name]
-
         if rescale:
             x_prime[rescaled_name], lj = rescale_zero_to_one(
                 x_array, xmin=xmin, xmax=xmax)
@@ -789,7 +788,7 @@ class GWFlowProposal(FlowProposal):
 
         return x, x_prime, log_J
 
-    def rescale(self, x, compute_radius=False, test=False):
+    def rescale(self, x, compute_radius=False, test=None):
         """
         Rescale from the x space to the x prime space
         """
@@ -1388,26 +1387,26 @@ class AugmentedGWFlowProposal(GWFlowProposal):
 class GWReparam(FlowProposal):
     """Wrapper for FlowProposal that has defaults for CBC-PE"""
     aliases = {
-        'chirp_mass': ('mass', []),
-        'mass_ratio': ('mass_ratio', []),
+        'chirp_mass': ('mass', None),
+        'mass_ratio': ('mass_ratio', None),
         'ra': ('sky-ra-dec', ['DEC', 'dec', 'Dec']),
         'dec': ('sky-ra-dec', ['RA', 'ra']),
-        'azimuth': ('sky-az-zen', []),
-        'zenith': ('sky-az-zen', []),
-        'theta_1': ('angle-sine', []),
-        'theta_2': ('angle-sine', []),
-        'tilt_1': ('angle-sine', []),
-        'tilt_2': ('angle-sine', []),
-        'theta_jn': ('angle-sine', []),
-        'iota': ('angle-sine', []),
-        'phi_jl': ('angle-2pi', []),
-        'phi_12': ('angle-2pi', []),
-        'phase': ('angle-2pi', []),
-        'psi': ('angle-pi', []),
-        'geocent_time': ('time', []),
-        'a_1': ('to-cartesian', []),
-        'a_2': ('to-cartesian', []),
-        'luminosity_distance': ('distance', []),
+        'azimuth': ('sky-az-zen', ['zenith', 'zen', 'Zen', 'Zenith']),
+        'zenith': ('sky-az-zen', ['azimuth', 'az', 'Az', 'Azimuth']),
+        'theta_1': ('angle-sine', None),
+        'theta_2': ('angle-sine', None),
+        'tilt_1': ('angle-sine', None),
+        'tilt_2': ('angle-sine', None),
+        'theta_jn': ('angle-sine', None),
+        'iota': ('angle-sine', None),
+        'phi_jl': ('angle-2pi', None),
+        'phi_12': ('angle-2pi', None),
+        'phase': ('angle-2pi', None),
+        'psi': ('angle-pi', None),
+        'geocent_time': ('time', None),
+        'a_1': ('to-cartesian', None),
+        'a_2': ('to-cartesian', None),
+        'luminosity_distance': ('distance', None),
     }
 
     def get_reparameterisation(self, reparameterisation):
@@ -1434,11 +1433,10 @@ class GWReparam(FlowProposal):
             if name is None:
                 logger.debug(f'{p} is not a known GW parameter')
                 continue
-            if extra_params:
+            if extra_params is not None:
                 p = [p] + [ep for ep in extra_params if ep in self.model.names]
             else:
                 p = [p]
-
             prior_bounds = {k: self.model.bounds[k] for k in p}
             reparam, kwargs = get_gw_reparameterisation(name)
             logger.debug(
