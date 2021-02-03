@@ -914,7 +914,7 @@ class FlowProposal(RejectionProposal):
         """
         logger.info('Verifying rescaling functions')
         x = self.model.new_point(N=1000)
-        for inversion in ['lower', 'upper', 'both', False, None]:
+        for inversion in ['lower', 'upper', False, None]:
             self.check_state(x)
             logger.debug(f'Testing: {inversion}')
             x_prime, log_J = self.rescale(x, test=inversion)
