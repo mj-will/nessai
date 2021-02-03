@@ -290,7 +290,7 @@ class DistanceConverter:
         raise NotImplementedError
 
 
-class NullDistanceConverter:
+class NullDistanceConverter(DistanceConverter):
 
     def __init__(self, d_min=None, d_max=None, **kwargs):
         if kwargs:
@@ -301,6 +301,46 @@ class NullDistanceConverter:
 
     def from_uniform_parameter(self, d):
         return d
+
+
+class PowerLawConverter(DistanceConverter):
+    """Convert from a distance parameter sample from a power law to a uniform
+    parameter
+
+    Assumes d proportional d^power.
+
+    Parameters
+    ----------
+    power : float
+        Power to use for the power-law.
+    scale : float
+        Factor used to rescale distance prior to convetering to the uniform
+        parameter.
+    """
+    has_conversion = True
+
+    def __init__(self, power=None, scale=1000.0):
+        if power is None:
+            raise RuntimeError(
+                'Must specify the power to use in the power-law')
+        self.power = power
+        self.scale = scale
+        self._power = self.power + 1
+
+        if self._power == 3:
+            self._f = np.cbrt
+        elif self._power == 2:
+            self._f = np.sqrt
+        else:
+            self._f = lambda x: x ** (1 / self._power)
+
+    def to_uniform_parameter(self, d):
+        """Convert distance to a parameter with a uniform prior"""
+        return (d / self.scale) ** (self._power)
+
+    def from_uniform_parameter(self, d):
+        """Convert to distance from a parameter that has a uniform prior"""
+        return self.scale * self._f(d)
 
 
 class ComovingDistanceConverter(DistanceConverter):
@@ -338,6 +378,8 @@ class ComovingDistanceConverter(DistanceConverter):
         self.dl_min = (1 - self.pad) * d_min
         self.dl_max = (1 + self.pad) * d_max
 
+        logger.debug(f'Min and max distances: [{self.dl_min}, {self.dl_max}]')
+
         self.dc_min = self.cosmology.comoving_distance(cosmo.z_at_value(
             self.cosmology.luminosity_distance, self.dl_min * self.units)
             ).value
@@ -356,12 +398,12 @@ class ComovingDistanceConverter(DistanceConverter):
         self.interp_dl2dc = interpolate.splrep(dl_array, dc_array)
 
     def to_uniform_parameter(self, dl):
-        """Convert luminosity distance to comoving distance"""
+        """Convert luminosity distance to a parameter with a uniform prior"""
         return (interpolate.splev(dl, self.interp_dl2dc, ext=3) /
                 self.scale) ** 3.
 
     def from_uniform_parameter(self, dc):
-        """Convert comoving distance to luminosity distance"""
+        """Convert comoving distance to a parameter with a uniform prior"""
         return interpolate.splev(self.scale * np.cbrt(dc), self.interp_dc2dl,
                                  ext=3)
 
@@ -374,6 +416,8 @@ def get_distance_converter(prior):
     """
     if prior == 'uniform-comoving-volume':
         return ComovingDistanceConverter
+    if prior == 'power-law':
+        return PowerLawConverter
     else:
         logger.info(f'Prior {prior} is not known for distance')
         return NullDistanceConverter
