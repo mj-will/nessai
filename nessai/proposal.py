@@ -435,7 +435,7 @@ class FlowProposal(RejectionProposal):
                  inversion_type='split',
                  update_bounds=True,
                  min_radius=False,
-                 max_radius=False,
+                 max_radius=50.0,
                  pool=None,
                  n_pool=None,
                  max_poolsize_scale=10,
@@ -673,12 +673,18 @@ class FlowProposal(RejectionProposal):
         if isinstance(min_radius, (int, float)):
             self.min_radius = float(min_radius)
         else:
-            raise RuntimeError
+            raise RuntimeError('Min radius must be an int or float')
 
-        if isinstance(max_radius, (int, float)):
-            self.max_radius = float(max_radius)
+        if max_radius:
+            if isinstance(max_radius, (int, float)):
+                self.max_radius = float(max_radius)
+            else:
+                raise RuntimeError('Max radius must be an int or float')
         else:
-            raise RuntimeError
+            logger.warning('Running without a maximum radius! The proposal '
+                           'process may get stuck if very large radii are '
+                           'returned by the worst point.')
+            self.max_radius = False
 
     def initialise(self):
         """
