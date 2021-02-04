@@ -8,7 +8,8 @@ from .utils import (
     configure_edge_detection,
     rescale_zero_to_one,
     inverse_rescale_zero_to_one,
-    determine_rescaled_bounds
+    determine_rescaled_bounds,
+    rescaling_functions
 )
 
 from .priors import (
@@ -290,12 +291,16 @@ class RescaleToBounds(Reparameterisation):
     def __init__(self, parameters=None, prior_bounds=None, prior=None,
                  rescale_bounds=None, boundary_inversion=None,
                  detect_edges=False, inversion_type='split',
-                 detect_edges_kwargs=None, offset=False, update_bounds=False):
+                 detect_edges_kwargs=None, offset=False, update_bounds=False,
+                 pre_rescaling=None, post_rescaling=None):
 
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
 
         self.bounds = None
         self.detect_edge_prime = False
+
+        self.has_pre_rescaling = True
+        self.has_post_rescaling = True
 
         if rescale_bounds is None:
             logger.debug('Using default rescale bounds: [-1, 1]')
@@ -365,7 +370,76 @@ class RescaleToBounds(Reparameterisation):
         else:
             self.offsets = {p: 0. for p in self.prior_bounds.keys()}
 
+        self.configure_pre_rescaling(pre_rescaling)
+        self.configure_post_rescaling(post_rescaling)
+
         self.set_bounds(self.prior_bounds)
+
+    def configure_pre_rescaling(self, pre_rescaling):
+        if pre_rescaling is not None:
+            if isinstance(pre_rescaling, str):
+                logger.debug(f'Getting pre-rescaling function {pre_rescaling}')
+                self.pre_rescaling, self.pre_rescaling_inv = \
+                    rescaling_functions.get(
+                        pre_rescaling.lower(), (None, None))
+                if self.pre_rescaling is None:
+                    raise RuntimeError(
+                        f'Unkown rescaling function: {pre_rescaling}')
+            elif len(pre_rescaling) == 2:
+                self.pre_rescaling = pre_rescaling[0]
+                self.pre_rescaling_inv = pre_rescaling[1]
+            else:
+                raise RuntimeError(
+                    'Pre-rescaling must be str or tuple of two functions')
+            logger.debug('Disabling prime prior with pre-rescaling')
+            self.has_prior_prior = False
+        else:
+            logger.debug('No pre-rescaling to configure')
+
+    def configure_post_rescaling(self, post_rescaling):
+
+        if post_rescaling is not None:
+            if isinstance(post_rescaling, str):
+                logger.debug(
+                    f'Getting post-rescaling function {post_rescaling}')
+                self.post_rescaling, self.post_rescaling_inv = \
+                    rescaling_functions.get(
+                        post_rescaling.lower(), (None, None))
+                if self.post_rescaling is None:
+                    raise RuntimeError(
+                        f'Unkown rescaling function: {post_rescaling}')
+            elif len(post_rescaling) == 2:
+                self.post_rescaling = post_rescaling[0]
+                self.post_rescaling_inv = post_rescaling[1]
+            else:
+                raise RuntimeError(
+                    'Post-rescaling must be str or tuple of two functions')
+            logger.debug('Disabling prime prior with post-rescaling')
+            self.has_prior_prior = False
+
+            if post_rescaling == 'logit':
+                if self._update_bounds:
+                    raise RuntimeError('Cannot use logit with update bounds')
+                self.rescale_bounds = {p: [0 - 1e-2, 1 + 1e-2]
+                                       for p in self.parameters}
+        else:
+            logger.debug('No post-rescaling to configure')
+
+    def pre_rescaling(self, x):
+        """Function applied before rescaling to bounds"""
+        return x, np.zeros_like(x)
+
+    def pre_rescaling_inv(self, x):
+        """Inverse of function applied before rescaling to bounds"""
+        return x, np.zeros_like(x)
+
+    def post_rescaling(self, x):
+        """Function applied after rescaling to bounds"""
+        return x, np.zeros_like(x)
+
+    def post_rescaling_inv(self, x):
+        """Inverse of function applied after rescaling to bounds"""
+        return x, np.zeros_like(x)
 
     def _rescale_to_bounds(self, x, n):
         out = self._rescale_factor[n] * \
@@ -390,7 +464,7 @@ class RescaleToBounds(Reparameterisation):
     def _apply_inversion(self, x, x_prime, log_j, p, pp, compute_radius,
                          test=None):
         if self._edges[p] is None:
-            if self.detect_edge_prime:
+            if self.has_pre_rescaling:
                 self._edges[p] = detect_edge(x_prime[pp], test=test,
                                              **self.detect_edges_kwargs)
             else:
@@ -403,7 +477,7 @@ class RescaleToBounds(Reparameterisation):
             logger.debug(f'Apply inversion for {p} to {self._edges[p]} bound')
             logger.debug('Fixing bounds to [0, 1]')
             logger.debug('Rescaling')
-            if self.detect_edge_prime:
+            if self.has_pre_rescaling:
                 x_prime[pp], lj = \
                     rescale_zero_to_one(x_prime[pp] - self.offsets[p],
                                         *self.bounds[p])
@@ -430,7 +504,7 @@ class RescaleToBounds(Reparameterisation):
         else:
             logger.debug(f'Not using inversion for {p}')
             logger.debug(f'Rescaling to {self.rescale_bounds[p]}')
-            if self.detect_edge_prime:
+            if self.has_pre_rescaling:
                 x_prime[pp], lj = \
                     self._rescale_to_bounds(x_prime[pp] - self.offsets[p], p)
             else:
@@ -442,9 +516,15 @@ class RescaleToBounds(Reparameterisation):
 
     def _reverse_inversion(self, x, x_prime, log_j, p, pp):
         if self._edges[p]:
-            inv = x_prime[pp] < 0.
-            x[p][~inv] = x_prime[pp][~inv]
-            x[p][inv] = -x_prime[pp][inv]
+            if self.has_post_rescaling:
+                inv = x[p] < 0.
+                x[p][~inv] = x[p][~inv]
+                x[p][inv] = -x[p][inv]
+            else:
+                inv = x_prime[pp] < 0.
+                x[p][~inv] = x_prime[pp][~inv]
+                x[p][inv] = -x_prime[pp][inv]
+
             if self._edges[p] == 'upper':
                 x[p] = 1 - x[p]
             x[p], lj = inverse_rescale_zero_to_one(
@@ -452,7 +532,10 @@ class RescaleToBounds(Reparameterisation):
             x[p] += self.offsets[p]
             log_j += lj
         else:
-            x[p], lj = self._inverse_rescale_to_bounds(x_prime[pp], p)
+            if self.has_post_rescaling:
+                x[p], lj = self._inverse_rescale_to_bounds(x[p], p)
+            else:
+                x[p], lj = self._inverse_rescale_to_bounds(x_prime[pp], p)
             x[p] += self.offsets[p]
             log_j += lj
         return x, x_prime, log_j
@@ -474,6 +557,8 @@ class RescaleToBounds(Reparameterisation):
             Parsed to inversion function
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
+            x_prime[pp], lj = self.pre_rescaling(x[p])
+            log_j += lj
             if p in self.boundary_inversion:
                 x, x_prime, log_j = self._apply_inversion(
                         x, x_prime, log_j, p, pp, compute_radius, **kwargs)
@@ -481,38 +566,38 @@ class RescaleToBounds(Reparameterisation):
                 x_prime[pp], lj = \
                     self._rescale_to_bounds(x[p] - self.offsets[p], p)
                 log_j += lj
+            x_prime[pp], lj = self.post_rescaling(x_prime[pp])
+            log_j += lj
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
         """Map inputs to the physical space from the prime space"""
         for p, pp in zip(reversed(self.parameters),
                          reversed(self.prime_parameters)):
+            x[p], lj = self.post_rescaling_inv(x_prime[pp])
+            log_j += lj
             if p in self.boundary_inversion:
                 x, x_prime, log_j = self._reverse_inversion(
                     x, x_prime, log_j, p, pp, **kwargs)
             else:
-                x[p], lj = self._inverse_rescale_to_bounds(x_prime[pp], p)
+                x[p], lj = self._inverse_rescale_to_bounds(x[p], p)
                 x[p] += self.offsets[p]
                 log_j += lj
+            x[p], lj = self.pre_rescaling_inv(x[p])
+            log_j += lj
         return x, x_prime, log_j
 
-    def update_prime_prior_bounds(self):
-        """Update the prior bounds used for the prime prior"""
-        if self.has_prime_prior:
-            self.prime_prior_bounds = \
-                {pp: determine_rescaled_bounds(self.prior_bounds[p][0],
-                                               self.prior_bounds[p][1],
-                                               self.bounds[p][0],
-                                               self.bounds[p][1],
-                                               self._edges[p],
-                                               self.offsets[p])
-                 for p, pp in zip(self.parameters, self.prime_parameters)}
-            logger.debug(f'New prime bounds: {self.prime_prior_bounds}')
+    def reset_inversion(self):
+        """Reset the edges for inversion"""
+        self._edges = {n: None for n in self.parameters}
 
     def set_bounds(self, prior_bounds):
         """Set the initial bounds for rescaling"""
-        self.bounds = \
-            {p: prior_bounds[p] - self.offsets[p] for p in self.parameters}
+        self.prior_bounds = \
+            {p: self.pre_rescaling(prior_bounds[p])[0]
+             for p in self.parameters}
+        self.bounds = {p: b - self.offsets[p]
+                       for p, b in self.prior_bounds.items()}
         logger.debug(f'Initial bounds: {self.bounds}')
         self.update_prime_prior_bounds()
 
@@ -520,8 +605,8 @@ class RescaleToBounds(Reparameterisation):
         """Update the bounds used for the reparameterisation"""
         if self._update_bounds:
             self.bounds = \
-                {p: [np.min(x[p] - self.offsets[p]),
-                     np.max(x[p] - self.offsets[p])]
+                {p: [self.pre_rescaling(np.min(x[p]))[0] - self.offsets[p],
+                     self.pre_rescaling(np.max(x[p]))[0] - self.offsets[p]]
                  for p in self.parameters}
             logger.debug(f'New bounds: {self.bounds}')
             self.update_prime_prior_bounds()
@@ -529,9 +614,16 @@ class RescaleToBounds(Reparameterisation):
         else:
             logger.debug('Update bounds not enabled')
 
-    def reset_inversion(self):
-        """Reset the edges for inversion"""
-        self._edges = {n: None for n in self.parameters}
+    def update_prime_prior_bounds(self):
+        """Update the prior bounds used for the prime prior"""
+        if self.has_prime_prior:
+            self.prime_prior_bounds = \
+                {pp: self.post_rescaling(determine_rescaled_bounds(
+                    self.prior_bounds[p][0], self.prior_bounds[p][1],
+                    self.bounds[p][0], self.bounds[p][1], self._edges[p],
+                    self.offsets[p]))[0]
+                 for p, pp in zip(self.parameters, self.prime_parameters)}
+            logger.debug(f'New prime bounds: {self.prime_prior_bounds}')
 
     def x_prime_log_prior(self, x_prime):
         """Compute the prior in the prime space assuming a uniform prior"""
@@ -542,7 +634,8 @@ class RescaleToBounds(Reparameterisation):
                                            *self.prime_prior_bounds[pp])
             return log_p
         else:
-            raise RuntimeError('Prime prior')
+            raise RuntimeError(
+                f'Prime prior is not configured for {self.name}')
 
 
 class Angle(Reparameterisation):
@@ -866,6 +959,7 @@ class AnglePair(Reparameterisation):
 default_reparameterisations = {
     'default': (RescaleToBounds, None),
     'rescaletobounds': (RescaleToBounds, None),
+    'rescale-to-bounds': (RescaleToBounds, None),
     'offset': (RescaleToBounds, {'offset': True}),
     'inversion': (RescaleToBounds, {'detect_edges': True,
                                     'boundary_inversion': True,
