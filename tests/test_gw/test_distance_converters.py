@@ -19,7 +19,7 @@ def test_power_law_converter_distribution(power):
     """
     c = PowerLawConverter(power, scale=1)
     x = stats.powerlaw(power + 1).rvs(size=10000)
-    y = c.to_uniform_parameter(x)
+    y, _ = c.to_uniform_parameter(x)
     d, p = stats.kstest(y, 'uniform')
     assert p >= 0.05
 
@@ -31,6 +31,6 @@ def test_power_law_converter_inversion(power):
     """
     c = PowerLawConverter(power, scale=1)
     x = stats.powerlaw(power + 1).rvs(size=1000)
-    y = c.to_uniform_parameter(x)
-    x_out = c.from_uniform_parameter(y)
+    y, _ = c.to_uniform_parameter(x)
+    x_out, _ = c.from_uniform_parameter(y)
     np.testing.assert_array_almost_equal(x, x_out)
