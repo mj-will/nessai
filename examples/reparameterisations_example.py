@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-# Example of using nessai
+# Example of using nessai with `reparameterisations` dictionary. This example
+# uses the sample model as the half_gaussian example.
 
 import numpy as np
 from scipy.stats import norm
@@ -9,14 +10,11 @@ from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.utils import setup_logger
 
-# Setup the logger - credit to the Bilby team for this neat function!
-# see: https://git.ligo.org/lscsoft/bilby
-
-output = './outdir/reparemterisations/'
-logger = setup_logger(output=output, log_level='DEBUG')
+output = './outdir/reparemterisations_example/'
+logger = setup_logger(output=output, log_level='INFO')
 
 
-class GaussianModel(Model):
+class HalfGaussianModel(Model):
     """
     A simple two-dimensional Guassian likelihood with a cut at x=0.
     """
@@ -53,10 +51,7 @@ class GaussianModel(Model):
         return log_l
 
 
-# The normalsing flow that is trained to produce the proposal points
-# is configured with a dictionary that contains the parameters related to
-# training (e.g. learning rate (lr)) and model_config for the configuring
-# the flow itself (neurons, number of trasformations etc)
+# Configure the normalising flow
 flow_config = dict(
         max_epochs=50,
         patience=10,
@@ -64,12 +59,15 @@ flow_config = dict(
                           kwargs=dict(batch_norm_between_layers=True))
         )
 
-# The FlowSampler object is used to managed the sampling as has more
-# configuration options
-fp = FlowSampler(GaussianModel(), output=output, flow_config=flow_config,
+# In this example we use the reparameterisation options to specifiy how each
+# parameter should be rescaled.
+fp = FlowSampler(HalfGaussianModel(), output=output, flow_config=flow_config,
                  resume=False, expansion_fraction=1.0,
-                 reparameterisations={'x': 'inversion', 'y': 'default'})
+                 reparameterisations={
+                     'x': {'reparameterisation': 'inversion',
+                           'detect_edges': True},
+                     'y': 'default'
+                }
+)
 
-fp.ns.initialise()
-# And go!
 fp.run()

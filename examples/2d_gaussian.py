@@ -12,7 +12,7 @@ from nessai.utils import setup_logger
 # Setup the logger - credit to the Bilby team for this neat function!
 # see: https://git.ligo.org/lscsoft/bilby
 
-output = './outdir/2d_gaussian/'
+output = './outdir/2d_gaussian_example/'
 logger = setup_logger(output=output, log_level='INFO')
 
 # Define the model, in this case we use a simple 2D gaussian
@@ -75,7 +75,8 @@ flow_config = dict(
 
 # The FlowSampler object is used to managed the sampling as has more
 # configuration options
-fp = FlowSampler(GaussianModel(), output=output, flow_config=flow_config)
+fp = FlowSampler(GaussianModel(), output=output, flow_config=flow_config,
+                 resume=False, seed=1234)
 
 # And go!
 fp.run()
