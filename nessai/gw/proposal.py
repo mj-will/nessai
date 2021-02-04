@@ -37,12 +37,12 @@ from .reparameterisations import get_gw_reparameterisation
 logger = logging.getLogger(__name__)
 
 
-class GWFlowProposal(FlowProposal):
+class LegacyGWFlowProposal(FlowProposal):
     """
     A proposal specific to gravitational wave CBC
     """
     def __init__(self, model, reparameterisations={}, **kwargs):
-        super(GWFlowProposal, self).__init__(model, **kwargs)
+        super().__init__(model, **kwargs)
 
         self.set_reparameterisations(reparameterisations)
         # list to itnernally track reparemeterisations
@@ -1319,7 +1319,7 @@ class GWFlowProposal(FlowProposal):
         return log_p - log_J
 
 
-class AugmentedGWFlowProposal(GWFlowProposal):
+class AugmentedGWFlowProposal(LegacyGWFlowProposal):
 
     def __init__(self, model, augment_features=1, **kwargs):
         super().__init__(model, **kwargs)
@@ -1384,7 +1384,7 @@ class AugmentedGWFlowProposal(GWFlowProposal):
         return logP
 
 
-class GWReparam(FlowProposal):
+class GWFlowProposal(FlowProposal):
     """Wrapper for FlowProposal that has defaults for CBC-PE"""
     aliases = {
         'chirp_mass': ('mass', None),
