@@ -282,6 +282,7 @@ class DistanceConverter:
     parameter.
     """
     has_conversion = False
+    has_Jacobian = False
 
     def to_uniform_parameter(self, d):
         raise NotImplementedError
@@ -292,15 +293,17 @@ class DistanceConverter:
 
 class NullDistanceConverter(DistanceConverter):
 
+    has_Jacobian = True
+
     def __init__(self, d_min=None, d_max=None, **kwargs):
         if kwargs:
             logger.warning(f'Kwargs {kwargs} will be ignored for distance')
 
     def to_uniform_parameter(self, d):
-        return d
+        return d, np.zeros_like(d)
 
     def from_uniform_parameter(self, d):
-        return d
+        return d. np.zeros_like(d)
 
 
 class PowerLawConverter(DistanceConverter):
@@ -318,8 +321,9 @@ class PowerLawConverter(DistanceConverter):
         parameter.
     """
     has_conversion = True
+    has_jacobian = True
 
-    def __init__(self, power=None, scale=1000.0):
+    def __init__(self, power=None, scale=1000.0, **kwargs):
         if power is None:
             raise RuntimeError(
                 'Must specify the power to use in the power-law')
@@ -334,13 +338,21 @@ class PowerLawConverter(DistanceConverter):
         else:
             self._f = lambda x: x ** (1 / self._power)
 
+    def _log_jacobian(self, d):
+        return - self._power * np.log(self.scale) + np.log(self._power) + \
+                (self._power - 1) * np.log(d)
+
+    def _log_jacobian_inv(self, d):
+        return np.log(self.scale) - np.log(self._power) + \
+                (1 / self._power - 1) * np.log(d)
+
     def to_uniform_parameter(self, d):
         """Convert distance to a parameter with a uniform prior"""
-        return (d / self.scale) ** (self._power)
+        return (d / self.scale) ** (self._power), self._log_jacobian(d)
 
     def from_uniform_parameter(self, d):
         """Convert to distance from a parameter that has a uniform prior"""
-        return self.scale * self._f(d)
+        return self.scale * self._f(d), self._log_jacobian_inv(d)
 
 
 class ComovingDistanceConverter(DistanceConverter):
@@ -365,6 +377,7 @@ class ComovingDistanceConverter(DistanceConverter):
         Length of vector used for generating the look up table.
     """
     has_conversion = True
+    has_jacobian = False
 
     def __init__(self, d_min=None, d_max=None, units='Mpc',
                  cosmology='Planck15', scale=1000.0, pad=0.05, n_interp=500):
@@ -399,13 +412,15 @@ class ComovingDistanceConverter(DistanceConverter):
 
     def to_uniform_parameter(self, dl):
         """Convert luminosity distance to a parameter with a uniform prior"""
-        return (interpolate.splev(dl, self.interp_dl2dc, ext=3) /
-                self.scale) ** 3.
+        return ((interpolate.splev(dl, self.interp_dl2dc, ext=3) /
+                 self.scale) ** 3.,
+                np.zeros_like(dl))
 
     def from_uniform_parameter(self, dc):
         """Convert comoving distance to a parameter with a uniform prior"""
-        return interpolate.splev(self.scale * np.cbrt(dc), self.interp_dc2dl,
-                                 ext=3)
+        return (interpolate.splev(self.scale * np.cbrt(dc),
+                                  self.interp_dc2dl, ext=3),
+                np.zeros_like(dc))
 
 
 def get_distance_converter(prior):
