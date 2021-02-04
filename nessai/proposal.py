@@ -4,6 +4,7 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.lib.recfunctions as rfn
 from scipy import stats
 from scipy.special import logsumexp
 import torch
@@ -138,12 +139,10 @@ class Proposal:
             for s in self.samples:
                 s['logL'] = self.model.evaluate_log_likelihood(s)
         else:
-            try:
-                self.samples['logL'] = self.pool.map(_log_likelihood_wrapper,
-                                                     self.samples)
-                self.model.likelihood_evaluations += self.samples.size
-            except Exception as e:
-                logger.critical(e)
+            self.samples['logL'] = self.pool.map(_log_likelihood_wrapper,
+                                                 self.samples)
+            self.model.likelihood_evaluations += self.samples.size
+
         self.logl_eval_time += (datetime.datetime.now() - st)
 
     def draw(self, old_param):
@@ -1422,7 +1421,7 @@ class FlowProposal(RejectionProposal):
 
             x, _ = self.inverse_rescale(x)
             x['logP'] = self.model.log_prior(x)
-        return x[self.model.names + ['logP', 'logL']]
+        return rfn.repack_fields(x[self.model.names + ['logP', 'logL']])
 
     def populate(self, worst_point, N=10000, plot=True, r=None):
         """
@@ -1909,7 +1908,6 @@ class AugmentedFlowProposal(FlowProposal):
                 self.x,
                 filename=f'{self.output}/pool_{self.populated_count}.png'
                 )
-
         self.samples = self.x[self.model.names + ['logP', 'logL']]
 
         if self.check_acceptance:
