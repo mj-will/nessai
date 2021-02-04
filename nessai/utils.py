@@ -14,29 +14,43 @@ from .livepoint import live_points_to_dict
 logger = logging.getLogger(__name__)
 
 
-def logit(x):
+def logit(x, fuzz=0):
     """
     Logit function that also returns log Jacobian
 
     Parameters
     ----------
-    x: array_like
+    x : array_like
+        Array of values
+    fuzz : float, optional
+        Fuzz used to avoid nans in logit. Values are rescaled from [0, 1]
+        to [0-fuzz, 1+fuzz]. By default no fuzz is applied
     """
+    x += fuzz
+    x /= (1 + 2 * fuzz)
     return np.log(x) - np.log(1 - x), -np.log(np.abs(x - x ** 2))
 
 
-def sigmoid(x):
+def sigmoid(x, fuzz=0):
     """
     Sigmoid function that also returns log Jacobian
 
     Parameters
     ----------
-    x: array_like
+    x : array_like
+        Array of values
+    fuzz : float, optional
+        Fuzz used to avoid nans in logit
     """
     x = np.asarray(x)
-    log_J = np.nan_to_num(-x - 2 * np.log(np.exp(-x) + 1),
-                          nan=np.NINF, neginf=np.NINF)
-    return np.divide(1, 1 + np.exp(-x)), log_J
+    x = np.divide(1, 1 + np.exp(-x))
+    log_J = np.log(np.abs(x - x ** 2))
+    x *= (1 + 2 * fuzz)
+    x -= fuzz
+    return x, log_J
+
+
+rescaling_functions = {'logit': (logit, sigmoid)}
 
 
 def compute_indices_ks_test(indices, nlive, mode='D+'):
