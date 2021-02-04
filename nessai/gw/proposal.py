@@ -577,13 +577,13 @@ class GWFlowProposal(FlowProposal):
         """
         Convert from uniform distance parameter dc3 to luminosity distance
         """
-        return self.distance_converter.from_uniform_parameter(dc3)
+        return self.distance_converter.from_uniform_parameter(dc3)[0]
 
     def convert_to_dc3(self, dl):
         """
         Convert to uniform distance parameter dc3
         """
-        return self.distance_converter.to_uniform_parameter(dl)
+        return self.distance_converter.to_uniform_parameter(dl)[0]
 
     def setup_spin_logit(self, fuzz_factor=0.01):
         if 'a_1' in self.names and 'a_2' in self.names:
