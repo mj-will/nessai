@@ -1689,6 +1689,7 @@ class FlowProposal(RejectionProposal):
         state = self.__dict__.copy()
         state['initialised'] = False
         state['weights_file'] = state['flow'].weights_file
+
         # Mask may be generate via permutation, so must be saved
         if 'mask' in state['flow'].model_config['kwargs']:
             state['mask'] = state['flow'].model_config['kwargs']['mask']
@@ -1702,9 +1703,11 @@ class FlowProposal(RejectionProposal):
 
         # user provides model and config for resume
         # flow can be reconstructed from resume
+        del state['_reparameterisation']
         del state['model']
         del state['_flow_config']
         del state['flow']
+
         return state
 
     def __setstate__(self, state):
