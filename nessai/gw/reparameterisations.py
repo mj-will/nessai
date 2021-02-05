@@ -3,6 +3,7 @@ import logging
 
 from ..reparameterisations import (
     default_reparameterisations,
+    Reparameterisation,
     RescaleToBounds,
     AnglePair
 )
@@ -20,16 +21,23 @@ def get_gw_reparameterisation(reparameterisation):
     Get a reparameterisation from the default list plus specific GW
     classes.
     """
-    rc, kwargs = default_gw.get(reparameterisation, (None, None))
-    if rc is None:
-        raise ValueError(
-            f'Unknown GW reparameterisation: {reparameterisation}')
-    else:
-        if kwargs is None:
-            kwargs = {}
+    if isinstance(reparameterisation, str):
+        rc, kwargs = default_gw.get(reparameterisation, (None, None))
+        if rc is None:
+            raise ValueError(
+                f'Unknown GW reparameterisation: {reparameterisation}')
         else:
-            kwargs = kwargs.copy()
-        return rc, kwargs
+            if kwargs is None:
+                kwargs = {}
+            else:
+                kwargs = kwargs.copy()
+            return rc, kwargs
+    elif (isinstance(reparameterisation, type) and
+            issubclass(reparameterisation, Reparameterisation)):
+        return reparameterisation, {}
+    else:
+        raise RuntimeError('Reparmeterisation must a str or class that '
+                           'inherits from `Reparameterisation`')
 
 
 class DistanceReparameterisation(RescaleToBounds):
