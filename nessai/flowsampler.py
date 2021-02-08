@@ -33,17 +33,18 @@ class FlowSampler:
     weights_files : str, optional
         Weights files used to resume sampler that replaces the weights file
         saved internally.
+    exit_code : int, optional (130)
+        Exit code to use when forceably exiting the sampler.
     kwargs :
         Keyword arguments parsed to NestedSampler. See NestedSampler for
         details
     """
-
     def __init__(self, model, output='./', resume=True,
                  resume_file='nested_sampler_resume.pkl', weights_file=None,
-                 exit_code=130, **kwargs):
+                 exit_code=130, max_threads=1, **kwargs):
 
         configure_threads(
-            max_threads=kwargs.get('max_threads', None),
+            max_threads=max_threads,
             pytorch_threads=kwargs.get('pytorch_threads', None),
             n_pool=kwargs.get('n_pool', None)
             )
@@ -88,15 +89,22 @@ class FlowSampler:
             signal.signal(signal.SIGINT, self.safe_exit)
             signal.signal(signal.SIGALRM, self.safe_exit)
         except AttributeError:
-            logger.debug('Can not set signal attributes on this system')
+            logger.critical('Can not set signal attributes on this system')
 
-    def run(self, resume=False, plot=True, save=True):
+    def run(self, plot=True, save=True):
         """
         Run the nested samper
+
+        Parameters
+        ----------
+        plot : bool, optional (True)
+            Toggle plots produced once the sampler has converged
+        save : bool, opitional (True)
+            Toggle automatic saving of results
         """
         self.ns.initialise()
         self.logZ, self.nested_samples = \
-            self.ns.nested_sampling_loop(save=save)
+            self.ns.nested_sampling_loop()
         logger.info((f'Total sampling time: {self.ns.sampling_time}'))
 
         logger.info('Starting post processing')
@@ -128,7 +136,12 @@ class FlowSampler:
 
     def save_kwargs(self, kwargs):
         """
-        Save the key-word arguments used
+        Save the dictionary of keyword arguments used.
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary of kwargs to save
         """
         d = kwargs.copy()
         with open(f'{self.output}/config.json', 'w') as wf:
@@ -143,7 +156,12 @@ class FlowSampler:
 
     def save_results(self, filename):
         """
-        Save the results from sampling
+        Save the results from sampling to a specific file.
+
+        Parameters
+        ----------
+        filename : str
+            Name of file to save results to.
         """
         iterations = np.arange(len(self.ns.min_likelihood)) \
             * (self.ns.nlive // 10)
@@ -173,8 +191,8 @@ class FlowSampler:
         d['information'] = self.ns.information
         d['sampling_time'] = self.ns.sampling_time.total_seconds()
         d['training_time'] = self.ns.training_time.total_seconds()
-        d['population_time'] = self.ns.proposal.population_time.total_seconds()
-        if (t := self.ns.proposal.logl_eval_time.total_seconds()):
+        d['population_time'] = self.ns.proposal_population_time.total_seconds()
+        if (t := self.ns.likelihood_evaluation_time.total_seconds()):
             d['likelihood_evaluation_time'] = t
 
         with open(filename, 'w') as wf:
@@ -185,11 +203,8 @@ class FlowSampler:
         Safely exit. This includes closing the multiprocessing pool.
         """
         logger.warning(f'Trying to safely exit with code {signum}')
-
+        self.ns.proposal.close_pool(code=signum)
         self.ns.checkpoint()
-
-        if self.ns.proposal.pool is not None:
-            self.ns.proposal.close_pool()
 
         logger.warning(f'Exiting with code: {self.exit_code}')
         sys.exit(self.exit_code)

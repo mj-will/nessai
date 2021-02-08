@@ -16,6 +16,7 @@ class Model:
     bounds = {}
     _lower = None
     _upper = None
+    reparameterisations = None
 
     @property
     def dims(self):

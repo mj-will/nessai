@@ -14,29 +14,43 @@ from .livepoint import live_points_to_dict
 logger = logging.getLogger(__name__)
 
 
-def logit(x):
+def logit(x, fuzz=0):
     """
     Logit function that also returns log Jacobian
 
     Parameters
     ----------
-    x: array_like
+    x : array_like
+        Array of values
+    fuzz : float, optional
+        Fuzz used to avoid nans in logit. Values are rescaled from [0, 1]
+        to [0-fuzz, 1+fuzz]. By default no fuzz is applied
     """
+    x += fuzz
+    x /= (1 + 2 * fuzz)
     return np.log(x) - np.log(1 - x), -np.log(np.abs(x - x ** 2))
 
 
-def sigmoid(x):
+def sigmoid(x, fuzz=0):
     """
     Sigmoid function that also returns log Jacobian
 
     Parameters
     ----------
-    x: array_like
+    x : array_like
+        Array of values
+    fuzz : float, optional
+        Fuzz used to avoid nans in logit
     """
     x = np.asarray(x)
-    log_J = np.nan_to_num(-x - 2 * np.log(np.exp(-x) + 1),
-                          nan=np.NINF, neginf=np.NINF)
-    return np.divide(1, 1 + np.exp(-x)), log_J
+    x = np.divide(1, 1 + np.exp(-x))
+    log_J = np.log(np.abs(x - x ** 2))
+    x *= (1 + 2 * fuzz)
+    x -= fuzz
+    return x, log_J
+
+
+rescaling_functions = {'logit': (logit, sigmoid)}
 
 
 def compute_indices_ks_test(indices, nlive, mode='D+'):
@@ -376,8 +390,9 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
             np.log(xmax - xmin) - np.log(2))
 
 
-def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
-                allow_both=False, allow_none=False, test=None):
+def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
+                allow_both=False, allow_none=False,
+                allowed_bounds=['lower', 'upper'], test=None):
     """
     Detect edges in input distributions based on the density.
 
@@ -385,6 +400,9 @@ def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
     ----------
     x: array_like
         Samples
+    x_range : array_like, optional
+        Lower and upper bounds used to check inversion, if not specified
+        min and max of data are used.
     percent: float (0.1)
         Percentage of interval used to check edges
     cutoff: float (0.1)
@@ -394,16 +412,29 @@ def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
         Allow function to return both instead of force either upper or lower
     allow_none: bool
         Allow for neither lower or upper bound to be returned
-    test : None or str
+    test : str or None
         If not None this skips the process and just returns the value of test.
         This is used to verify the inversion in all possible scenarios.
+
+    Returns
+    -------
+    str or False, {'lower', 'upper', 'both', False}
+        Returns the boundary to apply the inversion or False is no inversion
+        is to be applied
     """
-    if test is not None:
-        return test
     bounds = ['lower', 'upper']
+    if test is not None:
+        if test in bounds and test not in allowed_bounds:
+            logger.debug(f'{test} is not an allowed bound, returning False')
+            return False
+        else:
+            return test
+    if not all(b in bounds for b in allowed_bounds):
+        raise RuntimeError(f'Unknown allowed bounds: {allowed_bounds}')
     if nbins == 'auto':
         nbins = auto_bins(x)
-    hist, bins = np.histogram(x, bins=nbins, density=True)
+
+    hist, bins = np.histogram(x, bins=nbins, density=True, range=x_range)
     n = max(int(len(bins) * percent), 1)
     bounds_fraction = \
         np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (bins[1] - bins[0])
@@ -411,19 +442,53 @@ def detect_edge(x, percent=0.1, cutoff=0.5, nbins='auto',
     max_density = hist[max_idx] * (bins[1] - bins[0])
     logger.debug(f'Max. density: {max_density:.3f}')
 
-    if max_idx <= n:
+    for i, b in enumerate(bounds):
+        if b not in allowed_bounds:
+            bounds.pop(i)
+            bounds_fraction = np.delete(bounds_fraction, i)
+    if max_idx <= n and 'lower' in bounds:
         return bounds[0]
-    elif max_idx >= (len(bins) - n):
-        return bounds[1]
+    elif max_idx >= (len(bins) - n) and 'upper' in bounds:
+        return bounds[-1]
     elif not np.any(bounds_fraction > cutoff * max_density) and allow_none:
         logger.debug('Density too low at both bounds')
         return False
     else:
-        if np.all(bounds_fraction > cutoff * max_density) and allow_both:
+        if (np.all(bounds_fraction > cutoff * max_density) and allow_both and
+                len(bounds) > 1):
             logger.debug('Both bounds above cutoff')
             return 'both'
         else:
             return bounds[np.argmax(bounds_fraction)]
+
+
+def configure_edge_detection(d, detect_edges):
+    """
+    Configure parameters for edge detection
+
+    Parameters
+    ----------
+    d : dict
+        Dictionary of kwargs parsed to detect_edge
+    detect_edges : bool
+        If true allows for no inversion to be applied
+
+    Returns
+    -------
+    dict
+        Updated kwargs
+    """
+    default = dict(cutoff=0.5)
+    if d is None:
+        d = {}
+    if detect_edges:
+        d['allow_none'] = True
+    else:
+        d['allow_none'] = False
+        d['cutoff'] = 0.0
+    default.update(d)
+    logger.debug(f'detect edges kwargs: {default}')
+    return default
 
 
 def compute_minimum_distances(samples, metric='euclidean'):
@@ -706,7 +771,8 @@ def auto_bins(x, max_bins=50):
     return nbins
 
 
-def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert):
+def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
+                              offset=0):
     """
     Determine the values of the prior min and max in the rescaled
     space.
@@ -724,9 +790,9 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert):
     invert : false or {'upper', 'lower', 'both'}
         Type of inversion
     """
-    lower = (prior_min - x_min) / (x_max - x_min)
-    upper = (prior_max - x_min) / (x_max - x_min)
-    if not invert:
+    lower = (prior_min - offset - x_min) / (x_max - x_min)
+    upper = (prior_max - offset - x_min) / (x_max - x_min)
+    if not invert or invert is None:
         return 2 * lower - 1, 2 * upper - 1
     elif invert == 'upper':
         return lower - 1, 1 - lower
