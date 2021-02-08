@@ -7,7 +7,7 @@ from nflows import transforms
 from nflows.nn.nets import ResidualNet
 from nflows.utils import create_alternating_binary_mask
 
-from .base import NFlow
+from . import NFlow
 
 logger = logging.getLogger(__name__)
 

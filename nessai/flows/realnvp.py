@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from nflows.distributions import StandardNormal
 from nflows import transforms
 
-from .base import NFlow
+from . import NFlow
 
 logger = logging.getLogger(__name__)
 
