@@ -391,12 +391,12 @@ class NestedSampler:
         kwargs
             Kwargs are parsed to init method for uninformed proposal class
         """
-        if not maximum_uninformed:
-            self.uninformed_sampling = False
-            self.maximum_uninformed = 0
-        elif maximum_uninformed is None:
+        if maximum_uninformed is None:
             self.uninformed_sampling = True
             self.maximum_uninformed = np.inf
+        elif not maximum_uninformed:
+            self.uninformed_sampling = False
+            self.maximum_uninformed = 0
         else:
             self.uninformed_sampling = True
             self.maximum_uninformed = maximum_uninformed
