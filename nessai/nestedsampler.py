@@ -207,9 +207,9 @@ class NestedSampler:
                  maximum_uninformed=1000,
                  uninformed_proposal=None,
                  uninformed_acceptance_threshold=None,
-                 uninformed_proposal_kwargs={},
+                 uninformed_proposal_kwargs=None,
                  flow_class=None,
-                 flow_config={},
+                 flow_config=None,
                  training_frequency=None,
                  train_on_empty=True,
                  cooldown=100,
@@ -306,6 +306,8 @@ class NestedSampler:
 
         self.initialised = False
 
+        if uninformed_proposal_kwargs is None:
+            uninformed_proposal_kwargs = {}
         self.configure_uninformed_proposal(uninformed_proposal,
                                            analytic_priors,
                                            maximum_uninformed,
