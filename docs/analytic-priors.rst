@@ -13,4 +13,5 @@ The ``Model`` includes a method for drawing new samples ``new_point`` and comput
 
 If the samples produced by ``new_point`` are drawn directly from the prior the sampler can be ran with the flag ``analytic_priors=True`` and this will improve the efficiency of the initial *uniformed sampling*.
 
-NOTE: the the new samples returned by ``new_point`` must be a structured array with the correct fields, the functions in :py:mod:`nessai.livepoint` are useful here.
+.. note::
+    The the new samples returned by ``new_point`` must be a structured array with the correct fields, the functions in :py:mod:`nessai.livepoint` are useful here.

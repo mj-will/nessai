@@ -4,7 +4,8 @@ Installation
 
 The prefered installation method is via ``pip`` in the virtual environment of your choice.
 
-**Important:** Nessai requires Python 3.8 or greater.
+.. note::
+    Nessai requires Python 3.8 or greater.
 
 
 Installing nessai
@@ -13,9 +14,10 @@ Installing nessai
 PyTorch
 -------
 
-Nessai requires PyTorch will can be installed using ``pip`` or ``conda``. It's recommend to first install the correct version on PyTorch for your system and then proceed with the usual installation. See the Pytorch homepage for instructions: https://pytorch.org/.
+Nessai requires PyTorch will can be installed using ``pip`` or ``conda``. It's recommend to first install the correct version on PyTorch for your system and then proceed with the usual installation. See the PyTorch homepage for instructions: https://pytorch.org/.
 
-NOTE: Nessai includes GPU support but it is not recommended as for the majority of use-cases running on the GPU is slower than CPU.
+.. note::
+    Nessai includes GPU support but it is not recommended as for the majority of use-cases the current implmentation runs slower on the GPU than CPU.
 
 Nessai
 ------
@@ -37,8 +39,11 @@ To install nessai for development purposes see the `contribution guidelines <htt
 Using nessai with bilby
 =======================
 
-This pacakge requieres a fork of Bilby that includes the sampler. This will hopefully change in near future but for now it can be installed by running:
+This pacakge requiers a fork of Bilby that includes the sampler. This will hopefully change in near future but for now it can be installed by running:
 
-```
-pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sampler#egg=bilby
-```
+.. code-block:: console
+
+    $ pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sampler#egg=bilby
+    
+This branch fork is based on version 1.0.3 of bilby.
+
