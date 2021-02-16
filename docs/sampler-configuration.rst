@@ -1,25 +1,26 @@
-======================
+#####################
 Sampler Configuration
-======================
+#####################
 
+There are various settings in :code:`nessai` which can be configured. These can be grouped in to general settings and proposal settings. The former controls general aspects of the sampler such as the model being sampler or how many live points are used. The latter affect the proposal process and how new points are drawn.
 
-The proposal process is managed by a proposal object that inherits from ``Proposal``. By default the sampler starts with *uniformed sampling* were samples are drawn using the ``new_point`` method from the model. Once a specific criteria the sampler switches to using a proposal method which includes a normalising flow (FlowPropolsal). Both stages of the sampling are configure when creating an instance of ``FlowSampler``.
+All of the settings are controled when creating an instance of :class:`~nessai.flowsampler.FlowSampler`.
 
+*********************
 General configuration
-=====================
+*********************
 
-These are general settings which apply to the whole algorithm:
+These are general settings which apply to the whole algorithm and are parsed to :mod:`~nessai.nestedsampler.NestedSampler`. However some of these settings, such as :code:`training_frequency` which defines how often the proposal method is retrained.
 
 .. autoclass:: nessai.nestedsampler.NestedSampler
     :members: None
 
-For a complete list see :py:class:`nessai.nestedsampler.NestedSampler`
 
+**********************
+Proposal configuration
+**********************
 
-Configuring uninformed proposal
-===============================
+The proposal configuration includes a variety
 
-
-
-Configuring FlowProposal
-========================
+.. autoclass:: nessai.proposal.FlowProposal
+    :members: None

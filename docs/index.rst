@@ -31,7 +31,6 @@ The code is available at: https://github.com/mj-will/nessai.
    reparameterisations
    normalising-flows-configuration
    gaussian-example
-   code-overview
 
 
 Indices and tables
