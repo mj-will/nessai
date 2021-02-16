@@ -56,6 +56,7 @@ class Reparameterisation:
     """
     _update_bounds = False
     has_prime_prior = False
+    requires_prime_prior = False
 
     def __init__(self, parameters=None, prior_bounds=None):
         if not isinstance(parameters, (str, list)):
@@ -80,7 +81,6 @@ class Reparameterisation:
         self.prior_bounds = {p: np.asarray(b) for p, b in prior_bounds.items()}
         self.prime_parameters = [p + '_prime' for p in self.parameters]
         self.requires = []
-        self.requires_prime_prior = False
         logger.debug(f'Initialised reparameterisation: {self.name}')
 
     @property
