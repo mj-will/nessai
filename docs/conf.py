@@ -12,7 +12,7 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../nessai/'))
+sys.path.insert(0, os.path.abspath('..'))
 
 # -- Project information -----------------------------------------------------
 
@@ -32,10 +32,8 @@ release = 'v0.1.1'
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.mathjax',
               'numpydoc',
-              'nbsphinx',
               'sphinx.ext.autosummary',
               'sphinx.ext.autosectionlabel',
-              'sphinx_tabs.tabs'
               ]
 
 # Add any paths that contain templates here, relative to this directory.
