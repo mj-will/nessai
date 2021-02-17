@@ -29,11 +29,11 @@ release = 'v0.1.1'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc',
-              'sphinx.ext.mathjax',
+extensions = ['sphinx.ext.mathjax',
               'numpydoc',
               'sphinx.ext.autosummary',
               'sphinx.ext.autosectionlabel',
+              'autoapi.extension'
               ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -56,7 +56,7 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = []
 
-
-# -- Configure autodoc -------------------------------------------------------
-autosummary_generate = True
-add_module_names = False
+# -- Configure autoapi -------------------------------------------------------
+autoapi_type = 'python'
+autoapi_dirs = ['../nessai/']
+autoapi_add_toctree_entry = False
