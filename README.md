@@ -37,7 +37,7 @@ pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sampl
 
 ## Documentation
 
-Documenation will be added to the ReadTheDocs shortly.
+Documenation is available at: [nessai.readthedocs.io](https://nessai.readthedocs.io/)
 
 ## Contributing
 

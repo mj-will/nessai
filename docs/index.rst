@@ -20,6 +20,7 @@ The code is available at: https://github.com/mj-will/nessai.
 
 .. automodule:: nessai
    :members:
+   :undoc-members:
 
 .. toctree::
    :maxdepth: 1
@@ -31,6 +32,7 @@ The code is available at: https://github.com/mj-will/nessai.
    reparameterisations
    normalising-flows-configuration
    further-details
+   API reference </autoapi/nessai/index>
 
 .. toctree::
    :maxdepth: 1
@@ -38,10 +40,3 @@ The code is available at: https://github.com/mj-will/nessai.
 
    gaussian-example
    bilby-example
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
