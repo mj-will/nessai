@@ -91,16 +91,23 @@ class Reparameterisation:
 
     def reparameterise(self, x, x_prime, log_j):
         """
-        Apply the reparameterisation to convert from x-space
-        to x'-space
+        Apply the reparameterisation to convert from x-space to x'-space.
 
         Parameters
         ----------
         x : structured array
-            Array
+            Array of inputs
         x_prime : structured array
             Array to be update
-        log_j : Log jacobian to be updated
+        log_j : array_like
+            Log jacobian to be updated
+
+        Returns
+        -------
+        x, x_prime : structured arrays
+            Update version of the x and x_prime arrays
+        log_j : array_like
+            Updated log Jacobian determinant
         """
         raise NotImplementedError
 
@@ -115,7 +122,15 @@ class Reparameterisation:
             Array
         x_prime : structured array
             Array to be update
-        log_j : Log jacobian to be updated
+        log_j : array_like
+            Log jacobian to be updated
+
+        Returns
+        -------
+        x, x_prime : structured arrays
+            Update version of the x and x_prime arrays
+        log_j : array_like
+            Updated log Jacobian determinant
         """
         raise NotImplementedError
 
@@ -123,6 +138,12 @@ class Reparameterisation:
 class CombinedReparameterisation(dict):
     """Class to handle mulitple reparameterisations
 
+    Parameters
+    ----------
+    reparameterisations : list, optional
+        List of reparameterisations to add to the combined reparameterisations.
+        Further reparameterisations can be added using
+        `add_reparameterisations`.
     """
     def __init__(self, reparameterisations=None):
         super().__init__()
@@ -183,7 +204,8 @@ class CombinedReparameterisation(dict):
             Array
         x_prime : structured array
             Array to be update
-        log_j : Log jacobian to be updated
+        log_j : array_like
+            Log jacobian to be updated
         """
         for r in self.values():
             x, x_prime, log_j = r.reparameterise(x, x_prime, log_j, **kwargs)
@@ -200,7 +222,8 @@ class CombinedReparameterisation(dict):
             Array
         x_prime : structured array
             Array to be update
-        log_j : Log jacobian to be updated
+        log_j : array_like
+            Log jacobian to be updated
         """
         for r in reversed(self.values()):
             x, x_prime, log_j = r.inverse_reparameterise(
@@ -286,21 +309,39 @@ class RescaleToBounds(Reparameterisation):
     By default the interval is [-1, 1]. Also includes options for
     boundary inversion.
 
+    This reparameterisation can handle multiple parameters.
+
     Parameters
     ----------
     parameters : list of str
         List of the names of parameters
     prior_bounds : dict
-        Dictionary of prior bounds for each parameter
-    rescale_bounds : list of tuples
-        Bounds to rescale to
-    prior : str
+        Dictionary of prior bounds for each parameter. Does not need to be
+        specified by the user.
+    rescale_bounds : list of tuples, optional
+        Bounds to rescale to.
+    update_bounds : bool, optional
+        Enable or disable updating bounds.
+    prior : {'uniform', None}
         Type of prior used, if uniform prime prior is enabled.
+    boundary_inversion : bool, list, dict, optional
+        Configuration for boundary inversion. If a list, inversion is only
+        applied to the parameters in the list based on `inversion_type`. If
+        a `dict` then each item should be a parameter and a corresponding
+        inversion type `{'split', 'inversion'}`.
+    detect_edges : bool, optional
+        Enable or disable edge detection for inversion.
+    detect_edges_kwargs : dict, optional
+        Dictionary of kwargs used to configure edge detection.
+    offset : bool, optional
+        Enable or disable offset subtraction. If `True` then the mean value
+        of the prior is subtract of the parameter before the rescaling is
+        applied.
     """
     def __init__(self, parameters=None, prior_bounds=None, prior=None,
                  rescale_bounds=None, boundary_inversion=None,
                  detect_edges=False, inversion_type='split',
-                 detect_edges_kwargs=None, offset=False, update_bounds=False,
+                 detect_edges_kwargs=None, offset=False, update_bounds=True,
                  pre_rescaling=None, post_rescaling=None):
 
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
@@ -626,9 +667,30 @@ class RescaleToBounds(Reparameterisation):
 
 
 class Angle(Reparameterisation):
-    """Reparameterisation for a single angle"""
-    def __init__(self, parameters=None, prior_bounds=None, radial=None,
-                 scale=1.0, prior=None):
+    """Reparameterisation for a single angle.
+
+    This reparameterisations converts an angle to Cartesian coordinates
+    using either a corresponding radial parameter or an auxiliary radial
+    parameter. When using the auxiliary parameter, samples are drawn from
+    a chi-distribution with two degrees of freedom.
+
+    Parameters
+    ----------
+    parameters : str or list
+        Parameter(s) to use for the reparameterisation. Either just an angle
+        or an angle and corresponding radial parameter
+    prior_bounds : dict
+        Dictionary of prior bounds. Does not need to be specified when defining
+        `reparameterisations`.
+    scale : float, optional
+        Value used to rescale the angle before converting to Cartesian
+        coordiantes.
+    prior : {'uniform', 'sine', None}
+        Type of prior being used for sampling this angle. If specified, the
+        prime prior is enabled. If None then it is disabled.
+    """
+    def __init__(self, parameters=None, prior_bounds=None, scale=1.0,
+                 prior=None):
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
 
         if len(self.parameters) == 1:
@@ -663,22 +725,27 @@ class Angle(Reparameterisation):
 
     @property
     def angle(self):
+        """The name of the angular parameter"""
         return self.parameters[0]
 
     @property
     def radial(self):
+        """The name of the radial parameter"""
         return self.parameters[1]
 
     @property
     def radius(self):
+        """The name of the radial parameter (equivalent to radial)"""
         return self.parameters[1]
 
     @property
     def x(self):
+        """The name of x coordinate"""
         return self.prime_parameters[0]
 
     @property
     def y(self):
+        """The name of y coordinate"""
         return self.prime_parameters[1]
 
     def _rescale_radius(self, x, x_prime, log_j, **kwargs):
@@ -709,7 +776,7 @@ class Angle(Reparameterisation):
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
-        """Convert from Cartesian to an angle"""
+        """Convert from Cartesian to an angle and radial component"""
         x[self.parameters[1]] = \
             np.sqrt(x_prime[self.prime_parameters[0]] ** 2
                     + x_prime[self.prime_parameters[1]] ** 2)
