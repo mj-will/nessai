@@ -12,6 +12,7 @@
 #
 import os
 import sys
+import nessai
 sys.path.insert(0, os.path.abspath('../nessai/'))
 
 # -- Project information -----------------------------------------------------
@@ -21,7 +22,7 @@ copyright = '2020, Michael J. Williams'
 author = 'Michael J. Williams'
 
 # The full version, including alpha/beta/rc tags
-release = 'v0.1.1'
+release = nessai.__version__
 
 
 # -- General configuration ---------------------------------------------------
