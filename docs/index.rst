@@ -12,9 +12,9 @@ Welcome to nessai's documentation!
 Nessai
 ======
 
-Nessai (/ˈnɛsi/): Nested Sampling with Aritificial Intelligence
+``nessai`` (/ˈnɛsi/): Nested Sampling with Aritificial Intelligence
 
-Nessai is a nested sampling algorithm for Bayesian Inference that incorporates normalisings flows. It is designed for applications where the Bayesian likelihood is computationally expensive.
+``nessai`` is a nested sampling algorithm for Bayesian Inference that incorporates normalisings flows. It is designed for applications where the Bayesian likelihood is computationally expensive.
 
 The code is available at: https://github.com/mj-will/nessai.
 
@@ -22,7 +22,7 @@ The code is available at: https://github.com/mj-will/nessai.
    :members:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
    installation
@@ -30,7 +30,14 @@ The code is available at: https://github.com/mj-will/nessai.
    sampler-configuration
    reparameterisations
    normalising-flows-configuration
+   further-details
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Examples:
+
    gaussian-example
+   bilby-example
 
 
 Indices and tables

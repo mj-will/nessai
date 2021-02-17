@@ -2,7 +2,7 @@
 Simple Gaussian example
 =======================
 
-This page show a complete example of running Nessai including setting up the logger, defining a model, configuring the sampler and finally running the sampler. The code for this example is included in `example directory <https://github.com/mj-will/nessai/tree/master/examples>`_.
+This page show a complete example of running ``nessai`` including setting up the logger, defining a model, configuring the sampler and finally running the sampler. The code for this example is included in `example directory <https://github.com/mj-will/nessai/tree/master/examples>`_.
 
 Code
 ====

@@ -2,15 +2,15 @@
 Reparameterisations
 ###################
 
-In nessai three spaces are defined:
+In ``nessai`` three spaces are defined:
 
 - the sampling space :math:`\mathcal{X}`,
 - the reparameterised sampling space :math:`\mathcal{X}'` (or prime space),
 - the latent space :math:`\mathcal{Z}`.
 
-The key to efficient sampling with nessai is to reparameterise the sampling space such that the prime space is simpler for normalising flow to learn.
+The key to efficient sampling with ``nessai`` is to reparameterise the sampling space such that the prime space is simpler for normalising flow to learn.
 
-There are two main methods for configuring reparameterisations in nessai. The first is simpler but more limited and the second is more complex but allows for greater control of the specific reparameterisations used.
+There are two main methods for configuring reparameterisations in ``nessai``. The first is simpler but more limited and the second is more complex but allows for greater control of the specific reparameterisations used.
 
 ************************************
 Method 1: general reparameterisation
@@ -34,7 +34,7 @@ These can be applied on parameter by parameter basis using keyword arguments. Th
 Method 2: specific parameterisation
 ************************************
 
-This methods allows for use of the all the reparameterisations included in nessai. However it requires parameters to be configured individually. All the reparameterisations are configure using the keyword argument `reparameterisations` which is an instance of :code:`dict`.
+This methods allows for use of the all the reparameterisations included in ``nessai``. However it requires parameters to be configured individually. All the reparameterisations are configure using the keyword argument `reparameterisations` which is an instance of :code:`dict`.
 
 When using this method reparameterisations are added to the proposal method based on the dictionary. Each entry in the reparameterisations dictionary is interpreted and add to the combined reparameterisation that is applied to all parameters.
 These the following key-value pairs are understood:
@@ -52,7 +52,7 @@ These the following key-value pairs are understood:
 Available parameterisations
 ===========================
 
-There are a number of pre-configured reparameterisations included in nessai:
+There are a number of pre-configured reparameterisations included in ``nessai``:
 
 - ``default``: Default rescaling which rescales to [-1, 1] and has :code`update_bounds=True`
 - ``rescaletobounds``: Alias for default
