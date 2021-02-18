@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- PyPI workflow to automatically release package to PyPI and test PyPI.
+
+### Fixed
+
+- Fixed issue with README not rendering on TestPyPi
+
 ## [0.2.0] - 2021-02-19
 
 First public release.
