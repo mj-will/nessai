@@ -35,5 +35,5 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/mj-will/nessai/compare/v0.1.1...v0.2.0
