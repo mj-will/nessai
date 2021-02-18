@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- PyPI workflow to automatically release package to PyPI and test PyPI.
+- PyPI workflow to automatically release package to PyPI.
 
 ### Fixed
 
