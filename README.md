@@ -6,33 +6,24 @@
 
 ## Installation
 
-NOTE: this packages requieres python >= 3.8
-
-``nessai`` currently is not available to install from `PyPI`, so for now installation requires installing from source.
-
-First clone the repo:
+``nessai`` can be installed using ``pip``:
 
 ```console
-$ git clone git@github.com:mj-will/nessai.git
+$ pip install nessai
 ```
 
-The to install the package:
-
-```console
-$ cd nessai
-$ pip install .
-```
+Installing via ``conda`` is not currently supported.
 
 ### PyTorch
 
-By default the CPU only version of PyTroch will installed, to install a different version with CUDA support see the PyTorch homepage for instructions: https://pytorch.org/.
+By default the version of PyTroch will not necessarily match the drivers on your system, to install a different version with the correct CUDA support see the PyTorch homepage for instructions: https://pytorch.org/.
 
 ### Adding Bilby
 
 This package requieres a fork of Bilby that includes the sampler, it can be installed by running (this requires pip):
 
 ```console
-pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sampler#egg=bilby
+$ pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sampler#egg=bilby
 ```
 
 ## Documentation
@@ -41,7 +32,7 @@ Documenation is available at: [nessai.readthedocs.io](https://nessai.readthedocs
 
 ## Contributing
 
-Please see the guidelines guidelines [here](https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md).
+Please see the guidelines [here](https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md).
 
 
 ## Acknowledgements
