@@ -2,5 +2,4 @@
 requires = ["setuptools", "wheel", "setuptools_scm[toml]"]
 build-backend = "setuptools.build_meta"
 
-# pyproject.toml
 [tool.setuptools_scm]
