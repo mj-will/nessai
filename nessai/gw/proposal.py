@@ -108,8 +108,8 @@ class LegacyGWFlowProposal(FlowProposal):
 
         if all([isinstance(inv, list) for inv in [defaults['inversion'],
                                                   defaults['log_inversion']]]):
-            if s := (set(defaults['inversion'])
-                     & set(defaults['log_inversion'])):
+            s = set(defaults['inversion']) & set(defaults['log_inversion'])
+            if s:
                 raise RuntimeError('Inversion and log_inversion have common '
                                    f'parameters: {s}')
 
@@ -316,9 +316,15 @@ class LegacyGWFlowProposal(FlowProposal):
 
             logger.debug('Checking spin angles')
             for i in [1, 2]:
-                if ((((a := f'tilt_{i}') in self.names) or
-                        ((a := f'cos_tilt_{i}') in self.names)) and
-                        a in self._remaining):
+                if f'tilt_{i}' in self.names:
+                    a = 'tilt_{i}'
+                elif f'cos_tilt_{i}' in self.names:
+                    a = 'cos_tilt_{i}'
+                else:
+                    continue
+
+                if a in self._remaining:
+                    radial = f'a_{i}'
                     if 'cos' in a:
                         zero = 'centre'
                     else:
@@ -327,7 +333,8 @@ class LegacyGWFlowProposal(FlowProposal):
                         scale = 2. * np.pi / np.ptp(self.model.bounds[a])
                     else:
                         scale = 1.0
-                    if ((radial := f'a_{i}') in self.names and
+
+                    if (radial in self.names and
                             radial in self._remaining and
                             not (radial in self._log_inversion or
                                  radial in self._inversion or
@@ -1006,9 +1013,11 @@ class LegacyGWFlowProposal(FlowProposal):
                 # if the radial parameter is present in x
                 # use it, else samples with be drawn from a chi with
                 # 2 d.o.f
-                if (n := a['radial']) in self.model.names:
+                if a['radial'] in self.model.names:
                     r, lj = rescale_zero_to_one(
-                        x[n], xmin=self._min[n], xmax=self._max[n])
+                        x[n],
+                        xmin=self._min[a['radial']],
+                        xmax=self._max[a['radial']])
                     log_J += lj
                     # r = np.log(r)
                     # log_J -= r
@@ -1079,9 +1088,11 @@ class LegacyGWFlowProposal(FlowProposal):
                 log_J += lj
                 # if the radial parameter is defined in the model
                 # rescale it using the bounds
-                if (n := a['radial']) in self.model.names:
+                if a['radial'] in self.model.names:
                     r, lj = inverse_rescale_zero_to_one(
-                        r, xmin=self._min[n], xmax=self._max[n])
+                        r,
+                        xmin=self._min[a['radial']],
+                        xmax=self._max[a['radial']])
                     log_J += lj
                 x[a['radial']] = r
 
@@ -1200,8 +1211,8 @@ class LegacyGWFlowProposal(FlowProposal):
                 log_p += chi.logpdf(x[self.distance], 3)
         if self._search_angles:
             for a in self._search_angles.values():
-                if not (n := a['radial']) in self.model.names:
-                    log_p += chi.logpdf(x[n], 2)
+                if not a['radial'] in self.model.names:
+                    log_p += chi.logpdf(x[a['radial']], 2)
 
         if self._angle_conversion:
             for a in self._angle_conversion.values():

@@ -50,7 +50,7 @@ def update_config(d):
         Dictionary with updated default configuration
     """
     default_model = dict(n_inputs=None, n_neurons=32, n_blocks=4, n_layers=2,
-                         ftype='RealNVP', device_tag='cpu',
+                         ftype='RealNVP', device_tag='cpu', flow=None,
                          kwargs=dict(batch_norm_between_layers=True,
                                      linear_transform='lu'))
 

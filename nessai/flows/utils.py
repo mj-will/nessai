@@ -36,7 +36,8 @@ def setup_model(config):
              'frealnvp': FlexibleRealNVP, 'spline': NeuralSplineFlow}
     activations = {'relu': F.relu, 'tanh': F.tanh, 'swish': silu, 'silu': silu}
 
-    if 'kwargs' in config and (k := config['kwargs']) is not None:
+    k = config.get('kwargs', None)
+    if k is not None:
         if 'activation' in k and isinstance(k['activation'], str):
             try:
                 k['activation'] = activations[k['activation']]
@@ -53,22 +54,26 @@ def setup_model(config):
     if not isinstance(config['n_inputs'], int):
         raise TypeError('Number of inputs (n_inputs) must be an int')
 
-    if 'flow' in config and (c := config['flow']) is not None:
-        model = c(config['n_inputs'], config['n_neurons'], config['n_blocks'],
-                  config['n_layers'], **kwargs)
-    elif 'ftype' in config and (f := config['ftype']) is not None:
-        if f.lower() not in flows:
-            raise RuntimeError(f'Unknown flow type: {f}. Choose from:'
+    fc = config.get('flow', None)
+    ftype = config.get('ftype', None)
+    if fc is not None:
+        model = fc(config['n_inputs'], config['n_neurons'], config['n_blocks'],
+                   config['n_layers'], **kwargs)
+    elif ftype is not None:
+        if ftype.lower() not in flows:
+            raise RuntimeError(f'Unknown flow type: {ftype}. Choose from:'
                                f'{flows.keys()}')
-        if ('mask' in kwargs and kwargs['mask'] is not None) or \
-                ('net' in kwargs and kwargs['net'] is not None):
-            if f not in ['realnvp', 'frealnvp']:
-                raise RuntimeError('Custom masks and networks are only '
-                                   'supported for RealNVP')
+        if (('mask' in kwargs and kwargs['mask'] is not None) or
+                ('net' in kwargs and kwargs['net'] is not None) and
+                ftype not in ['realnvp', 'frealnvp']):
+            raise RuntimeError('Custom masks and networks are only '
+                               'supported for RealNVP')
 
-        model = flows[f.lower()](config['n_inputs'], config['n_neurons'],
-                                 config['n_blocks'], config['n_layers'],
-                                 **kwargs)
+        model = flows[ftype.lower()](config['n_inputs'], config['n_neurons'],
+                                     config['n_blocks'], config['n_layers'],
+                                     **kwargs)
+    else:
+        raise RuntimeError("Must specify either 'flow' or 'ftype'.")
 
     if 'device_tag' in config:
         if isinstance(config['device_tag'], str):

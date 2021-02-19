@@ -165,8 +165,10 @@ class CombinedReparameterisation(dict):
         return any(r.requires_prime_prior for r in self.values())
 
     def _add_reparameterisation(self, reparameterisation):
-        if ((r := reparameterisation.requires) and
-                (r not in self.parameters or r not in self.prime_parameters)):
+        requires = reparameterisation.requires
+        if (requires and
+                (requires not in self.parameters or
+                    requires not in self.prime_parameters)):
             raise RuntimeError(
                 f'Could not add {reparameterisation}, missing requirement(s): '
                 f'{reparameterisation.requires}.')
@@ -225,7 +227,7 @@ class CombinedReparameterisation(dict):
         log_j : array_like
             Log jacobian to be updated
         """
-        for r in reversed(self.values()):
+        for r in reversed(list(self.values())):
             x, x_prime, log_j = r.inverse_reparameterise(
                 x, x_prime, log_j, **kwargs)
         return x, x_prime, log_j
@@ -360,7 +362,8 @@ class RescaleToBounds(Reparameterisation):
                 self.rescale_bounds = \
                     {p: rescale_bounds for p in self.parameters}
             elif isinstance(rescale_bounds, dict):
-                if s := set(parameters) - set(rescale_bounds.keys()):
+                s = set(parameters) - set(rescale_bounds.keys())
+                if s:
                     raise RuntimeError(f'Missing bounds for parameters {s}')
                 self.rescale_bounds = rescale_bounds
             else:
