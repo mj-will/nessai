@@ -1,3 +1,5 @@
+[![Documentation Status](https://readthedocs.org/projects/nessai/badge/?version=latest)](https://nessai.readthedocs.io/en/latest/?badge=latest)
+
 # Nessai: Nested Sampling with Artificial Intelligence
 
 ``nessai`` (/ˈnɛsi/): Nested Sampling with Aritificial Intelligence
