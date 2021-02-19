@@ -18,7 +18,10 @@ def update_config(d):
     """
     Update the default configuration dictionary.
 
-    The default configuration is:
+    Notes
+    -----
+    The default configuration is::
+
         lr=0.001
         annealing=False
         batch_size=100
@@ -28,7 +31,8 @@ def update_config(d):
         noise_scale=0.0
         model_config=default_model
 
-    where `default model` is:
+    where ``default model`` is::
+
         n_neurons=32
         n_blocks=4
         n_layers=2
@@ -82,7 +86,7 @@ class FlowModel:
     Object that contains the normalsing flows and handles training and data
     pre-processing.
 
-    Does NOT use stuctured arrays for live points, `Proposal` object
+    Does NOT use stuctured arrays for live points, ``Proposal`` object
     should act as the interface between structured and unstructured arrays
     of live points.
 
@@ -148,8 +152,9 @@ class FlowModel:
         self.save_input(config)
 
     def update_mask(self):
-        """
-        Get a the mask
+        """Method to update the ask upon calling ``initialise``
+
+        By default the mask is left unchanged.
         """
         pass
 
@@ -172,9 +177,10 @@ class FlowModel:
         Initialise the model and optimiser.
 
         This includes:
-            * Updating the model configuration
-            * Initialising the normalising flow
-            * Initialiseing the optimiser
+
+            - Updating the model configuration
+            - Initialising the normalising flow
+            - Initialiseing the optimiser
         """
         self.update_mask()
         self.model, self.device = setup_model(self.model_config)
@@ -184,6 +190,21 @@ class FlowModel:
     def prep_data(self, samples, val_size, batch_size):
         """
         Prep data and return dataloaders for training
+
+        Parameters
+        ----------
+        samples : array_like
+            Array of samples to split in to training and validation.
+        val_size : float
+            Float between 0 and 1 that defines the fraction of data used for
+            validation.
+        batch_size : int
+            Batch size used when contructing dataloaders.
+
+        Returns
+        -------
+        train_loader, val_loader : :obj:`torch.utils.data.Dataloader`
+            Dataloaders with training and validaiton data
         """
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
@@ -385,7 +406,12 @@ class FlowModel:
     def save_weights(self, weights_file):
         """
         Save the weights file. If the file already exists move it to
-        `model.py.old` and then save the file.
+        ``$weights_file.old`` and then save the file.
+
+        Parameters
+        ----------
+        weights_file : str
+            Path to to file to save weights. Recommended file type is ``.pt``.
         """
         if os.path.exists(weights_file):
             shutil.move(weights_file, weights_file + '.old')
@@ -429,7 +455,14 @@ class FlowModel:
 
     def reset_model(self, weights=True, permutations=False):
         """
-        Reset the weights of the model and optimiser
+        Reset the weights of the model and optimiser.
+
+        Parameters
+        ----------
+        weights : bool, optional
+            If true the model weights are reset.
+        permutations : bool, optional
+            If true any permutations (linear transforms) are reset.
         """
         if not any([weights, permutations]):
             logger.debug('Nothing to reset')
