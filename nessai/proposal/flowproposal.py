@@ -311,10 +311,9 @@ class FlowProposal(RejectionProposal):
         if self.latent_prior == 'truncated_gaussian':
             from ..utils import draw_truncated_gaussian
             self.draw_latent_prior = draw_truncated_gaussian
-            if k := (self.flow_config['model_config'].get('kwargs', {})):
-                if v := (k.get('var', False)):
-                    if 'var' not in self.draw_latent_kwargs:
-                        self.draw_latent_kwargs['var'] = v
+            var = self.flow_config['model_config'].get('kwargs', {}).get('var')
+            if var and 'var' not in self.draw_latent_kwargs:
+                self.draw_latent_kwargs['var'] = var
 
         elif self.latent_prior == 'gaussian':
             logger.warning('Using a gaussian latent prior WITHOUT truncation')
@@ -518,7 +517,8 @@ class FlowProposal(RejectionProposal):
 
         self.add_default_reparameterisations()
 
-        if p := (set(self.names) - set(self._reparameterisation.parameters)):
+        p = set(self.names) - set(self._reparameterisation.parameters)
+        if p:
             logger.info(f'Assuming no rescaling for {p}')
             r = NullReparameterisation(parameters=list(p))
             self._reparameterisation.add_reparameterisations(r)
@@ -1323,9 +1323,9 @@ class FlowProposal(RejectionProposal):
         self.model = model
         self.flow_config = flow_config
 
-        if (m := self.mask) is not None:
-            if isinstance(m, list):
-                m = np.array(m)
+        if self.mask is not None:
+            if isinstance(self.mask, list):
+                m = np.array(self.mask)
             self.flow_config['model_config']['kwargs']['mask'] = m
 
         self.initialise()
