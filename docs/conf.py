@@ -61,3 +61,5 @@ html_static_path = []
 autoapi_type = 'python'
 autoapi_dirs = ['../nessai/']
 autoapi_add_toctree_entry = False
+autoapi_options = ['members', 'undoc-members', 'show-inheritance',
+                   'show-module-summary']
