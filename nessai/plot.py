@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Plotting utilities.
+"""
+import logging
 from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -9,6 +14,8 @@ from .utils import auto_bins
 sns.set()
 sns.set_style('ticks')
 
+logger = logging.getLogger(__name__)
+
 pairplot_kwargs = dict(corner=True, kind='scatter',
                        diag_kws=dict(histtype='step', bins='auto', lw=1.5,
                                      density=True, color='teal'),
@@ -19,7 +26,22 @@ pairplot_kwargs = dict(corner=True, kind='scatter',
 def plot_live_points(live_points, filename=None, bounds=None, c=None,
                      **kwargs):
     """
-    Plot a set of live points
+    Plot a set of live points in a corner-like plot.
+
+    Parameters
+    ----------
+    live_points : ndarray
+        Structured array of live points to plot.
+    filename : str
+        Filename for resulting figure
+    bounds : dict:
+        Dictionary of lower and upper bounds to plot
+    c : str, optional
+        Name of field in the structured array to use as the hue when plotting
+        the samples. If not specified, no hue is used.
+    kwargs :
+        Keyword arguments used to update the pairplot kwargs. Diagonal and off-
+        diagonal plots can be configured with ``diag_kws`` and ``plot_kws``.
     """
     pairplot_kwargs.update(kwargs)
 
@@ -53,24 +75,26 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
 
     Parameters
     ----------
-    *live_points:
-        Variable length argument list of live points in structured arrays with
-        fields. See `parameters` argument.
-    parameters: array_like, optional
+    *live_points : iterable of ndarrays
+        Variable length argument of live points in structured arrays with
+        fields. Also see ``parameters`` argument.
+    parameters : array_like, optional
         Array of parameters (field names) to plot. Default None implies all
         fields are plotted.
-    labels: array_like, optional
+    labels : array_like, optional
         Array of labels for each structured array being plotted (default None).
         If None each set of live points is labelled numerically
-    bounds: dict, optional
+    bounds : dict, optional
         Dictionary of upper and lowers bounds to plot. Each key must
         match a field and each value must be an interable of length 2 in order
         lower then upper bound. If None (default), no bounds plotted.
-    hist_kwargs: dict, optional
-        Dictionary of keyword arguments parsed to matplotlib.pyplot.hist.
-    filename: str, optional
+    hist_kwargs : dict, optional
+        Dictionary of keyword arguments passed to matplotlib.pyplot.hist.
+    filename : str, optional
         Name of file for saving figure. (Default None implies figure is not
         saved).
+    convert_to_live_points : bool, optional
+        Set to true if inputs are not structured arrays of live points
     """
     if convert_to_live_points:
         live_points = list(live_points)
@@ -136,13 +160,26 @@ def plot_posterior(live_points, filename=None, **kwargs):
     plt.close()
 
 
-def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
-                 plot_breakdown=True):
+def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
     """
-    Histogram indices for index insertion tests
+    Histogram indices for index insertion tests, also includes the CDF.
+
+    Parameters
+    ----------
+    indices : array_like
+        List of insertion indices to plot
+    nlive : int
+        Number of live points used in the nested sampling run
+    filename : str
+        Filename used to save the figure.
+    plot_breakdown : bool, optional
+       If true, then the CDF for every nlive points is also plotted as grey
+       lines.
     """
-    if not indices:
+    if not indices or not nlive:
+        logger.warning('Not producing indices plot.')
         return
+
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     nbins = min(len(np.histogram_bin_edges(indices, 'auto')) - 1, 1000)
     if plot_breakdown:
@@ -176,8 +213,6 @@ def plot_indices(indices, nlive=None, u=None, name=None, filename=None,
     ax[0].set_xlabel('Insertion indices')
     ax[1].set_xlabel('Insertion indices')
 
-    if name is not None:
-        ax.set_xlabel(name)
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
     plt.close()
@@ -261,12 +296,12 @@ def plot_flows(model, n_inputs, N=1000, inputs=None, cond_inputs=None,
     fig, ax = plt.subplots(m, n, figsize=(n * 3, m * 3))
     ax = ax.ravel()
     for j, c in zip(points, colours):
-        ax[0].plot(z[j, 0], z[j, 1], ',', c=c)
+        ax[0].scatter(z[j, 0], z[j, 1], c=c)
         ax[0].set_title('Latent space')
     for i, o in enumerate(outputs[::2]):
         i += 1
         for j, c in zip(points, colours):
-            ax[i].plot(o[j, 0], o[j, 1], ',', c=c)
+            ax[i].plot(o[j, 0], o[j, 1], c=c)
         ax[i].set_title(f'Flow {i}')
     fig.tight_layout()
     fig.savefig(output + 'flows.png')
@@ -274,7 +309,16 @@ def plot_flows(model, n_inputs, N=1000, inputs=None, cond_inputs=None,
 
 def plot_loss(epoch, history, output='./'):
     """
-    Plot a loss function
+    Plot the loss function per epoch.
+
+    Parameters
+    ----------
+    epoch : int
+        Final training epoch
+    history : dict
+        Dictionary with keys ``'loss'`` and ``'val_loss'``
+    output : str, optional
+        Path for saving the figure
     """
     fig, ax = plt.subplots()
     epochs = np.arange(1, epoch + 1, 1)
@@ -318,8 +362,8 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
     ----------
     log_x : array_like
         Array of log prior volumnes
-    nested_samples : array_like
-        Structured array of nested samples to plot
+    nested_samples : ndrray
+        Array of nested samples to plot
     labels : list, optional
         List of labels to use instead of the names of parameters
     filename : str, optional
