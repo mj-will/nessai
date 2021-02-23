@@ -212,7 +212,7 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
         return fig
 
 
-def plot_loss(epoch, history, output='./'):
+def plot_loss(epoch, history, filename=None):
     """
     Plot the loss function per epoch.
 
@@ -222,8 +222,9 @@ def plot_loss(epoch, history, output='./'):
         Final training epoch
     history : dict
         Dictionary with keys ``'loss'`` and ``'val_loss'``
-    output : str, optional
-        Path for saving the figure
+    filename : str, optional
+        Path for saving the figure. If not specified figure is returned
+        instead.
     """
     fig, ax = plt.subplots()
     epochs = np.arange(1, epoch + 1, 1)
@@ -237,8 +238,12 @@ def plot_loss(epoch, history, output='./'):
         plt.yscale('symlog')
     else:
         plt.yscale('log')
-    fig.savefig(output + 'loss.png')
-    plt.close('all')
+
+    if filename is not None:
+        plt.savefig(filename, bbox_inches='tight')
+        plt.close()
+    else:
+        return fig
 
 
 def plot_trace(log_x, nested_samples, labels=None, filename=None):
