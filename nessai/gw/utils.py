@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Utilities specific to the gw subpackage.
+"""
 import logging
 import numpy as np
 from scipy import stats, interpolate

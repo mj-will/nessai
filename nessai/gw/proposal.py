@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Specific proposal methods for sampling gravitational-wave models.
+"""
 import os
 import logging
 
