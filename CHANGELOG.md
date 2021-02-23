@@ -13,9 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add support for Python >= 3.6
 - Improve doc-strings and tweak settings for doc-strings in the documentation
 
-### Change
+### Changed
 
 - Remove `:=` operator to enable support for Python >= 3.6
+
+### Removed
+
+- Remove `plot_posterior` because functionality is include in `plot_live_points`
+- Remove `plot_likelihood_evaluations` because information is already contained in the state plot.
+- Remove `plot_acceptance` as it is only by agumented proposel which is subject to change.
 
 ## [0.2.2] - 2021-02-19
 
