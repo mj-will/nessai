@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Implementation of Neural Spline Flows.
+"""
 import logging
 
 import torch.nn.functional as F
@@ -16,7 +20,7 @@ class NeuralSplineFlow(NFlow):
     """
     Implementation of Neural Spline Flow
 
-    NSF: https://arxiv.org/abs/1906.04032
+    See: https://arxiv.org/abs/1906.04032
 
     Parameters
     ----------

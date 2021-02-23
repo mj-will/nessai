@@ -1,27 +1,30 @@
-
+# -*- coding: utf-8 -*-
+"""
+Implementation of MaskedAutoregressiveFlow.
+"""
 from nflows.flows import MaskedAutoregressiveFlow as BaseMAF
 
 
 class MaskedAutoregressiveFlow(BaseMAF):
     """
-    Wrapper for MaskedAutoregressiveFlow included in nflows that adds
-    additional methods that are used in FlowModel.
+    Wrapper for MaskedAutoregressiveFlow included in nflowsi
+
+    Adds the additional methods that are used in FlowModel.
 
     See: https://github.com/bayesiains/nflows/blob/master/nflows/flows/
-    autoregressive.py
     """
 
     def forward(self, x, context=None):
         """
         Apply the forward transformation and return samples in the latent
-        space and log |J|
+        space and log-Jacobian determinant.
         """
         return self._transform.forward(x)
 
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
-        data space and log |J|
+        data space and log-Jacobian determinant.
         """
         return self._transform.inverse(z, context=context)
 
