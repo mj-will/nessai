@@ -63,7 +63,9 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
 
     if filename is not None:
         fig.savefig(filename)
-    plt.close()
+        plt.close()
+    else:
+        return fig
 
 
 def plot_1d_comparison(*live_points, parameters=None, labels=None,
@@ -100,8 +102,12 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         if parameters is None:
             parameters = [i for i in range(live_points[0].shape[-1])]
         for i in range(len(live_points)):
-            live_points[i] = {k: v for k, v in enumerate(live_points[i].T)}
+            live_points[i] = \
+                {k: v for k, v in zip(parameters, live_points[i].T)}
 
+    elif any(lp.dtype.names is None for lp in live_points):
+        raise RuntimeError('Live points are not structured arrays'
+                           'Set `convert_to_live_points=True`.')
     elif parameters is None:
         parameters = live_points[0].dtype.names
 
@@ -140,7 +146,9 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
     plt.tight_layout()
     if filename is not None:
         fig.savefig(filename, bbox_inches='tight')
-    plt.close()
+        plt.close()
+    else:
+        return fig
 
 
 def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
@@ -199,7 +207,9 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
 
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
-    plt.close()
+        plt.close()
+    else:
+        return fig
 
 
 def plot_loss(epoch, history, output='./'):
