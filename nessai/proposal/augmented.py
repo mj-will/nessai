@@ -10,7 +10,7 @@ from ..livepoint import (
     live_points_to_array,
     )
 
-from ..plot import plot_live_points, plot_acceptance
+from ..plot import plot_live_points
 from .flowproposal import FlowProposal
 
 logger = logging.getLogger(__name__)
@@ -223,12 +223,6 @@ class AugmentedFlowProposal(FlowProposal):
             self.acceptance.append(
                 self.compute_acceptance(worst_point['logL']))
             logger.debug(f'Current acceptance {self.acceptance[-1]}')
-            if plot:
-                plot_acceptance(
-                    self.approx_acceptance, self.acceptance,
-                    labels=['approx', 'analytic'],
-                    filename=f'{self.output}/proposal_acceptance.png'
-                    )
         else:
             self.samples['logL'] = np.zeros(self.samples.size,
                                             dtype=self.samples['logL'].dtype)
