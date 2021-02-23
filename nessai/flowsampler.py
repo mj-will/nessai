@@ -126,11 +126,6 @@ class FlowSampler:
         if plot:
             from nessai import plot
 
-            plot.plot_likelihood_evaluations(
-                    self.ns.likelihood_evaluations,
-                    self.ns.nlive,
-                    filename=f'{self.output}/likelihood_evaluations.png')
-
             plot.plot_live_points(self.posterior_samples,
                                   filename=(f'{self.output}/'
                                             'posterior_distribution.png'))
