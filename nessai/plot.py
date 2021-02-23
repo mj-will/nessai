@@ -144,22 +144,6 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
     plt.close()
 
 
-def plot_posterior(live_points, filename=None, **kwargs):
-    """
-    Plot a set of live points
-    """
-    pairplot_kwargs.update(kwargs)
-
-    df = pd.DataFrame(live_points)
-    fig = sns.PairGrid(df)
-    fig.map_diag(sns.kdeplot)
-    fig.map_offdiag(sns.kdeplot, n_levels=6)
-
-    if filename is not None:
-        fig.savefig(filename)
-    plt.close()
-
-
 def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
     """
     Histogram indices for index insertion tests, also includes the CDF.
@@ -216,36 +200,6 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
     plt.close()
-
-
-def plot_likelihood_evaluations(evaluations, nlive, filename=None):
-
-    its = np.arange(-1, len(evaluations)) * nlive
-    evaluations.insert(0, 0)
-    fig = plt.figure()
-    plt.plot(its, evaluations, '.')
-    plt.xlabel('Iteration')
-    plt.ylabel('Number of likelihood evaluations')
-
-    if filename is not None:
-        fig.savefig(filename, bbox_inches='tight')
-
-
-def plot_chain(x, name=None, filename=None):
-    """
-    Produce a trace plot
-    """
-    fig = plt.figure(figsize=(4, 3))
-    plt.plot(x, ',')
-    plt.grid()
-    plt.xlabel('iteration')
-    if name is not None:
-        plt.ylabel(name)
-        if filename is None:
-            filename = name + '_chain.png'
-    if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
-    plt.close(fig)
 
 
 def plot_flows(model, n_inputs, N=1000, inputs=None, cond_inputs=None,
@@ -334,24 +288,6 @@ def plot_loss(epoch, history, output='./'):
         plt.yscale('log')
     fig.savefig(output + 'loss.png')
     plt.close('all')
-
-
-def plot_acceptance(*acceptance, filename=None, labels=None):
-
-    if labels is None:
-        labels = [f'acceptance_{i}' for i in len(acceptance)]
-
-    fig = plt.figure()
-    x = np.arange(len(acceptance[0]))
-    for a, l in zip(acceptance, labels):
-        plt.plot(a, 'o', label=l)
-    plt.xticks(x[::2])
-    plt.ylabel('Acceptance')
-    plt.legend(frameon=False)
-    plt.grid()
-    if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
-    plt.close(fig)
 
 
 def plot_trace(log_x, nested_samples, labels=None, filename=None):
