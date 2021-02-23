@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Main code that handles running and checkpoiting the sampler.
+"""
 import json
 import logging
 import os
@@ -18,26 +22,28 @@ logger = logging.getLogger(__name__)
 
 class FlowSampler:
     """
-    Main class to handle running the nested sampler
+    Main class to handle running the nested sampler.
 
     Parameters
     ----------
     model : :obj:`nessai.model.Model`
-        User-defined model
-    output : str, optional (./)
+        User-defined model.
+    output : str, optional
         Output directory
-    resume : bool, optional (True)
-        If True try to resume the sampler is the resume file existis
+    resume : bool, optional
+        If True try to resume the sampler is the resume file existis.
     resume_file : str, optional
-        File to resume sampler from
+        File to resume sampler from.
     weights_files : str, optional
         Weights files used to resume sampler that replaces the weights file
         saved internally.
-    exit_code : int, optional (130)
+    max_threads : int, optional
+        Maximum number of threads to use. If ``None`` torch uses all available
+        threads.
+    exit_code : int, optional
         Exit code to use when forceably exiting the sampler.
     kwargs :
-        Keyword arguments parsed to NestedSampler. See NestedSampler for
-        details
+        Keyword arguments passed to :obj:`~nessai.nestedsampler.NestedSampler`.
     """
     def __init__(self, model, output='./', resume=True,
                  resume_file='nested_sampler_resume.pkl', weights_file=None,
@@ -97,9 +103,9 @@ class FlowSampler:
 
         Parameters
         ----------
-        plot : bool, optional (True)
+        plot : bool, optional
             Toggle plots produced once the sampler has converged
-        save : bool, opitional (True)
+        save : bool, opitional
             Toggle automatic saving of results
         """
         self.ns.initialise()
@@ -138,10 +144,12 @@ class FlowSampler:
         """
         Save the dictionary of keyword arguments used.
 
+        Uses an encoder class to handle numpy arrays.
+
         Parameters
         ----------
         kwargs : dict
-            Dictionary of kwargs to save
+            Dictionary of kwargs to save.
         """
         d = kwargs.copy()
         with open(f'{self.output}/config.json', 'w') as wf:
@@ -156,7 +164,7 @@ class FlowSampler:
 
     def save_results(self, filename):
         """
-        Save the results from sampling to a specific file.
+        Save the results from sampling to a specific JSON file.
 
         Parameters
         ----------
