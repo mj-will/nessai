@@ -34,6 +34,8 @@ extensions = ['sphinx.ext.mathjax',
               'numpydoc',
               'sphinx.ext.autosummary',
               'sphinx.ext.autosectionlabel',
+              'sphinx.ext.autodoc',
+              'sphinx.ext.inheritance_diagram',
               'autoapi.extension'
               ]
 
@@ -61,5 +63,5 @@ html_static_path = []
 autoapi_type = 'python'
 autoapi_dirs = ['../nessai/']
 autoapi_add_toctree_entry = False
-autoapi_options = ['members', 'undoc-members', 'show-inheritance',
+autoapi_options = ['members', 'show-inheritance',
                    'show-module-summary']
