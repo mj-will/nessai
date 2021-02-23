@@ -6,7 +6,6 @@ import logging
 from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sns
-import torch
 import pandas as pd
 
 from .utils import auto_bins
@@ -160,7 +159,8 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
        If true, then the CDF for every nlive points is also plotted as grey
        lines.
     """
-    if not indices or not nlive:
+    indices = np.asarray(indices)
+    if not indices.size or not nlive:
         logger.warning('Not producing indices plot.')
         return
 
@@ -200,65 +200,6 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
     plt.close()
-
-
-def plot_flows(model, n_inputs, N=1000, inputs=None, cond_inputs=None,
-               mode='inverse', output='./'):
-    """
-    Plot each stage of a series of flows
-    """
-    if n_inputs > 2:
-        raise NotImplementedError('Plotting for higher dimensions not '
-                                  'implemented !')
-
-    outputs = []
-
-    if mode == 'direct':
-        if inputs is None:
-            raise ValueError('Can not sample from parameter space!')
-        else:
-            inputs = torch.from_numpy(inputs).to(model.device)
-
-        for module in model._modules.values():
-            inputs, _ = module(inputs, cond_inputs, mode)
-            outputs.append(inputs.detach().cpu().numpy())
-    else:
-        if inputs is None:
-            inputs = torch.randn(N, n_inputs, device=model.device)
-            orig_inputs = inputs.detach().cpu().numpy()
-        for module in reversed(model._modules.values()):
-            inputs, _ = module(inputs, cond_inputs, mode)
-            outputs.append(inputs.detach().cpu().numpy())
-
-    n = int(len(outputs) / 2) + 1
-    m = 1
-
-    if n > 5:
-        m = int(np.ceil(n / 5))
-        n = 5
-
-    z = orig_inputs
-    pospos = np.where(np.all(z >= 0, axis=1))
-    negneg = np.where(np.all(z < 0, axis=1))
-    posneg = np.where((z[:, 0] >= 0) & (z[:, 1] < 0))
-    negpos = np.where((z[:, 0] < 0) & (z[:, 1] >= 0))
-
-    points = [pospos, negneg, posneg, negpos]
-    colours = ['r', 'c', 'g', 'tab:purple']
-    colours = plt.cm.Set2(np.linspace(0, 1, 8))
-
-    fig, ax = plt.subplots(m, n, figsize=(n * 3, m * 3))
-    ax = ax.ravel()
-    for j, c in zip(points, colours):
-        ax[0].scatter(z[j, 0], z[j, 1], c=c)
-        ax[0].set_title('Latent space')
-    for i, o in enumerate(outputs[::2]):
-        i += 1
-        for j, c in zip(points, colours):
-            ax[i].plot(o[j, 0], o[j, 1], c=c)
-        ax[i].set_title(f'Flow {i}')
-    fig.tight_layout()
-    fig.savefig(output + 'flows.png')
 
 
 def plot_loss(epoch, history, output='./'):
