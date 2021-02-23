@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Object and functions to handle training the normalising flow.
+"""
 import copy
 import json
 import logging
@@ -16,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def update_config(d):
     """
-    Update the default configuration dictionary.
+    Update the configuration dictionary to include the defaults.
 
     Notes
     -----
@@ -86,16 +90,17 @@ class FlowModel:
     Object that contains the normalsing flows and handles training and data
     pre-processing.
 
-    Does NOT use stuctured arrays for live points, ``Proposal`` object
-    should act as the interface between structured and unstructured arrays
-    of live points.
+    Does NOT use stuctured arrays for live points, \
+            :obj:`~nessai.proposal.base.Proposal`
+    object should act as the interface between structured used by the sampler
+    and unstructured arrays of live points used for training.
 
     Parameters
     ----------
-    config : dict, optional (None)
+    config : dict, optional
         Configuration used for the normalising flow. If None, default values
         are used.
-    output : str, optional ('./')
+    output : str, optional
         Path for output, this includes weights files and the loss plot.
     """
     def __init__(self, config=None, output='./'):
@@ -113,7 +118,7 @@ class FlowModel:
         Parameters
         ----------
         config : dict
-            Dictionary to save
+            Dictionary to save.
         ouput_file : str, optional
             File to save the config to.
         """
@@ -244,12 +249,13 @@ class FlowModel:
         ----------
         loader : :obj:`torch.util.data.Dataloader`
             Dataloader with data to train on
-        noise_scale : float, optional (0.0)
-            Scale of Gaussian noise added to data
+        noise_scale : float, optional
+            Scale of Gaussian noise added to data.
 
         Returns
         -------
-        Mean of training loss for each batch
+        float
+            Mean of training loss for each batch.
         """
         model = self.model
         model.train()
@@ -289,7 +295,8 @@ class FlowModel:
 
         Returns
         -------
-        Mean of training loss for each batch
+        float
+            Mean of training loss for each batch.
         """
         model = self.model
         model.eval()
@@ -318,7 +325,7 @@ class FlowModel:
 
         Parameters
         ----------
-        samples : :obj:`np.ndarray`
+        samples : ndarray
             Unstructured numpy array containing data to train on
         max_epochs : int, optional
             Maxinum number of epochs that is used instead of value
@@ -406,7 +413,7 @@ class FlowModel:
     def save_weights(self, weights_file):
         """
         Save the weights file. If the file already exists move it to
-        ``$weights_file.old`` and then save the file.
+        ``<weights_file>.old`` and then save the file.
 
         Parameters
         ----------
@@ -424,7 +431,7 @@ class FlowModel:
         Load weights for the model and initialiases the model if it is not
         intialised. The weights_file attribute is also updated.
 
-        Model is loaded in evaluation mode (model.eval())
+        Model is loaded in evaluation mode (``model.eval()``)
 
         Parameters
         ----------
@@ -483,14 +490,14 @@ class FlowModel:
 
         Parameters
         ----------
-        x : array_like
+        x : ndarray
             Array of samples
 
         Returns
         -------
-        z : :obj:`np.ndarray`
+        z : ndarray
             Samples in the latent space
-        log_prob : :obj:`np.ndarray`
+        log_prob : ndarray
             Log probabilties for each samples
         """
         x = torch.Tensor(x.astype(np.float32)).to(self.device)
@@ -511,22 +518,22 @@ class FlowModel:
         ----------
         N : int, optional
             Number of samples to draw if z is not specified
-        z : array_like, optional
-            Array of latent samples to map the the data space, if `alt_dist`
+        z : ndarray, optional
+            Array of latent samples to map the the data space, if ``alt_dist``
             is not specified they are assumed to be drawn from the base
             distribution of the flow.
         alt_dist : :obj:`nflows.distribution.Distribution`
             Distribution object from which the latent samples z were
-            drawn from. Must have a `log_prob` method that accepts an
-            instance of torch.Tensor
+            drawn from. Must have a ``log_prob`` method that accepts an
+            instance of ``torch.Tensor``
 
         Returns
         -------
-        samples : :obj:`np.ndarray`
-            Tensor containing samples in the latent space
-        log_prob : :obj:`np.ndarray`
-            Tensor containing the log probabaility that corresponds to each
-            sample
+        samples : ndarray
+            Array containing samples in the latent space.
+        log_prob : ndarray
+            Array containing the log probabaility that corresponds to each
+            sample.
         """
         if self.model is None:
             raise RuntimeError('Model is not initialised yet!')
