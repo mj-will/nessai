@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Proposal method for initial sampling when priors can be sampled analytically.
+"""
 import datetime
 
 import numpy as np
@@ -6,8 +10,8 @@ from .base import Proposal
 
 
 class AnalyticProposal(Proposal):
-    """"
-    Class for drawining from analytic priors
+    """
+    Class for drawing samples from analytic priors.
 
     This assumes the `new_point` method of the model draws points
     from the prior

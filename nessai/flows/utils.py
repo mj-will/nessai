@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Various utilies for implementeding normalising flows.
+"""
 import logging
 import numpy as np
 import torch
@@ -95,12 +99,13 @@ def setup_model(config):
 
 
 def reset_weights(module):
-    """
-    Reset parameters of a given module in place using `reset_parameters`
-    method.
+    """Reset parameters of a given module in place.
+
+    Uses the ``reset_parameters`` method from ``torch.nn.Module``
 
     Also checks the following modules from nflows
-    * nflows.transforms.normalization.BatchNorm
+
+    - nflows.transforms.normalization.BatchNorm
 
     Parameters
     ----------
@@ -120,9 +125,15 @@ def reset_weights(module):
 
 
 def reset_permutations(module):
-    """
-    Resets permutations and linear transforms to their original initialisation
-    since these do not have a `reset_parameters` method
+    """Resets permutations and linear transforms for a given module in place.
+
+    Resets using theor original initialisation method. This needed since they
+    do not have a ``reset_parameters`` method.
+
+    Parameters
+    ----------
+    module : :obj:`torch.nn.Module`
+        Module to reset
     """
     if isinstance(module, LULinear):
         module.cache.invalidate()

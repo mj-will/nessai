@@ -1,3 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+Functions and objects related to reparametersiations for use in the
+``reparameterisations`` dictionary.
+
+See the documentation for an in-depth description of how to use these
+functions and classes.
+"""
 import logging
 
 import numpy as np
@@ -23,7 +31,22 @@ logger = logging.getLogger(__name__)
 
 
 def get_reparameterisation(reparameterisation):
-    """Function to get a reparmeterisation class from a name"""
+    """Function to get a reparmeterisation class from a name
+
+    Parameters
+    ----------
+    reparameterisation : str, \
+            :obj:`nessai.reparameterisations.Reparametersiation`
+        Name of the reparameterisations to return or a class that inherits from
+        :obj:`~nessai.reparameterisations.Reparmeterisation`
+
+    Returns
+    -------
+    :obj:`nessai.reparameteristaions.Reparmeterisation`
+        T
+    dict
+        Keyword arguments for the specific reparameterisations.
+    """
     if isinstance(reparameterisation, str):
         rc, kwargs = default_reparameterisations.get(
             reparameterisation, (None, None))

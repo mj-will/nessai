@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Specific priors for sampling gravitational-wave parameters with the x-prime
+prior.
+"""
 
 import numpy as np
 

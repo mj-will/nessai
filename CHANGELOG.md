@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Badges for DOI and PyPI versions
 - Add support for Python >= 3.6
+- Improve doc-strings and tweak settings for doc-strings in the documentation
 
 ### Change
 

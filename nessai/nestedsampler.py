@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Functions and objects related to the main nested sampling algorithm.
+"""
 from collections import deque
 import datetime
 import logging
@@ -111,23 +115,23 @@ class NestedSampler:
 
     Parameters
     ----------
-    model: :obj:`nessai.Model`
+    model: :obj:`nessai.model.Model`
         User defined model
     nlive : int, optional
-        Number of live points. Defaults to 1000
+        Number of live points.
     output : str
         Path for output
-    stopping : float (0.1)
+    stopping : float, optional
         Stop when remaining samples wouldn't change logZ estimate by this much.
-    max_iteration : int (None)
+    max_iteration : int, optional
         Maximum number of iterations to run before force sampler to stop.
         If stopping criteria is met before max. is reached sampler will stop.
-    checkpoint : bool (True)
+    checkpoint : bool, optional
         Boolean to toggle checkpointing, must be enable to resume sampler
-    resume_file : str (None)
+    resume_file : str, optional
         If specified sampler will be resumed from this file. Still requieres
         correct model.
-    seed : int
+    seed : int, optional
         seed for the initialisation of the pseudorandom chain
     plot : bool (True)
         Boolean to toggle plotting
@@ -189,7 +193,7 @@ class NestedSampler:
         Threshold to determine if the flow should be retrained, will not
         retrain if cooldown is not satisfied.
     kwargs :
-        Keyword arguments parsed to the flow proposal class
+        Keyword arguments passed to the flow proposal class
     """
 
     def __init__(self, model, nlive=1000, output=None,
@@ -391,7 +395,7 @@ class NestedSampler:
             method will switch. If None acceptance_threshold is used if
             greater than 0.1 else 10 x acceptance_threshold is used.
         kwargs
-            Kwargs are parsed to init method for uninformed proposal class
+            Kwargs are passed to init method for uninformed proposal class
         """
         if maximum_uninformed is None:
             self.uninformed_sampling = True
@@ -436,11 +440,11 @@ class NestedSampler:
         flow_class : None or obj
             Class to use for proposal. If None FlowProposal is used.
         flow_config : dict
-            Configuration dictionary parsed to the class
+            Configuration dictionary passed to the class.
         proposal_plots : bool or str
-            Configuration of plottinmg in proposal class
+            Configuration of plottinmg in proposal class.
         **kwargs :
-            Kwargs parsed to init function
+            Kwargs passed to init function.
         """
         proposal_output = self.output + '/proposal/'
 

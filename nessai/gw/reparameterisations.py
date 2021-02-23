@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Specific reparameterisations for gravitational-wave inference.
+"""
 
 import logging
 

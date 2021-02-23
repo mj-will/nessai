@@ -1,4 +1,7 @@
-
+# -*- coding: utf-8 -*-
+"""
+Object for defining the use-defined model.
+"""
 import numpy as np
 
 from .livepoint import (
@@ -10,16 +13,38 @@ from .livepoint import (
 
 
 class Model:
+    """Base class for the user-defined model being sampled.
 
-    likelihood_evaluations = 0
-    names = []    # Names of parameters, e.g. ['p1','p2']
+    The user must define the attributes ``names`` ``bounds`` and the metods
+    ``log_likelihood`` and ``log_prior``.
+
+    The user can also define the reparemeterisations here instead of in
+    the keyword arguments passed to the sampler.
+
+
+    Attributes
+    ----------
+    names : list of str
+        List of names of parameters, e.g. ['x', 'y']
+    bounds : dict
+        Dictionary of prior bounds, e.g. {'x': [-1, 1], 'y': [-1, 1]}
+    reparameterisations : dict
+        Dictionary of reparameterisations that overrides the values specified
+        with keyword arguments.
+    likelihood_evaluations : int
+        Number of likelihood evaluations
+    """
+
+    names = []
     bounds = {}
+    reparameterisations = None
+    likelihood_evaluations = 0
     _lower = None
     _upper = None
-    reparameterisations = None
 
     @property
     def dims(self):
+        """Number of dimensions in the model"""
         if self.names:
             return len(self.names)
         else:
@@ -27,6 +52,7 @@ class Model:
 
     @property
     def lower_bounds(self):
+        """Lower bounds on the priors"""
         if self._lower is None:
             bounds_array = np.array(list(self.bounds.values()))
             self._lower = bounds_array[:, 0]
@@ -35,6 +61,7 @@ class Model:
 
     @property
     def upper_bounds(self):
+        """Upper bounds on the priors"""
         if self._upper is None:
             bounds_array = np.array(list(self.bounds.values()))
             self._lower = bounds_array[:, 0]
@@ -45,17 +72,17 @@ class Model:
         """
         Create a new LivePoint, drawn from within bounds.
 
-        Note: See `new_point_log_prob` if changing this method.
+        See `new_point_log_prob` if changing this method.
 
         Parameters
         ----------
-        N: int, optional
+        N : int, optional
             Number of points to draw. By default draws one point. If N > 1
             points are drawn using a faster method.
 
         Returns
         -------
-        np.ndarray
+        ndarray
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
@@ -74,12 +101,12 @@ class Model:
 
         Parameters
         ----------
-        x: array_like
+        x : ndarray
             Points in a structured array
 
         Returns
         -------
-        array_like
+        ndarray
             Log proposal probability for each point
         """
         return np.zeros(x.size)
@@ -90,7 +117,7 @@ class Model:
 
         Returns
         -------
-        np.ndarray
+        ndarray
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
@@ -110,7 +137,7 @@ class Model:
 
         Parameters
         ----------
-        N: int
+        N : int
             Number of points to draw
 
         Returns
@@ -132,24 +159,25 @@ class Model:
 
     def log_prior(self, x):
         """
-        Returns log of prior.
-
-        Returns
-        -------
-            0 if param is in bounds
-            -np.inf otherwise
+        Returns log-prior, must be defined by the user.
         """
         pass
 
     def log_likelihood(self, x):
         """
-        returns log likelihood of given parameter
+        Returns the log-likelihood, must be defined by the user.
         """
         pass
 
     def evaluate_log_likelihood(self, x):
         """
-        Evaluate the log-likelihood and track the number of calls
+        Evaluate the log-likelihood and track the number of calls.
+
+        Returns
+        -------
+        float
+            Log-likelihood value
+
         """
         self.likelihood_evaluations += 1
         return self.log_likelihood(x)

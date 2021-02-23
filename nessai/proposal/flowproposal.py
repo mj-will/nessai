@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Main proposal object that includes normalising flows.
+"""
 import datetime
 import logging
 import os
@@ -38,63 +42,104 @@ class FlowProposal(RejectionProposal):
 
     Parameters
     ----------
-    model: obj:`nessai.model.Model`
-        User defined model
-    flow_config: dict, optional
+    model : :obj:`nessai.model.Model`
+        User defined model.
+    flow_config : dict, optional
         Configuration for training the normalising flow. If None, uses default
         settings. Defaults to None.
-    output: str, optional
-        Path to output directory. Defaults to ./
-    plot: {True, False, 'all', 'min'}, optional
-        Controls the plotting level:
-        * True: all plots
-        * False: no plots
-        * 'all': all plots
-        * 'min': 1d plots and loss
-        Defaults to `'min'`
-    latent_prior: {'truncated_gaussian', 'gaussian', 'uniform_nsphere',
-                   'gaussian'}, optional
+    output : str, optional
+        Path to output directory.
+    plot : {True, False, 'all', 'min'}, optional
+        Controls the plotting level: ``True`` - all plots; ``False`` - no
+        plots; ``'all'`` -  all plots and ``'min'`` -  1d plots and loss.
+    latent_prior : {'truncated_gaussian', 'gaussian', 'uniform_nsphere', \
+            'gaussian'}, optional
         Prior distribution in the latent space. Defaults to
         'truncated_gaussian'.
-    poolsize: int, optional
+    poolsize : int, optional
         Size of the proposal pool. Defaults to 10000.
-    drawsize: int, optional
+    update_poolsize : bool, optional
+        If True the poolsize is updated using the current acceptance of the
+        nested sampler.
+    max_poolsize_scale : int, optional
+        Maximum scale for increasing the poolsize. E.g. if this value is 10
+        and the poolsize is 1000 the maximum number of points in the pool
+        is 10,000.
+    drawsize : int, optional
         Number of points to simultaneosly draw when populating the proposal
         Defaults to 10000
-    check_acceptance: bool, optional
+    check_acceptance : bool, optional
         If True the acceptance is computed after populating the pool. This
         includes computing the likelihood for every point. Default False.
-    max_radius: float (optional)
+    min_radius : float, optional
+        Minimum radius used for popluation. If not specified not minimum is
+        used.
+    max_radius : float, optional
         If a float then this value is used as an upper limit for the
         computed radius when populating the proposal. If unspecified no
         upper limit is used.
-    fuzz: float (optional)
+    fixed_radius : float, optional
+        If specified and the chosen latent distribution is compatible, this
+        radius will be used to draw new samples instead of the value computed
+        with the flow.
+    compute_radius_with_all : bool, optional
+        If True all the radius of the latent contour is computed using the
+        maximum radius of all the samples used to train the flow.
+    fuzz : float, optional
         Fuzz-factor applied to the radius. If unspecified no fuzz-factor is
         applied.
-    zero_reset: int (optional)
+    expansion_fraction : float, optional
+        Similar to ``fuzz`` but instead a scaling factor applied to the radius
+        this specifies a rescaling for volume of the n-ball used to draw
+        samples. This is translated to a value for ``fuzz``.
+    zero_reset : int, optional
         Value used when reseting proposal if zero samples are accepted.
         If specified is after drawing samples zero_reset times the current
         poolsize is less than half, then the radius is reduced by 1% and
         the pool is reset.
-    truncate: bool (optional)
+    truncate : bool, optional
         Truncate proposals using probability compute for worst point.
         Not recommended.
-    rescale_parameters: list or bool (optional)
+    rescale_parameters : list or bool, optional
         If True live points are rescaled to `rescale_bounds` before training.
         If an instance of `list` then must contain names of parameters to
-        rescale. If False no rescaling is applied. Default False.
-    rescale_bounds: list (optional)
+        rescale. If False no rescaling is applied.
+    rescale_bounds : list, optional
         Lower and upper bound to use for rescaling. Defaults to [-1, 1]. See
         `rescale_parameters`.
-    update_bounds: bool (optional)
+    update_bounds : bool, optional
         If True bounds used for rescaling are updated at the starting of
-        training. If False prior bounds are used. Default False.
-    boundary_inversion: bool or list (optional)
+        training. If False prior bounds are used.
+    boundary_inversion : bool or list, optional
         If True boundary inversion is applied to all bounds. If
         If an instance of `list` of parameters names, then inversion
         only applied to these parameters. If False (default )no inversion is
         used.
+    inversion_type : {'split', 'duplicate'}
+        Type of inversion to use. ``'split'`` keeps the number of samples
+        the sample but mirrors half around the bound. ``'duplicate'`` mirrors
+        all the samples at the bound.
+    detect_edges : bool, optional
+        If True, when applying the version the option of no inversion is
+        allowed.
+    detect_edges_kwargs : dict, optional
+        Dictionary of keyword arguments passed to \
+                :func:`nessai.utils.detect_edge`.
+    reparameterisations : dict, optional
+        Dictionary for configure more flexible reparameterisations. This
+        ignores any of the other settings related to rescaling. For more
+        details see the documentation.
+    keep_samples : bool, optional
+        If true samples are stored when repopulating the propolal. Not
+        recommended.
+    n_pool : int, optional
+        Number of threads to use for evaluating the likelihood.
+    draw_latent_kwargs : dict, optional
+        Dictionary of kwargs passed to the function for drawing samples
+        in the latent space. See the functions in utils for the possible
+        kwargs.
     """
+
     def __init__(self,
                  model,
                  flow_config=None,
@@ -762,20 +807,20 @@ class FlowProposal(RejectionProposal):
 
     def inverse_rescale(self, x_prime, **kwargs):
         """
-        Rescale from the primed phyisical space to the original physical
-        space
+        Rescale from the primed physical space to the original physical
+        space.
 
         Parameters
         ----------
-        x_prime: array_like
-            Array of live points to rescale
+        x_prime : array_like
+            Array of live points to rescale.
 
         Returns
         -------
         array
-            Array of rescaled values in the data space
+            Array of rescaled values in the data space.
         array
-            Array of log det|J|
+            Array of log-Jacobian determinants.
         """
         log_J = np.zeros(x_prime.size)
         return x_prime, log_J
@@ -895,7 +940,13 @@ class FlowProposal(RejectionProposal):
 
     def reset_model_weights(self, **kwargs):
         """
-        Reset the flow weights
+        Reset the flow weights.
+
+        Parameters
+        ----------
+        kwargs :
+            Keyword arguments passed to
+            :meth:`nessai.flowmodel.FlowModel.reset_model`.
         """
         self.flow.reset_model(**kwargs)
 
@@ -1043,7 +1094,14 @@ class FlowProposal(RejectionProposal):
         return self.model.log_prior(x)
 
     def x_prime_log_prior(self, x):
-        """Compute the prior in the prime space"""
+        """
+        Compute the prior in the prime space
+
+        Parameters
+        ----------
+        x : array
+            Samples in the X-prime space.
+        """
         raise RuntimeError('Prime prior is not implemented')
 
     def compute_weights(self, x, log_q):
@@ -1062,6 +1120,11 @@ class FlowProposal(RejectionProposal):
             Array of points
         log_q : array_like
             Array of log proposal probabilties.
+
+        Returns
+        -------
+        array_like
+            Log-weights for rejection sampling.
         """
         if self.use_x_prime_prior:
             x['logP'] = self.x_prime_log_prior(x)
@@ -1075,7 +1138,25 @@ class FlowProposal(RejectionProposal):
 
     def rejection_sampling(self, z, worst_q=None):
         """
-        Perform rejection sampling
+        Perform rejection sampling.
+
+        Coverts samples from the latent space and computes the corresponding
+        weights. Then returns samples using standard rejection sampling.
+
+        Parameters
+        ----------
+        z :  ndarray
+            Samples from the latent space
+        worst_q : float, optional
+            Lower bound on the log-probability computed using the flow that
+            is used to truncate new samples. Not recommended.
+
+        Returns
+        -------
+        array_like
+            Array of accepted latent samples.
+        array_like
+            Array of accepted samples in the X space.
         """
         x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
 
@@ -1096,7 +1177,25 @@ class FlowProposal(RejectionProposal):
 
     def convert_to_samples(self, x, plot=True):
         """
-        Convert the array to samples ready to be used
+        Convert the array to samples ready to be used.
+
+        This removes are auxliary parameters, (e.g. auxiliary radial
+        parameters) and ensures the prior is computed. These samples can
+        be directly used in the nested sampler.
+
+        Parameters
+        ----------
+        x : array_like
+            Array of samples
+        plot : bool, optional
+            If true a 1d histogram for each parameter of the pool is plotted.
+            This includes a comparison the live points used to train the
+            current realisation of the flow.
+
+        Returns
+        -------
+        array
+            Structured array of samples.
         """
         if self.use_x_prime_prior:
             if self._plot_pool and plot:
@@ -1236,12 +1335,12 @@ class FlowProposal(RejectionProposal):
 
         Parameters
         ----------
-        float: logL
+        float : logL
             Log-likelihood to use as the lower bound
 
         Returns
         -------
-        float: acceptance
+        float :
             Acceptance defined on [0, 1]
         """
         return (self.samples['logL'] > logL).sum() / self.samples.size
@@ -1283,7 +1382,14 @@ class FlowProposal(RejectionProposal):
 
     def plot_pool(self, z, x):
         """
-        Plot the pool
+        Plot the pool of points.
+
+        Parameters
+        ----------
+        z : array_like
+            Latent samples to plot
+        x : array_like
+            Corresponding samples to plot in the physical space.
         """
         if self._plot_pool == 'all':
             plot_live_points(
@@ -1318,7 +1424,19 @@ class FlowProposal(RejectionProposal):
 
     def resume(self, model, flow_config, weights_file=None):
         """
-        Resume the proposal
+        Resume the proposal.
+
+        The model and config are not stored so these must be provided.
+
+        Parameters
+        ----------
+        model : :obj:`nessai.model.Model`
+            User-defined model used.
+        flow_config : dict
+            Configuration dictionary for the flow.
+        weights_files : str, optional
+            Weights file to try and load. If not provided the proposal
+            tries to load the last weighst file.
         """
         self.model = model
         self.flow_config = flow_config
