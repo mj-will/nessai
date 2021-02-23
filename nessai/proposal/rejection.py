@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Proposal method for initial sampling when priors are not analytical.
+"""
 import datetime
 
 import numpy as np
@@ -7,15 +11,16 @@ from .base import Proposal
 
 class RejectionProposal(Proposal):
     """
-    Object for rejection sampling from the priors. Relies on the method
-    `new_point` included in `flowproposal.model.Model`.
+    Object for rejection sampling from the priors.
+
+    Relies on :meth:`nessai.model.Model.new_point`.
 
     Parameters
     ----------
-    model : obj
+    model : :obj:`nessai.model.Model`
         User-defined model
-    poolsize : int
-        Number of new samples to store in the pool
+    poolsize : int, optional
+        Number of new samples to store in the pool.
     """
     def __init__(self, model, poolsize=1000, **kwargs):
         super(RejectionProposal, self).__init__(model, **kwargs)
@@ -25,6 +30,7 @@ class RejectionProposal(Proposal):
 
     @property
     def poolsize(self):
+        """Poolsize used for drawing new samples in batches."""
         return self._poolsize
 
     def draw_proposal(self):
@@ -33,7 +39,8 @@ class RejectionProposal(Proposal):
 
     def log_proposal(self, x):
         """
-        Log proposal probability. Calls `model.new_point_log_prob`
+        Log proposal probability. Calls \
+                :meth:`nessai.model.Model.new_point_log_prob`
 
         Parameters
         ----------

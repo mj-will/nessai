@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Base object for all proposal classes.
+"""
 import datetime
 import logging
 
