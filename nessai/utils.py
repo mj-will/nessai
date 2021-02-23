@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Various utilies related to logging, saving and loading files, edge detection
+and sampling latent distributions.
+"""
 import json
 import logging
 import os
@@ -20,7 +25,7 @@ def logit(x, fuzz=0):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values
     fuzz : float, optional
         Fuzz used to avoid nans in logit. Values are rescaled from [0, 1]
@@ -37,7 +42,7 @@ def sigmoid(x, fuzz=0):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values
     fuzz : float, optional
         Fuzz used to avoid nans in logit
@@ -60,16 +65,16 @@ def compute_indices_ks_test(indices, nlive, mode='D+'):
 
     Parameters
     ----------
-    indices: array_like
+    indices : array_like
         Indices of newly inserteed live points
-    nlive: int
+    nlive : int
         Number of live points
 
     Returns
     ------
-    D: float
+    D : float
         Two-sided KS statistic
-    p: float
+    p : float
         p-value
     """
     if len(indices):
@@ -93,14 +98,14 @@ def bonferroni_correction(p_values, alpha=0.05):
     """
     Apply the Bonferroni correction for multiple tests.
 
-    Based on the implementation in `statmodels.stats.multitest`
+    Based on the implementation in ``statmodels.stats.multitest``
 
     Parameters
     ----------
-    p_values :  array_like, 1-d
-        Uncorrelated p-values
+    p_values :  array_like
+        Uncorrelated p-values.
     alpha : float, optional
-        Family wise error rate
+        Family wise error rate.
     """
     p_values = np.asarray(p_values)
     alpha_bon = alpha / p_values.size
@@ -128,7 +133,7 @@ def draw_surface_nsphere(dims, r=1, N=1000):
 
     Returns
     -------
-    array_like
+    ndarray
         Array of samples with shape (N, dims)
     """
     x = np.random.randn(N, dims)
@@ -154,7 +159,7 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
 
     Returns
     -------
-    array_like
+    ndarray
         Array of samples with shape (N, dims)
     """
     x = draw_surface_nsphere(dims, r=1, N=N)
@@ -165,16 +170,16 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
 
 def get_uniform_distribution(dims, r, device='cpu'):
     """
-    Return a Pytorch distribution that is uniform in the number of
-    dims specified
+    Return a torch distribution that is uniform in the number of dims
+    specified.
 
     Parameters
     ----------
-    dims: int
-        Number of dimensions
-    r: float
-        Radius to use for lower and upper bounds
-    device: str, optional (cpu)
+    dims : int
+        Number of dimensions.
+    r : float
+        Radius to use for lower and upper bounds.
+    device : str, optional
         Device on which the distribution is placed.
 
     Returns
@@ -194,16 +199,17 @@ def get_multivariate_normal(dims, var=1, device='cpu'):
 
     Parameters
     ----------
-    dims: int
-        Number of dimensions
-    var: float, optional (1)
-        Standard deviation
-    device: str, optional (cpu)
+    dims : int
+        Number of dimensions.
+    var : float, optional
+        Variance.
+    device : str, optional
         Device on which the distribution is placed.
 
     Returns
     -------
-        Instance of MultivariateNormal with correct variance and dims
+    :obj:`nessai.flows.distributions.MultivariateNormal`
+        Instance of MultivariateNormal with correct variance and dims.
     """
     loc = torch.zeros(dims).to(device).double()
     covar = var * torch.eye(dims).to(device).double()
@@ -212,8 +218,26 @@ def get_multivariate_normal(dims, var=1, device='cpu'):
 
 def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     """
-    Draw from a uniform distribution on [0, 1], deals with extra input
-    parameters used by other draw functions
+    Draw from a uniform distribution on [0, 1].
+
+    Deals with extra input parameters used by other draw functions
+
+    Parameters
+    ----------
+    dims : int
+        Dimension of the n-sphere
+    r : float, optional
+        Radius of the n-ball. (Ignored by this function)
+    N : int, ignored
+        Number of samples to draw
+    fuzz : float, ignored
+        Fuzz factor by which to increase the radius of the n-ball. (Ingored by
+        this function)
+
+    Returns
+    -------
+    ndarraay
+        Array of samples with shape (N, dims)
     """
     return np.random.uniform(0, 1, (N, dims))
 
@@ -236,7 +260,7 @@ def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
 
     Returns
     -------
-    array_like
+    ndarray
         Array of samples with shape (N, dims)
     """
     return np.random.randn(N, dims)
@@ -259,7 +283,7 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1):
 
     Returns
     -------
-    array_like
+    ndarray
         Array of samples with shape (N, dims)
     """
     sigma = np.sqrt(var)
@@ -310,16 +334,16 @@ def rescale_zero_to_one(x, xmin, xmax):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values to rescale
     xmin, xmax : floats
         Minimum and maximum values to use for rescaling
 
     Returns
     -------
-    array_like
+    ndarray
         Array of rescaled values
-    array_like
+    ndarray
         Array of log determinants of Jacobians for each sample
     """
     return (x - xmin) / (xmax - xmin), -np.log(xmax - xmin)
@@ -331,16 +355,16 @@ def inverse_rescale_zero_to_one(x, xmin, xmax):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values to rescale
     xmin, xmax : floats
         Minimum and maximum values to use for rescaling
 
     Returns
     -------
-    array_like
+    ndarray
         Array of rescaled values
-    array_like
+    ndarray
         Array of log determinants of Jacobians for each sample
     """
     return (xmax - xmin) * x + xmin, np.log(xmax - xmin)
@@ -352,16 +376,16 @@ def rescale_minus_one_to_one(x, xmin, xmax):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values to rescale
     xmin, xmax : floats
         Minimum and maximum values to use for rescaling
 
     Returns
     -------
-    array_like
+    ndarray
         Array of rescaled values
-    array_like
+    ndarray
         Array of log determinants of Jacobians for each sample
     """
     return ((2. * (x - xmin) / (xmax - xmin)) - 1,
@@ -374,16 +398,16 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values to rescale
     xmin, xmax : floats
         Minimum and maximum values to use for rescaling
 
     Returns
     -------
-    array_like
+    ndarray
         Array of rescaled values
-    array_like
+    ndarray
         Array of log determinants of Jacobians for each sample
     """
     return ((xmax - xmin) * ((x + 1) / 2.) + xmin,
@@ -408,10 +432,14 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
     cutoff: float (0.1)
         Minimum fraction of the maximum density contained within the
         percentage of the interval specified
+    nbins : float or 'auto'
+        Number of bins used for histogram.
     allow_both: bool
         Allow function to return both instead of force either upper or lower
     allow_none: bool
         Allow for neither lower or upper bound to be returned
+    allowed_bounds : list
+        List of alloweds bounds.
     test : str or None
         If not None this skips the process and just returns the value of test.
         This is used to verify the inversion in all possible scenarios.
@@ -469,9 +497,9 @@ def configure_edge_detection(d, detect_edges):
     Parameters
     ----------
     d : dict
-        Dictionary of kwargs parsed to detect_edge
+        Dictionary of kwargs passed to detect_edge.
     detect_edges : bool
-        If true allows for no inversion to be applied
+        If true allows for no inversion to be applied.
 
     Returns
     -------
@@ -498,16 +526,15 @@ def compute_minimum_distances(samples, metric='euclidean'):
     Parameters
     ----------
     samples : array_like
-        Array of samples
-    metric : str, optional (euclidean)
+        Array of samples.
+    metric : str, optional
         Metric to use. See scipy docs for list of metrics:
-        https://docs.scipy.org/doc/scipy/reference/generated/
-        scipy.spatial.distance.cdist.html
+        https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
 
     Returns
     -------
     array_like
-        Distance to nearest neighbour for each sample
+        Distance to nearest neighbour for each sample.
     """
     d = spatial.distance.cdist(samples, samples, metric)
     d[d == 0] = np.nan
@@ -517,22 +544,24 @@ def compute_minimum_distances(samples, metric='euclidean'):
 
 def setup_logger(output=None, label='nessai', log_level='INFO'):
     """
-    Setup logger
+    Setup the logger.
 
-    Based on the implementation in Bilby
+    Based on the implementation in Bilby:
+    https://git.ligo.org/lscsoft/bilby/-/blob/master/bilby/core/utils.py#L448
 
     Parameters
     ----------
     output : str, optional
-        Path of to output directory
+        Path of to output directory.
     label : str, optional
-        Label for this instance of the logger
-    log_level : {'ERROR', 'WARNING', 'INFO', 'DEBUG'}
-        Level of logging parsed to logger
+        Label for this instance of the logger.
+    log_level : {'ERROR', 'WARNING', 'INFO', 'DEBUG'}, optional
+        Level of logging passed to logger.
 
     Returns
     -------
-    logger
+    :obj:`logging.Logger`
+        Instance of the Logger class.
     """
     from . import __version__ as version
     if type(log_level) is str:
@@ -581,9 +610,19 @@ def setup_logger(output=None, label='nessai', log_level='INFO'):
 
 def is_jsonable(x):
     """
-    Check if an object is JSON serialisable
+    Check if an object is JSON serialisable.
 
     Based on: https://stackoverflow.com/a/53112659
+
+    Parameters
+    ----------
+    x : obj
+        Object to check
+
+    Returns
+    -------
+    bool
+        Boolean that indicates if the object is JSON serialisable.
     """
     try:
         json.dumps(x)
@@ -594,13 +633,20 @@ def is_jsonable(x):
 
 class FPJSONEncoder(json.JSONEncoder):
     """
-    Class to encode numpy arrays and other non-serialisable objects in
-    FlowProposal
+    Class to encode numpy arrays and other non-serialisable objects.
 
-    Based on: https://stackoverflow.com/a/57915246
+    Based on: https://stackoverflow.com/a/57915246.
+
+    Examples
+    --------
+    This class should be used in the ``cls`` argument::
+
+        with open(filename, 'w') as wf:
+             json.dump(d, wf, indent=4, cls=FPJSONEncoder)
     """
-    def default(self, obj):
 
+    def default(self, obj):
+        """Method that returns a serialisable object"""
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):
@@ -614,19 +660,21 @@ class FPJSONEncoder(json.JSONEncoder):
 
 
 def safe_file_dump(data, filename, module, save_existing=False):
-    """ Safely dump data to a .pickle file
+    """Safely dump data to a .pickle file
 
     See Bilby for the original impletmentation:
     https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
 
     Parameters
     ----------
-    data:
-        data to dump
-    filename: str
-        The file to dump to
-    module: pickle, dill
-        The python module to use
+    data :
+        Data to dump.
+    filename : str
+        The file to dump to.
+    module : {pickle, dill}
+        The python module to use.
+    save_existing : bool, optional
+        If true move the existing file to <file>.old.
     """
     if save_existing:
         if os.path.exists(filename):
@@ -641,8 +689,16 @@ def safe_file_dump(data, filename, module, save_existing=False):
 
 def save_live_points(live_points, filename):
     """
-    Save live points to a file. Live points are converted to a dictionary
-    and then saved.
+    Save live points to a file using JSON.
+
+    Live points are converted to a dictionary and then saved.
+
+    Parameters
+    ----------
+    live_points : ndarray
+        Live points to save.
+    filename : str
+        File to save to.
     """
     d = live_points_to_dict(live_points)
     with open(filename, 'w') as wf:
@@ -656,18 +712,18 @@ def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
 
     Notes
     -----
-    Uses torch.set_num_threads. If pytorch threads is None but other
+    Uses ``torch.set_num_threads``. If pytorch threads is None but other
     arguments are specified them the value is inferred from them.
 
     Parameters
     ----------
-    max_threads: int (None)
+    max_threads: int, optional
         Maximum total number of threads to use between PyTorch and
-        multiprocessing
-    pytorch_threads: int (None)
-        Maximum number of threads for PyTorch on CPU
-    n_pool: int (None)
-        Number of pools to use if using multiprocessing
+        multiprocessing.
+    pytorch_threads: int, optional
+        Maximum number of threads for PyTorch on CPU.
+    n_pool: int, optional
+        Number of pools to use if using multiprocessing.
     """
     if max_threads is not None:
         if pytorch_threads is not None and pytorch_threads > max_threads:
@@ -780,15 +836,15 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
     Parameters
     ----------
     prior_min : float
-        Mininum of the prior
+        Mininum of the prior.
     prior_max : float
-        Maximum of the prior
+        Maximum of the prior.
     x_min : float
-        New minimum
+        New minimum.
     x_max : float
-        New maximum
-    invert : false or {'upper', 'lower', 'both'}
-        Type of inversion
+        New maximum.
+    invert : False or {'upper', 'lower', 'both'}
+        Type of inversion.
     """
     lower = (prior_min - offset - x_min) / (x_max - x_min)
     upper = (prior_max - offset - x_min) / (x_max - x_min)
