@@ -146,7 +146,7 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
     plt.tight_layout()
     if filename is not None:
         fig.savefig(filename, bbox_inches='tight')
-        plt.close()
+        plt.close(fig)
     else:
         return fig
 
@@ -207,7 +207,7 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
 
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
-        plt.close()
+        plt.close(fig)
     else:
         return fig
 
@@ -241,7 +241,7 @@ def plot_loss(epoch, history, filename=None):
 
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
-        plt.close()
+        plt.close(fig)
     else:
         return fig
 

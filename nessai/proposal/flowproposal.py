@@ -905,6 +905,7 @@ class FlowProposal(RejectionProposal):
             plt.hist(np.sqrt(np.sum(z_training_data ** 2, axis=1)), 'auto')
             plt.xlabel('Radius')
             fig.savefig(block_output + 'radial_dist.png')
+            plt.close(fig)
 
             plot_1d_comparison(z_training_data, z_gen,
                                labels=['z_live_points', 'z_generated'],
@@ -1421,6 +1422,7 @@ class FlowProposal(RejectionProposal):
             plt.tight_layout()
             fig.savefig(
                 f'{self.output}/pool_{self.populated_count}_log_q.png')
+            plt.close(fig)
 
     def resume(self, model, flow_config, weights_file=None):
         """
