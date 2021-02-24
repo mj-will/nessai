@@ -26,7 +26,8 @@ class RejectionProposal(Proposal):
         super(RejectionProposal, self).__init__(model, **kwargs)
         self._poolsize = poolsize
         self.populated = False
-        self._acceptance_checked = True
+        self._checked_population = True
+        self.population_acceptance = None
 
     @property
     def poolsize(self):
@@ -67,28 +68,6 @@ class RejectionProposal(Proposal):
         log_w -= np.nanmax(log_w)
         return log_w
 
-    @property
-    def population_acceptance(self):
-        """
-        Check the acceptance of the current proposal method.
-
-        If this method has already been called since the proposal was
-        last populated it returns None.
-        """
-        if self._acceptance_checked:
-            return None
-        else:
-            self._acceptance_checked = True
-            return self._population_acceptance
-
-    @population_acceptance.setter
-    def population_acceptance(self, acceptance):
-        """
-        Set the population acceptance and reset the flag
-        """
-        self._population_acceptance = acceptance
-        self._acceptance_checked = False
-
     def populate(self, N=None):
         """
         Populate the pool by drawing from the proposal distribution and
@@ -106,6 +85,7 @@ class RejectionProposal(Proposal):
         if self.pool is not None:
             self.evaluate_likelihoods()
         self.populated = True
+        self._checked_population = False
 
     def draw(self, old_sample):
         """
