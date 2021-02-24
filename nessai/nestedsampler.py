@@ -964,11 +964,12 @@ class NestedSampler:
         """
         # Check if acceptance is not None, this indicates the proposal
         # was populated
-        if self.proposal.population_acceptance is not None:
+        if not self.proposal._checked_population:
             self.population_acceptance.append(
                 self.proposal.population_acceptance)
             self.population_radii.append(self.proposal.r)
             self.population_iterations.append(self.iteration)
+            self.proposal._checked_population = True
 
         if not (self.iteration % (self.nlive // 10)) or force:
             self.likelihood_evaluations.append(

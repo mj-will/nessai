@@ -1310,6 +1310,7 @@ class FlowProposal(RejectionProposal):
         self.population_acceptance = self.x.size / proposed
         self.populated_count += 1
         self.populated = True
+        self._checked_population = False
         logger.info(f'Proposal populated with {len(self.indices)} samples')
         logger.info(
             f'Overall proposal acceptance: {self.x.size / proposed:.4}')
