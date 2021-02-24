@@ -945,8 +945,8 @@ class NestedSampler:
 
         fig.tight_layout()
         fig.subplots_adjust(top=0.95)
-
         fig.savefig(f'{self.output}/state.png')
+        plt.close(fig)
 
     def plot_trace(self):
         """
