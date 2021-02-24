@@ -408,7 +408,7 @@ class FlowModel:
         self.model.eval()
 
         if plot:
-            plot_loss(epoch, history, output=output)
+            plot_loss(epoch, history, filename=output + '/loss.png')
 
     def save_weights(self, weights_file):
         """

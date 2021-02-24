@@ -7,15 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+These changes will be included in the next release.
+
 ### Added
 
-- Badges for DOI and PyPI versions
-- Add support for Python >= 3.6
-- Improve doc-strings and tweak settings for doc-strings in the documentation
+- Badges for DOI and PyPI versions.
+- Add support for Python >= 3.6.
+- Improve doc-strings and tweak settings for doc-strings in the documentation.
+- Add tests for plotting functions.
 
-### Change
+### Changed
 
-- Remove `:=` operator to enable support for Python >= 3.6
+- Remove `:=` operator to enable support for Python >= 3.6.
+- Plotting functions are now more constent and all return the figure if `filename=None`.
+
+### Fixed
+
+- Fixed bug when plotting non-structured arrays with `plot_1d_comparison` and specifying `parameters`.
+- Fixed bug where `plot_indices` failed if using an empty array but worked with an empty list.
+
+### Removed
+
+- Remove `plot_posterior` because functionality is include in `plot_live_points`.
+- Remove `plot_likelihood_evaluations` because information is already contained in the state plot.
+- Remove `plot_acceptance` as it is only by agumented proposel which is subject to change.
+- Remove `plot_flow`.
 
 ## [0.2.2] - 2021-02-19
 

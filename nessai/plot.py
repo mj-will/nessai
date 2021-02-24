@@ -6,7 +6,6 @@ import logging
 from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sns
-import torch
 import pandas as pd
 
 from .utils import auto_bins
@@ -64,7 +63,9 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
 
     if filename is not None:
         fig.savefig(filename)
-    plt.close()
+        plt.close()
+    else:
+        return fig
 
 
 def plot_1d_comparison(*live_points, parameters=None, labels=None,
@@ -101,8 +102,12 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         if parameters is None:
             parameters = [i for i in range(live_points[0].shape[-1])]
         for i in range(len(live_points)):
-            live_points[i] = {k: v for k, v in enumerate(live_points[i].T)}
+            live_points[i] = \
+                {k: v for k, v in zip(parameters, live_points[i].T)}
 
+    elif any(lp.dtype.names is None for lp in live_points):
+        raise RuntimeError('Live points are not structured arrays'
+                           'Set `convert_to_live_points=True`.')
     elif parameters is None:
         parameters = live_points[0].dtype.names
 
@@ -141,23 +146,9 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
     plt.tight_layout()
     if filename is not None:
         fig.savefig(filename, bbox_inches='tight')
-    plt.close()
-
-
-def plot_posterior(live_points, filename=None, **kwargs):
-    """
-    Plot a set of live points
-    """
-    pairplot_kwargs.update(kwargs)
-
-    df = pd.DataFrame(live_points)
-    fig = sns.PairGrid(df)
-    fig.map_diag(sns.kdeplot)
-    fig.map_offdiag(sns.kdeplot, n_levels=6)
-
-    if filename is not None:
-        fig.savefig(filename)
-    plt.close()
+        plt.close()
+    else:
+        return fig
 
 
 def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
@@ -176,7 +167,8 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
        If true, then the CDF for every nlive points is also plotted as grey
        lines.
     """
-    if not indices or not nlive:
+    indices = np.asarray(indices)
+    if not indices.size or not nlive:
         logger.warning('Not producing indices plot.')
         return
 
@@ -215,99 +207,12 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
 
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
-    plt.close()
-
-
-def plot_likelihood_evaluations(evaluations, nlive, filename=None):
-
-    its = np.arange(-1, len(evaluations)) * nlive
-    evaluations.insert(0, 0)
-    fig = plt.figure()
-    plt.plot(its, evaluations, '.')
-    plt.xlabel('Iteration')
-    plt.ylabel('Number of likelihood evaluations')
-
-    if filename is not None:
-        fig.savefig(filename, bbox_inches='tight')
-
-
-def plot_chain(x, name=None, filename=None):
-    """
-    Produce a trace plot
-    """
-    fig = plt.figure(figsize=(4, 3))
-    plt.plot(x, ',')
-    plt.grid()
-    plt.xlabel('iteration')
-    if name is not None:
-        plt.ylabel(name)
-        if filename is None:
-            filename = name + '_chain.png'
-    if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
-    plt.close(fig)
-
-
-def plot_flows(model, n_inputs, N=1000, inputs=None, cond_inputs=None,
-               mode='inverse', output='./'):
-    """
-    Plot each stage of a series of flows
-    """
-    if n_inputs > 2:
-        raise NotImplementedError('Plotting for higher dimensions not '
-                                  'implemented !')
-
-    outputs = []
-
-    if mode == 'direct':
-        if inputs is None:
-            raise ValueError('Can not sample from parameter space!')
-        else:
-            inputs = torch.from_numpy(inputs).to(model.device)
-
-        for module in model._modules.values():
-            inputs, _ = module(inputs, cond_inputs, mode)
-            outputs.append(inputs.detach().cpu().numpy())
+        plt.close()
     else:
-        if inputs is None:
-            inputs = torch.randn(N, n_inputs, device=model.device)
-            orig_inputs = inputs.detach().cpu().numpy()
-        for module in reversed(model._modules.values()):
-            inputs, _ = module(inputs, cond_inputs, mode)
-            outputs.append(inputs.detach().cpu().numpy())
-
-    n = int(len(outputs) / 2) + 1
-    m = 1
-
-    if n > 5:
-        m = int(np.ceil(n / 5))
-        n = 5
-
-    z = orig_inputs
-    pospos = np.where(np.all(z >= 0, axis=1))
-    negneg = np.where(np.all(z < 0, axis=1))
-    posneg = np.where((z[:, 0] >= 0) & (z[:, 1] < 0))
-    negpos = np.where((z[:, 0] < 0) & (z[:, 1] >= 0))
-
-    points = [pospos, negneg, posneg, negpos]
-    colours = ['r', 'c', 'g', 'tab:purple']
-    colours = plt.cm.Set2(np.linspace(0, 1, 8))
-
-    fig, ax = plt.subplots(m, n, figsize=(n * 3, m * 3))
-    ax = ax.ravel()
-    for j, c in zip(points, colours):
-        ax[0].scatter(z[j, 0], z[j, 1], c=c)
-        ax[0].set_title('Latent space')
-    for i, o in enumerate(outputs[::2]):
-        i += 1
-        for j, c in zip(points, colours):
-            ax[i].plot(o[j, 0], o[j, 1], c=c)
-        ax[i].set_title(f'Flow {i}')
-    fig.tight_layout()
-    fig.savefig(output + 'flows.png')
+        return fig
 
 
-def plot_loss(epoch, history, output='./'):
+def plot_loss(epoch, history, filename=None):
     """
     Plot the loss function per epoch.
 
@@ -317,8 +222,9 @@ def plot_loss(epoch, history, output='./'):
         Final training epoch
     history : dict
         Dictionary with keys ``'loss'`` and ``'val_loss'``
-    output : str, optional
-        Path for saving the figure
+    filename : str, optional
+        Path for saving the figure. If not specified figure is returned
+        instead.
     """
     fig, ax = plt.subplots()
     epochs = np.arange(1, epoch + 1, 1)
@@ -332,26 +238,12 @@ def plot_loss(epoch, history, output='./'):
         plt.yscale('symlog')
     else:
         plt.yscale('log')
-    fig.savefig(output + 'loss.png')
-    plt.close('all')
 
-
-def plot_acceptance(*acceptance, filename=None, labels=None):
-
-    if labels is None:
-        labels = [f'acceptance_{i}' for i in len(acceptance)]
-
-    fig = plt.figure()
-    x = np.arange(len(acceptance[0]))
-    for a, l in zip(acceptance, labels):
-        plt.plot(a, 'o', label=l)
-    plt.xticks(x[::2])
-    plt.ylabel('Acceptance')
-    plt.legend(frameon=False)
-    plt.grid()
     if filename is not None:
         plt.savefig(filename, bbox_inches='tight')
-    plt.close(fig)
+        plt.close()
+    else:
+        return fig
 
 
 def plot_trace(log_x, nested_samples, labels=None, filename=None):
