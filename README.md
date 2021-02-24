@@ -32,6 +32,7 @@ $ pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sam
 
 Documenation is available at: [nessai.readthedocs.io](https://nessai.readthedocs.io/)
 
+
 ## Contributing
 
 Please see the guidelines [here](https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md).
@@ -44,3 +45,29 @@ The core nested sampling code, model design and code for computing the posterior
 The normalising flows implemented in ``nessai`` are all either directly imported from [`nflows`](https://github.com/bayesiains/nflows/tree/master/nflows) or heavily based on it.
 
 Other code snippets that draw on existing code reference the source in their corresponding doc-strings.
+
+## Citing
+
+If you find ``nessai`` useful in your work please cite the DOI for this code and our paper:
+
+```bibtex
+@software{nessai,
+  author       = {Michael J. Williams},
+  title        = {nessai: Nested Sampling with Artificial Intelligence},
+  month        = feb,
+  year         = 2021,
+  publisher    = {Zenodo},
+  version      = {latest},
+  doi          = {10.5281/zenodo.4550693},
+  url          = {https://doi.org/10.5281/zenodo.4550693}
+}
+
+@article{williams2021nested,
+  title={Nested Sampling with Normalising Flows for Gravitational-Wave Inference},
+  author={Michael J. Williams and John Veitch and Chris Messenger},
+  year={2021},
+  eprint={2102.11056},
+  archivePrefix={arXiv},
+  primaryClass={gr-qc}
+}
+```

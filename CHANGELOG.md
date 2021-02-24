@@ -15,6 +15,7 @@ These changes will be included in the next release.
 - Add support for Python >= 3.6.
 - Improve doc-strings and tweak settings for doc-strings in the documentation.
 - Add tests for plotting functions.
+- Added sections to README and docs on citing `nessai`.
 
 ### Changed
 

@@ -18,6 +18,35 @@ Nessai
 
 The code is available at: https://github.com/mj-will/nessai.
 
+
+Citing nessai
+=============
+
+If you find ``nessai`` useful in your work please cite the DOI for this code and our paper:
+
+.. code-block:: bibtex
+
+    @software{nessai,
+      author       = {Michael J. Williams},
+      title        = {nessai: Nested Sampling with Artificial Intelligence},
+      month        = feb,
+      year         = 2021,
+      publisher    = {Zenodo},
+      version      = {latest},
+      doi          = {10.5281/zenodo.4550693},
+      url          = {https://doi.org/10.5281/zenodo.4550693}
+    }
+
+    @article{williams2021nested,
+      title={Nested Sampling with Normalising Flows for Gravitational-Wave Inference},
+      author={Michael J. Williams and John Veitch and Chris Messenger},
+      year={2021},
+      eprint={2102.11056},
+      archivePrefix={arXiv},
+      primaryClass={gr-qc}
+    }
+
+
 .. automodule:: nessai
    :members:
    :undoc-members:
