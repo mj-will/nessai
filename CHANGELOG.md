@@ -18,6 +18,7 @@ These changes will be included in the next release.
 
 - Fix a bug with saving results when multiprocessing is enabled.
 - Fixed a bug with `AnalyticProposal` introduced in the last release.
+- Fix bug with resuming when using certain reparameterisations.
 
 
 ## [0.2.3] - 2021-02-24
