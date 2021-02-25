@@ -45,6 +45,7 @@ class Proposal:
         self.samples = []
         self.indices = []
         self.pool = None
+        self._checked_population = True
 
     @property
     def initialised(self):
