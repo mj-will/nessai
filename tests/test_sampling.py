@@ -1,3 +1,4 @@
+import os
 
 from nessai.flowsampler import FlowSampler
 import torch
@@ -47,3 +48,19 @@ def test_sampling_with_maf(model, flow_config, tmpdir):
     fp.run()
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
+
+
+def test_sampling_with_n_pool(model, flow_config, tmpdir):
+    """
+    Test running the sampler with multiprocessing.
+    """
+    output = str(tmpdir.mkdir('pool'))
+    fp = FlowSampler(model, output=output, resume=False, nlive=100, plot=False,
+                     flow_config=flow_config, training_frequency=10,
+                     maximum_uninformed=9, rescale_parameters=True,
+                     seed=1234, max_iteration=11, poolsize=10, max_threads=3,
+                     n_pool=2)
+    fp.run()
+    assert fp.ns.proposal.flow.weights_file is not None
+    assert fp.ns.proposal.training_count == 1
+    assert os.path.exists(output + '/result.json')
