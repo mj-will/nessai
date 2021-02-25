@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 These changes will be included in the next release.
 
+### Added
+
+- Add a test for sampling with multiprocessing.
+
+### Fixed
+
+- Fix a bug with saving results when multiprocessing is enabled.
+
 
 ## [0.2.3] - 2021-02-24
 
