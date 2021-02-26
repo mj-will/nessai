@@ -469,8 +469,10 @@ class RescaleToBounds(Reparameterisation):
                     'Pre-rescaling must be str or tuple of two functions')
             logger.debug('Disabling prime prior with pre-rescaling')
             self.has_prior_prior = False
+            self.has_pre_rescaling = True
         else:
             logger.debug('No pre-rescaling to configure')
+            self.has_pre_rescaling = False
 
     def configure_post_rescaling(self, post_rescaling):
 
@@ -498,8 +500,10 @@ class RescaleToBounds(Reparameterisation):
                     raise RuntimeError('Cannot use logit with update bounds')
                 self.rescale_bounds = {p: [0 - 1e-2, 1 + 1e-2]
                                        for p in self.parameters}
+            self.has_post_rescaling = True
         else:
             logger.debug('No post-rescaling to configure')
+            self.has_post_rescaling = False
 
     def pre_rescaling(self, x):
         """Function applied before rescaling to bounds"""
@@ -611,8 +615,12 @@ class RescaleToBounds(Reparameterisation):
             Parsed to inversion function
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
-            x_prime[pp], lj = self.pre_rescaling(x[p])
-            log_j += lj
+            if self.has_pre_rescaling:
+                x_prime[pp], lj = self.pre_rescaling(x[p])
+                log_j += lj
+            else:
+                x_prime[pp] = x[p].copy()
+
             if p in self.boundary_inversion:
                 x, x_prime, log_j = self._apply_inversion(
                         x, x_prime, log_j, p, pp, compute_radius, **kwargs)
@@ -620,16 +628,20 @@ class RescaleToBounds(Reparameterisation):
                 x_prime[pp], lj = \
                     self._rescale_to_bounds(x[p] - self.offsets[p], p)
                 log_j += lj
-            x_prime[pp], lj = self.post_rescaling(x_prime[pp])
-            log_j += lj
+            if self.has_post_rescaling:
+                x_prime[pp], lj = self.post_rescaling(x_prime[pp])
+                log_j += lj
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
         """Map inputs to the physical space from the prime space"""
         for p, pp in zip(reversed(self.parameters),
                          reversed(self.prime_parameters)):
-            x[p], lj = self.post_rescaling_inv(x_prime[pp])
-            log_j += lj
+            if self.has_post_rescaling:
+                x[p], lj = self.post_rescaling_inv(x_prime[pp])
+                log_j += lj
+            else:
+                x[p] = x_prime[pp].copy()
             if p in self.boundary_inversion:
                 x, x_prime, log_j = self._reverse_inversion(
                     x, x_prime, log_j, p, pp, **kwargs)
@@ -637,8 +649,9 @@ class RescaleToBounds(Reparameterisation):
                 x[p], lj = self._inverse_rescale_to_bounds(x[p], p)
                 x[p] += self.offsets[p]
                 log_j += lj
-            x[p], lj = self.pre_rescaling_inv(x[p])
-            log_j += lj
+            if self.has_pre_rescaling:
+                x[p], lj = self.pre_rescaling_inv(x[p])
+                log_j += lj
         return x, x_prime, log_j
 
     def reset_inversion(self):
