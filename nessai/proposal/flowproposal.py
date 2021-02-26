@@ -2,6 +2,7 @@
 """
 Main proposal object that includes normalising flows.
 """
+import copy
 import datetime
 import logging
 import os
@@ -506,14 +507,15 @@ class FlowProposal(RejectionProposal):
         return get_reparameterisation(name)
 
     def configure_reparameterisations(self, reparameterisations):
-        logger.info('Adding reparameterisations')
+        _reparameterisations = copy.deepcopy(reparameterisations)
+        logger.info(f'Adding reparameterisations from: {_reparameterisations}')
         self._reparameterisation = CombinedReparameterisation()
 
-        if not isinstance(reparameterisations, dict):
+        if not isinstance(_reparameterisations, dict):
             raise TypeError('Reparameterisations must be a dictionary, '
-                            f'receieved {type(reparameterisations).__name__}')
+                            f'receieved {type(_reparameterisations).__name__}')
 
-        for k, config in reparameterisations.items():
+        for k, config in _reparameterisations.items():
             if k in self.names:
                 logger.debug(f'Found parameter {k} in model, '
                              'assuming it is a parameter')
@@ -1443,6 +1445,7 @@ class FlowProposal(RejectionProposal):
         """
         self.model = model
         self.flow_config = flow_config
+        self._reparameterisation = None
 
         if self.mask is not None:
             if isinstance(self.mask, list):
