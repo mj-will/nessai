@@ -394,11 +394,6 @@ class RescaleToBounds(Reparameterisation):
                     'rescale_bounds must be an instance of list or dict. '
                     f'Got type: {type(rescale_bounds).__name__}')
 
-        self._rescale_factor = \
-            {p: np.ptp(self.rescale_bounds[p]) for p in self.parameters}
-        self._rescale_shift = \
-            {p: self.rescale_bounds[p][0] for p in self.parameters}
-
         if boundary_inversion is not None:
             if isinstance(boundary_inversion, list):
                 self.boundary_inversion = \
@@ -498,8 +493,8 @@ class RescaleToBounds(Reparameterisation):
             if post_rescaling == 'logit':
                 if self._update_bounds:
                     raise RuntimeError('Cannot use logit with update bounds')
-                self.rescale_bounds = {p: [0 - 1e-2, 1 + 1e-2]
-                                       for p in self.parameters}
+                logger.debug('Setting bounds to [0, 1] for logit')
+                self.rescale_bounds = {p: [0, 1] for p in self.parameters}
             self.has_post_rescaling = True
         else:
             logger.debug('No post-rescaling to configure')
@@ -660,6 +655,11 @@ class RescaleToBounds(Reparameterisation):
 
     def set_bounds(self, prior_bounds):
         """Set the initial bounds for rescaling"""
+        self._rescale_factor = \
+            {p: np.ptp(self.rescale_bounds[p]) for p in self.parameters}
+        self._rescale_shift = \
+            {p: self.rescale_bounds[p][0] for p in self.parameters}
+
         self.prior_bounds = \
             {p: self.pre_rescaling(prior_bounds[p])[0]
              for p in self.parameters}
@@ -685,10 +685,11 @@ class RescaleToBounds(Reparameterisation):
         """Update the prior bounds used for the prime prior"""
         if self.has_prime_prior:
             self.prime_prior_bounds = \
-                {pp: self.post_rescaling(determine_rescaled_bounds(
+                {pp: self.post_rescaling(np.asarray(determine_rescaled_bounds(
                     self.prior_bounds[p][0], self.prior_bounds[p][1],
                     self.bounds[p][0], self.bounds[p][1], self._edges[p],
-                    self.offsets[p]))[0]
+                    self.offsets[p], rescale_bounds=self.rescale_bounds[p],
+                    inversion=p in self.boundary_inversion)))[0]
                  for p, pp in zip(self.parameters, self.prime_parameters)}
             logger.debug(f'New prime bounds: {self.prime_prior_bounds}')
 
