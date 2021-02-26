@@ -321,13 +321,14 @@ class LegacyGWFlowProposal(FlowProposal):
             logger.debug('Checking spin angles')
             for i in [1, 2]:
                 if f'tilt_{i}' in self.names:
-                    a = 'tilt_{i}'
+                    a = f'tilt_{i}'
                 elif f'cos_tilt_{i}' in self.names:
-                    a = 'cos_tilt_{i}'
+                    a = f'cos_tilt_{i}'
                 else:
                     continue
 
                 if a in self._remaining:
+                    logger.debug(f'Adding reparameterisations for {a}')
                     radial = f'a_{i}'
                     if 'cos' in a:
                         zero = 'centre'
@@ -348,7 +349,7 @@ class LegacyGWFlowProposal(FlowProposal):
                         self._remaining.remove(radial)
                     else:
                         self.setup_angle(a, scale=scale, zero=zero)
-                        self._remaining.remove(a)
+                    self._remaining.remove(a)
 
             for a in ['phi_jl', 'phi_12']:
                 if a in self.names and a in self._remaining:
