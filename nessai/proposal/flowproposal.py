@@ -1445,6 +1445,7 @@ class FlowProposal(RejectionProposal):
         """
         self.model = model
         self.flow_config = flow_config
+        self._reparameterisation = None
 
         if self.mask is not None:
             if isinstance(self.mask, list):
