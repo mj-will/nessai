@@ -523,6 +523,11 @@ class FlowProposal(RejectionProposal):
                     rc, default_config = self.get_reparameterisation(config)
                     default_config['parameters'] = k
                 elif isinstance(config, dict):
+                    if config.get('reparameterisation', None) is None:
+                        raise RuntimeError(
+                            f'No reparameterisation found for {k}. '
+                            'Check inputs (and their spelling :)). '
+                            f'Current keys: {list(config.keys())}')
                     rc, default_config = self.get_reparameterisation(
                         config['reparameterisation'])
                     config.pop('reparameterisation')
@@ -534,8 +539,9 @@ class FlowProposal(RejectionProposal):
 
                     default_config.update(config)
                 else:
-                    raise RuntimeError(f'Unknown config for: {k}')
-
+                    raise TypeError(
+                        f'Unknown config type for: {k}. Expected str or dict, '
+                        f'received instance of {type(config)}.')
             else:
                 logger.debug(f'Assuming {k} is a reparameterisation')
                 try:
