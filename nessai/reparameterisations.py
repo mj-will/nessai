@@ -571,6 +571,7 @@ class RescaleToBounds(Reparameterisation):
             logger.debug(f'Rescaling to {self.rescale_bounds[p]}')
             x_prime[pp], lj = \
                 self._rescale_to_bounds(x_prime[pp] - self.offsets[p], p)
+
             log_j += lj
 
         return x, x_prime, log_j
@@ -663,7 +664,7 @@ class RescaleToBounds(Reparameterisation):
         self.prior_bounds = \
             {p: self.pre_rescaling(prior_bounds[p])[0]
              for p in self.parameters}
-        self.bounds = {p: b - self.offsets[p]
+        self.bounds = {p: self.pre_rescaling(b - self.offsets[p])[0]
                        for p, b in self.prior_bounds.items()}
         logger.debug(f'Initial bounds: {self.bounds}')
         self.update_prime_prior_bounds()
