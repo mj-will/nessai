@@ -31,7 +31,7 @@ class AnalyticProposal(Proposal):
             self.evaluate_likelihoods()
         self.populated = True
 
-    def draw(self, old_sample):
+    def draw(self, old_sample, **kwargs):
         """
         Propose a new sample. Draws from the pool if it is populated, else
         it populates the pool.
@@ -40,10 +40,12 @@ class AnalyticProposal(Proposal):
         ----------
         old_sample : structured_array
             Old sample, this is not used in the proposal method
+        kwargs :
+            Keyword arguments passed to ``populate``.
         """
         if not self.populated:
             st = datetime.datetime.now()
-            self.populate()
+            self.populate(**kwargs)
             self.population_time += (datetime.datetime.now() - st)
         index = self.indices.pop()
         new_sample = self.samples[index]
