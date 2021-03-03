@@ -16,9 +16,9 @@ from ..utils import (
     inverse_rescale_zero_to_one,
     rescale_minus_one_to_one,
     inverse_rescale_minus_one_to_one,
-    detect_edge,
-    determine_rescaled_bounds)
+    detect_edge)
 from .utils import (
+    determine_rescaled_bounds,
     angle_to_cartesian,
     cartesian_to_angle,
     zero_one_to_cartesian,
