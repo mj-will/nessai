@@ -855,7 +855,7 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
     if not inversion:
         return lower, upper
     elif (not invert or invert is None):
-        return 2 * lower - 1, 2 * upper - 1
+        return lower, upper
     elif invert == 'upper':
         return lower - 1, 1 - lower
     elif invert == 'lower':
