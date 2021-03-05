@@ -15,7 +15,7 @@ def test_logit_bounds(x, y, log_J):
     Test logit at the bounds
     """
     with pytest.warns(RuntimeWarning):
-        assert utils.logit(x) == (y, log_J)
+        assert utils.logit(x, fuzz=0) == (y, log_J)
 
 
 @pytest.mark.parametrize("x, y, log_J", [(np.inf, 1, -np.inf),
@@ -24,7 +24,7 @@ def test_sigmoid_bounds(x, y, log_J):
     """
     Test sigmoid for inf
     """
-    assert utils.sigmoid(x) == (y, log_J)
+    assert utils.sigmoid(x, fuzz=0) == (y, log_J)
 
 
 @pytest.mark.parametrize("p", [1e-5, 0.5, 1 - 1e-5])
@@ -32,8 +32,8 @@ def test_logit_sigmoid(p):
     """
     Test invertibility of sigmoid(logit(x))
     """
-    x = utils.logit(p)
-    y = utils.sigmoid(x[0])
+    x = utils.logit(p, fuzz=0)
+    y = utils.sigmoid(x[0], fuzz=0)
     np.testing.assert_equal(p, y[0])
     np.testing.assert_almost_equal(x[1] + y[1], 0)
 
@@ -43,8 +43,8 @@ def test_sigmoid_logit(p):
     """
     Test invertibility of logit(sigmoid(x))
     """
-    x = utils.sigmoid(p)
-    y = utils.logit(x[0])
+    x = utils.sigmoid(p, fuzz=0)
+    y = utils.logit(x[0], fuzz=0)
     np.testing.assert_almost_equal(p, y[0])
     np.testing.assert_almost_equal(x[1] + y[1], 0)
 
