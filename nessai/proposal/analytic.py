@@ -16,14 +16,22 @@ class AnalyticProposal(Proposal):
     This assumes the `new_point` method of the model draws points
     from the prior
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, poolsize=1000, **kwargs):
         super(AnalyticProposal, self).__init__(*args, **kwargs)
         self.populated = False
+        self._poolsize = poolsize
 
-    def populate(self, N=1000):
+    @property
+    def poolsize(self):
+        """Poolsize used for drawing new samples in batches."""
+        return self._poolsize
+
+    def populate(self, N=None):
         """
         Populate the pool by drawing from the priors
         """
+        if N is None:
+            N = self.poolsize
         self.samples = self.model.new_point(N=N)
         self.samples['logP'] = self.model.log_prior(self.samples)
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
