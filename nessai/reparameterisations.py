@@ -16,6 +16,8 @@ from .utils import (
     configure_edge_detection,
     rescale_zero_to_one,
     inverse_rescale_zero_to_one,
+    rescale_minus_one_to_one,
+    inverse_rescale_minus_one_to_one,
     determine_rescaled_bounds,
     rescaling_functions
 )
@@ -570,7 +572,9 @@ class RescaleToBounds(Reparameterisation):
             logger.debug(f'Not using inversion for {p}')
             logger.debug(f'Rescaling to {self.rescale_bounds[p]}')
             x_prime[pp], lj = \
-                self._rescale_to_bounds(x_prime[pp] - self.offsets[p], p)
+                rescale_minus_one_to_one(x_prime[pp] - self.offsets[p],
+                                         xmin=self.bounds[p][0],
+                                         xmax=self.bounds[p][1])
 
             log_j += lj
 
@@ -589,7 +593,8 @@ class RescaleToBounds(Reparameterisation):
             x[p] += self.offsets[p]
             log_j += lj
         else:
-            x[p], lj = self._inverse_rescale_to_bounds(x[p], p)
+            x[p], lj = inverse_rescale_minus_one_to_one(
+                x[p], xmin=self.bounds[p][0], xmax=self.bounds[p][1])
             x[p] += self.offsets[p]
             log_j += lj
         return x, x_prime, log_j
@@ -800,6 +805,9 @@ class Angle(Reparameterisation):
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
         """Convert the angle to Cartesian coordinates"""
+        angle, x, x_prime, log_j = self._rescale_angle(
+            x, x_prime, log_j, **kwargs)
+
         if self.chi:
             r = self.chi.rvs(size=x.size)
         else:
@@ -807,9 +815,6 @@ class Angle(Reparameterisation):
                 x, x_prime, log_j, **kwargs)
         if any(r < 0):
             raise RuntimeError('Radius cannot be negative.')
-
-        angle, x, x_prime, log_j = self._rescale_angle(
-            x, x_prime, log_j, **kwargs)
 
         x_prime[self.prime_parameters[0]] = r * np.cos(angle)
         x_prime[self.prime_parameters[1]] = r * np.sin(angle)
@@ -865,9 +870,10 @@ class ToCartesian(Angle):
             x[self.parameters[0]], *self.prior_bounds[self.parameters[0]])
         log_j += lj
         if self.mode == 'duplicate' or compute_radius:
-            angle = np.concatenate([-angle, angle])
+            angle = np.concatenate([angle, -angle])
             x = np.concatenate([x, x])
             x_prime = np.concatenate([x_prime, x_prime])
+            log_j = np.concatenate([log_j, log_j])
         elif self.mode == 'split':
             neg = np.random.choice(angle.size, angle.size // 2, replace=False)
             angle[neg] *= -1
