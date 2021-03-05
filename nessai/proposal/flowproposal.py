@@ -552,6 +552,11 @@ class FlowProposal(RejectionProposal):
                         f'{k} is not a parameter in the model or a known '
                         'reparameterisation')
 
+            if not default_config.get('parameters', False):
+                raise RuntimeError('No parameters key in the config! '
+                                   'Check reparameterisations, setting logging'
+                                   ' level to DEBUG can be helpful')
+
             if ('boundary_inversion' in default_config and
                     default_config['boundary_inversion']):
                 self.boundary_inversion = True
