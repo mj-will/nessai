@@ -11,8 +11,10 @@ These changes will be included in the next release.
 
 ### Added
 
+- Add poolsize to `AnalyticProposal`
 - Add a test for sampling with multiprocessing.
 - Add a test for sampling with `AnalyticProposal` and `RejectionProposal`.
+- Add a test for using the proposal methods with `n_pool`
 
 ### Fixed
 
