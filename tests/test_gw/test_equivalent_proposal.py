@@ -213,7 +213,7 @@ def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
     sampler.ns._flow_proposal.initialise()
     new_sampler.ns._flow_proposal.initialise()
 
-    sampler.ns._uninformed_proposal.populate(N=10)
+    sampler.ns._uninformed_proposal.populate(N=100)
     x = sampler.ns._uninformed_proposal.samples
 
     orig_proposal = sampler.ns._flow_proposal
@@ -243,3 +243,35 @@ def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
         test_results[test] = True
 
     assert all(t for t in test_results.values())
+
+    if getattr(orig_proposal, '_rescaled_min'):
+        logger.info('Checking prime prior bounds')
+        test_results = {t: False for t in tests}
+        for test in tests:
+            logger.info(f'Testing with inversion and test={test}')
+            orig_proposal.check_state(x)
+            np.random.seed(1234)
+            t, lj = orig_proposal.rescale(x, test=test)
+            new_proposal.check_state(x)
+            np.random.seed(1234)
+            t_new, lj_new = new_proposal.rescale(x, test=test)
+            min_vals = \
+                {n: False for n in new_proposal._reparameterisation.keys()}
+            max_vals = \
+                {n: False for n in new_proposal._reparameterisation.keys()}
+            for k, r in new_proposal._reparameterisation.items():
+                for pb in r.prime_prior_bounds.values():
+                    for vmin in orig_proposal._rescaled_min.values():
+                        logger.warning([k, pb, vmin])
+                        if np.isclose(pb[0], vmin):
+                            min_vals[k] = True
+                    for vmax in orig_proposal._rescaled_max.values():
+                        logger.warning([k, pb, vmax])
+                        if np.isclose(pb[1], vmax):
+                            max_vals[k] = True
+
+            assert all(t for t in min_vals.values()), print(min_vals)
+            assert all(t for t in max_vals.values()), print(max_vals)
+            test_results[test] = True
+
+        assert all(t for t in test_results.values())
