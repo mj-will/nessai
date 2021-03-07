@@ -725,7 +725,7 @@ class Angle(Reparameterisation):
         elif len(self.parameters) == 2:
             self.chi = False
         else:
-            raise RuntimeError
+            raise RuntimeError('Too many parameters for Angle')
 
         self.scale = scale
 
@@ -774,7 +774,7 @@ class Angle(Reparameterisation):
         """The name of y coordinate"""
         return self.prime_parameters[1]
 
-    def _rescale_radius(self, x, x_prime, log_j, **kwargs):
+    def _rescale_radial(self, x, x_prime, log_j, **kwargs):
         return x[self.parameters[1]], x, x_prime, log_j
 
     def _rescale_angle(self, x, x_prime, log_j, **kwargs):
