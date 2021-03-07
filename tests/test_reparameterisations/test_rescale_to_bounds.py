@@ -35,10 +35,10 @@ def assert_invertibility(model, n=100):
         x_in = np.zeros([n], dtype=get_dtype(reparam.parameters))
 
         x_inv, x_prime_inv, log_j_inv = \
-            reparam.inverse_reparameterise(x_in, x_prime, log_j)
+            reparam.inverse_reparameterise(x_in, x_prime_re, log_j)
 
         np.testing.assert_array_equal(x, x_inv)
-        np.testing.assert_array_equal(x_prime, x_prime_inv)
+        np.testing.assert_array_equal(x_prime_re, x_prime_inv)
         np.testing.assert_array_equal(log_j_re, -log_j_inv)
 
         return True
