@@ -14,6 +14,10 @@ These changes will be included in the next release.
 - Add a test for sampling with multiprocessing.
 - Add a test for sampling with `AnalyticProposal` and `RejectionProposal`.
 
+### Changed
+
+- Changed prime priors in `LegacyGWFlowProposal` to not update. This improves efficiency.
+
 ### Fixed
 
 - Fix a bug with saving results when multiprocessing is enabled.
