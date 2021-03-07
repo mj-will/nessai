@@ -848,14 +848,16 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
     invert : False or {'upper', 'lower', 'both'}
         Type of inversion.
     """
-    scale = np.ptp(rescale_bounds)
+    if x_min == x_max:
+        raise RuntimeError('New minimum and maximum are equal')
+    scale = rescale_bounds[1] - rescale_bounds[0]
     shift = rescale_bounds[0]
     lower = scale * (prior_min - offset - x_min) / (x_max - x_min) + shift
     upper = scale * (prior_max - offset - x_min) / (x_max - x_min) + shift
     if not inversion:
         return lower, upper
     elif (not invert or invert is None):
-        return lower, upper
+        return 2 * lower - 1, 2 * upper - 1
     elif invert == 'upper':
         return lower - 1, 1 - lower
     elif invert == 'lower':
