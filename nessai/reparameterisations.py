@@ -670,7 +670,7 @@ class RescaleToBounds(Reparameterisation):
             {p: self.pre_rescaling(prior_bounds[p])[0]
              for p in self.parameters}
         self.bounds = {p: self.pre_rescaling(b - self.offsets[p])[0]
-                       for p, b in self.prior_bounds.items()}
+                       for p, b in prior_bounds.items()}
         logger.debug(f'Initial bounds: {self.bounds}')
         self.update_prime_prior_bounds()
 
