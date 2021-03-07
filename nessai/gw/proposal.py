@@ -238,6 +238,8 @@ class LegacyGWFlowProposal(FlowProposal):
             logger.debug(f'Time offset: {self.time_offset}')
             # Save the bounds since we're using different bounds
             self.time_bounds = self.model.bounds[self.time] - self.time_offset
+            self._rescaled_min['time'] = -1
+            self._rescaled_max['time'] = 1
 
     def configure_sky(self):
         """
@@ -544,8 +546,8 @@ class LegacyGWFlowProposal(FlowProposal):
                 self._rescaled_max[rn] = xmax
 
         else:
-            for n, rn in zip(['chirp_mass', 'geocent_time'],
-                             ['chirp_mass_prime', 'time']):
+            for n, rn in zip(['chirp_mass'],
+                             ['chirp_mass_prime']):
                 if n in self.model.names:
                     self._rescaled_min[rn], _ = rescale_minus_one_to_one(
                         self.model.bounds[n][0], self._min[n], self._max[n])
