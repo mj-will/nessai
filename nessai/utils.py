@@ -19,7 +19,7 @@ from .livepoint import live_points_to_dict
 logger = logging.getLogger(__name__)
 
 
-def logit(x, fuzz=0):
+def logit(x, fuzz=1e-2):
     """
     Logit function that also returns log Jacobian
 
@@ -36,7 +36,7 @@ def logit(x, fuzz=0):
     return np.log(x) - np.log(1 - x), -np.log(np.abs(x - x ** 2))
 
 
-def sigmoid(x, fuzz=0):
+def sigmoid(x, fuzz=1e-2):
     """
     Sigmoid function that also returns log Jacobian
 
@@ -452,6 +452,7 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
     """
     bounds = ['lower', 'upper']
     if test is not None:
+        logger.debug('Using test in detect_edge')
         if test in bounds and test not in allowed_bounds:
             logger.debug(f'{test} is not an allowed bound, returning False')
             return False
@@ -828,7 +829,8 @@ def auto_bins(x, max_bins=50):
 
 
 def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
-                              offset=0):
+                              offset=0, rescale_bounds=[-1, 1],
+                              inversion=False):
     """
     Determine the values of the prior min and max in the rescaled
     space.
@@ -846,9 +848,15 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
     invert : False or {'upper', 'lower', 'both'}
         Type of inversion.
     """
-    lower = (prior_min - offset - x_min) / (x_max - x_min)
-    upper = (prior_max - offset - x_min) / (x_max - x_min)
-    if not invert or invert is None:
+    if x_min == x_max:
+        raise RuntimeError('New minimum and maximum are equal')
+    scale = rescale_bounds[1] - rescale_bounds[0]
+    shift = rescale_bounds[0]
+    lower = scale * (prior_min - offset - x_min) / (x_max - x_min) + shift
+    upper = scale * (prior_max - offset - x_min) / (x_max - x_min) + shift
+    if not inversion:
+        return lower, upper
+    elif (not invert or invert is None):
         return 2 * lower - 1, 2 * upper - 1
     elif invert == 'upper':
         return lower - 1, 1 - lower

@@ -523,6 +523,11 @@ class FlowProposal(RejectionProposal):
                     rc, default_config = self.get_reparameterisation(config)
                     default_config['parameters'] = k
                 elif isinstance(config, dict):
+                    if config.get('reparameterisation', None) is None:
+                        raise RuntimeError(
+                            f'No reparameterisation found for {k}. '
+                            'Check inputs (and their spelling :)). '
+                            f'Current keys: {list(config.keys())}')
                     rc, default_config = self.get_reparameterisation(
                         config['reparameterisation'])
                     config.pop('reparameterisation')
@@ -534,8 +539,9 @@ class FlowProposal(RejectionProposal):
 
                     default_config.update(config)
                 else:
-                    raise RuntimeError(f'Unknown config for: {k}')
-
+                    raise TypeError(
+                        f'Unknown config type for: {k}. Expected str or dict, '
+                        f'received instance of {type(config)}.')
             else:
                 logger.debug(f'Assuming {k} is a reparameterisation')
                 try:
@@ -545,6 +551,11 @@ class FlowProposal(RejectionProposal):
                     raise RuntimeError(
                         f'{k} is not a parameter in the model or a known '
                         'reparameterisation')
+
+            if not default_config.get('parameters', False):
+                raise RuntimeError('No parameters key in the config! '
+                                   'Check reparameterisations, setting logging'
+                                   ' level to DEBUG can be helpful')
 
             if ('boundary_inversion' in default_config and
                     default_config['boundary_inversion']):
@@ -1094,7 +1105,11 @@ class FlowProposal(RejectionProposal):
         array_like
             Array of log prior probabilities
         """
-        return self.model.log_prior(x)
+        if self._reparameterisation:
+            return self.model.log_prior(x) \
+                    + self._reparameterisation.log_prior(x)
+        else:
+            return self.model.log_prior(x)
 
     def x_prime_log_prior(self, x):
         """
