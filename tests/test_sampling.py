@@ -79,3 +79,25 @@ def test_sampling_with_n_pool(model, flow_config, tmpdir):
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
     assert os.path.exists(output + '/result.json')
+
+
+def test_sampling_resume(model, flow_config, tmpdir):
+    """
+    Test resuming the sampler.
+    """
+    output = str(tmpdir.mkdir('resume'))
+    fp = FlowSampler(model, output=output, resume=True, nlive=100, plot=False,
+                     flow_config=flow_config, training_frequency=10,
+                     maximum_uninformed=9, rescale_parameters=True,
+                     seed=1234, max_iteration=11, poolsize=10)
+    fp.run()
+    assert os.path.exists(os.path.join(output, 'nested_sampler_resume.pkl'))
+
+    fp = FlowSampler(model, output=output, resume=True,
+                     flow_config=flow_config)
+    assert fp.ns.iteration == 11
+    fp.ns.max_iteration = 21
+    fp.run()
+    assert fp.ns.iteration == 21
+    assert os.path.exists(
+        os.path.join(output, 'nested_sampler_resume.pkl.old'))

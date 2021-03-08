@@ -11,8 +11,11 @@ These changes will be included in the next release.
 
 ### Added
 
+- Add poolsize to `AnalyticProposal`
 - Add a test for sampling with multiprocessing.
 - Add a test for sampling with `AnalyticProposal` and `RejectionProposal`.
+- Add a test for using the proposal methods with `n_pool`
+- Add tests for reparameterisations.
 - Add a test for comparing `GWFlowProposal` and `LegacyGWFlowProposal`.
 - Improved errors when reparameterisations are configured incorrectly.
 

@@ -57,35 +57,34 @@ class FlowSampler:
 
         self.exit_code = exit_code
 
-        self.output = output
+        self.output = os.path.join(output, '')
         if resume:
-            if not any((os.path.exists(self.output + f) for f in
+            if not any((os.path.exists(os.path.join(self.output, f)) for f in
                         [resume_file, resume_file + '.old'])):
                 logger.warning('No files to resume from, starting sampling')
-                self.ns = NestedSampler(model, output=output,
+                self.ns = NestedSampler(model, output=self.output,
                                         resume_file=resume_file, **kwargs)
             else:
                 try:
-                    self.ns = NestedSampler.resume(output + resume_file,
-                                                   model,
-                                                   kwargs['flow_config'],
-                                                   weights_file)
+                    self.ns = NestedSampler.resume(
+                        os.path.join(self.output, resume_file), model,
+                        kwargs['flow_config'], weights_file)
                 except (FileNotFoundError, RuntimeError) as e:
-                    logger.error(f'Could not load resume file from: {output} '
-                                 f'with error {e}')
+                    logger.error(
+                        f'Could not load resume file from: {self.output} '
+                        f'with error {e}')
                     try:
                         resume_file += '.old'
-                        self.ns = NestedSampler.resume(output + resume_file,
-                                                       model,
-                                                       kwargs['flow_config'],
-                                                       weights_file)
+                        self.ns = NestedSampler.resume(
+                            os.path.join(self.output, resume_file), model,
+                            kwargs['flow_config'], weights_file)
                     except RuntimeError as e:
                         logger.error('Could not load old resume '
-                                     f'file from: {output}')
+                                     f'file from: {self.output}')
                         raise RuntimeError('Could not resume sampler '
                                            f'with error: {e}')
         else:
-            self.ns = NestedSampler(model, output=output,
+            self.ns = NestedSampler(model, output=self.output,
                                     resume_file=resume_file, **kwargs)
 
         self.save_kwargs(kwargs)

@@ -757,7 +757,7 @@ class Angle(Reparameterisation):
         elif len(self.parameters) == 2:
             self.chi = False
         else:
-            raise RuntimeError
+            raise RuntimeError('Too many parameters for Angle')
 
         self.scale = scale
 
@@ -808,7 +808,7 @@ class Angle(Reparameterisation):
         """The name of y coordinate"""
         return self.prime_parameters[1]
 
-    def _rescale_radius(self, x, x_prime, log_j, **kwargs):
+    def _rescale_radial(self, x, x_prime, log_j, **kwargs):
         return x[self.parameters[1]], x, x_prime, log_j
 
     def _rescale_angle(self, x, x_prime, log_j, **kwargs):
@@ -910,10 +910,14 @@ class ToCartesian(Angle):
 
 class AnglePair(Reparameterisation):
     """Reparameterisation for a pair of angles and a radial component"""
-    def __init__(self, parameters=None, prior_bounds=None, radial=None,
+    def __init__(self, parameters=None, prior_bounds=None,
                  prior=None, convention=None):
 
         self._conventions = ['az-zen', 'ra-dec']
+
+        if len(parameters) not in [2, 3]:
+            raise RuntimeError(
+                'Must use a pair of angles or a pair plus a radius')
 
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
 
@@ -923,16 +927,19 @@ class AnglePair(Reparameterisation):
         b = np.ptp([prior_bounds[p] for p in parameters], axis=1)
         hz = np.where(b == (2 * np.pi))[0][0]
         vt = np.where(b == np.pi)[0][0]
-        parameters[0], parameters[1] = parameters[hz], parameters[vt]
+
+        if len(parameters) == 3:
+            r = list({0, 1, 2} - {hz, vt})[0]
+            parameters[0], parameters[1], parameters[2] = \
+                parameters[hz], parameters[vt], parameters[r]
+        else:
+            parameters[0], parameters[1] = parameters[hz], parameters[vt]
 
         if len(parameters) == 2:
             m = '_'.join(parameters)
             parameters.append(f'{m}_radial')
             self.chi = stats.chi(3)
             self.has_prior = True
-        elif len(parameters) not in [2, 3]:
-            raise RuntimeError(
-                'Must use a pair of angles or a pair plus a radius')
         else:
             m = '_'.join(parameters)
             self.chi = False
@@ -953,7 +960,7 @@ class AnglePair(Reparameterisation):
         if convention is None:
             if (self.prior_bounds[self.parameters[1]][0] == 0 and
                     self.prior_bounds[self.parameters[1]][1] == np.pi):
-                self.convention = 'az-sen'
+                self.convention = 'az-zen'
             elif (self.prior_bounds[self.parameters[1]][0] == -np.pi / 2 and
                     self.prior_bounds[self.parameters[1]][1] == np.pi / 2):
                 self.convention = 'ra-dec'
@@ -970,7 +977,7 @@ class AnglePair(Reparameterisation):
 
     @property
     def angles(self):
-        return self.parameters[:1]
+        return self.parameters[:2]
 
     @property
     def radial(self):
