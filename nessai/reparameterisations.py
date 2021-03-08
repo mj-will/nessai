@@ -80,6 +80,7 @@ class Reparameterisation:
         Name of parameters to reparameterise.
     """
     _update_bounds = False
+    has_prior = False
     has_prime_prior = False
     requires_prime_prior = False
 
@@ -274,6 +275,16 @@ class CombinedReparameterisation(dict):
             if hasattr(r, 'reset_inversion'):
                 r.reset_inversion()
 
+    def log_prior(self, x):
+        """
+        Compute any additional priors for auxiliary parameters
+        """
+        log_p = 0
+        for r in self.values():
+            if r.has_prior:
+                log_p += r.log_prior(x)
+        return log_p
+
     def x_prime_log_prior(self, x_prime):
         """
         Compute the prior in the prime space
@@ -431,10 +442,10 @@ class RescaleToBounds(Reparameterisation):
             self.prior = 'uniform'
             self.has_prime_prior = True
             self._prime_prior = log_uniform_prior
-            logger.info('Prime prior enabled')
+            logger.info(f'Prime prior enabled for {self.name}')
         else:
             self.has_prime_prior = False
-            logger.info('Prime prior disabled')
+            logger.info(f'Prime prior disabled for {self.name}')
 
         if offset:
             self.offsets = {p: b[0] + np.ptp(b) / 2
@@ -742,6 +753,7 @@ class Angle(Reparameterisation):
         if len(self.parameters) == 1:
             self.parameters.append(self.parameters[0] + '_radial')
             self.chi = stats.chi(2)
+            self.has_prior = True
         elif len(self.parameters) == 2:
             self.chi = False
         else:
@@ -762,12 +774,14 @@ class Angle(Reparameterisation):
             self.has_prime_prior = True
             if self.prior == 'uniform':
                 self._prime_prior = log_2d_cartesian_prior
+                self._k = self.scale * np.pi
             else:
                 self._prime_prior = log_2d_cartesian_prior_sine
-            logger.info('Prime prior enabled')
+                self._k = np.pi
+            logger.info(f'Prime prior enabled for {self.name}')
         else:
             self.has_prime_prior = False
-            logger.info('Prime prior disabled')
+            logger.info(f'Prime prior disabled for {self.name}')
 
     @property
     def angle(self):
@@ -841,13 +855,17 @@ class Angle(Reparameterisation):
 
         return x, x_prime, log_j
 
+    def log_prior(self, x):
+        """Prior for radial parameter"""
+        return self.chi.logpdf(x[self.parameters[1]])
+
     def x_prime_log_prior(self, x_prime):
         """Compute the prior in the prime space assuming a uniform prior"""
         if self.has_prime_prior:
             return self._prime_prior(
                 x_prime[self.prime_parameters[0]],
                 x_prime[self.prime_parameters[1]],
-                k=self.prior_bounds[self.parameters[0]][1])
+                k=self._k)
         else:
             raise RuntimeError('Prime prior')
 
@@ -863,6 +881,7 @@ class ToCartesian(Angle):
         logger.debug(f'Using mode: {self.mode}')
 
         self._zero_bound = False
+        self._k = self.prior_bounds[self.parameters[0]][1]
 
     def _rescale_angle(self, x, x_prime, log_j, compute_radius=False,
                        **kwargs):
@@ -910,6 +929,7 @@ class AnglePair(Reparameterisation):
             m = '_'.join(parameters)
             parameters.append(f'{m}_radial')
             self.chi = stats.chi(3)
+            self.has_prior = True
         elif len(parameters) not in [2, 3]:
             raise RuntimeError(
                 'Must use a pair of angles or a pair plus a radius')
@@ -922,10 +942,13 @@ class AnglePair(Reparameterisation):
         self.parameters = parameters
         self.prime_parameters = [f'{m}_{x}' for x in ['x', 'y', 'z']]
 
+        print(prior)
         if prior == 'isotropic' and self.chi:
             self.has_prime_prior = True
+            logger.info(f'Prime prior enabled for {self.name}')
         else:
             self.has_prime_prior = False
+            logger.info(f'Prime prior disabled for {self.name}')
 
         if convention is None:
             if (self.prior_bounds[self.parameters[1]][0] == 0 and
@@ -1042,6 +1065,10 @@ class AnglePair(Reparameterisation):
         else:
             return self._inv_ra_dec(x, x_prime, log_j)
         return x, x_prime, log_j
+
+    def log_prior(self, x):
+        """Prior for radial parameter"""
+        return self.chi.logpdf(x[self.parameters[2]])
 
     def x_prime_log_prior(self, x_prime):
         """

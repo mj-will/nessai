@@ -1105,7 +1105,11 @@ class FlowProposal(RejectionProposal):
         array_like
             Array of log prior probabilities
         """
-        return self.model.log_prior(x)
+        if self._reparameterisation:
+            return self.model.log_prior(x) \
+                    + self._reparameterisation.log_prior(x)
+        else:
+            return self.model.log_prior(x)
 
     def x_prime_log_prior(self, x):
         """
