@@ -193,8 +193,9 @@ def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
 
     reparameterisations = kwargs.pop('reparameterisations')
     for k in list(reparameterisations.keys()):
-        if k == 'sky-ra-dec' and any(p not in priors for p in ['ra', 'dec']):
-            del reparameterisations['sky-ra-dec']
+        if k == 'sky-ra-dec':
+            if any(p in fixed_params for p in ['ra', 'dec']):
+                del reparameterisations['sky-ra-dec']
         elif k not in search_parameter_keys:
             del reparameterisations[k]
 
@@ -224,18 +225,23 @@ def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
     for test in tests:
         orig_proposal.check_state(x)
         np.random.seed(1234)
-        t, lj = orig_proposal.rescale(x, test=test)
+        x_prime, lj = orig_proposal.rescale(x, test=test)
+        log_p = orig_proposal.x_prime_log_prior(x_prime)
+
         new_proposal.check_state(x)
         np.random.seed(1234)
-        t_new, lj_new = new_proposal.rescale(x, test=test)
+        x_prime_new, lj_new = new_proposal.rescale(x, test=test)
+        log_p_new = new_proposal.x_prime_log_prior(x_prime_new)
+
         np.testing.assert_array_equal(lj, lj_new)
+        np.testing.assert_array_equal(log_p, log_p_new)
         try:
-            np.testing.assert_array_equal(t, t_new)
+            np.testing.assert_array_equal(x_prime, x_prime_new)
         except AssertionError:
-            flag = {n: False for n in t.dtype.names}
-            for n in t.dtype.names:
-                for nn in t_new.dtype.names:
-                    if np.allclose(t[n], t_new[nn]):
+            flag = {n: False for n in x_prime.dtype.names}
+            for n in x_prime.dtype.names:
+                for nn in x_prime_new.dtype.names:
+                    if np.allclose(x_prime[n], x_prime_new[nn]):
                         logger.critical(f'{n} is equivalent to {nn}')
                         flag[n] = True
 
