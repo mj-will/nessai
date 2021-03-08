@@ -16,9 +16,9 @@ from ..utils import (
     inverse_rescale_zero_to_one,
     rescale_minus_one_to_one,
     inverse_rescale_minus_one_to_one,
-    detect_edge,
-    determine_rescaled_bounds)
+    detect_edge)
 from .utils import (
+    determine_rescaled_bounds,
     angle_to_cartesian,
     cartesian_to_angle,
     zero_one_to_cartesian,
@@ -238,6 +238,8 @@ class LegacyGWFlowProposal(FlowProposal):
             logger.debug(f'Time offset: {self.time_offset}')
             # Save the bounds since we're using different bounds
             self.time_bounds = self.model.bounds[self.time] - self.time_offset
+            self._rescaled_min['time'] = -1
+            self._rescaled_max['time'] = 1
 
     def configure_sky(self):
         """
@@ -321,13 +323,14 @@ class LegacyGWFlowProposal(FlowProposal):
             logger.debug('Checking spin angles')
             for i in [1, 2]:
                 if f'tilt_{i}' in self.names:
-                    a = 'tilt_{i}'
+                    a = f'tilt_{i}'
                 elif f'cos_tilt_{i}' in self.names:
-                    a = 'cos_tilt_{i}'
+                    a = f'cos_tilt_{i}'
                 else:
                     continue
 
                 if a in self._remaining:
+                    logger.debug(f'Adding reparameterisations for {a}')
                     radial = f'a_{i}'
                     if 'cos' in a:
                         zero = 'centre'
@@ -348,7 +351,7 @@ class LegacyGWFlowProposal(FlowProposal):
                         self._remaining.remove(radial)
                     else:
                         self.setup_angle(a, scale=scale, zero=zero)
-                        self._remaining.remove(a)
+                    self._remaining.remove(a)
 
             for a in ['phi_jl', 'phi_12']:
                 if a in self.names and a in self._remaining:
@@ -543,8 +546,8 @@ class LegacyGWFlowProposal(FlowProposal):
                 self._rescaled_max[rn] = xmax
 
         else:
-            for n, rn in zip(['chirp_mass', 'geocent_time'],
-                             ['chirp_mass_prime', 'time']):
+            for n, rn in zip(['chirp_mass'],
+                             ['chirp_mass_prime']):
                 if n in self.model.names:
                     self._rescaled_min[rn], _ = rescale_minus_one_to_one(
                         self.model.bounds[n][0], self._min[n], self._max[n])

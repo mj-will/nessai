@@ -2,3 +2,6 @@ pytest
 pytest-timeout
 pytest-rerunfailures
 pre-commit
+lalsuite
+bilby
+astropy

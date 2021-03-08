@@ -16,12 +16,20 @@ These changes will be included in the next release.
 - Add a test for sampling with `AnalyticProposal` and `RejectionProposal`.
 - Add a test for using the proposal methods with `n_pool`
 - Add tests for reparameterisations.
+- Add a test for comparing `GWFlowProposal` and `LegacyGWFlowProposal`.
+- Improved errors when reparameterisations are configured incorrectly.
+
+### Changed
+
+- Changed prime priors in `LegacyGWFlowProposal` to not update. This improves efficiency.
+- Changes to the reparameterisations to the the proposal consistent with `LegacayGWFlowProposal`:
+    - Use [-1, 1] when inversion is enabled but not applied
 
 ### Fixed
 
 - Fix a bug with saving results when multiprocessing is enabled.
 - Fixed a bug with `AnalyticProposal` introduced in the last release.
-- Fix bug with resuming when using certain reparameterisations.
+- Fix a bug with resuming when using certain reparameterisations.
 
 
 ## [0.2.3] - 2021-02-24
