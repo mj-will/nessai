@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-These changes will be included in the next release.
+## [0.2.4] - 2021-03-08
+
+This release includes a number of bug fixes, changes to make the `GWFlowProposal` consistent with `LegacyGWFlowProposal` and a number of new unit tests to improve test coverage.
 
 ### Added
 
@@ -17,19 +19,19 @@ These changes will be included in the next release.
 - Add a test for using the proposal methods with `n_pool`
 - Add tests for reparameterisations.
 - Add a test for comparing `GWFlowProposal` and `LegacyGWFlowProposal`.
-- Improved errors when reparameterisations are configured incorrectly.
 
 ### Changed
 
 - Changed prime priors in `LegacyGWFlowProposal` to not update. This improves efficiency.
 - Changes to the reparameterisations to the the proposal consistent with `LegacayGWFlowProposal`:
     - Use [-1, 1] when inversion is enabled but not applied
+- Improved errors when reparameterisations are configured incorrectly.
 
 ### Fixed
 
-- Fix a bug with saving results when multiprocessing is enabled.
+- Fixed a bug with saving results when multiprocessing is enabled.
 - Fixed a bug with `AnalyticProposal` introduced in the last release.
-- Fix a bug with resuming when using certain reparameterisations.
+- Fixed a bug with resuming when using certain reparameterisations.
 
 
 ## [0.2.3] - 2021-02-24
@@ -108,7 +110,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/mj-will/nessai/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/mj-will/nessai/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/mj-will/nessai/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/mj-will/nessai/compare/v0.2.0...v0.2.1
