@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from unittest.mock import patch
 
 from nessai import plot
 from nessai.livepoint import numpy_array_to_live_points
@@ -48,6 +49,16 @@ def test_plot_live_points_1d():
     live_points = np.random.randn(100).view([('x', 'f8')])
     plot.plot_live_points(live_points)
     plt.close()
+
+
+def test_plot_live_points_error(live_points):
+    """
+    Test to make sure that an error is not raised if plotting fails
+    because of issues with seaborn and gwpy.
+    """
+    with patch('seaborn.scatterplot', side_effect=TypeError('Mock error')):
+        fig = plot.plot_live_points(live_points)
+    assert fig is None
 
 
 @pytest.mark.parametrize('parameters', [None, ['x', 'y']])
