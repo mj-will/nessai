@@ -91,21 +91,32 @@ class _NSintegralState:
                                            np.array(self.log_vols))
         return self.logZ
 
-    def plot(self, filename):
+    def plot(self, filename=None):
         """
         Plot the logX vs logL
+
+        Parameters
+        ----------
+        filename : str, optional
+            Filename name for saving the figure. If not specified the figure
+            is returned.
         """
         fig = plt.figure()
         plt.plot(self.log_vols, self.logLs)
-        plt.title(f'logZ={self.logZ:.2f}'
+        plt.title(f'log Z={self.logZ:.2f} '
                   f'H={self.info[-1] * np.log2(np.e):.2f} bits')
         plt.grid(which='both')
-        plt.xlabel('log prior_volume')
-        plt.ylabel('log likelihood')
+        plt.xlabel('log prior-volume')
+        plt.ylabel('log-likelihood')
         plt.xlim([self.log_vols[-1], self.log_vols[0]])
         plt.yscale('symlog')
-        fig.savefig(filename)
-        logger.info('Saved nested sampling plot as {0}'.format(filename))
+
+        if filename is not None:
+            fig.savefig(filename, bbox_inches='tight')
+            plt.close()
+        else:
+            return fig
+        logger.info(f'Saved nested sampling plot as {filename}')
 
 
 class NestedSampler:
