@@ -901,7 +901,7 @@ class ToCartesian(Angle):
         return angle, x, x_prime, log_j
 
     def _inverse_rescale_angle(self, x, x_prime, log_j):
-        x[self.angle], lj = inverse_rescale_zero_to_one(
+        x[self.parameters[0]], lj = inverse_rescale_zero_to_one(
             np.abs(x[self.parameters[0]]),
             *self.prior_bounds[self.parameters[0]])
         log_j += lj
