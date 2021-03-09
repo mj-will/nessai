@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from nessai import plot
+from nessai.livepoint import numpy_array_to_live_points
 
 
 @pytest.fixture()
@@ -39,6 +40,13 @@ def test_plot_live_points_save(live_points, save, model, tmpdir):
     else:
         filename = None
     plot.plot_live_points(live_points, filename=filename)
+    plt.close()
+
+
+def test_plot_live_points_1d():
+    """Test generating the live points plot for one parameter"""
+    live_points = np.random.randn(100).view([('x', 'f8')])
+    plot.plot_live_points(live_points)
     plt.close()
 
 
@@ -101,6 +109,14 @@ def test_plot_1d_comparison_bounds(bounds, model):
     if bounds:
         bounds = model.bounds
     plot.plot_1d_comparison(l1, l2, bounds=bounds)
+    plt.close()
+
+
+def test_plot_1d_comparison_1d():
+    """Test generating a 1d comparison plot with only one parameter"""
+    l1 = np.random.randn(100).view([('x', 'f8')])
+    l2 = np.random.randn(100).view([('x', 'f8')])
+    plot.plot_1d_comparison(l1, l2)
     plt.close()
 
 
@@ -168,6 +184,28 @@ def test_trace_plot_save(nested_samples, save, tmpdir):
         filename = None
     plot.plot_trace(log_x, nested_samples, filename=filename)
     plt.close()
+
+
+def test_trace_plot_1d(nested_samples):
+    """Test trace plot with only one parameter"""
+    log_x = np.linspace(-10, 0, nested_samples.size)
+    nested_samples = numpy_array_to_live_points(
+        np.random.randn(log_x.size, 1), ['x'])
+    plot.plot_trace(log_x, nested_samples)
+    plt.close()
+
+
+def test_trace_plot_unstructured():
+    """
+    Test to check that trace_plot raises an error when the nested samples
+    are not a structured array.
+    """
+    log_x = np.linspace(-10, 0, 100)
+    nested_samples = np.random.randn(log_x.size, 2)
+    with pytest.raises(TypeError) as excinfo:
+        plot.plot_trace(log_x, nested_samples)
+    plt.close()
+    assert 'structured array' in str(excinfo.value)
 
 
 @pytest.mark.parametrize('labels', [None, ['x', 'y']])
