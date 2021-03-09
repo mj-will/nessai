@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added code to catch errors when calling `plot_live_points` when `gwpy` is installed.
+
+### Changed
+
+- Plotting logX vs logL now returns the figure is `filename=None`
+
+### Fixed
+
+- Fixed a bug when plotting the state plot from a saved instance of the sampler where the sampling time was changed based on the current time.
+
+
 ## [0.2.4] - 2021-03-08
 
 This release includes a number of bug fixes, changes to make the `GWFlowProposal` consistent with `LegacyGWFlowProposal` and a number of new unit tests to improve test coverage.
