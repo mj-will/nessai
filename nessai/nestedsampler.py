@@ -360,8 +360,11 @@ class NestedSampler:
 
     @property
     def current_sampling_time(self):
-        return self.sampling_time \
-                + (datetime.datetime.now() - self.sampling_start_time)
+        if self.finalised:
+            return self.sampling_time
+        else:
+            return self.sampling_time \
+                    + (datetime.datetime.now() - self.sampling_start_time)
 
     @property
     def last_updated(self):
