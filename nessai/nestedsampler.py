@@ -64,7 +64,7 @@ class _NSintegralState:
         Increment the state of the evidence integrator
         Simply uses rectangle rule for initial estimate
         """
-        if(logL <= self.logLs[-1]):
+        if (logL <= self.logLs[-1]):
             logger.warning('NS integrator received non-monotonic logL.'
                            f'{self.logLs[-1]:.5f} -> {logL:.5f}')
         if nlive is None:
@@ -124,9 +124,9 @@ class _NSintegralState:
         if filename is not None:
             fig.savefig(filename, bbox_inches='tight')
             plt.close()
+            logger.info(f'Saved nested sampling plot as {filename}')
         else:
             return fig
-        logger.info(f'Saved nested sampling plot as {filename}')
 
 
 class NestedSampler:
