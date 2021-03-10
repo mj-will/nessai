@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added code to catch errors when calling `plot_live_points` when `gwpy` is installed.
+
+### Changed
+
+- Plotting logX vs logL now returns the figure is `filename=None`
+- `NestedSampler.plot_state` now has the keyword argument `filename` and the figure is only saved if it is specified.
+
+### Fixed
+
+- Fixed a bug when plotting the state plot from a saved instance of the sampler where the sampling time was changed based on the current time.
+- Fixed a bug when using `plot_trace`, `plot_1d_comparison` or `plot_live_points` with a single parameter
+- Total sampling time is now correctly displayed when producing a state plot from a saved sampler.
+
+
 ## [0.2.4] - 2021-03-08
 
 This release includes a number of bug fixes, changes to make the `GWFlowProposal` consistent with `LegacyGWFlowProposal` and a number of new unit tests to improve test coverage.

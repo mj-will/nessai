@@ -32,10 +32,19 @@ logger = logging.getLogger(__name__)
 class _NSintegralState:
     """
     Stores the state of the nested sampling integrator
+
+    Parameters
+    ----------
+    nlive : int
+        Number of live points
+    track_gradients : bool, optional
+        If true the gradient of the change in logL w.r.t logX is saved each
+        time `increment` is called.
     """
-    def __init__(self, nlive):
+    def __init__(self, nlive, track_gradients=True):
         self.nlive = nlive
         self.reset()
+        self.track_gradients = track_gradients
 
     def reset(self):
         """
@@ -55,7 +64,7 @@ class _NSintegralState:
         Increment the state of the evidence integrator
         Simply uses rectangle rule for initial estimate
         """
-        if(logL <= self.logLs[-1]):
+        if (logL <= self.logLs[-1]):
             logger.warning('NS integrator received non-monotonic logL.'
                            f'{self.logLs[-1]:.5f} -> {logL:.5f}')
         if nlive is None:
@@ -78,8 +87,9 @@ class _NSintegralState:
         self.logw += logt
         self.logLs.append(logL)
         self.log_vols.append(self.logw)
-        self.gradients.append((self.logLs[-1] - self.logLs[-2])
-                              / (self.log_vols[-1] - self.log_vols[-2]))
+        if self.track_gradients:
+            self.gradients.append((self.logLs[-1] - self.logLs[-2])
+                                  / (self.log_vols[-1] - self.log_vols[-2]))
 
     def finalise(self):
         """
@@ -91,21 +101,32 @@ class _NSintegralState:
                                            np.array(self.log_vols))
         return self.logZ
 
-    def plot(self, filename):
+    def plot(self, filename=None):
         """
         Plot the logX vs logL
+
+        Parameters
+        ----------
+        filename : str, optional
+            Filename name for saving the figure. If not specified the figure
+            is returned.
         """
         fig = plt.figure()
         plt.plot(self.log_vols, self.logLs)
-        plt.title(f'logZ={self.logZ:.2f}'
+        plt.title(f'log Z={self.logZ:.2f} '
                   f'H={self.info[-1] * np.log2(np.e):.2f} bits')
         plt.grid(which='both')
-        plt.xlabel('log prior_volume')
-        plt.ylabel('log likelihood')
+        plt.xlabel('log prior-volume')
+        plt.ylabel('log-likelihood')
         plt.xlim([self.log_vols[-1], self.log_vols[0]])
         plt.yscale('symlog')
-        fig.savefig(filename)
-        logger.info('Saved nested sampling plot as {0}'.format(filename))
+
+        if filename is not None:
+            fig.savefig(filename, bbox_inches='tight')
+            plt.close()
+            logger.info(f'Saved nested sampling plot as {filename}')
+        else:
+            return fig
 
 
 class NestedSampler:
@@ -261,7 +282,7 @@ class NestedSampler:
         self.logLmax = -np.inf
         self.nested_samples = []
         self.logZ = None
-        self.state = _NSintegralState(self.nlive)
+        self.state = _NSintegralState(self.nlive, track_gradients=plot)
         self.plot = plot
         self.resume_file = self.setup_output(output, resume_file)
         self.output = output
@@ -360,8 +381,11 @@ class NestedSampler:
 
     @property
     def current_sampling_time(self):
-        return self.sampling_time \
-                + (datetime.datetime.now() - self.sampling_start_time)
+        if self.finalised:
+            return self.sampling_time
+        else:
+            return self.sampling_time \
+                    + (datetime.datetime.now() - self.sampling_start_time)
 
     @property
     def last_updated(self):
@@ -861,10 +885,16 @@ class NestedSampler:
         if train or force:
             self.train_proposal(force=force)
 
-    def plot_state(self):
+    def plot_state(self, filename=None):
         """
         Produce plots with the current state of the nested sampling run.
         Plots are saved to the output directory specifed at initialisation.
+
+        Parameters
+        ----------
+        filename : str, optional
+            If specifie the figure will be saved, otherwise the figure is
+            returned.
         """
 
         fig, ax = plt.subplots(6, 1, sharex=True, figsize=(12, 12))
@@ -896,9 +926,12 @@ class NestedSampler:
         ax[0].set_ylabel('logL')
         ax[0].legend(frameon=False)
 
-        g = np.min([len(self.state.gradients), self.iteration])
-        ax[1].plot(np.arange(g), np.abs(self.state.gradients[:g]),
-                   c=colours[0], label='Gradient')
+        if self.state.track_gradients:
+            g = np.min([len(self.state.gradients), self.iteration])
+            ax[1].plot(np.arange(g), np.abs(self.state.gradients[:g]),
+                       c=colours[0], label='Gradient')
+        else:
+            logger.warning('Gradients were not saved, skipping.')
         ax[1].set_ylabel(r'$|d\log L/d \log X|$')
         ax[1].set_yscale('log')
 
@@ -945,8 +978,11 @@ class NestedSampler:
 
         fig.tight_layout()
         fig.subplots_adjust(top=0.95)
-        fig.savefig(f'{self.output}/state.png')
-        plt.close(fig)
+        if filename is not None:
+            fig.savefig(filename)
+            plt.close(fig)
+        else:
+            return fig
 
     def plot_trace(self):
         """
@@ -1000,7 +1036,7 @@ class NestedSampler:
                                            f'{self.iteration}.png'))
 
             if self.plot:
-                self.plot_state()
+                self.plot_state(filename=f'{self.output}/state.png')
                 self.plot_trace()
 
             if self.uninformed_sampling:

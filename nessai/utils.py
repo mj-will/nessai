@@ -811,6 +811,8 @@ def auto_bins(x, max_bins=50):
         Number of bins
     """
     x = np.asarray(x)
+    if not x.size:
+        raise RuntimeError('Input array is empty!')
     fd_bw = _hist_bin_fd(x)
     sturges_bw = _hist_bin_sturges(x)
     if fd_bw:
@@ -824,7 +826,6 @@ def auto_bins(x, max_bins=50):
         n_bins = 1
 
     nbins = min(n_bins, max_bins)
-    assert isinstance(nbins, int)
     return nbins
 
 
