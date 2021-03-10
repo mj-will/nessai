@@ -10,11 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added code to catch errors when calling `plot_live_points` when `gwpy` is installed.
+- Added tests for `_NSIntegralState`.
 
 ### Changed
 
 - Plotting logX vs logL now returns the figure is `filename=None`
 - `NestedSampler.plot_state` now has the keyword argument `filename` and the figure is only saved if it is specified.
+- Changed name from `_NSintegralState` to `_NSIntegralState`.
 
 ### Fixed
 
