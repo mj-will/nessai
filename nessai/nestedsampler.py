@@ -875,10 +875,16 @@ class NestedSampler:
         if train or force:
             self.train_proposal(force=force)
 
-    def plot_state(self):
+    def plot_state(self, filename=None):
         """
         Produce plots with the current state of the nested sampling run.
         Plots are saved to the output directory specifed at initialisation.
+
+        Parameters
+        ----------
+        filename : str, optional
+            If specifie the figure will be saved, otherwise the figure is
+            returned.
         """
 
         fig, ax = plt.subplots(6, 1, sharex=True, figsize=(12, 12))
@@ -959,8 +965,11 @@ class NestedSampler:
 
         fig.tight_layout()
         fig.subplots_adjust(top=0.95)
-        fig.savefig(f'{self.output}/state.png')
-        plt.close(fig)
+        if filename is not None:
+            fig.savefig(filename)
+            plt.close(fig)
+        else:
+            return fig
 
     def plot_trace(self):
         """
@@ -1014,7 +1023,7 @@ class NestedSampler:
                                            f'{self.iteration}.png'))
 
             if self.plot:
-                self.plot_state()
+                self.plot_state(filename=f'{self.output}/state.png')
                 self.plot_trace()
 
             if self.uninformed_sampling:
