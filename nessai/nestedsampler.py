@@ -32,10 +32,19 @@ logger = logging.getLogger(__name__)
 class _NSintegralState:
     """
     Stores the state of the nested sampling integrator
+
+    Parameters
+    ----------
+    nlive : int
+        Number of live points
+    track_gradients : bool, optional
+        If true the gradient of the change in logL w.r.t logX is saved each
+        time `increment` is called.
     """
-    def __init__(self, nlive):
+    def __init__(self, nlive, track_gradients=True):
         self.nlive = nlive
         self.reset()
+        self.track_gradients = track_gradients
 
     def reset(self):
         """
@@ -78,8 +87,9 @@ class _NSintegralState:
         self.logw += logt
         self.logLs.append(logL)
         self.log_vols.append(self.logw)
-        self.gradients.append((self.logLs[-1] - self.logLs[-2])
-                              / (self.log_vols[-1] - self.log_vols[-2]))
+        if self.track_gradients:
+            self.gradients.append((self.logLs[-1] - self.logLs[-2])
+                                  / (self.log_vols[-1] - self.log_vols[-2]))
 
     def finalise(self):
         """
@@ -272,7 +282,7 @@ class NestedSampler:
         self.logLmax = -np.inf
         self.nested_samples = []
         self.logZ = None
-        self.state = _NSintegralState(self.nlive)
+        self.state = _NSintegralState(self.nlive, track_gradients=plot)
         self.plot = plot
         self.resume_file = self.setup_output(output, resume_file)
         self.output = output
@@ -916,9 +926,12 @@ class NestedSampler:
         ax[0].set_ylabel('logL')
         ax[0].legend(frameon=False)
 
-        g = np.min([len(self.state.gradients), self.iteration])
-        ax[1].plot(np.arange(g), np.abs(self.state.gradients[:g]),
-                   c=colours[0], label='Gradient')
+        if self.state.track_gradients:
+            g = np.min([len(self.state.gradients), self.iteration])
+            ax[1].plot(np.arange(g), np.abs(self.state.gradients[:g]),
+                       c=colours[0], label='Gradient')
+        else:
+            logger.warning('Gradients were not saved, skipping.')
         ax[1].set_ylabel(r'$|d\log L/d \log X|$')
         ax[1].set_yscale('log')
 
