@@ -2,6 +2,8 @@
 """
 Object for defining the use-defined model.
 """
+from abc import ABC, abstractmethod
+import logging
 import numpy as np
 
 from .livepoint import (
@@ -12,7 +14,10 @@ from .livepoint import (
         )
 
 
-class Model:
+logger = logging.getLogger(__name__)
+
+
+class Model(ABC):
     """Base class for the user-defined model being sampled.
 
     The user must define the attributes ``names`` ``bounds`` and the metods
@@ -157,12 +162,14 @@ class Model:
             new_points = np.concatenate([new_points, p[np.isfinite(logP)]])
         return new_points
 
+    @abstractmethod
     def log_prior(self, x):
         """
         Returns log-prior, must be defined by the user.
         """
         pass
 
+    @abstractmethod
     def log_likelihood(self, x):
         """
         Returns the log-likelihood, must be defined by the user.
@@ -196,23 +203,35 @@ class Model:
             if n not in self.bounds.keys():
                 raise RuntimeError(f'Missing bounds for {n}')
 
-        logP = -np.inf
-        counter = 0
-        while (logP == -np.inf) or (logP == np.inf):
-            x = numpy_array_to_live_points(
-                    np.random.uniform(self.lower_bounds, self.upper_bounds,
-                                      [1, self.dims]),
-                    self.names)
-            logP = self.log_prior(x)
-            counter += 1
-            if counter == 1000:
-                raise RuntimeError('Could not draw valid point from within '
-                                   'the prior after 10000 tries, check the '
-                                   'log prior function.')
+        if (np.isfinite(self.lower_bounds).all() and
+                np.isfinite(self.upper_bounds).all()):
+            logP = -np.inf
+            counter = 0
+            while (logP == -np.inf) or (logP == np.inf):
+                x = numpy_array_to_live_points(
+                        np.random.uniform(self.lower_bounds, self.upper_bounds,
+                                          [1, self.dims]),
+                        self.names)
+                logP = self.log_prior(x)
+                counter += 1
+                if counter == 1000:
+                    raise RuntimeError(
+                        'Could not draw valid point from within the prior '
+                        'after 10000 tries, check the log prior function.')
+        else:
+            logger.warning('Model has infinite bounds(s)')
+            logger.warning('Testing with `new_point`')
+            try:
+                x = self.new_point(1)
+                logP = self.log_prior(x)
+            except Exception as e:
+                raise RuntimeError(
+                    'Could not draw a new point and compute the log prior '
+                    f'with error: {e}. \n Check the prior bounds.')
 
         if self.log_prior(x) is None:
-            raise RuntimeError('Log-prior function did not return'
+            raise RuntimeError('Log-prior function did not return '
                                'a prior value')
         if self.log_likelihood(x) is None:
-            raise RuntimeError('Log-likehood function did not return'
+            raise RuntimeError('Log-likelihood function did not return '
                                'a likelihood value')
