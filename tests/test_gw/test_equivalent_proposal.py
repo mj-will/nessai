@@ -97,8 +97,9 @@ def kwargs(legacy_kwargs):
                           ['chirp_mass', 'mass_ratio'],
                           ['chirp_mass', 'luminosity_distance'],
                           ])
+@pytest.mark.parametrize('compute_radius', [False, True])
 def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
-                   tmpdir):
+                   compute_radius, tmpdir):
     """
     Test that the two proposal methods are equivalent for a set of parameters.
 
@@ -225,15 +226,25 @@ def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
     for test in tests:
         orig_proposal.check_state(x)
         np.random.seed(1234)
-        x_prime, lj = orig_proposal.rescale(x, test=test)
+        x_prime, lj = orig_proposal.rescale(
+            x, test=test, compute_radius=compute_radius)
         log_p = orig_proposal.x_prime_log_prior(x_prime)
+
+        x_re, lj_re = orig_proposal.inverse_rescale(x_prime)
 
         new_proposal.check_state(x)
         np.random.seed(1234)
-        x_prime_new, lj_new = new_proposal.rescale(x, test=test)
+        x_prime_new, lj_new = new_proposal.rescale(
+            x, test=test, compute_radius=compute_radius)
         log_p_new = new_proposal.x_prime_log_prior(x_prime_new)
 
+        x_re_new, lj_re_new = new_proposal.inverse_rescale(x_prime_new)
+
+        for n in model.names:
+            np.testing.assert_array_almost_equal(x_re[n], x_re_new[n])
+
         np.testing.assert_array_equal(lj, lj_new)
+        np.testing.assert_array_equal(lj_re, lj_re_new)
         np.testing.assert_array_equal(log_p, log_p_new)
         try:
             np.testing.assert_array_equal(x_prime, x_prime_new)

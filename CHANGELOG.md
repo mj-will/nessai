@@ -11,17 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added code to catch errors when calling `plot_live_points` when `gwpy` is installed.
 - Add code coverage upload
+- Added an example of using unbounded priors, `bilby_unbounded_priors.py`
 
 ### Changed
 
 - Plotting logX vs logL now returns the figure is `filename=None`
 - `NestedSampler.plot_state` now has the keyword argument `filename` and the figure is only saved if it is specified.
+- `nessai.model.Model` now inherits from `abc.ABC` and `log_prior` and `log_likelihood` are now `abstractmethods`. This prevents the class from being used without redefining those methods.
 
 ### Fixed
 
 - Fixed a bug when plotting the state plot from a saved instance of the sampler where the sampling time was changed based on the current time.
 - Fixed a bug when using `plot_trace`, `plot_1d_comparison` or `plot_live_points` with a single parameter
 - Total sampling time is now correctly displayed when producing a state plot from a saved sampler.
+- Fixed a bug when using unbounded priors related to `Model.verify_model`
+- Fix inversion-split with `RescaleToBounds`
 
 
 ## [0.2.4] - 2021-03-08
