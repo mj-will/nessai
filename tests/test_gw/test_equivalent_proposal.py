@@ -8,7 +8,6 @@ import logging
 import numpy as np
 
 import pytest
-from conftest import requires_dependency
 
 from nessai.model import Model as BaseModel
 from nessai.gw.proposal import GWFlowProposal, LegacyGWFlowProposal
@@ -80,9 +79,9 @@ def kwargs(legacy_kwargs):
     return kwargs
 
 
-@requires_dependency('bilby')
-@requires_dependency('lal')
-@requires_dependency('astropy')
+@pytest.mark.requires('bilby')
+@pytest.mark.requires('lal')
+@pytest.mark.requires('astropy')
 @pytest.mark.parametrize('parameters',
                          ['psi',
                           'theta_jn',
