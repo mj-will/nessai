@@ -51,10 +51,18 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
         hue = df[c]
     else:
         hue = None
-    fig = sns.PairGrid(df, corner=True, diag_sharey=False)
-    fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
-    fig.map_offdiag(sns.scatterplot, hue=hue,
-                    **pairplot_kwargs['plot_kws'])
+
+    try:
+        fig = sns.PairGrid(df, corner=True, diag_sharey=False)
+        fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
+        fig.map_offdiag(sns.scatterplot, hue=hue,
+                        **pairplot_kwargs['plot_kws'])
+    except TypeError as e:
+        plt.close()
+        logger.warning('Could not produce a plot of the live points. '
+                       'Check the version of Seaborn, Matplotlib and GWpy. '
+                       f'The error was: \n {e}')
+        return None
 
     if bounds is not None:
         for i, v in enumerate(bounds.values()):
@@ -117,7 +125,11 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
     fig, axs = plt.subplots(len(parameters), 1, sharey=False,
                             figsize=(3, 3 * len(parameters)))
 
-    axs = axs.ravel()
+    if len(parameters) > 1:
+        axs = axs.ravel()
+    else:
+        axs = [axs]
+
     for i, f in enumerate(parameters):
         xmin = np.min([np.min(lp[f][np.isfinite(lp[f])])
                        for lp in live_points])
@@ -263,6 +275,9 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
         is returned instead.
     """
     nested_samples = np.asarray(nested_samples)
+    if not nested_samples.dtype.names:
+        raise TypeError('Nested samples must be a structured array')
+
     names = nested_samples.dtype.names[:-2]
 
     if labels is None:
@@ -275,7 +290,10 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
 
     fig, axes = plt.subplots(len(labels), 1, figsize=(5, 3 * len(labels)),
                              sharex=True)
-    axes = axes.ravel()
+    if len(labels) > 1:
+        axes = axes.ravel()
+    else:
+        axes = [axes]
 
     for i, name in enumerate(names):
         axes[i].plot(log_x, nested_samples[name], ',')
