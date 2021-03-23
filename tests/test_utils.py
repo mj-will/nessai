@@ -5,8 +5,6 @@ import pytest
 
 import nessai.utils as utils
 
-from conftest import cuda
-
 
 @pytest.mark.parametrize("x, y, log_J", [(0., -np.inf, np.inf),
                                          (1., np.inf, np.inf)])
@@ -130,7 +128,7 @@ def test_get_uniform_distribution_cpu():
     assert dist.sample().get_device() == -1
 
 
-@cuda
+@pytest.mark.cuda
 def test_get_uniform_distribution_cuda():
     """
     Test function for getting uniform torch distrbution over n dimensions
