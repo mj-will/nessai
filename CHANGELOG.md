@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed a bug when using `plot_trace`, `plot_1d_comparison` or `plot_live_points` with a single parameter
 - Total sampling time is now correctly displayed when producing a state plot from a saved sampler.
 - Fixed a bug when using unbounded priors related to `Model.verify_model`
+- Fix inversion-split with `RescaleToBounds`
 
 
 ## [0.2.4] - 2021-03-08

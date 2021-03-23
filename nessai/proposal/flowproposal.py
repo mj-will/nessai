@@ -696,7 +696,7 @@ class FlowProposal(RejectionProposal):
             x = np.array([x], dtype=x.dtype)
 
         x, x_prime, log_J = self._reparameterisation.reparameterise(
-            x, x_prime, log_J, **kwargs)
+            x, x_prime, log_J, compute_radius=compute_radius, **kwargs)
 
         x_prime['logP'] = x['logP']
         x_prime['logL'] = x['logL']
