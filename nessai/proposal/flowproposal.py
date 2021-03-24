@@ -199,6 +199,8 @@ class FlowProposal(RejectionProposal):
         self._edges = {}
         self._reparameterisation = None
         self.use_x_prime_prior = False
+        self._use_logL = False
+        self.worst_logL = None
 
         self.reparameterisations = reparameterisations
 
@@ -1281,6 +1283,9 @@ class FlowProposal(RejectionProposal):
 
         logger.info(f'Populating proposal with lantent radius: {r:.5}')
         self.r = r
+
+        if self._use_logL:
+            self.worst_logL = worst_point['logL']
 
         self.alt_dist = self.get_alt_distribution()
 
