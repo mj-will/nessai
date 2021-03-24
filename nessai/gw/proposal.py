@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Specific proposal methods for sampling gravitational-wave models.
+"""
 import os
 import logging
 
@@ -12,9 +16,9 @@ from ..utils import (
     inverse_rescale_zero_to_one,
     rescale_minus_one_to_one,
     inverse_rescale_minus_one_to_one,
-    detect_edge,
-    determine_rescaled_bounds)
+    detect_edge)
 from .utils import (
+    determine_rescaled_bounds,
     angle_to_cartesian,
     cartesian_to_angle,
     zero_one_to_cartesian,
@@ -23,7 +27,7 @@ from .utils import (
     transform_to_precessing_parameters,
     rescale_and_logit,
     rescale_and_sigmoid,
-    DistanceConverter)
+    ComovingDistanceConverter)
 from .priors import (
     log_uniform_prior,
     log_2d_cartesian_prior,
@@ -32,15 +36,17 @@ from .priors import (
     log_spin_prior,
     log_spin_prior_uniform)
 
+from .reparameterisations import get_gw_reparameterisation
+
 logger = logging.getLogger(__name__)
 
 
-class GWFlowProposal(FlowProposal):
+class LegacyGWFlowProposal(FlowProposal):
     """
     A proposal specific to gravitational wave CBC
     """
     def __init__(self, model, reparameterisations={}, **kwargs):
-        super(GWFlowProposal, self).__init__(model, **kwargs)
+        super().__init__(model, **kwargs)
 
         self.set_reparameterisations(reparameterisations)
         # list to itnernally track reparemeterisations
@@ -106,8 +112,8 @@ class GWFlowProposal(FlowProposal):
 
         if all([isinstance(inv, list) for inv in [defaults['inversion'],
                                                   defaults['log_inversion']]]):
-            if s := (set(defaults['inversion'])
-                     & set(defaults['log_inversion'])):
+            s = set(defaults['inversion']) & set(defaults['log_inversion'])
+            if s:
                 raise RuntimeError('Inversion and log_inversion have common '
                                    f'parameters: {s}')
 
@@ -232,6 +238,8 @@ class GWFlowProposal(FlowProposal):
             logger.debug(f'Time offset: {self.time_offset}')
             # Save the bounds since we're using different bounds
             self.time_bounds = self.model.bounds[self.time] - self.time_offset
+            self._rescaled_min['time'] = -1
+            self._rescaled_max['time'] = 1
 
     def configure_sky(self):
         """
@@ -314,9 +322,16 @@ class GWFlowProposal(FlowProposal):
 
             logger.debug('Checking spin angles')
             for i in [1, 2]:
-                if ((((a := f'tilt_{i}') in self.names) or
-                        ((a := f'cos_tilt_{i}') in self.names)) and
-                        a in self._remaining):
+                if f'tilt_{i}' in self.names:
+                    a = f'tilt_{i}'
+                elif f'cos_tilt_{i}' in self.names:
+                    a = f'cos_tilt_{i}'
+                else:
+                    continue
+
+                if a in self._remaining:
+                    logger.debug(f'Adding reparameterisations for {a}')
+                    radial = f'a_{i}'
                     if 'cos' in a:
                         zero = 'centre'
                     else:
@@ -325,7 +340,8 @@ class GWFlowProposal(FlowProposal):
                         scale = 2. * np.pi / np.ptp(self.model.bounds[a])
                     else:
                         scale = 1.0
-                    if ((radial := f'a_{i}') in self.names and
+
+                    if (radial in self.names and
                             radial in self._remaining and
                             not (radial in self._log_inversion or
                                  radial in self._inversion or
@@ -335,7 +351,7 @@ class GWFlowProposal(FlowProposal):
                         self._remaining.remove(radial)
                     else:
                         self.setup_angle(a, scale=scale, zero=zero)
-                        self._remaining.remove(a)
+                    self._remaining.remove(a)
 
             for a in ['phi_jl', 'phi_12']:
                 if a in self.names and a in self._remaining:
@@ -518,8 +534,9 @@ class GWFlowProposal(FlowProposal):
         if self.update_bounds:
             self._min = {n: np.min(x[n]) for n in self.model.names}
             self._max = {n: np.max(x[n]) for n in self.model.names}
-            if self.use_x_prime_prior:
-                self.update_rescaled_bounds()
+
+        if self.use_x_prime_prior:
+            self.update_rescaled_bounds()
 
     def update_rescaled_bounds(self, rescaled_names=None,
                                xmin=None, xmax=None):
@@ -529,8 +546,8 @@ class GWFlowProposal(FlowProposal):
                 self._rescaled_max[rn] = xmax
 
         else:
-            for n, rn in zip(['chirp_mass', 'geocent_time'],
-                             ['chirp_mass_prime', 'time']):
+            for n, rn in zip(['chirp_mass'],
+                             ['chirp_mass_prime']):
                 if n in self.model.names:
                     self._rescaled_min[rn], _ = rescale_minus_one_to_one(
                         self.model.bounds[n][0], self._min[n], self._max[n])
@@ -546,7 +563,7 @@ class GWFlowProposal(FlowProposal):
         scale_factor : float, (optional)
             Factor used to rescale comoving distance
         kwargs :
-            Keyword arguments parsed to `DistanceConverter`
+            Keyword arguments parsed to `ComovingDistanceConverter`
         """
         if 'luminosity_distance' not in self.names:
             raise RuntimeError('Uniform distance parameter is only compatible '
@@ -554,12 +571,10 @@ class GWFlowProposal(FlowProposal):
         if not self.use_x_prime_prior:
             raise RuntimeError('Cannot use dc3 without x prime prior')
 
-        self.distance_converter = DistanceConverter(
-            dl_min=self.model.bounds['luminosity_distance'][0] * 0.99,
-            dl_max=self.model.bounds['luminosity_distance'][1] * 1.01,
+        self.distance_converter = ComovingDistanceConverter(
+            d_min=self.model.bounds['luminosity_distance'][0],
+            d_max=self.model.bounds['luminosity_distance'][1],
             **kwargs)
-
-        self._d_scale_factor = 1000
 
         self._dc3_prior_min = \
             self.convert_to_dc3(self.model.bounds['luminosity_distance'][0])
@@ -576,17 +591,13 @@ class GWFlowProposal(FlowProposal):
         """
         Convert from uniform distance parameter dc3 to luminosity distance
         """
-        dc = 1000 * np.cbrt(dc3)
-        return (self.distance_converter
-                .comoving_distance_to_luminosity_distance(dc))
+        return self.distance_converter.from_uniform_parameter(dc3)[0]
 
     def convert_to_dc3(self, dl):
         """
         Convert to uniform distance parameter dc3
         """
-        dc = (self.distance_converter
-              .luminosity_distance_to_comoving_distance(dl))
-        return (dc / 1000) ** 3
+        return self.distance_converter.to_uniform_parameter(dl)[0]
 
     def setup_spin_logit(self, fuzz_factor=0.01):
         if 'a_1' in self.names and 'a_2' in self.names:
@@ -712,7 +723,6 @@ class GWFlowProposal(FlowProposal):
         # This allows for an inverison to applied after other rescaling
         if x_array is None:
             x_array = x[name]
-
         if rescale:
             x_prime[rescaled_name], lj = rescale_zero_to_one(
                 x_array, xmin=xmin, xmax=xmax)
@@ -792,7 +802,7 @@ class GWFlowProposal(FlowProposal):
 
         return x, x_prime, log_J
 
-    def rescale(self, x, compute_radius=False):
+    def rescale(self, x, compute_radius=False, test=None):
         """
         Rescale from the x space to the x prime space
         """
@@ -882,10 +892,12 @@ class GWFlowProposal(FlowProposal):
             if self._dc3_invert is None:
                 if 'dc3' in self.inversion:
                     self._dc3_invert = detect_edge(
-                                dc3,
-                                allow_both=False,
-                                test=self._inversion_test_type,
-                                **self.detect_edges_kwargs)
+                            dc3,
+                            x_range=[self._dc3_prior_min, self._dc3_prior_max],
+                            allow_both=False,
+                            allowed_bounds=['upper'],
+                            test=test,
+                            **self.detect_edges_kwargs)
                 else:
                     self._dc3_invert = False
 
@@ -919,7 +931,7 @@ class GWFlowProposal(FlowProposal):
                     c['invert'] = detect_edge(
                         x[c['name']],
                         allow_both=both,
-                        test=self._inversion_test_type,
+                        test=test,
                         **self.detect_edges_kwargs)
                     logger.debug(f"Inversion for {c['name']}: {c['invert']}")
                     if self.use_x_prime_prior:
@@ -1008,9 +1020,11 @@ class GWFlowProposal(FlowProposal):
                 # if the radial parameter is present in x
                 # use it, else samples with be drawn from a chi with
                 # 2 d.o.f
-                if (n := a['radial']) in self.model.names:
+                if a['radial'] in self.model.names:
                     r, lj = rescale_zero_to_one(
-                        x[n], xmin=self._min[n], xmax=self._max[n])
+                        x[n],
+                        xmin=self._min[a['radial']],
+                        xmax=self._max[a['radial']])
                     log_J += lj
                     # r = np.log(r)
                     # log_J -= r
@@ -1081,9 +1095,11 @@ class GWFlowProposal(FlowProposal):
                 log_J += lj
                 # if the radial parameter is defined in the model
                 # rescale it using the bounds
-                if (n := a['radial']) in self.model.names:
+                if a['radial'] in self.model.names:
                     r, lj = inverse_rescale_zero_to_one(
-                        r, xmin=self._min[n], xmax=self._max[n])
+                        r,
+                        xmin=self._min[a['radial']],
+                        xmax=self._max[a['radial']])
                     log_J += lj
                 x[a['radial']] = r
 
@@ -1202,8 +1218,8 @@ class GWFlowProposal(FlowProposal):
                 log_p += chi.logpdf(x[self.distance], 3)
         if self._search_angles:
             for a in self._search_angles.values():
-                if not (n := a['radial']) in self.model.names:
-                    log_p += chi.logpdf(x[n], 2)
+                if not a['radial'] in self.model.names:
+                    log_p += chi.logpdf(x[a['radial']], 2)
 
         if self._angle_conversion:
             for a in self._angle_conversion.values():
@@ -1233,7 +1249,7 @@ class GWFlowProposal(FlowProposal):
         else:
             raise NotImplementedError
 
-    def log_prior_x_prime(self, x_prime):
+    def x_prime_log_prior(self, x_prime):
         """
         Priors redefined in the x_prime space
 
@@ -1321,7 +1337,7 @@ class GWFlowProposal(FlowProposal):
         return log_p - log_J
 
 
-class AugmentedGWFlowProposal(GWFlowProposal):
+class AugmentedGWFlowProposal(LegacyGWFlowProposal):
 
     def __init__(self, model, augment_features=1, **kwargs):
         super().__init__(model, **kwargs)
@@ -1384,3 +1400,64 @@ class AugmentedGWFlowProposal(GWFlowProposal):
         logP = super().log_prior(x)
         logP += self.augmented_prior(x)
         return logP
+
+
+class GWFlowProposal(FlowProposal):
+    """Wrapper for FlowProposal that has defaults for CBC-PE"""
+    aliases = {
+        'chirp_mass': ('mass', None),
+        'mass_ratio': ('mass_ratio', None),
+        'ra': ('sky-ra-dec', ['DEC', 'dec', 'Dec']),
+        'dec': ('sky-ra-dec', ['RA', 'ra']),
+        'azimuth': ('sky-az-zen', ['zenith', 'zen', 'Zen', 'Zenith']),
+        'zenith': ('sky-az-zen', ['azimuth', 'az', 'Az', 'Azimuth']),
+        'theta_1': ('angle-sine', None),
+        'theta_2': ('angle-sine', None),
+        'tilt_1': ('angle-sine', None),
+        'tilt_2': ('angle-sine', None),
+        'theta_jn': ('angle-sine', None),
+        'iota': ('angle-sine', None),
+        'phi_jl': ('angle-2pi', None),
+        'phi_12': ('angle-2pi', None),
+        'phase': ('angle-2pi', None),
+        'psi': ('angle-pi', None),
+        'geocent_time': ('time', None),
+        'a_1': ('to-cartesian', None),
+        'a_2': ('to-cartesian', None),
+        'luminosity_distance': ('distance', None),
+    }
+
+    def get_reparameterisation(self, reparameterisation):
+        """Function to get reparameterisations that checks GW defaults and
+        aliases
+        """
+        return get_gw_reparameterisation(reparameterisation)
+
+    def add_default_reparameterisations(self):
+        """
+        Add default reparameterisations for parameters that have not been
+        specified.
+        """
+        parameters = list(set(self.names)
+                          - set(self._reparameterisation.parameters))
+        logger.debug(f'Adding default reparameterisations for {parameters}')
+
+        for p in parameters:
+            logger.debug(f'Trying to add reparameterisation for {p}')
+            if p in self._reparameterisation.parameters:
+                logger.debug(f'Parameter {p} is already included')
+                continue
+            name, extra_params = self.aliases.get(p.lower(), (None, None))
+            if name is None:
+                logger.debug(f'{p} is not a known GW parameter')
+                continue
+            if extra_params is not None:
+                p = [p] + [ep for ep in extra_params if ep in self.model.names]
+            else:
+                p = [p]
+            prior_bounds = {k: self.model.bounds[k] for k in p}
+            reparam, kwargs = get_gw_reparameterisation(name)
+            logger.debug(
+                f'Add reparameterisation for {p} with config: {kwargs}')
+            self._reparameterisation.add_reparameterisation(
+                reparam(parameters=p, prior_bounds=prior_bounds, **kwargs))

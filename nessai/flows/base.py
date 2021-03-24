@@ -1,4 +1,7 @@
-
+# -*- coding: utf-8 -*-
+"""
+Base objects for implementing normalising flows.
+"""
 from torch.nn import Module
 
 
@@ -11,7 +14,7 @@ class BaseFlow(Module):
     def forward(self, x, context=None):
         """
         Apply the forward transformation and return samples in the
-        latent space and log |J|
+        latent space and the log-Jacobian determinant.
 
         Returns
         -------
@@ -26,7 +29,7 @@ class BaseFlow(Module):
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
-        data space and log |J|
+        data space and the log-Jacobian determinant.
 
         Returns
         -------
@@ -89,10 +92,10 @@ class BaseFlow(Module):
     def sample_and_log_prob(self, n, context=None):
         """
         Generates samples from the flow, together with their log probabilities
-        in the data space log p(x) = log p(z) + log|J|.
+        in the data space ``log p(x) = log p(z) + log|J|``.
 
-        For flows, this is more efficient that calling `sample` and `log_prob`
-        separately.
+        For flows, this is more efficient that calling ``sample`` and
+        ``log_prob`` separately.
 
         Returns
         -------
@@ -141,14 +144,14 @@ class NFlow(BaseFlow):
     def forward(self, x, context=None):
         """
         Apply the forward transformation and return samples in the latent
-        space and log |J|
+        space and log-Jacobian determinant.
         """
         return self._transform.forward(x, context=context)
 
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
-        data space and log |J| (not log probability)
+        data space and log-Jacobian determinant (not log probability).
         """
         return self._transform.inverse(z, context=context)
 
@@ -202,10 +205,10 @@ class NFlow(BaseFlow):
     def sample_and_log_prob(self, N, context=None):
         """
         Generates samples from the flow, together with their log probabilities
-        in the data space log p(x) = log p(z) + log|J|.
+        in the data space ``log p(x) = log p(z) + log|J|``.
 
-        For flows, this is more efficient that calling `sample` and `log_prob`
-        separately.
+        For flows, this is more efficient that calling ``sample`` and
+        ``log_prob`` separately.
         """
         z, log_prob = self._distribution.sample_and_log_prob(
             N, context=context)

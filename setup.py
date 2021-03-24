@@ -1,39 +1,6 @@
+#!/usr/bin/env python
+
 import setuptools
 
-with open('README.md', 'r') as f:
-    long_description = f.read()
-
-with open('requirements.txt', 'r') as requires_file:
-    requirements = requires_file.read().split('\n')
-
-with open('dev_requirements.txt', 'r') as dev_requires_file:
-    dev_requirements = dev_requires_file.read().split('\n')
-
-setuptools.setup(
-    name='nessai',
-    use_scm_version=True,
-    description='NesSAI: Nested Sampling with Aritifical Intelligence',
-    long_description=long_description,
-    author='Michael J. Williams',
-    author_email='m.williams.4@research.gla.ac.uk',
-    url='https://github.com/mj-will/nessai',
-    project_urls={
-        'Documentation': '',
-        'Paper': ''
-    },
-    license='MIT',
-    classifiers=[
-        'Programming Language :: Python :: 3.8',
-        'License :: OSI Approved :: MIT License',
-        'Operating System :: OS Independent',
-    ],
-    keywords=['nested sampling normalising flows machine learning'],
-    packages=setuptools.find_packages(),
-    python_requires='>=3.8',
-    setup_requires=['setuptools_scm'],
-    install_requires=requirements,
-    extras_require={
-        'dev': dev_requirements,
-    },
-    test_suite='tests'
-)
+if __name__ == "__main__":
+    setuptools.setup()
