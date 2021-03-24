@@ -41,7 +41,6 @@ jobs:
         pytest --cov-report=xml --cov=nessai tests/
     - name: Upload coverage
       uses: codecov/codecov-action@v1
-      if: matrix.python-version == '3.8'
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
