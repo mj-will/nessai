@@ -2,6 +2,7 @@
 """
 Test general config functions called when the nested sampler is initialised.
 """
+import os
 from unittest.mock import patch
 
 
@@ -21,3 +22,27 @@ def test_no_random_seed(mock1, mock2, sampler):
     sampler.setup_random_seed(None)
     mock1.assert_not_called()
     mock2.assert_not_called()
+
+
+def test_setup_output(sampler, tmpdir):
+    """Test setting up the output directories"""
+    tmpdir.mkdir('outputs')
+    sampler.plot = False
+    resume_file = sampler.setup_output('outputs/tests')
+    assert os.path.exists('outputs/tests')
+    assert resume_file == 'outputs/tests/nested_sampler_resume.pkl'
+
+
+def test_setup_output_w_plotting(sampler, tmpdir):
+    """Test setting up the output directories with plot=True"""
+    tmpdir.mkdir('outputs')
+    sampler.plot = True
+    sampler.setup_output('outputs/tests')
+    assert os.path.exists('outputs/tests/diagnostics')
+
+
+def test_setup_output_w_resume(sampler, tmpdir):
+    """Test output configuration with a specified resume file"""
+    tmpdir.mkdir('outputs')
+    resume_file = sampler.setup_output('outputs/tests', 'resume.pkl')
+    assert resume_file == 'outputs/tests/resume.pkl'
