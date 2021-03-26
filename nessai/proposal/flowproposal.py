@@ -323,7 +323,19 @@ class FlowProposal(RejectionProposal):
         self.latent_prior = latent_prior
 
     def configure_plotting(self, plot):
-        """Configure plotting"""
+        """Configure plotting.
+
+        Plotting is split into training and pool. Training referes to plots
+        produced during training and pool refers to plots produces during
+        the population stage.
+
+        Parameters
+        ----------
+        plot : {True, False, 'all', 'train', 'pool', 'min', 'minimal'}
+            Level of plotting. `all`, `train` and `pool` enable corner style
+            plots. All other values that evaluate to True enable 1d histogram
+            plots. False disables all plotting.
+        """
         if plot:
             if isinstance(plot, str):
                 if plot == 'all':
@@ -333,15 +345,14 @@ class FlowProposal(RejectionProposal):
                     self._plot_pool = False
                     self._plot_training = 'all'
                 elif plot == 'pool':
-                    self._plot_pool = True
+                    self._plot_pool = 'all'
                     self._plot_training = False
                 elif plot == 'minimal' or plot == 'min':
                     self._plot_pool = True
                     self._plot_training = True
                 else:
                     logger.warning(
-                        f'Unknown plot argument: {plot}, setting all false'
-                        )
+                        f'Unknown plot argument: {plot}, setting all false')
                     self._plot_pool = False
                     self._plot_training = False
             else:
