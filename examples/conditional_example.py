@@ -81,8 +81,10 @@ fp = FlowSampler(Gaussian(), output=output, resume=False, nlive=1000,
                  plot=True, flow_config=flow_config, training_frequency=None,
                  maximum_uninformed=1000, rescale_parameters=True, seed=1234,
                  proposal_plots=True, uniform_parameters=False,
+                 update_bounds=True,
                  flow_class=ConditionalFlowProposal, poolsize=1000,
-                 update_poolsize=True)
+                 update_poolsize=True, conditional_likelihood=True,
+                 latent_distribution='gaussian')
 
 # And go!
 fp.run(plot=True)
