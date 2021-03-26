@@ -23,7 +23,17 @@ logger = logging.getLogger(__name__)
 
 
 class ConditionalFlowProposal(FlowProposal):
+    """Conditional version of FlowProposal.
 
+    Parameters
+    ----------
+    model : :obj:`nessai.model.Model`
+        User-define model
+    conditional_likelihood : bool, optional
+        If True the likelihood is included as a conditional input to the flow.
+    kwargs :
+        Keyword arguments passed to :obj:`~nessai.proposal.FlowProposal`
+    """
     def __init__(self, model, uniform_parameters=False,
                  conditional_likelihood=False, transform_likelihood=False,
                  **kwargs):
@@ -128,9 +138,11 @@ class ConditionalFlowProposal(FlowProposal):
 
     def set_likelihood_parameter(self):
         if self.conditional_likelihood:
+            self._use_logL = True
             self.likelihood_index = len(self.conditional_parameters)
             self.conditional_parameters += ['logL']
-            self.likelihood_distribution = InterpolatedDistribution('logL')
+            self.likelihood_distribution = \
+                InterpolatedDistribution('logL', rescale=True)
         if self.transform_likelihood:
             self.names.append('logL_train')
             self.rescaled_names.append('logL_train')
@@ -211,7 +223,8 @@ class ConditionalFlowProposal(FlowProposal):
     def train_context(self, context):
         if self.conditional_likelihood:
             self.likelihood_distribution.update_samples(
-                    context[:, self.likelihood_index], reset=True)
+                    context[:, self.likelihood_index],
+                    reset=self.update_bounds)
 
     def sample_context_parameters(self, n):
         """
@@ -225,7 +238,8 @@ class ConditionalFlowProposal(FlowProposal):
             log_prob += log_prob_u
         if self.conditional_likelihood:
             context[:, self.likelihood_index] = \
-                self.likelihood_distribution.sample(n)
+                self.likelihood_distribution.sample(
+                    n, min_logL=self.worst_logL)
 
         return context, log_prob
 
