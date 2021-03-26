@@ -43,3 +43,31 @@ def test_config_fixed_radius_not_float(proposal):
     """
     FlowProposal.configure_fixed_radius(proposal, None)
     assert proposal.fixed_radius is False
+
+
+def test_min_radius_no_max(proposal):
+    """Test configuration of min radius and no max radius"""
+    FlowProposal.configure_min_max_radius(proposal, 5.0, False)
+    assert proposal.min_radius == 5.0
+    assert proposal.max_radius is False
+
+
+def test_min_max_radius(proposal):
+    """Test configuration of min radius and no max radius"""
+    FlowProposal.configure_min_max_radius(proposal, 5, 10)
+    assert proposal.min_radius == 5.0
+    assert proposal.max_radius == 10.0
+
+
+@pytest.mark.parametrize("rmin, rmax", [(None, 1.0), (1.0, '2')])
+def test_min_max_radius_invalid_input(proposal, rmin, rmax):
+    """Test configuration of min radius and no max radius"""
+    with pytest.raises(RuntimeError):
+        FlowProposal.configure_min_max_radius(proposal, rmin, rmax)
+
+
+def test_init(proposal, model):
+    """Test init with the default parameters"""
+    fp = FlowProposal(model, poolsize=1000, kwargs={'priors': 'uniform'})
+    assert fp._poolsize == 1000
+    assert fp.flow_config is not None

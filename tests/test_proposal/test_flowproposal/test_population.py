@@ -19,6 +19,7 @@ torch.set_num_threads(1)
 @pytest.mark.parametrize('max_radius', [False, 2])
 @pytest.mark.timeout(10)
 @pytest.mark.flaky(run=3)
+@pytest.mark.integration_test
 def test_flowproposal_populate(tmpdir, model, latent_prior, expansion_fraction,
                                check_acceptance, rescale_parameters,
                                max_radius):
@@ -31,7 +32,7 @@ def test_flowproposal_populate(tmpdir, model, latent_prior, expansion_fraction,
         model,
         output=output,
         plot=False,
-        poolsize=1000,
+        poolsize=100,
         latent_prior=latent_prior,
         expansion_fraction=expansion_fraction,
         check_acceptance=check_acceptance,
