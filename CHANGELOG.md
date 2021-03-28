@@ -12,12 +12,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added code to catch errors when calling `plot_live_points` when `gwpy` is installed.
 - Add code coverage upload
 - Added an example of using unbounded priors, `bilby_unbounded_priors.py`
+- Added an error if calling `FlowProposal.rejection_sampling` with `FlowProposal.truncate=True` but `worst_q=None`.
 
 ### Changed
 
 - Plotting logX vs logL now returns the figure is `filename=None`
 - `NestedSampler.plot_state` now has the keyword argument `filename` and the figure is only saved if it is specified.
 - `nessai.model.Model` now inherits from `abc.ABC` and `log_prior` and `log_likelihood` are now `abstractmethods`. This prevents the class from being used without redefining those methods.
+- Improved `FlowProposal.reset` so that all attributes that are changed by calling `draw` are reset.
 
 ### Fixed
 
@@ -26,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Total sampling time is now correctly displayed when producing a state plot from a saved sampler.
 - Fixed a bug when using unbounded priors related to `Model.verify_model`
 - Fix inversion-split with `RescaleToBounds`
+- Fix typo in `FlowProposal.set_poolsize_scale` when `acceptance=0`
+- Fixed unintended behaviour when `rescale_parameters` is a list and `boundary_inversion=True`, where the code would try apply inversion to all parameters in `Model.names`.
+- Fixed bug where `z` returned by `FlowProposal.rejection_sampling` was incorrect when using truncation (which is not recommended).
 
 
 ## [0.2.4] - 2021-03-08
