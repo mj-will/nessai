@@ -1,47 +1,155 @@
 # -*- coding: utf-8 -*-
-"""End-to-end test of the populate method"""
+"""Test methods related to popluation of the proposal after training"""
 import numpy as np
 import pytest
-import torch
+from unittest.mock import MagicMock, patch
 
 from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
 
-torch.set_num_threads(1)
+
+@pytest.fixture()
+def z():
+    return np.random.randn(2, 2)
 
 
-@pytest.mark.parametrize('latent_prior', ['gaussian', 'truncated_gaussian',
-                                          'uniform_nball', 'uniform_nsphere',
-                                          'uniform'])
-@pytest.mark.parametrize('expansion_fraction', [0, 1, None])
-@pytest.mark.parametrize('check_acceptance', [False, True])
-@pytest.mark.parametrize('rescale_parameters', [False, True])
-@pytest.mark.parametrize('max_radius', [False, 2])
-@pytest.mark.timeout(10)
-@pytest.mark.flaky(run=3)
-@pytest.mark.integration_test
-def test_flowproposal_populate(tmpdir, model, latent_prior, expansion_fraction,
-                               check_acceptance, rescale_parameters,
-                               max_radius):
+@pytest.fixture()
+def x(z):
+    return numpy_array_to_live_points(np.random.randn(*z.shape), ['x', 'y'])
+
+
+@pytest.fixture()
+def log_q(x):
+    return np.random.randn(x.size)
+
+
+def test_log_prior_wo_reparameterisation(proposal, x):
+    """Test the lop prior method"""
+    log_prior = -np.ones(x.size)
+    proposal._reparameterisation = None
+    proposal.model = MagicMock()
+    proposal.model.log_prior = MagicMock(return_value=log_prior)
+
+    log_prior_out = FlowProposal.log_prior(proposal, x)
+
+    assert np.array_equal(log_prior, log_prior_out)
+    proposal.model.log_prior.assert_called_once_with(x)
+
+
+def test_log_prior_w_reparameterisation(proposal, x):
+    """Test the lop prior method with reparameterisations"""
+    log_prior = -np.ones(x.size)
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.log_prior = MagicMock(return_value=log_prior)
+    proposal.model = MagicMock()
+    proposal.model.log_prior = MagicMock(return_value=log_prior)
+
+    log_prior_out = FlowProposal.log_prior(proposal, x)
+
+    assert np.array_equal(log_prior_out, -2 * np.ones(x.size))
+    proposal._reparameterisation.log_prior.assert_called_once_with(x)
+    proposal.model.log_prior.assert_called_once_with(x)
+
+
+@pytest.mark.parametrize('acceptance, scale',
+                         [(0.0, 10.0), (0.5, 2.0), (0.01, 10.0), (2.0, 1.0)])
+def test_update_poolsize_scale(proposal, acceptance, scale):
+    """Test the check the poolsize is correct adjusted based on the acceptance.
     """
-    Test the populate method in the FlowProposal class with a range of
-    parameters
+    proposal.max_poolsize_scale = 10.
+    FlowProposal.update_poolsize_scale(proposal, acceptance)
+    assert proposal._poolsize_scale == scale
+
+
+def test_compute_weights(proposal, x, log_q):
+    """Test method for computing rejection sampling weights"""
+    proposal.use_x_prime_prior = False
+    proposal.log_prior = MagicMock(return_value=-np.ones(x.size))
+    log_w = FlowProposal.compute_weights(proposal, x, log_q)
+
+    proposal.log_prior.assert_called_once_with(x)
+    out = (-1 - log_q)
+    out -= out.max()
+    assert np.array_equal(log_w, out)
+
+
+def test_compute_weights_prime_prior(proposal, x, log_q):
+    """Test method for computing rejection sampling weights with the prime
+    prior.
     """
-    output = str(tmpdir.mkdir('flowproposal'))
-    fp = FlowProposal(
-        model,
-        output=output,
-        plot=False,
-        poolsize=100,
-        latent_prior=latent_prior,
-        expansion_fraction=expansion_fraction,
-        check_acceptance=check_acceptance,
-        rescale_parameters=rescale_parameters,
-        max_radius=max_radius
-    )
+    proposal.use_x_prime_prior = True
+    proposal.x_prime_log_prior = MagicMock(return_value=-np.ones(x.size))
+    log_w = FlowProposal.compute_weights(proposal, x, log_q)
 
-    fp.initialise()
-    worst = numpy_array_to_live_points(0.5 * np.ones(fp.dims), fp.names)
-    fp.populate(worst, N=100)
+    proposal.x_prime_log_prior.assert_called_once_with(x)
+    out = (-1 - log_q)
+    out -= out.max()
+    assert np.array_equal(log_w, out)
 
-    assert fp.x.size == 100
+
+@patch('numpy.random.rand', return_value=np.array([0.1, 0.9]))
+def test_rejection_sampling(proposal, z, x, log_q):
+    """Test rejection sampling method."""
+    proposal.use_x_prime_prior = False
+    proposal.truncate = False
+    proposal.backward_pass = MagicMock(return_value=(x, log_q))
+    log_w = np.log(np.array([0.5, 0.5]))
+    proposal.compute_weights = MagicMock(return_value=log_w)
+
+    z_out, x_out = FlowProposal.rejection_sampling(proposal, z)
+
+    assert proposal.backward_pass.called_once_with(x, True)
+    assert proposal.compute_weights.called_once_with(x)
+    assert x_out.size == 1
+    assert z_out.shape == (1, 2)
+    assert np.array_equal(x_out[0], x[0])
+    assert np.array_equal(z_out[0], z[0])
+
+
+def test_rejection_sampling_empty(proposal, z):
+    """Test rejection sampling method if no valid points are produced by
+    `backwards_pass`
+    """
+    proposal.use_x_prime_prior = False
+    proposal.truncate = False
+    proposal.backward_pass = \
+        MagicMock(return_value=(np.array([]), np.array([])))
+
+    z_out, x_out = FlowProposal.rejection_sampling(proposal, z)
+
+    assert x_out.size == 0
+    assert z_out.size == 0
+
+
+@patch('numpy.random.rand', return_value=np.array([0.1]))
+def test_rejection_sampling_truncate(proposal, z, x):
+    """Test rejection sampling method with truncation"""
+    proposal.use_x_prime_prior = False
+    proposal.truncate = True
+    log_q = np.array([0.0, 1.0])
+    proposal.backward_pass = MagicMock(return_value=(x, log_q))
+    worst_q = 0.5
+    log_w = np.log(np.array([0.5]))
+    proposal.compute_weights = MagicMock(return_value=log_w)
+
+    z_out, x_out = \
+        FlowProposal.rejection_sampling(proposal, z, worst_q=worst_q)
+
+    assert proposal.backward_pass.called_once_with(x, True)
+    assert proposal.compute_weights.called_once_with(x)
+    assert x_out.size == 1
+    assert z_out.shape == (1, 2)
+    assert np.array_equal(x_out[0], x[1])
+    assert np.array_equal(z_out[0], z[1])
+
+
+def test_rejection_sampling_truncate_missing_q(proposal, z, x, log_q):
+    """Test rejection sampling method with truncation without without q"""
+    proposal.use_x_prime_prior = False
+    proposal.truncate = True
+    log_q = np.array([0.0, 1.0])
+    proposal.backward_pass = MagicMock(return_value=(x, log_q))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.rejection_sampling(proposal, z, worst_q=None)
+    assert 'Cannot use truncation' in str(excinfo.value)
