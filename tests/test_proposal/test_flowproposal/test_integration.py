@@ -45,3 +45,25 @@ def test_flowproposal_populate(tmpdir, model, latent_prior, expansion_fraction,
     fp.populate(worst, N=100)
 
     assert fp.x.size == 100
+
+
+@pytest.mark.parametrize('plot', [False, True])
+@pytest.mark.integration_test
+def test_training(tmpdir, model, plot):
+    """Integration test to test training the flow with and without plotting."""
+    output = str(tmpdir.mkdir('test_train'))
+    config = dict(max_epochs=10)
+    fp = FlowProposal(
+        model,
+        output=output,
+        plot='min',
+        poolsize=100,
+        flow_config=config)
+
+    fp.initialise()
+
+    x = model.new_point(500)
+    fp.train(x, plot=plot)
+
+    assert fp.training_count == 1
+    assert fp.populated is False
