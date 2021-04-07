@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added code to catch errors when calling `plot_live_points` when `gwpy` is installed.
 - Add code coverage upload
 - Added an example of using unbounded priors, `bilby_unbounded_priors.py`
+- Added `Rescale` reparameterisation that just rescales by a constant and does not require prior bounds. Also add tests for this reparameterisation.
 
 ### Changed
 
