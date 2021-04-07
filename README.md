@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4550694.svg)](https://doi.org/10.5281/zenodo.4550694) [![PyPI](https://img.shields.io/pypi/v/nessai)](https://pypi.org/project/nessai/) [![Documentation Status](https://readthedocs.org/projects/nessai/badge/?version=latest)](https://nessai.readthedocs.io/en/latest/?badge=latest)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4550694.svg)](https://doi.org/10.5281/zenodo.4550694) [![PyPI](https://img.shields.io/pypi/v/nessai)](https://pypi.org/project/nessai/) [![Documentation Status](https://readthedocs.org/projects/nessai/badge/?version=latest)](https://nessai.readthedocs.io/en/latest/?badge=latest) [![codecov](https://codecov.io/gh/mj-will/nessai/branch/main/graph/badge.svg?token=O7SN167SK6)](https://codecov.io/gh/mj-will/nessai)
 
 # Nessai: Nested Sampling with Artificial Intelligence
 

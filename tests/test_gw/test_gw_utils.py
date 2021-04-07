@@ -4,8 +4,6 @@ import pytest
 
 import nessai.gw.utils as utils
 
-from conftest import requires_dependency
-
 
 @pytest.mark.parametrize("r, s, zero", [((0, np.pi), 2, 'bound'),
                                         ((0, 2 * np.pi), 1, 'bound'),
@@ -157,7 +155,7 @@ def test_cartesian_to_zero_one():
     assert np.logical_and(x >= 0, x <= 1).all()
 
 
-@requires_dependency('lal')
+@pytest.mark.requires('lal')
 def test_precessing_parameters():
     """
     Test to ensure spin coversions are invertible
