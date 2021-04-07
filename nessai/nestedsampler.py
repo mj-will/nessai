@@ -29,7 +29,7 @@ sns.set_style('ticks')
 logger = logging.getLogger(__name__)
 
 
-class _NSintegralState:
+class _NSIntegralState:
     """
     Stores the state of the nested sampling integrator
 
@@ -282,7 +282,7 @@ class NestedSampler:
         self.logLmax = -np.inf
         self.nested_samples = []
         self.logZ = None
-        self.state = _NSintegralState(self.nlive, track_gradients=plot)
+        self.state = _NSIntegralState(self.nlive, track_gradients=plot)
         self.plot = plot
         self.resume_file = self.setup_output(output, resume_file)
         self.output = output

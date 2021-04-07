@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added code to catch errors when calling `plot_live_points` when `gwpy` is installed.
+- Added tests for `_NSIntegralState`.
 - Add code coverage upload
 - Added an example of using unbounded priors, `bilby_unbounded_priors.py`
 - Added `Rescale` reparameterisation that just rescales by a constant and does not require prior bounds. Also add tests for this reparameterisation.
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Plotting logX vs logL now returns the figure is `filename=None`
 - `NestedSampler.plot_state` now has the keyword argument `filename` and the figure is only saved if it is specified.
+- Changed name from `_NSintegralState` to `_NSIntegralState`.
 - `nessai.model.Model` now inherits from `abc.ABC` and `log_prior` and `log_likelihood` are now `abstractmethods`. This prevents the class from being used without redefining those methods.
 
 ### Fixed
