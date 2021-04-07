@@ -723,6 +723,8 @@ class FlowProposal(RejectionProposal):
             x = np.array([x], dtype=x.dtype)
 
         for n, rn in zip(self.names, self.rescaled_names):
+            if n not in self.model.names:
+                continue
             if n in self.rescale_parameters:
                 x_prime[rn] = self._rescale_factor \
                              * ((x[n] - self._min[n])
