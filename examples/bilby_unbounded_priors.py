@@ -36,7 +36,7 @@ class SimpleGaussianLikelihood(bilby.Likelihood):
 
 # Define priors, we'll use Gaussians since they're unbounded.
 priors = dict(x=bilby.core.prior.Gaussian(0, 5, 'x'),
-              y=bilby.core.prior.Gaussian(0, 5, 'y'))
+              y=bilby.core.prior.Gaussian(0, 10, 'y'))
 
 # Instantiate the likleihood
 likelihood = SimpleGaussianLikelihood()
@@ -55,11 +55,16 @@ flow_config = dict(
 # `analytic_priors` enables faster initial sampling. See 'further details' in
 # the documentation for more details
 # We need to disable the rescaling since we can't rescle without bounds.
-# Alternatively a different reparmeterisation could be used.
+# Alternatively a different reparmeterisation could be used, in this case
+# we can used the 'Rescale' reparameterisation that rescales the inputs by
+# a constant, this is useful when we do not prior bounds we can use.
 result = bilby.run_sampler(outdir=outdir, label=label, resume=False, plot=True,
                            likelihood=likelihood, priors=priors,
                            sampler='nessai', nlive=1000,
                            maximum_uninformed=2000, flow_config=flow_config,
-                           rescale_parameters=False,
                            injection_parameters={'x': 0.0, 'y': 0.0},
+                           reparameterisations={
+                               'scale': {'parameters': ['x', 'y'],
+                                         'scale': [5, 10]}},
+                           proposal_plots='min',
                            analytic_priors=False, seed=1234)
