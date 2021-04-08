@@ -7,25 +7,50 @@ from scipy import stats
 from scipy.special import logsumexp
 
 from ..flowmodel import FlowModel
-from ..livepoint import (
-    live_points_to_array,
-    )
-
 from .flowproposal import FlowProposal
+from ..livepoint import numpy_array_to_live_points, DEFAULT_FLOAT_DTYPE
 
 logger = logging.getLogger(__name__)
 
 
 class AugmentedFlowProposal(FlowProposal):
+    """Version of FlowProposal that uses AugmentedFlows.
+
+    Augmented normalising flows were proposed in: \
+        https://arxiv.org/abs/2002.07101 and add auxiliary parameters to the
+    inputs of the flow which are drawn from a Gaussian. This improves the
+    flows' ability to learn multimodal distribution.
+
+    Parameters
+    ----------
+    model : :obj:`nessai.model.Model`
+        User defined model
+    augment_features : int
+        Number of augment parameters to add to the inputs
+    generate_agument : {'gaussian', 'zeroes', 'zeros'}, optional
+        Method used when computing the radius of the latent contour.
+    marginalise_augment : bool, optional
+        Use the marginalised likelihood when performing rejection sampling.
+        Adds significant computation cost.
+    n_marg : int, optional
+        Number of samples to use when approximating the marginalised
+        likelihood.
+    """
 
     def __init__(self, model, augment_features=1, generate_augment='gaussian',
-                 **kwargs):
+                 marginalise_augment=False, n_marg=50, **kwargs):
         super().__init__(model, **kwargs)
         self.augment_features = augment_features
         self.generate_augment = generate_augment
-        self.marginalise_augment = False
+        self.marginalise_augment = marginalise_augment
+        self.n_marg = n_marg
 
     def set_rescaling(self):
+        """Configure the rescaling.
+
+        Calls the method from the parent class first and then adds the
+        auxiliary parameters.
+        """
         super().set_rescaling()
         self._base_rescale = self.rescale
         self.rescale = self._augmented_rescale
@@ -74,10 +99,11 @@ class AugmentedFlowProposal(FlowProposal):
         x : array
             Structured array in X space with augment parameters in the
             fields.
-        generate_augment : {None, 'gaussian', 'zeros', 'zeroes'}, optional
+        generate_augment : {None, 'gaussian', 'zeros', 'zeroes', False}, \
+                optional
             Method used to generate the augmented parameters. If None Gaussian
             is used if compute_radius=False else attribute of the same name
-            is used.
+            is used. If False no values are generated.
         compute_radius : bool, optional
             Boolean to indicate when rescale is being used for computing a
             radius.
@@ -99,24 +125,6 @@ class AugmentedFlowProposal(FlowProposal):
                 x_prime[an] = np.random.randn(x_prime.size)
         return x_prime, log_J
 
-    def _marginalise_augment(self, x, K=50):
-        """
-        Marginalise out the augmented feautures
-        """
-        x_prime, log_J = self.rescale(x, generate_augment=False)
-        x_prime = live_points_to_array(x_prime, names=self.rescaled_names)
-        x_prime = np.repeat(x_prime, K, axis=0)
-
-        x_prime[:, -self.augment_features:] = np.random.randn(
-                x.size * K, self.augment_features)
-        z, log_prob = self.flow.forward_and_log_prob(x_prime)
-        log_prob = log_prob.reshape(K, x.size)
-        log_prob_e = np.sum(stats.norm.logpdf(
-            x_prime[:, -self.augment_features:]), axis=-1).reshape(K, x.size)
-        assert log_prob.shape == log_prob_e.shape
-        log_prob = -np.log(K) + logsumexp(log_prob - log_prob_e, (0))
-        return log_prob - log_J
-
     def augmented_prior(self, x):
         """
         Log guassian for augmented variables
@@ -130,46 +138,68 @@ class AugmentedFlowProposal(FlowProposal):
         """
         Compute the prior probability
         """
-        return (self.model.log_prior(x[self.model.names]) +
-                self.augmented_prior(x))
+        if self.marginalise_augment:
+            return self.model.log_prior(x[self.model.names])
+        else:
+            return (self.model.log_prior(x[self.model.names]) +
+                    self.augmented_prior(x))
 
-    def rejection_sampling(self, z, worst_q=None):
+    def _marginalise_augment(self, x_prime):
+        """Marginalise out the augmented feautures.
+
+        Note that x_prime is not a structured array. See the original paper
+        for the details
         """
-        Perform rejection sampling.
+        x_prime = np.repeat(x_prime, self.n_marg, axis=0)
 
-        Coverts samples from the latent space and computes the corresponding
-        weights. Then returns samples using standard rejection sampling.
+        x_prime[:, -self.augment_features:] = np.random.randn(
+                x_prime.shape[0], self.augment_features)
+
+        _, log_prob = self.flow.forward_and_log_prob(x_prime)
+
+        log_prob_e = np.sum(stats.norm.logpdf(
+            x_prime[:, -self.augment_features:]), axis=1)
+
+        return -np.log(self.n_marg) + \
+            logsumexp((log_prob - log_prob_e).reshape(-1, self.n_marg), axis=1)
+
+    def backward_pass(self, z, rescale=True):
+        """
+        A backwards pass from the model (latent -> real)
 
         Parameters
         ----------
-        z :  ndarray
-            Samples from the latent space
-        worst_q : float, optional
-            Lower bound on the log-probability computed using the flow that
-            is used to truncate new samples. Not recommended.
+        z : array_like
+            Structured array of points in the latent space
+        rescale : bool, optional (True)
+            Apply inverse rescaling function
 
         Returns
         -------
-        array_like
-            Array of accepted latent samples.
-        array_like
-            Array of accepted samples in the X space.
+        x : array_like
+            Samples in the latent sapce
+        log_prob : array_like
+            Log probabilties corresponding to each sample (including the
+            Jacobian)
         """
+        # Compute the log probability
+        try:
+            x, log_prob = self.flow.sample_and_log_prob(
+                z=z, alt_dist=self.alt_dist)
+        except AssertionError:
+            return np.array([]), np.array([])
+
         if self.marginalise_augment:
-            raise NotImplementedError
-        x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
+            log_prob = self._marginalise_augment(x)
 
-        if not x.size:
-            return x, log_q
-
-        if self.truncate:
-            cut = log_q >= worst_q
-            x = x[cut]
-            log_q = log_q[cut]
-
-        # rescale given priors used initially, need for priors
-        log_w = self.compute_weights(x, log_q)
-        log_u = np.log(np.random.rand(x.shape[0]))
-        indices = np.where(log_w >= log_u)[0]
-
-        return z[indices], x[indices]
+        valid = np.isfinite(log_prob)
+        x, log_prob = x[valid], log_prob[valid]
+        x = numpy_array_to_live_points(x.astype(DEFAULT_FLOAT_DTYPE),
+                                       self.rescaled_names)
+        # Apply rescaling in rescale=True
+        if rescale:
+            x, log_J = self.inverse_rescale(x)
+            # Include Jacobian for the rescaling
+            log_prob -= log_J
+            x, log_prob = self.check_prior_bounds(x, log_prob)
+        return x, log_prob
