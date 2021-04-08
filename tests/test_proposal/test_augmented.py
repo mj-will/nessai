@@ -62,3 +62,18 @@ def test_augmented_prior(mock, proposal, x):
     AugmentedFlowProposal.augmented_prior(proposal, x)
     np.testing.assert_array_equal(x['e_1'], mock.call_args_list[0][0][0])
     np.testing.assert_array_equal(x['e_2'], mock.call_args_list[1][0][0])
+
+
+def test_marginalise_augment(proposal):
+    """Test the marginalise augment function"""
+    proposal.n_marg = 5
+    proposal.augment_features = 2
+    x = np.concatenate([np.random.randn(3, 2), np.zeros((3, 2))], axis=1)
+    z = np.random.randn(15, 4)
+    log_prob = np.random.randn(15)
+    proposal.flow = MagicMock()
+    proposal.flow.forward_and_log_prob = \
+        MagicMock(return_value=[z, log_prob])
+    log_prob_out = AugmentedFlowProposal._marginalise_augment(proposal, x)
+
+    assert len(log_prob_out) == 3
