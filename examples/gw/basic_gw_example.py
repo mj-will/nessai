@@ -10,7 +10,7 @@ import bilby
 import numpy as np
 
 outdir = './outdir/'
-label = 'gw_example'
+label = 'basic_gw_example'
 
 bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level='INFO')
 
