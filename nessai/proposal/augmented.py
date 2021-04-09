@@ -82,6 +82,8 @@ class AugmentedFlowProposal(FlowProposal):
 
         m = np.ones(self.rescaled_dims)
         m[-self.augment_features:] = -1
+        if 'kwargs' not in self.flow_config['model_config'].keys():
+            self.flow_config['model_config']['kwargs'] = {}
         self.flow_config['model_config']['kwargs']['mask'] = m
 
         self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
@@ -123,6 +125,9 @@ class AugmentedFlowProposal(FlowProposal):
         elif generate_augment == 'gaussian':
             for an in self.augment_names:
                 x_prime[an] = np.random.randn(x_prime.size)
+        else:
+            raise RuntimeError('Unknown method for generating augment samples')
+
         return x_prime, log_J
 
     def augmented_prior(self, x):
@@ -182,7 +187,6 @@ class AugmentedFlowProposal(FlowProposal):
             Log probabilties corresponding to each sample (including the
             Jacobian)
         """
-        # Compute the log probability
         try:
             x, log_prob = self.flow.sample_and_log_prob(
                 z=z, alt_dist=self.alt_dist)
