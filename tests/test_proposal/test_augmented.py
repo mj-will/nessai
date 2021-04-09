@@ -25,6 +25,21 @@ def test_init(model):
     AugmentedFlowProposal(model, poolsize=100)
 
 
+@patch('nessai.proposal.FlowProposal.set_rescaling')
+def test_set_rescaling(mock, proposal):
+    """Test the set rescaling method"""
+    proposal.names = ['x', 'y']
+    proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal.rescale_parameters = proposal.names
+    proposal.augment_features = 2
+    AugmentedFlowProposal.set_rescaling(proposal)
+
+    assert proposal.names == ['x', 'y', 'e_0', 'e_1']
+    assert proposal.rescaled_names == ['x_prime', 'y_prime', 'e_0', 'e_1']
+    assert proposal.augment_names == ['e_0', 'e_1']
+    mock.assert_called_once()
+
+
 @pytest.mark.parametrize('generate', ['zeroes', 'gaussian'])
 def test_rescaling(proposal, x, generate):
     """Test the rescaling method"""
