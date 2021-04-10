@@ -3,9 +3,19 @@
 Test general config functions called when the nested sampler is initialised.
 """
 import os
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from nessai.nestedsampler import NestedSampler
+
+
+def test_init(sampler, model):
+    """Test the init method"""
+    sampler.setup_output = MagicMock()
+    sampler.configure_flow_reset = MagicMock()
+    sampler.configure_flow_proposal = MagicMock()
+    sampler.configure_uninformed_proposal = MagicMock
+    NestedSampler.__init__(sampler, model, nlive=1000, poolsize=1000)
+    assert sampler.initialised is False
 
 
 @patch('numpy.random.seed')
@@ -28,25 +38,25 @@ def test_no_random_seed(mock1, mock2, sampler):
 
 def test_setup_output(sampler, tmpdir):
     """Test setting up the output directories"""
-    tmpdir.mkdir('outputs')
+    p = tmpdir.mkdir('outputs')
     sampler.plot = False
-    resume_file = NestedSampler.setup_output(sampler, 'outputs/tests')
-    assert os.path.exists('outputs/tests')
-    assert resume_file == 'outputs/tests/nested_sampler_resume.pkl'
+    resume_file = NestedSampler.setup_output(sampler, f'{p}/tests')
+    assert os.path.exists(f'{p}/tests')
+    assert resume_file == f'{p}/tests/nested_sampler_resume.pkl'
 
 
 def test_setup_output_w_plotting(sampler, tmpdir):
     """Test setting up the output directories with plot=True"""
-    tmpdir.mkdir('outputs')
+    p = tmpdir.mkdir('outputs')
     sampler.plot = True
-    NestedSampler.setup_output(sampler, 'outputs/tests')
-    assert os.path.exists('outputs/tests/diagnostics')
+    NestedSampler.setup_output(sampler, f'{p}/tests')
+    assert os.path.exists(f'{p}/tests/diagnostics')
 
 
 def test_setup_output_w_resume(sampler, tmpdir):
     """Test output configuration with a specified resume file"""
-    tmpdir.mkdir('outputs')
+    p = tmpdir.mkdir('outputs')
     sampler.plot = False
     resume_file = \
-        NestedSampler.setup_output(sampler, 'outputs/tests', 'resume.pkl')
-    assert resume_file == 'outputs/tests/resume.pkl'
+        NestedSampler.setup_output(sampler, f'{p}/tests', 'resume.pkl')
+    assert resume_file == f'{p}/tests/resume.pkl'
