@@ -1,10 +1,14 @@
 
 import pytest
+from unittest.mock import create_autospec
 
 from nessai.nestedsampler import NestedSampler
 
 
 @pytest.fixture(scope='function')
-def sampler(model, tmpdir):
-    output = str(tmpdir.mkdir('test'))
-    return NestedSampler(model, nlive=10, output=output)
+def sampler(model):
+    s = create_autospec(NestedSampler)
+    s.nlive = 100
+    s.model = model
+    s.store_live_points = False
+    return s
