@@ -3,7 +3,6 @@ name: Integration tests
 on:
   workflow_run:
     workflows: ["Unit tests"]
-    branches: [main]
     types:
       - completed
       - requested
