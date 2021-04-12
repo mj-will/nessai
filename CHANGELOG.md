@@ -15,8 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added an example of using unbounded priors, `bilby_unbounded_priors.py`
 - Added `Rescale` reparameterisation that just rescales by a constant and does not require prior bounds. Also add
 tests for this reparameterisation.
+- Added more GW examples.
 - Added tests for `AugmentedFlowProposal`.
 - Added an example using `AugmentedFlowProposal`.
+- Added eggbox example.
 
 ### Changed
 
