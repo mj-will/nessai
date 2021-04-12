@@ -8,6 +8,7 @@ from nessai.model import Model
 
 
 seed(170817)
+torch.manual_seed(170817)
 
 _requires_dependency_cache = dict()
 
