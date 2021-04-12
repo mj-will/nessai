@@ -35,6 +35,7 @@ tests for this reparameterisation.
 - Total sampling time is now correctly displayed when producing a state plot from a saved sampler.
 - Fixed a bug when using unbounded priors related to `Model.verify_model`
 - Fix inversion-split with `RescaleToBounds`
+- Fixed `AugmentedGWFlowProposal`.
 
 
 ## [0.2.4] - 2021-03-08
