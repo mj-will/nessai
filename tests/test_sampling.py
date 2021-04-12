@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Integration tests for running the sampler with different configurations.
+"""
 import os
 
 from nessai.flowsampler import FlowSampler
@@ -7,6 +11,7 @@ import pytest
 torch.set_num_threads(1)
 
 
+@pytest.mark.slow_integration_test
 def test_sampling_with_rescale(model, flow_config, tmpdir):
     """
     Test sampling with rescaling. Checks that flow is trained.
@@ -21,6 +26,7 @@ def test_sampling_with_rescale(model, flow_config, tmpdir):
     assert fp.ns.proposal.training_count == 1
 
 
+@pytest.mark.slow_integration_test
 def test_sampling_without_rescale(model, flow_config, tmpdir):
     """
     Test sampling without rescaling. Checks that flow is trained.
@@ -35,6 +41,7 @@ def test_sampling_without_rescale(model, flow_config, tmpdir):
     assert fp.ns.proposal.training_count == 1
 
 
+@pytest.mark.slow_integration_test
 def test_sampling_with_maf(model, flow_config, tmpdir):
     """
     Test sampling with MAF. Checks that flow is trained but does not
@@ -51,6 +58,7 @@ def test_sampling_with_maf(model, flow_config, tmpdir):
     assert fp.ns.proposal.training_count == 1
 
 
+@pytest.mark.slow_integration_test
 @pytest.mark.parametrize('analytic', [False, True])
 def test_sampling_uninformed(model, flow_config, tmpdir, analytic):
     """
@@ -65,6 +73,7 @@ def test_sampling_uninformed(model, flow_config, tmpdir, analytic):
     fp.run()
 
 
+@pytest.mark.slow_integration_test
 def test_sampling_with_n_pool(model, flow_config, tmpdir):
     """
     Test running the sampler with multiprocessing.
@@ -81,6 +90,7 @@ def test_sampling_with_n_pool(model, flow_config, tmpdir):
     assert os.path.exists(output + '/result.json')
 
 
+@pytest.mark.slow_integration_test
 def test_sampling_resume(model, flow_config, tmpdir):
     """
     Test resuming the sampler.
