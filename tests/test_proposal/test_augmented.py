@@ -190,3 +190,38 @@ def test_backward_pass(proposal, model, log_p, marg):
         z=z, alt_dist=None)
 
     assert proposal._marginalise_augment.called is marg
+
+
+@pytest.mark.integration_test
+def test_w_reparameterisation(model, tmpdir):
+    """Integration test to make sure augmented proposal works with
+    reparameterisaitons configured using the dictionary method.
+    """
+    x = model.new_point(100)
+    reparameterisations = {
+        'x': {'reparameterisation': 'rescaletobounds', 'update_bounds': False},
+        'y': {'reparameterisation': 'scale', 'scale': 2.0}
+    }
+
+    x_out = \
+        2 * (x['x'] - model.bounds['x'][0]) / (np.ptp(model.bounds['x'])) - 1
+    y_out = x['y'] / 2.0
+
+    output = tmpdir.mkdir('testdir')
+    proposal = AugmentedFlowProposal(model, output=output, poolsize=100,
+                                     augment_dims=2,
+                                     reparameterisations=reparameterisations)
+
+    proposal.initialise()
+
+    assert proposal.rescaled_names == ['x_prime', 'y_prime', 'e_0', 'e_1']
+
+    x_prime, log_j = proposal.rescale(x)
+
+    np.testing.assert_array_equal(x_out, x_prime['x_prime'])
+    np.testing.assert_array_equal(y_out, x_prime['y_prime'])
+
+    x_inv, log_j_inv = proposal.inverse_rescale(x_prime)
+
+    np.testing.assert_array_equal(log_j, -log_j_inv)
+    np.testing.assert_array_equal(x[['x', 'y']], x_inv[['x', 'y']])
