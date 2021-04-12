@@ -27,6 +27,7 @@ tests for this reparameterisation.
 - Changed name from `_NSintegralState` to `_NSIntegralState`.
 - `nessai.model.Model` now inherits from `abc.ABC` and `log_prior` and `log_likelihood` are now `abstractmethods`. This prevents the class from being used without redefining those methods.
 - Updated `AumgentedFlowProposal` to work with current version of `FlowProposal`
+- Fix random seed unit tests.
 
 ### Fixed
 

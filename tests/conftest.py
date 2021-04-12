@@ -1,9 +1,13 @@
 
+from numpy.random import seed
 import pytest
 from scipy.stats import norm
 import torch
 
 from nessai.model import Model
+
+
+seed(170817)
 
 _requires_dependency_cache = dict()
 
