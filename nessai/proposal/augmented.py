@@ -25,7 +25,7 @@ class AugmentedFlowProposal(FlowProposal):
     ----------
     model : :obj:`nessai.model.Model`
         User defined model
-    augment_features : int
+    augment_dims : int
         Number of augment parameters to add to the inputs
     generate_agument : {'gaussian', 'zeroes', 'zeros'}, optional
         Method used when computing the radius of the latent contour.
@@ -37,10 +37,10 @@ class AugmentedFlowProposal(FlowProposal):
         likelihood.
     """
 
-    def __init__(self, model, augment_features=1, generate_augment='gaussian',
+    def __init__(self, model, augment_dims=1, generate_augment='gaussian',
                  marginalise_augment=False, n_marg=50, **kwargs):
         super().__init__(model, **kwargs)
-        self.augment_features = augment_features
+        self.augment_dims = augment_dims
         self.generate_augment = generate_augment
         self.marginalise_augment = marginalise_augment
         self.n_marg = n_marg
@@ -54,7 +54,7 @@ class AugmentedFlowProposal(FlowProposal):
         super().set_rescaling()
         self._base_rescale = self.rescale
         self.rescale = self._augmented_rescale
-        self.augment_names = [f'e_{i}' for i in range(self.augment_features)]
+        self.augment_names = [f'e_{i}' for i in range(self.augment_dims)]
         self.names += self.augment_names
         self.rescaled_names += self.augment_names
         logger.info(f'augmented x space parameters: {self.names}')
@@ -81,7 +81,7 @@ class AugmentedFlowProposal(FlowProposal):
             logger.info(f'New fuzz factor: {self.fuzz}')
 
         m = np.ones(self.rescaled_dims)
-        m[-self.augment_features:] = -1
+        m[-self.augment_dims:] = -1
         if 'kwargs' not in self.flow_config['model_config'].keys():
             self.flow_config['model_config']['kwargs'] = {}
         self.flow_config['model_config']['kwargs']['mask'] = m
@@ -157,13 +157,13 @@ class AugmentedFlowProposal(FlowProposal):
         """
         x_prime = np.repeat(x_prime, self.n_marg, axis=0)
 
-        x_prime[:, -self.augment_features:] = np.random.randn(
-                x_prime.shape[0], self.augment_features)
+        x_prime[:, -self.augment_dims:] = np.random.randn(
+                x_prime.shape[0], self.augment_dims)
 
         _, log_prob = self.flow.forward_and_log_prob(x_prime)
 
         log_prob_e = np.sum(stats.norm.logpdf(
-            x_prime[:, -self.augment_features:]), axis=1)
+            x_prime[:, -self.augment_dims:]), axis=1)
 
         return -np.log(self.n_marg) + \
             logsumexp((log_prob - log_prob_e).reshape(-1, self.n_marg), axis=1)

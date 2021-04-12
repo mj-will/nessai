@@ -32,7 +32,7 @@ def test_initialise(mock_osexists, mock_makedirs, mock_flow, proposal):
     """Test the method the initialise the proposal"""
     proposal.output = 'output'
     proposal.rescaled_dims = 4
-    proposal.augment_features = 2
+    proposal.augment_dims = 2
     proposal.expansion_fraction = 1.0
     proposal.flow_config = {'model_config': {}}
     proposal.set_rescaling = MagicMock()
@@ -57,7 +57,7 @@ def test_set_rescaling(mock, proposal):
     proposal.names = ['x', 'y']
     proposal.rescaled_names = ['x_prime', 'y_prime']
     proposal.rescale_parameters = proposal.names
-    proposal.augment_features = 2
+    proposal.augment_dims = 2
     AugmentedFlowProposal.set_rescaling(proposal)
 
     assert proposal.names == ['x', 'y', 'e_0', 'e_1']
@@ -73,7 +73,7 @@ def test_rescaling(mock_zeros, mock_randn, proposal, x, generate):
     """Test the rescaling method"""
     proposal._base_rescale = MagicMock(return_value=[x, np.ones(x.size)])
     proposal.augment_names = ['e_1']
-    proposal.augment_features = 1
+    proposal.augment_dims = 1
 
     AugmentedFlowProposal._augmented_rescale(
         proposal, x, generate_augment=generate, test=True)
@@ -95,7 +95,7 @@ def test_rescaling_generate_none(mock_zeros, mock_randn, proposal, x,
     """Test the rescaling method with generate_augment=None"""
     proposal._base_rescale = MagicMock(return_value=[x, np.ones(x.size)])
     proposal.augment_names = ['e_1']
-    proposal.augment_features = 1
+    proposal.augment_dims = 1
     proposal.generate_augment = 'zeros'
 
     AugmentedFlowProposal._augmented_rescale(
@@ -150,7 +150,7 @@ def test_log_prior(proposal, x, marg):
 def test_marginalise_augment(proposal):
     """Test the marginalise augment function"""
     proposal.n_marg = 5
-    proposal.augment_features = 2
+    proposal.augment_dims = 2
     x = np.concatenate([np.random.randn(3, 2), np.zeros((3, 2))], axis=1)
     z = np.random.randn(15, 4)
     log_prob = np.random.randn(15)
