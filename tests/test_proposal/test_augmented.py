@@ -121,30 +121,43 @@ def test_rescaling_generate_unknown(proposal, x):
     assert 'Unknown method' in str(excinfo.value)
 
 
-@patch('scipy.stats.norm.logpdf')
-def test_augmented_prior(mock, proposal, x):
-    """Test the augmented prior"""
-    proposal.marginalise_augment = False
-    proposal.augment_names = ['e_1', 'e_2']
-    AugmentedFlowProposal.augmented_prior(proposal, x)
-    np.testing.assert_array_equal(x['e_1'], mock.call_args_list[0][0][0])
-    np.testing.assert_array_equal(x['e_2'], mock.call_args_list[1][0][0])
-
-
 @pytest.mark.parametrize('marg', [False, True])
-def test_log_prior(proposal, x, marg):
-    """Test the augmented prior"""
+@patch('scipy.stats.norm.logpdf')
+def test_augmented_prior(mock, marg, proposal, x):
+    """Test the augmented prior with and without marginalistion"""
     proposal.marginalise_augment = marg
-    proposal.augmented_prior = MagicMock()
-    proposal.model = MagicMock()
-    proposal.model.names = ['x', 'y']
-    proposal.model.log_prior = MagicMock()
+    proposal.augment_names = ['e_1', 'e_2']
+    log_prior = AugmentedFlowProposal.augmented_prior(proposal, x)
+    if marg:
+        assert log_prior == 0
+    else:
+        np.testing.assert_array_equal(x['e_1'], mock.call_args_list[0][0][0])
+        np.testing.assert_array_equal(x['e_2'], mock.call_args_list[1][0][0])
 
-    AugmentedFlowProposal.log_prior(proposal, x)
 
-    proposal.model.log_prior.assert_called_once()
-    print(proposal.augmented_prior.called)
-    assert proposal.augmented_prior.called is not marg
+@patch('nessai.proposal.flowproposal.FlowProposal.log_prior', return_value=1)
+def test_log_prior(mock_prior, proposal, x):
+    """Test the complete log prior"""
+    proposal.augmented_prior = MagicMock(return_value=1)
+
+    log_p = AugmentedFlowProposal.log_prior(proposal, x)
+
+    mock_prior.assert_called_once_with(x)
+    proposal.augmented_prior.assert_called_once_with(x)
+    assert log_p == 2
+
+
+@patch('nessai.proposal.flowproposal.FlowProposal.x_prime_log_prior',
+       return_value=1)
+def test_prime_log_prior(mock_prior, proposal, x):
+    """Test the complete prime log prior"""
+    proposal.augmented_prior = MagicMock(return_value=1)
+
+    log_p = AugmentedFlowProposal.x_prime_log_prior(proposal, x)
+
+    mock_prior.assert_called_once_with(x)
+    proposal.augmented_prior.assert_called_once_with(x)
+    assert log_p == 2
 
 
 def test_marginalise_augment(proposal):
@@ -190,6 +203,38 @@ def test_backward_pass(proposal, model, log_p, marg):
         z=z, alt_dist=None)
 
     assert proposal._marginalise_augment.called is marg
+
+
+@pytest.mark.integration_test
+def test_w_default_rescaling(model, tmpdir):
+    """Integration test to make sure augmented proposal works with the default
+    rescaling method.
+    """
+    x = model.new_point(100)
+
+    x_out = \
+        2 * (x['x'] - model.bounds['x'][0]) / (np.ptp(model.bounds['x'])) - 1
+    y_out = \
+        2 * (x['y'] - model.bounds['y'][0]) / (np.ptp(model.bounds['y'])) - 1
+
+    output = tmpdir.mkdir('testdir')
+    proposal = AugmentedFlowProposal(model, output=output, poolsize=100,
+                                     augment_dims=2, rescale_parameters=True,
+                                     update_bounds=False)
+
+    proposal.initialise()
+
+    assert proposal.rescaled_names == ['x_prime', 'y_prime', 'e_0', 'e_1']
+
+    x_prime, log_j = proposal.rescale(x)
+
+    np.testing.assert_array_equal(x_out, x_prime['x_prime'])
+    np.testing.assert_array_equal(y_out, x_prime['y_prime'])
+
+    x_inv, log_j_inv = proposal.inverse_rescale(x_prime)
+
+    np.testing.assert_array_equal(log_j, -log_j_inv)
+    np.testing.assert_array_equal(x[['x', 'y']], x_inv[['x', 'y']])
 
 
 @pytest.mark.integration_test
