@@ -52,6 +52,8 @@ class AugmentedFlowProposal(FlowProposal):
         auxiliary parameters.
         """
         super().set_rescaling()
+        # Cannot use super().rescale because rescale is changed in
+        # set rescaling.
         self._base_rescale = self.rescale
         self.rescale = self._augmented_rescale
         self.augment_names = [f'e_{i}' for i in range(self.augment_dims)]
@@ -132,22 +134,27 @@ class AugmentedFlowProposal(FlowProposal):
 
     def augmented_prior(self, x):
         """
-        Log guassian for augmented variables
+        Log guassian for augmented variables.
+
+        If self.marginalise_agument is True, log_prior is 0.
         """
-        logP = 0.
-        for n in self.augment_names:
-            logP += stats.norm.logpdf(x[n])
-        return logP
+        log_p = 0.0
+        if not self.marginalise_augment:
+            for n in self.augment_names:
+                log_p += stats.norm.logpdf(x[n])
+        return log_p
 
     def log_prior(self, x):
         """
-        Compute the prior probability
+        Compute the prior probability in the non-prime space.
         """
-        if self.marginalise_augment:
-            return self.model.log_prior(x[self.model.names])
-        else:
-            return (self.model.log_prior(x[self.model.names]) +
-                    self.augmented_prior(x))
+        return super().log_prior(x) + self.augmented_prior(x)
+
+    def x_prime_log_prior(self, x):
+        """
+        Compute prior probability in the prime space.
+        """
+        return super().x_prime_log_prior(x) + self.augmented_prior(x)
 
     def _marginalise_augment(self, x_prime):
         """Marginalise out the augmented feautures.
