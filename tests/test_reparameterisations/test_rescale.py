@@ -48,6 +48,30 @@ def test_reparameterise(reparam, n):
     assert (x_prime_out['y_prime'] == 0.25).all()
 
 
+@pytest.mark.parametrize('scale', [1e60, 1e-60])
+def test_reparameterise_overflow(reparam, scale):
+    """Test the reparameterise method with very small and large scales.
+
+    Checks precision to 14 decimal places.
+    """
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.scale = {'x': scale}
+    x_array = np.arange(100.0, dtype=float)
+    x = numpy_array_to_live_points(scale * x_array[:, np.newaxis],
+                                   reparam.parameters)
+    x_prime = numpy_array_to_live_points(np.ones((x_array.size, 1)),
+                                         reparam.prime_parameters)
+    log_j = np.zeros(x.size)
+
+    x_out, x_prime_out, log_j_out = \
+        Rescale.reparameterise(reparam, x, x_prime, log_j)
+
+    np.testing.assert_array_almost_equal(x_array, x_prime_out['x_prime'],
+                                         decimal=14)
+    assert (log_j == -np.log(scale)).all()
+
+
 @pytest.mark.parametrize('n', [1, 2])
 def test_inverse_reparameterise(reparam, n):
     """Test the reparameterise method"""
@@ -66,6 +90,27 @@ def test_inverse_reparameterise(reparam, n):
     assert np.array_equal(log_j_out, np.log(8 * np.ones(n)))
     assert (x_out['x'] == 2.0).all()
     assert (x_out['y'] == 4.0).all()
+
+
+@pytest.mark.parametrize('scale', [1e60, 1e-60])
+def test_inverse_reparameterise_overflow(reparam, scale):
+    """Test the inverse_reparameterise method with very small and large scales.
+    """
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.scale = {'x': scale}
+    x_array = np.arange(100.0, dtype=float)
+    x = numpy_array_to_live_points(np.ones((x_array.size, 1)),
+                                   reparam.parameters)
+    x_prime = numpy_array_to_live_points(x_array[:, np.newaxis],
+                                         reparam.prime_parameters)
+    log_j = np.zeros(x.size)
+
+    x_out, x_prime_out, log_j_out = \
+        Rescale.inverse_reparameterise(reparam, x, x_prime, log_j)
+
+    np.testing.assert_array_equal(x_array * scale, x_out['x'])
+    assert (log_j == np.log(scale)).all()
 
 
 def test_init_no_scale():
