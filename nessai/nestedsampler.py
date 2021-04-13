@@ -1024,7 +1024,7 @@ class NestedSampler:
                 f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
                 f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
                 f"logLmax: {self.logLmax:.2f}")
-            self.checkpoint(periodic=True)
+            self.checkpoint(periodic=not force)
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
