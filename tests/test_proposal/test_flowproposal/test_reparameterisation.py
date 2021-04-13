@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test methods related to reparameterisations"""
+import numpy as np
+from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import FlowProposal
 from nessai.reparameterisations import (
     get_reparameterisation
@@ -84,3 +86,23 @@ def test_configure_reparameterisations_incorrect_type(proposal):
     with pytest.raises(TypeError) as excinfo:
         FlowProposal.configure_reparameterisations(proposal, ['default'])
     assert 'must be a dictionary' in str(excinfo.value)
+
+
+@pytest.mark.parametrize('n', [1, 10])
+def test_rescale_w_reparameterisation(proposal, n):
+    """Test rescaling when using reparameterisation dict"""
+    x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y'])
+    x_prime = numpy_array_to_live_points(
+        np.random.randn(n, 2), ['x_prime', 'y_prime'])
+    proposal.x_prime_dtype = \
+        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.reparameterise = MagicMock(return_value=[
+        x, x_prime, np.ones(x.size)])
+
+    x_prime_out, log_j = \
+        FlowProposal._rescale_w_reparameterisation(
+            proposal, x, compute_radius=False, test='lower')
+
+    np.testing.assert_array_equal(x_prime, x_prime_out)
+    proposal._reparameterisation.reparameterise.assert_called_once()

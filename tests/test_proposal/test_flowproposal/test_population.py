@@ -153,3 +153,46 @@ def test_rejection_sampling_truncate_missing_q(proposal, z, x, log_q):
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.rejection_sampling(proposal, z, worst_q=None)
     assert 'Cannot use truncation' in str(excinfo.value)
+
+
+def test_compute_acceptance(proposal):
+    """Test the compute_acceptance method"""
+    proposal.samples = np.arange(1, 11, dtype=float).view([('logL', 'f8')])
+    acc = FlowProposal.compute_acceptance(proposal, 5.0)
+    assert acc == 0.5
+
+
+def test_convert_to_samples(proposal):
+    """Test covert to sample without the prime prior"""
+    samples = numpy_array_to_live_points(np.random.randn(10, 4), ['x', 'y'])
+    proposal.use_x_prime_prior = False
+    proposal.model = MagicMock()
+    proposal.model.names = ['x']
+    proposal.model.log_prior = MagicMock(return_value=np.ones(10))
+
+    out_samples = FlowProposal.convert_to_samples(proposal, samples, plot=True)
+
+    assert out_samples.dtype.names == ('x', 'logP', 'logL')
+
+
+@patch('nessai.proposal.flowproposal.plot_1d_comparison')
+def test_convert_to_samples_with_prime(mock_plot, proposal):
+    """Test covert to sample with the prime prior"""
+    samples = numpy_array_to_live_points(np.random.randn(10, 4), ['x', 'y'])
+    proposal.use_x_prime_prior = True
+    proposal.model = MagicMock()
+    proposal.model.names = ['x']
+    proposal.model.log_prior = MagicMock(return_value=np.ones(10))
+    proposal._plot_pool = True
+    proposal.training_data_prime = 'data'
+    proposal.output = './'
+    proposal.populated_count = 1
+    proposal.inverse_rescale = MagicMock(return_value=(samples, None))
+
+    out_samples = FlowProposal.convert_to_samples(proposal, samples, plot=True)
+
+    mock_plot.assert_called_once_with(
+        'data', samples, labels=['live points', 'pool'],
+        filename='.//pool_prime_1.png')
+    proposal.inverse_rescale.assert_called_once()
+    assert out_samples.dtype.names == ('x', 'logP', 'logL')
