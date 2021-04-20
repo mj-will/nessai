@@ -1273,6 +1273,7 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a fwe MB in size so
             proceed with caution!
         """
+        self.worst_logL = worst_point['logL']
         if r is not None:
             logger.info(f'Using user inputs for radius {r}')
             worst_q = None
@@ -1295,9 +1296,6 @@ class FlowProposal(RejectionProposal):
 
         logger.info(f'Populating proposal with lantent radius: {r:.5}')
         self.r = r
-
-        if self._use_logL:
-            self.worst_logL = worst_point['logL']
 
         self.alt_dist = self.get_alt_distribution()
 
