@@ -8,13 +8,13 @@ import logging
 import os
 import shutil
 
-from nflows.distributions.uniform import BoxUniform
 import numpy as np
 from scipy import stats, spatial, interpolate
 import torch
 from torch.distributions import MultivariateNormal
 
 from .livepoint import live_points_to_dict
+from .flows.distributions import BoxUniform
 
 logger = logging.getLogger(__name__)
 
@@ -882,7 +882,7 @@ class InterpolatedDistribution:
         Initial array of samples to use for interpolation
     """
     def __init__(self, name, samples=None, rescale=False):
-        logger.debug('Initialising interpolated dist for: {name}')
+        logger.debug(f'Initialising interpolated dist for: {name}')
         self.name = name
         self._cdf_interp = None
         self._inv_cdf_interp = None

@@ -64,11 +64,11 @@ class MultivariateNormal(Distribution):
 class BoxUniform(BaseBoxUniform):
     """Wrapper to `nflows.distributions.uniform.BoxUniform`"""
 
-    def sample(self, n):
+    def sample(self, n=1):
         """Sample from the box uniform"""
         return super().sample((n,))
 
-    def sample_and_log_prob(self, n):
+    def sample_and_log_prob(self, n=1):
         """Sample from the distribution and compute the log prob"""
         x = self.sample(n)
         log_prob = self.log_prob(x)
