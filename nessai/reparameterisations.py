@@ -115,6 +115,10 @@ class Reparameterisation:
         return self.__class__.__name__.lower() + '_' + \
             '_'.join(self.parameters)
 
+    def reset(self):
+        """Reset the reparameterisation to its initial state"""
+        logger.debug(f'Nothing to reset for: {self.name}')
+
     def reparameterise(self, x, x_prime, log_j):
         """
         Apply the reparameterisation to convert from x-space to x'-space.
@@ -274,6 +278,13 @@ class CombinedReparameterisation(dict):
         for r in self.values():
             if hasattr(r, 'reset_inversion'):
                 r.reset_inversion()
+
+    def reset(self):
+        """
+        Reset all of the reparameterisations to their initial state
+        """
+        for r in self.values():
+            r.reset()
 
     def log_prior(self, x):
         """
@@ -669,6 +680,11 @@ class RescaleToBounds(Reparameterisation):
     def reset_inversion(self):
         """Reset the edges for inversion"""
         self._edges = {n: None for n in self.parameters}
+
+    def reset(self):
+        """Reset"""
+        self.reset_inversion()
+        self.set_bounds(self.prior_bounds)
 
     def set_bounds(self, prior_bounds):
         """Set the initial bounds for rescaling"""

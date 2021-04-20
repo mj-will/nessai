@@ -698,6 +698,7 @@ class FlowProposal(RejectionProposal):
                     raise RuntimeError('Rescaling Jacobian is not invertible')
 
         logger.info('Rescaling functions are invertible')
+        self.reset_reparmeterisation()
 
     def _rescale_w_reparameterisation(self, x, compute_radius=False, **kwargs):
         x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
@@ -1530,12 +1531,21 @@ class FlowProposal(RejectionProposal):
 
         logger.debug(f'{self.__class__.__name__} passed draw test')
 
+    def reset_reparmeterisation(self):
+        """Reset the reparameteristions"""
+        if self._reparameterisation is not None:
+            self._reparameterisation.reset()
+        else:
+            self._min = {n: self.model.bounds[n][0] for n in self.model.names}
+            self._max = {n: self.model.bounds[n][1] for n in self.model.names}
+
     def reset(self):
         """Reset the proposal"""
         self.samples = None
         self.x = None
         self.populated = False
         self.populated_count = 0
+        self.reset_reparmeterisation()
 
     def __getstate__(self):
         state = self.__dict__.copy()
