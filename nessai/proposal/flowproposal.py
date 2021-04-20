@@ -201,6 +201,7 @@ class FlowProposal(RejectionProposal):
         self.use_x_prime_prior = False
         self._use_logL = False
         self.worst_logL = None
+        self._draw_flow = False
 
         self.reparameterisations = reparameterisations
 
@@ -378,6 +379,9 @@ class FlowProposal(RejectionProposal):
         elif self.latent_prior in ['uniform_nsphere', 'uniform_nball']:
             from ..utils import draw_nsphere
             self.draw_latent_prior = draw_nsphere
+        elif self.latent_prior == 'flow' or self.latent_prior is None:
+            self.draw_latent_prior = self._draw_flow_latent_prior
+            self._draw_flow = True
         else:
             raise RuntimeError(
                 f'Unknown latent prior: {self.latent_prior}, choose from: '
@@ -502,7 +506,7 @@ class FlowProposal(RejectionProposal):
                 raise RuntimeError(
                         f'Unknown inversion type: {self.inversion_type}')
 
-            self.rescale_bounds = [0, 1]
+            self.rescale_bounds = [0.0, 1.0]
             self.update_bounds = True
             self._edges = {n: None for n in self.boundary_inversion}
             logger.info(f'Changing bounds to {self.rescale_bounds}')
@@ -934,7 +938,7 @@ class FlowProposal(RejectionProposal):
         if self._plot_training and plot:
             z_training_data, _ = self.forward_pass(self.training_data,
                                                    rescale=True)
-            z_gen = np.random.randn(x.size, self.flow_dims)
+            z_gen, _ = self.flow.sample_latent_space(x.size)
 
             fig = plt.figure()
             plt.hist(np.sqrt(np.sum(z_training_data ** 2, axis=1)), 'auto')
@@ -1200,6 +1204,9 @@ class FlowProposal(RejectionProposal):
         """
         x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
 
+        if self._draw_flow:
+            z = z.cpu().numpy()
+
         if not x.size:
             return x, log_q
 
@@ -1372,6 +1379,11 @@ class FlowProposal(RejectionProposal):
                 return get_multivariate_normal(
                     self.flow_dims, var=self.draw_latent_kwargs['var'],
                     device=self.flow.device)
+
+    def _draw_flow_latent_prior(self, dims, N=1000, **kwargs):
+        with torch.no_grad():
+            z = self.flow.model.sample_base_distribution(N)
+        return z
 
     def compute_acceptance(self, logL):
         """
