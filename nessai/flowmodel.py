@@ -567,9 +567,10 @@ class FlowModel:
         if context is not None:
             if isinstance(context, np.ndarray):
                 context = torch.from_numpy(context).float().to(self.device)
-        if z is None and context is None:
+        if z is None:
             with torch.no_grad():
-                x, log_prob = self.model.sample_and_log_prob(N)
+                x, log_prob = self.model.sample_and_log_prob(
+                    N, context=context)
         else:
             if alt_dist is not None:
                 log_prob_fn = alt_dist.log_prob
