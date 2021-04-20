@@ -588,6 +588,13 @@ class FlowModel:
         log_prob = log_prob.detach().cpu().numpy()
         return x, log_prob
 
+    def sample_latent_space(self, n):
+        """Draw samples from the flow's latent space"""
+        with torch.no_grad():
+            z, log_prob = \
+                self.model.sample_base_distribution_and_log_prob(n)
+        return z.cpu().numpy(), log_prob.cpu().numpy()
+
     def __getstate__(self):
         state = self.__dict__.copy()
         state['initialised'] = False
