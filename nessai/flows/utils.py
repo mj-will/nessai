@@ -12,10 +12,6 @@ from nflows.transforms.lu import LULinear
 from nflows.transforms.permutations import RandomPermutation
 from nflows.nn.nets import MLP
 
-from .realnvp import FlexibleRealNVP
-from .maf import MaskedAutoregressiveFlow
-from .nsf import NeuralSplineFlow
-from .distributions import MultivariateNormal
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +31,10 @@ def setup_model(config):
     """
     Setup the flow form a configuration dictionary.
     """
+    from .realnvp import FlexibleRealNVP
+    from .maf import MaskedAutoregressiveFlow
+    from .nsf import NeuralSplineFlow
+    from .distributions import MultivariateNormal
     kwargs = {}
     flows = {'realnvp': FlexibleRealNVP, 'maf': MaskedAutoregressiveFlow,
              'frealnvp': FlexibleRealNVP, 'spline': NeuralSplineFlow}
