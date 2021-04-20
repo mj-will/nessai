@@ -419,6 +419,10 @@ class FlowProposal(RejectionProposal):
                            'returned by the worst point.')
             self.max_radius = False
 
+    def update_flow_config(self):
+        """Update the flow configuration dictionary"""
+        self.flow_config['model_config']['n_inputs'] = self.flow_dims
+
     def initialise(self):
         """
         Initialise the proposal class.
@@ -441,7 +445,7 @@ class FlowProposal(RejectionProposal):
             self.fuzz = \
                 (1 + self.expansion_fraction) ** (1 / self.flow_dims)
             logger.info(f'New fuzz factor: {self.fuzz}')
-        self.flow_config['model_config']['n_inputs'] = self.flow_dims
+        self.update_flow_config()
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
         self.populated = False
