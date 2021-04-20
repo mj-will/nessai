@@ -58,8 +58,8 @@ class Gaussian(Model):
         x, y, logP, logL
         """
         log_l = 0
-        log_l += norm.logpdf(x['x'] - x['z'])
-        log_l += norm.logpdf(x['y'] - x['z'])
+        log_l += norm.logpdf(x['x'])
+        log_l += norm.logpdf(x['y'])
         return log_l
 
 
@@ -68,23 +68,30 @@ class Gaussian(Model):
 # training (e.g. learning rate (lr)) and model_config for the configuring
 # the flow itself (neurons, number of trasformations etc)
 flow_config = dict(
-        max_epochs=50,
-        patience=10,
-        model_config=dict(n_blocks=2, n_neurons=4, n_layers=1,
-                          device_tag='cpu',
-                          kwargs=dict(batch_norm_between_layers=True))
-        )
+        lr=0.001,
+        batch_size=1000,
+        max_epochs=500,
+        patience=50,
+        annealing=True,
+        model_config=dict(n_blocks=4, n_neurons=4, n_layers=2,
+                          device_tag='cpu', ftype='spline',
+                          kwargs=dict(batch_norm_between_layers=False,
+                                      num_bins=10,
+                                      base_distribution='uniform'
+                                      )
+                          )
+)
 
 # The FlowSampler object is used to managed the sampling as has more
 # configuration options
-fp = FlowSampler(Gaussian(), output=output, resume=False, nlive=1000,
+fp = FlowSampler(Gaussian(), output=output, resume=False, nlive=2000,
                  plot=True, flow_config=flow_config, training_frequency=None,
-                 maximum_uninformed=1000, rescale_parameters=True, seed=1234,
-                 proposal_plots=True, uniform_parameters=False,
-                 update_bounds=True,
-                 flow_class=ConditionalFlowProposal, poolsize=1000,
+                 maximum_uninformed=4000, rescale_parameters=True, seed=1234,
+                 proposal_plots='all', rescale_bounds=[0.0+1e-6, 1.0-1e-6],
+                 update_bounds=True, compute_acceptance=True,
+                 flow_class=ConditionalFlowProposal, poolsize=2000,
                  update_poolsize=True, conditional_likelihood=True,
-                 latent_distribution='gaussian')
+                 latent_prior='flow')
 
 # And go!
 fp.run(plot=True)
