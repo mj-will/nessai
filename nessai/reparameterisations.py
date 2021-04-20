@@ -682,7 +682,7 @@ class RescaleToBounds(Reparameterisation):
         self._edges = {n: None for n in self.parameters}
 
     def reset(self):
-        """Reset"""
+        """Reset inversion and rescaling bounds"""
         self.reset_inversion()
         self.set_bounds(self.prior_bounds)
 
@@ -693,7 +693,7 @@ class RescaleToBounds(Reparameterisation):
         self._rescale_shift = \
             {p: self.rescale_bounds[p][0] for p in self.parameters}
 
-        self.prior_bounds = \
+        self.pre_prior_bounds = \
             {p: self.pre_rescaling(prior_bounds[p])[0]
              for p in self.parameters}
         self.bounds = {p: self.pre_rescaling(b - self.offsets[p])[0]
@@ -719,7 +719,7 @@ class RescaleToBounds(Reparameterisation):
         if self.has_prime_prior:
             self.prime_prior_bounds = \
                 {pp: self.post_rescaling(np.asarray(determine_rescaled_bounds(
-                    self.prior_bounds[p][0], self.prior_bounds[p][1],
+                    self.pre_prior_bounds[p][0], self.pre_prior_bounds[p][1],
                     self.bounds[p][0], self.bounds[p][1], self._edges[p],
                     self.offsets[p], rescale_bounds=self.rescale_bounds[p],
                     inversion=p in self.boundary_inversion)))[0]
