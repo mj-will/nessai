@@ -202,6 +202,7 @@ class FlowProposal(RejectionProposal):
         self._use_logL = False
         self.worst_logL = None
         self._draw_flow = False
+        self.conditional = False
 
         self.reparameterisations = reparameterisations
 
@@ -234,8 +235,6 @@ class FlowProposal(RejectionProposal):
         self.n_pool = n_pool
 
         self.configure_plotting(plot)
-
-        self.clip = self.flow_config.get('clip', False)
 
         if draw_latent_kwargs is None:
             self.draw_latent_kwargs = {}
@@ -1015,7 +1014,7 @@ class FlowProposal(RejectionProposal):
         out = (a[idx] for a in (x,) + args)
         return out
 
-    def forward_pass(self, x, rescale=True, compute_radius=True):
+    def forward_pass(self, x, rescale=True, compute_radius=True, context=None):
         """
         Pass a vector of points through the model
 
@@ -1028,6 +1027,8 @@ class FlowProposal(RejectionProposal):
         compute_radius : bool, optional (True)
             Flag parsed to rescaling for rescaling specific to radius
             computation
+        context : array_like, optional
+            Context array passed to the flow.
 
         Returns
         -------
@@ -1046,14 +1047,11 @@ class FlowProposal(RejectionProposal):
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
-        if x.shape[0] == 1:
-            if self.clip:
-                x = np.clip(x, *self.clip)
-        z, log_prob = self.flow.forward_and_log_prob(x)
+        z, log_prob = self.flow.forward_and_log_prob(x, context=context)
 
         return z, log_prob + log_J
 
-    def backward_pass(self, z, rescale=True):
+    def backward_pass(self, z, rescale=True, context=None):
         """
         A backwards pass from the model (latent -> real)
 
@@ -1063,6 +1061,8 @@ class FlowProposal(RejectionProposal):
             Structured array of points in the latent space
         rescale : bool, optional (True)
             Apply inverse rescaling function
+        context : array_like, optional
+            Context array passed to the flow.
 
         Returns
         -------
@@ -1075,7 +1075,7 @@ class FlowProposal(RejectionProposal):
         # Compute the log probability
         try:
             x, log_prob = self.flow.sample_and_log_prob(
-                z=z, alt_dist=self.alt_dist)
+                z=z, alt_dist=self.alt_dist, context=context)
         except AssertionError:
             return np.array([]), np.array([])
 
