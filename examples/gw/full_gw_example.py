@@ -2,7 +2,8 @@
 
 """
 Example of running nessai with bilby on a gravitational wave likelihood. This
-example should take ~20 minutes to run.
+examples includes all 15 parameters for CBC and should take around 5 hours to
+run.
 
 Based on the Bilby example: https://git.ligo.org/lscsoft/bilby
 """
@@ -10,7 +11,7 @@ import bilby
 import numpy as np
 
 outdir = './outdir/'
-label = 'gw_example'
+label = 'full_gw_example'
 
 bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level='INFO')
 
@@ -19,7 +20,7 @@ sampling_frequency = 2048.
 
 np.random.seed(151226)
 
-# Use an injection that is imilar to GW150914
+# Use an injection that is similar to GW150914
 injection_parameters = dict(
     total_mass=66., mass_ratio=0.9, a_1=0.4, a_2=0.3, tilt_1=0.5, tilt_2=1.0,
     phi_12=1.7, phi_jl=0.3, luminosity_distance=2000, theta_jn=0.4, psi=2.659,
@@ -48,21 +49,10 @@ ifos.inject_signal(waveform_generator=waveform_generator,
 # Set up prior
 # Nessai is designed to sample mass ratio and chirp mass
 priors = bilby.gw.prior.BBHPriorDict()
-priors['chirp_mass'] = bilby.prior.Uniform(
-    name='chirp_mass', latex_label='$m_c$', minimum=13, maximum=45,
-    unit='$M_{\\odot}$')
-priors['mass_ratio'] = bilby.prior.Uniform(
-    name='mass_ratio', latex_label='q', minimum=0.125, maximum=1.0)
-
 priors['geocent_time'] = bilby.core.prior.Uniform(
     minimum=injection_parameters['geocent_time'] - 0.1,
     maximum=injection_parameters['geocent_time'] + 0.1,
     name='geocent_time', latex_label='$t_c$', unit='$s$')
-
-# Only sample a subset of the parameters
-for key in ['a_1', 'a_2', 'tilt_1', 'tilt_2', 'phi_12', 'phi_jl',
-            'luminosity_distance', 'psi', 'geocent_time', 'ra', 'dec']:
-    priors[key] = injection_parameters[key]
 
 # Initialise the likelihood
 likelihood = bilby.gw.likelihood.GravitationalWaveTransient(
@@ -72,13 +62,13 @@ likelihood = bilby.gw.likelihood.GravitationalWaveTransient(
 # Configuration for the normalising flow
 flow_config = {
     "lr": 0.001,
-    "batch_size": 1000,
+    "batch_size": 4000,
     "val_size": 0.1,
-    "max_epochs": 200,
+    "max_epochs": 500,
     "patience": 50,
     "model_config": {
-        "n_blocks": 2,
-        "n_neurons": 4,
+        "n_blocks": 6,
+        "n_neurons": 32,
         "n_layers": 2,
         "ftype": "realnvp",
         "kwargs": {
@@ -86,6 +76,24 @@ flow_config = {
             "linear_transform": "lu"
         }
     }
+}
+
+reparameterisations = {
+    "mass_ratio": {"reparameterisation": "mass_ratio", "prior": "uniform"},
+    "geocent_time": {"reparameterisation": "time", "prior": "uniform",
+                     "update_bounds": True},
+    "chirp_mass": {"reparameterisation": "mass", "prior": "uniform"},
+    "sky-ra-dec": {"parameters": ["ra", "dec"], "prior": "isotropic"},
+    "luminosity_distance": {"reparameterisation": "distance",
+                            "prior": "uniform-comoving-volume"},
+    "psi": {"reparameterisation": "angle-pi"},
+    "theta_jn": {"reparameterisation": "angle-sine"},
+    "tilt_1": {"reparameterisation": "angle-sine"},
+    "tilt_2": {"reparameterisation": "angle-sine"},
+    "phi_12": {"reparameterisation": "angle-2pi"},
+    "phi_jl": {"reparameterisation": "angle-2pi"},
+    "a_1": {"reparameterisation": "to-cartesian", "prior": "uniform"},
+    "a_2": {"reparameterisation": "to-cartesian", "prior": "uniform"}
 }
 
 # Run sampler
@@ -119,11 +127,9 @@ result = bilby.core.sampler.run_sampler(
     flow_config=flow_config,
     seed=150914,
     analytic_priors=True,      # Bilby priors can be sampled from directly
-    reparameterisations={
-        'chirp_mass': {'reparameterisation': 'mass', 'prior': 'uniform'},
-        'mass_ratio': {'reparameterisation': 'mass_ratio', 'prior': 'uniform'},
-        'theta_jn': {'reparameterisation': 'angle-sine', 'prior': 'sine'},
-        }
+    reparameterisations=reparameterisations,
+    update_poolsize=True,
+    expansion_fraction=2.0
     )
 
 # Produce corner plots

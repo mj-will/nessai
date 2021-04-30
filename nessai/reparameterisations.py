@@ -352,6 +352,73 @@ class NullReparameterisation(Reparameterisation):
         return x, x_prime, log_j
 
 
+class Rescale(Reparameterisation):
+    """Reparameterisation that rescales the parameters by a constant factor
+    that does not depend on the prior bounds.
+
+    Parameters
+    ----------
+    scale : float
+        Scaling constant.
+    """
+    def __init__(self, parameters=None, scale=None, prior_bounds=None):
+        if scale is None:
+            raise RuntimeError('Must specify a scale!')
+        super().__init__(parameters=parameters, prior_bounds=prior_bounds)
+
+        if isinstance(scale, (int, float)):
+            self.scale = {p: float(scale) for p in self.parameters}
+        elif isinstance(scale, list):
+            if not len(scale) == len(self.parameters):
+                raise RuntimeError(
+                    'Scale list is a different length to the parameters.')
+            self.scale = {p: float(s) for p, s in zip(self.parameters, scale)}
+        elif isinstance(scale, dict):
+            if not set(self.parameters) == set(scale.keys()):
+                raise RuntimeError('Mismatched parameters with scale dict')
+            scale = {p: float(s) for p, s in scale.items()}
+            self.scale = scale
+        else:
+            raise TypeError(
+                'Scale input must be an instance of int, list or dict')
+
+    def reparameterise(self, x, x_prime, log_j, **kwargs):
+        """
+        Apply the reparameterisation to convert from x-space
+        to x'-space
+
+        Parameters
+        ----------
+        x : structured array
+            Array
+        x_prime : structured array
+            Array to be update
+        log_j : Log jacobian to be updated
+        """
+        for p, pp in zip(self.parameters, self.prime_parameters):
+            x_prime[pp] = x[p] / self.scale[p]
+            log_j -= np.log(self.scale[p])
+        return x, x_prime, log_j
+
+    def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
+        """
+        Apply the reparameterisation to convert from x-space
+        to x'-space
+
+        Parameters
+        ----------
+        x : structured array
+            Array
+        x_prime : structured array
+            Array to be update
+        log_j : Log jacobian to be updated
+        """
+        for p, pp in zip(self.parameters, self.prime_parameters):
+            x[p] = x_prime[pp] * self.scale[p]
+            log_j += np.log(self.scale[p])
+        return x, x_prime, log_j
+
+
 class RescaleToBounds(Reparameterisation):
     """Reparmeterisation that maps to the specified interval.
 
@@ -1118,6 +1185,8 @@ default_reparameterisations = {
     'inversion-duplicate': (RescaleToBounds, {'detect_edges': True,
                                               'boundary_inversion': True,
                                               'inversion_type': 'duplicate'}),
+    'scale': (Rescale, None),
+    'rescale': (Rescale, None),
     'angle': (Angle, {}),
     'angle-pi': (Angle, {'scale': 2.0, 'prior': 'uniform'}),
     'angle-2pi': (Angle, {'scale': 1.0, 'prior': 'uniform'}),

@@ -29,7 +29,7 @@ sns.set_style('ticks')
 logger = logging.getLogger(__name__)
 
 
-class _NSintegralState:
+class _NSIntegralState:
     """
     Stores the state of the nested sampling integrator
 
@@ -282,7 +282,7 @@ class NestedSampler:
         self.logLmax = -np.inf
         self.nested_samples = []
         self.logZ = None
-        self.state = _NSintegralState(self.nlive, track_gradients=plot)
+        self.state = _NSIntegralState(self.nlive, track_gradients=plot)
         self.plot = plot
         self.resume_file = self.setup_output(output, resume_file)
         self.output = output
@@ -479,10 +479,16 @@ class NestedSampler:
             if isinstance(flow_class, str):
                 if flow_class == 'GWFlowProposal':
                     from .gw.proposal import GWFlowProposal as flow_class
+                elif flow_class == 'AugmentedGWFlowProposal':
+                    from .gw.proposal import (
+                        AugmentedGWFlowProposal as flow_class)
                 elif flow_class == 'LegacyGWFlowProposal':
                     from .gw.proposal import LegacyGWFlowProposal as flow_class
                 elif flow_class == 'FlowProposal':
                     flow_class = FlowProposal
+                elif flow_class == 'AugmentedFlowProposal':
+                    from .proposal import AugmentedFlowProposal
+                    flow_class = AugmentedFlowProposal
                 else:
                     raise RuntimeError(f'Unknown flow class: {flow_class}')
             elif not issubclass(flow_class, FlowProposal):
@@ -746,7 +752,10 @@ class NestedSampler:
         """
         Mean acceptance of the last nlive // 10 points
         """
-        return np.mean(self.acceptance_history)
+        if self.acceptance_history:
+            return np.mean(self.acceptance_history)
+        else:
+            return np.nan
 
     def check_proposal_switch(self):
         """

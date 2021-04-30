@@ -1,14 +1,19 @@
 
+from numpy.random import seed
 import pytest
 from scipy.stats import norm
 import torch
 
 from nessai.model import Model
 
+
+seed(170817)
+torch.manual_seed(170817)
+
 _requires_dependency_cache = dict()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def model():
     class TestModel(Model):
 
@@ -33,7 +38,7 @@ def model():
     return TestModel()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def flow_config():
     d = dict(
             max_epochs=5,

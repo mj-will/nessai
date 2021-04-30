@@ -1253,7 +1253,7 @@ class FlowProposal(RejectionProposal):
                               + f'{self.populated_count}.png'))
 
             x, _ = self.inverse_rescale(x)
-            x['logP'] = self.model.log_prior(x)
+        x['logP'] = self.model.log_prior(x)
         return rfn.repack_fields(x[self.model.names + ['logP', 'logL']])
 
     def populate(self, worst_point, N=10000, plot=True, r=None):

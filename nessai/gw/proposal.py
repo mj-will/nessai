@@ -2,14 +2,12 @@
 """
 Specific proposal methods for sampling gravitational-wave models.
 """
-import os
 import logging
 
 import numpy as np
-from scipy.stats import chi, norm
+from scipy.stats import chi
 
 from ..proposal import FlowProposal
-from ..flowmodel import FlowModel
 from ..utils import (
     replace_in_list,
     rescale_zero_to_one,
@@ -36,6 +34,7 @@ from .priors import (
     log_spin_prior,
     log_spin_prior_uniform)
 
+from ..proposal.augmented import AugmentedFlowProposal
 from .reparameterisations import get_gw_reparameterisation
 
 logger = logging.getLogger(__name__)
@@ -1337,71 +1336,6 @@ class LegacyGWFlowProposal(FlowProposal):
         return log_p - log_J
 
 
-class AugmentedGWFlowProposal(LegacyGWFlowProposal):
-
-    def __init__(self, model, augment_features=1, **kwargs):
-        super().__init__(model, **kwargs)
-        self.augment_features = augment_features
-
-    def set_rescaling(self):
-        super().set_rescaling()
-        self.augment_names = [f'e_{i}' for i in range(self.augment_features)]
-        self.names += self.augment_names
-        self.rescaled_names += self.augment_names
-        self.exclude += self.augment_names
-        logger.info(f'augmented x space parameters: {self.names}')
-        logger.info(f'parameters to rescale {self.rescale_parameters}')
-        logger.info(
-            f'augmented x prime space parameters: {self.rescaled_names}'
-        )
-
-    def initialise(self):
-        """
-        Initialise the proposal class
-        """
-        if not os.path.exists(self.output):
-            os.makedirs(self.output, exist_ok=True)
-
-        self.set_rescaling()
-
-        m = np.ones(self.rescaled_dims)
-        m[-self.augment_features:] = -1
-        self.flow_config['model_config']['kwargs']['mask'] = m
-
-        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
-
-        self.flow = FlowModel(config=self.flow_config, output=self.output)
-        self.flow.initialise()
-        self.populated = False
-        self.initialised = True
-
-    def rescale(self, x):
-        x_prime, log_J = super().rescale(x)
-        if x_prime.size == 1:
-            x_prime[self.augment_names] = self.augment_features * (0.,)
-        else:
-            for an in self.augment_names:
-                x_prime[an] = np.random.randn(x_prime.size)
-        return x_prime, log_J
-
-    def augmented_prior(self, x):
-        """
-        Log guassian for augmented variables
-        """
-        logP = 0.
-        for n in self.augment_names:
-            logP += norm.logpdf(x[n])
-        return logP
-
-    def log_prior(self, x):
-        """
-        Compute the prior probability
-        """
-        logP = super().log_prior(x)
-        logP += self.augmented_prior(x)
-        return logP
-
-
 class GWFlowProposal(FlowProposal):
     """Wrapper for FlowProposal that has defaults for CBC-PE"""
     aliases = {
@@ -1461,3 +1395,12 @@ class GWFlowProposal(FlowProposal):
                 f'Add reparameterisation for {p} with config: {kwargs}')
             self._reparameterisation.add_reparameterisation(
                 reparam(parameters=p, prior_bounds=prior_bounds, **kwargs))
+
+
+class AugmentedGWFlowProposal(AugmentedFlowProposal, GWFlowProposal):
+    """Augmented version of GWFlowProposal.
+
+    See :obj:`~nessai.proposal.augmented.AugmentedFlowProposal` and
+    :obj:`~nessai.gw.proposal.GWFlowPropsosal`
+    """
+    pass
