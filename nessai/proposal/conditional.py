@@ -122,13 +122,12 @@ class ConditionalFlowProposal(FlowProposal):
         Draw n samples from the context distributions.
         """
         context = np.empty([n, self.conditional_dims])
-        log_prob = np.zeros(n,)
         if self.conditional_likelihood:
             context[:, self.likelihood_index] = \
                 self.likelihood_distribution.sample(
                     n, min_logL=self.rescaled_worst_logL)
 
-        return context, log_prob
+        return context
 
     def get_context(self, x):
         """
@@ -196,8 +195,7 @@ class ConditionalFlowProposal(FlowProposal):
             Jacobian)
         """
         if context is None and self.conditional:
-            context, log_prob_context = \
-                self.sample_context_parameters(z.shape[0])
+            context = self.sample_context_parameters(z.shape[0])
 
         x, log_prob = super().backward_pass(z, context=context, **kwargs)
-        return x, log_prob + log_prob_context
+        return x, log_prob
