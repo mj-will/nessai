@@ -307,3 +307,33 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
         plt.close(fig)
     else:
         return fig
+
+
+def plot_histogram(samples, label=None, filename=None, **kwargs):
+    """Plot a histgram of samples.
+
+    Parameters
+    ----------
+    samples : array_like
+        Samples to plot.
+    label : str, optional
+        Label to the x axis.
+    filename : str, optional
+        Filename for saving the plot. If not specified, figure is returned.
+    kwargs :
+        Keyword arguments passed to `matplotlib.pyplot.hist`.
+    """
+    default_kwargs = dict(
+        histtype='step',
+        bins=auto_bins(samples)
+    )
+    default_kwargs.update(kwargs)
+    fig = plt.figure()
+    plt.hist(samples, **default_kwargs)
+    if label is not None:
+        plt.xlabel(label)
+    if filename is not None:
+        fig.savefig(filename, bbox_inches='tight')
+        plt.close(fig)
+    else:
+        return fig
