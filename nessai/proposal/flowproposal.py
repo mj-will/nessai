@@ -173,6 +173,7 @@ class FlowProposal(RejectionProposal):
                  detect_edges=False,
                  detect_edges_kwargs=None,
                  reparameterisations=None,
+                 sampling_method=None,
                  **kwargs):
 
         super(FlowProposal, self).__init__(model)
@@ -210,7 +211,7 @@ class FlowProposal(RejectionProposal):
 
         self.configure_population(poolsize, drawsize, update_poolsize,
                                   max_poolsize_scale, fuzz, expansion_fraction,
-                                  latent_prior)
+                                  latent_prior, sampling_method)
 
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
@@ -309,7 +310,7 @@ class FlowProposal(RejectionProposal):
 
     def configure_population(self, poolsize, drawsize, update_poolsize,
                              max_poolsize_scale, fuzz, expansion_fraction,
-                             latent_prior):
+                             latent_prior, sampling_method):
         """
         Configure settings related to population
         """
@@ -318,6 +319,13 @@ class FlowProposal(RejectionProposal):
 
         if drawsize is None:
             drawsize = poolsize
+
+        if sampling_method is None or sampling_method == 'rejection_sampling':
+            self._rejection_sampling = True
+        elif sampling_method == 'importance_sampling':
+            self._rejection_sampling = False
+        else:
+            raise ValueError(f'Unknown sampling method: {sampling_method}')
 
         self._poolsize = poolsize
         self._poolsize_scale = 1.0
@@ -1217,10 +1225,30 @@ class FlowProposal(RejectionProposal):
 
         # rescale given priors used initially, need for priors
         log_w = self.compute_weights(x, log_q)
+        x['logW'] = np.zeros(x.size)
         log_u = np.log(np.random.rand(x.shape[0]))
         indices = np.where(log_w >= log_u)[0]
 
         return z[indices], x[indices]
+
+    def importance_sampling(self, z, worst_q=None):
+        x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
+
+        if self._draw_flow:
+            z = z.cpu().numpy()
+
+        if not x.size:
+            return x, log_q
+
+        if self.truncate:
+            cut = log_q >= worst_q
+            x = x[cut]
+            log_q = log_q[cut]
+
+        # rescale given priors used initially, need for priors
+        log_w = self.compute_weights(x, log_q)
+        x['logW'] = log_w
+        return z, x
 
     def convert_to_samples(self, x, plot=True):
         """
@@ -1254,7 +1282,8 @@ class FlowProposal(RejectionProposal):
 
             x, _ = self.inverse_rescale(x)
         x['logP'] = self.model.log_prior(x)
-        return rfn.repack_fields(x[self.model.names + ['logP', 'logL']])
+        return rfn.repack_fields(
+            x[self.model.names + ['logP', 'logL', 'logW']])
 
     def populate(self, worst_point, N=10000, plot=True, r=None):
         """
@@ -1318,7 +1347,10 @@ class FlowProposal(RejectionProposal):
 
             proposed += z.shape[0]
 
-            z, x = self.rejection_sampling(z, worst_q)
+            if self._rejection_sampling:
+                z, x = self.rejection_sampling(z, worst_q)
+            else:
+                z, x = self.importance_sampling(z, worst_q)
 
             if not x.size:
                 continue
