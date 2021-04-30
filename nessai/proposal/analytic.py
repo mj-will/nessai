@@ -33,6 +33,7 @@ class AnalyticProposal(Proposal):
         if N is None:
             N = self.poolsize
         self.samples = self.model.new_point(N=N)
+        self.samples['logW'] = np.zeros(N)
         self.samples['logP'] = self.model.log_prior(self.samples)
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
         if self.pool is not None:
