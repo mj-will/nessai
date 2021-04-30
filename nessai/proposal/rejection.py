@@ -84,7 +84,7 @@ class RejectionProposal(Proposal):
         self.population_acceptance = self.samples.size / self.poolsize
         if self.pool is not None:
             self.evaluate_likelihoods()
-        self.samples['logW'] = np.zeros(N)
+        self.samples['logW'] = log_w
         self.populated = True
         self._checked_population = False
 
