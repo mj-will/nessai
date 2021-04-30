@@ -11,12 +11,13 @@ import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from scipy.special import logsumexp
 import torch
 from tqdm import tqdm
 
 from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_indices, plot_trace
-from .posterior import log_integrate_log_trap
+from .posterior import log_integrate_log_trap, logsubexp, LogNegativeError
 from .proposal import FlowProposal
 from .utils import (
     safe_file_dump,
@@ -52,26 +53,34 @@ class _NSIntegralState:
         """
         self.logZ = -np.inf
         self.oldZ = -np.inf
-        self.logw = 0
+        self.logX = 0
         self.info = [0.]
         # Start with a dummy sample enclosing the whole prior
         self.logLs = [-np.inf]   # Likelihoods sampled
         self.log_vols = [0.0]    # Volumes enclosed by contours
         self.gradients = [0]
 
-    def increment(self, logL, nlive=None):
+    def increment(self, x, nlive=None, log_w_norm=None):
         """
         Increment the state of the evidence integrator
         Simply uses rectangle rule for initial estimate
         """
+        logL = x['logL']
+        logW = x['logW']
+
+        if nlive is None:
+            nlive = self.nlive
+
+        if log_w_norm is None:
+            log_w_norm = np.log(nlive)
+            assert logW == 0.
+
         if (logL <= self.logLs[-1]):
             logger.warning('NS integrator received non-monotonic logL.'
                            f'{self.logLs[-1]:.5f} -> {logL:.5f}')
-        if nlive is None:
-            nlive = self.nlive
         oldZ = self.logZ
-        logt = - 1.0 / nlive
-        Wt = self.logw + logL + np.log1p(-np.exp(logt))
+        logt = -np.exp(logW - log_w_norm)
+        Wt = self.logX + logL + np.log1p(-np.exp(logt))
         self.logZ = np.logaddexp(self.logZ, Wt)
         # Update information estimate
         if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
@@ -84,9 +93,9 @@ class _NSIntegralState:
             self.info.append(info)
 
         # Update history
-        self.logw += logt
+        self.logX += logt
         self.logLs.append(logL)
-        self.log_vols.append(self.logw)
+        self.log_vols.append(self.logX)
         if self.track_gradients:
             self.gradients.append((self.logLs[-1] - self.logLs[-2])
                                   / (self.log_vols[-1] - self.log_vols[-2]))
@@ -213,6 +222,10 @@ class NestedSampler:
     acceptance_threshold : float (0.01)
         Threshold to determine if the flow should be retrained, will not
         retrain if cooldown is not satisfied.
+    sampling_method : {'rejection_sampling', 'importance_sampling'}, optional
+        Sampling method used for. Defaults to rejection samplig where samples
+        are given equal weights. Importance samples uses weights computed
+        in the proposal process.
     kwargs :
         Keyword arguments passed to the flow proposal class
     """
@@ -244,6 +257,7 @@ class NestedSampler:
                  retrain_acceptance=True,
                  reset_acceptance=False,
                  acceptance_threshold=0.01,
+                 sampling_method='rejection_sampling',
                  **kwargs):
 
         logger.info('Initialising nested sampler')
@@ -260,6 +274,7 @@ class NestedSampler:
         self.setup_random_seed(seed)
         self.accepted = 0
         self.rejected = 1
+        self.log_w_norm = None
 
         self.checkpointing = checkpointing
         self.checkpoint_on_training = checkpoint_on_training
@@ -307,6 +322,7 @@ class NestedSampler:
         self.population_radii = []
         self.population_iterations = []
         self.checkpoint_iterations = []
+        self.W_history = []
 
         if max_iteration is None:
             self.max_iteration = np.inf
@@ -318,6 +334,14 @@ class NestedSampler:
         self.train_on_empty = train_on_empty
         self.cooldown = cooldown
         self.memory = memory
+
+        logger.debug(f'Sampling method: {sampling_method}')
+        if sampling_method is None or sampling_method == 'rejection_sampling':
+            self._rejection_sampling = True
+        elif sampling_method == 'importance_sampling':
+            self._rejection_sampling = False
+        else:
+            raise ValueError(f'Unknown sampling method: {sampling_method}')
 
         self.configure_flow_reset(reset_weights, reset_permutations)
 
@@ -339,7 +363,7 @@ class NestedSampler:
                                            uninformed_acceptance_threshold,
                                            **uninformed_proposal_kwargs)
         self.configure_flow_proposal(flow_class, flow_config, proposal_plots,
-                                     **kwargs)
+                                     sampling_method, **kwargs)
 
         # Uninformed proposal is used for prior sampling
         # If maximum uninformed is greater than 0, the it will be used for
@@ -378,6 +402,17 @@ class NestedSampler:
     @property
     def acceptance(self):
         return self.iteration / self.likelihood_calls
+
+    @property
+    def relative_weight(self):
+        """Relative weight of the current live points.
+
+        Returns nlive when using rejection sampling.
+        """
+        if self.log_w_norm is None:
+            return self.nlive
+        else:
+            return np.exp(self.log_w_norm)
 
     @property
     def current_sampling_time(self):
@@ -455,7 +490,7 @@ class NestedSampler:
             self.model, n_pool=self.n_pool, **kwargs)
 
     def configure_flow_proposal(self, flow_class, flow_config, proposal_plots,
-                                **kwargs):
+                                sampling_method, **kwargs):
         """
         Set up the flow-based proposal method
 
@@ -504,7 +539,8 @@ class NestedSampler:
         logger.info(f'Parsing kwargs to FlowProposal: {kwargs}')
         self._flow_proposal = flow_class(
             self.model, flow_config=flow_config, output=proposal_output,
-            plot=proposal_plots, n_pool=self.n_pool, **kwargs)
+            plot=proposal_plots, n_pool=self.n_pool,
+            sampling_method=sampling_method, **kwargs)
 
     def setup_output(self, output, resume_file=None):
         """
@@ -620,6 +656,8 @@ class NestedSampler:
         index = np.searchsorted(self.live_points['logL'], live_point['logL'])
         self.live_points[:index - 1] = self.live_points[1:index]
         self.live_points[index - 1] = live_point
+        if not self._rejection_sampling:
+            self.log_w_norm = np.logaddexp(self.log_w_norm, live_point['logW'])
         return index - 1
 
     def consume_sample(self):
@@ -628,7 +666,11 @@ class NestedSampler:
         """
         worst = self.live_points[0].copy()
         self.logLmin = worst['logL']
-        self.state.increment(worst['logL'])
+        if self._rejection_sampling:
+            self.state.increment(worst)
+        else:
+            self.state.increment(worst, log_w_norm=self.log_w_norm)
+            self.log_w_norm = logsubexp(self.log_w_norm, worst['logW'])
         self.nested_samples.append(worst)
 
         self.condition = np.logaddexp(self.state.logZ,
@@ -673,6 +715,7 @@ class NestedSampler:
                         f"b_acc: {self.mean_block_acceptance:.3f} "
                         f"H: {self.state.info[-1]:.2f} "
                         f"logL: {self.logLmin:.5f} --> {proposed['logL']:.5f} "
+                        f"W: {self.relative_weight:.1f} "
                         f"dZ: {self.condition:.3f} "
                         f"logZ: {self.state.logZ:.3f} "
                         f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
@@ -705,6 +748,8 @@ class NestedSampler:
                         break
 
         self.live_points = np.sort(live_points, order='logL')
+        if not self._rejection_sampling:
+            self.log_w_norm = logsumexp(self.live_points['logW'])
         if self.store_live_points:
             np.savetxt(self.live_points_dir + '/intial_live_points.dat',
                        self.live_points,
@@ -905,14 +950,12 @@ class NestedSampler:
             If specifie the figure will be saved, otherwise the figure is
             returned.
         """
-
-        fig, ax = plt.subplots(6, 1, sharex=True, figsize=(12, 12))
+        fig, ax = plt.subplots(7, 1, sharex=True, figsize=(12, 12))
         ax = ax.ravel()
         it = (np.arange(len(self.min_likelihood))) * (self.nlive // 10)
         it[-1] = self.iteration
 
         colours = ['#4575b4', '#d73027', '#fad117']
-
         ls = ['-', '--', ':']
 
         for t in self.training_iterations:
@@ -935,18 +978,24 @@ class NestedSampler:
         ax[0].set_ylabel('logL')
         ax[0].legend(frameon=False)
 
+        ns = min([len(self.state.log_vols), self.iteration + 1])
+        state_its = np.arange(ns)
         if self.state.track_gradients:
-            g = np.min([len(self.state.gradients), self.iteration])
-            ax[1].plot(np.arange(g), np.abs(self.state.gradients[:g]),
+            ax_dx = plt.twinx(ax[1])
+            ax_dx.plot(state_its, np.abs(self.state.gradients[:ns]),
                        c=colours[0], label='Gradient')
+            ax_dx.set_ylabel(r'$|d\log L/d \log X|$')
+            ax_dx.set_yscale('log')
         else:
             logger.warning('Gradients were not saved, skipping.')
-        ax[1].set_ylabel(r'$|d\log L/d \log X|$')
-        ax[1].set_yscale('log')
+        ax[1].plot(state_its, self.state.log_vols[:ns], color=colours[1])
+        ax[1].set_ylabel('log X')
 
-        ax[2].plot(it, self.likelihood_evaluations, c=colours[0], ls=ls[0],
-                   label='Evalutions')
-        ax[2].set_ylabel('logL evaluations')
+        ax[1].set_zorder(ax_dx.get_zorder()+1)
+        ax[1].patch.set_visible(False)
+
+        ax[2].plot(it, self.W_history)
+        ax[2].set_ylabel('Effective sampling \n size')
 
         ax[3].plot(it, self.logZ_history, label='logZ', c=colours[0], ls=ls[0])
         ax[3].set_ylabel('logZ')
@@ -959,26 +1008,30 @@ class NestedSampler:
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
         ax[3].legend(handles + handles_dz, labels + labels_dz, frameon=False)
 
-        ax[4].plot(it, self.mean_acceptance_history, c=colours[0],
-                   label='Proposal')
-        ax[4].plot(self.population_iterations, self.population_acceptance,
-                   c=colours[1], ls=ls[1], label='Population')
-        ax[4].set_ylabel('Acceptance')
-        ax[4].set_ylim((-0.1, 1.1))
-        handles, labels = ax[4].get_legend_handles_labels()
+        ax[4].plot(it, self.likelihood_evaluations, c=colours[0], ls=ls[0],
+                   label='Evalutions')
+        ax[4].set_ylabel('logL evaluations')
 
-        ax_r = plt.twinx(ax[4])
+        ax[5].plot(it, self.mean_acceptance_history, c=colours[0],
+                   label='Proposal')
+        ax[5].plot(self.population_iterations, self.population_acceptance,
+                   c=colours[1], ls=ls[1], label='Population')
+        ax[5].set_ylabel('Acceptance')
+        ax[5].set_ylim((-0.1, 1.1))
+        handles, labels = ax[5].get_legend_handles_labels()
+
+        ax_r = plt.twinx(ax[5])
         ax_r.plot(self.population_iterations, self.population_radii,
                   label='Radius', color=colours[2], ls=ls[2])
         ax_r.set_ylabel('Population radius')
         handles_r, labels_r = ax_r.get_legend_handles_labels()
-        ax[4].legend(handles + handles_r, labels + labels_r, frameon=False)
+        ax[5].legend(handles + handles_r, labels + labels_r, frameon=False)
 
         if len(self.rolling_p):
             it = (np.arange(len(self.rolling_p)) + 1) * self.nlive
-            ax[5].plot(it, self.rolling_p, 'o', c=colours[0], label='p-value')
-        ax[5].set_ylabel('p-value')
-        ax[5].set_ylim([-0.1, 1.1])
+            ax[6].plot(it, self.rolling_p, 'o', c=colours[0], label='p-value')
+        ax[6].set_ylabel('p-value')
+        ax[6].set_ylim([-0.1, 1.1])
 
         ax[-1].set_xlabel('Iteration')
 
@@ -1024,6 +1077,7 @@ class NestedSampler:
             self.logZ_history.append(self.state.logZ)
             self.dZ_history.append(self.condition)
             self.mean_acceptance_history.append(self.mean_acceptance)
+            self.W_history.append(self.relative_weight)
 
         if not (self.iteration % self.nlive) or force:
             logger.warning(
@@ -1094,7 +1148,14 @@ class NestedSampler:
         """
         logger.info('Finalising')
         for i, p in enumerate(self.live_points):
-            self.state.increment(p['logL'], nlive=self.nlive-i)
+            self.state.increment(p, nlive=self.nlive-i,
+                                 log_w_norm=self.log_w_norm)
+            if not self._rejection_sampling:
+                try:
+                    self.log_w_norm = logsubexp(self.log_w_norm, p['logW'])
+                except LogNegativeError:
+                    assert i == (len(self.live_points) - 1)
+                    self.log_w_norm = -np.inf
             self.nested_samples.append(p)
 
         # Refine evidence estimate
