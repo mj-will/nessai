@@ -28,7 +28,7 @@ def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
         Dtypes as tuples with (field, dtype)
     """
     return [(n, array_dtype) for n in names] \
-        + [('logP', array_dtype), ('logL', LOGL_DTYPE)]
+        + [('logP', array_dtype), ('logL', LOGL_DTYPE), ('logW', array_dtype)]
 
 
 def live_points_to_array(live_points, names=None):
@@ -75,7 +75,7 @@ def parameters_to_live_point(parameters, names):
     if not len(parameters):
         return np.empty(0, dtype=get_dtype(names, DEFAULT_FLOAT_DTYPE))
     else:
-        return np.array((*parameters, 0., 0.),
+        return np.array((*parameters, 0., 0., 0.),
                         dtype=get_dtype(names, DEFAULT_FLOAT_DTYPE))
 
 
@@ -125,7 +125,7 @@ def dict_to_live_points(d):
     else:
         N = len(list(d.values())[0])
     if N == 1:
-        return np.array((*list(d.values()), 0., 0.),
+        return np.array((*list(d.values()), 0., 0., 0.),
                         dtype=get_dtype(d.keys(), DEFAULT_FLOAT_DTYPE))
     else:
         array = np.zeros(N, dtype=get_dtype(list(d.keys())))
