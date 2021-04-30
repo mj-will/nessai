@@ -5,6 +5,11 @@ Functions realted to computing the evidence and posterior samples.
 import numpy as np
 
 
+class LogNegativeError(ValueError):
+    """Error raised when try to compute the log of a negative number"""
+    pass
+
+
 def logsubexp(x, y):
     """
     Helper function to compute the exponential
@@ -18,8 +23,8 @@ def logsubexp(x, y):
         Inputs
     """
     if np.any(x < y):
-        raise RuntimeError('cannot take log of negative number '
-                           f'{str(x)!s} - {str(y)!s}')
+        raise LogNegativeError('cannot take log of negative number '
+                               f'{str(x)!s} - {str(y)!s}')
 
     return x + np.log1p(-np.exp(y - x))
 
