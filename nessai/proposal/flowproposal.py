@@ -483,6 +483,8 @@ class FlowProposal(RejectionProposal):
                 self._poolsize_scale = self.max_poolsize_scale
             if self._poolsize_scale < 1.:
                 self._poolsize_scale = 1.
+        if not self._rejection_sampling:
+            self.drawsize = self.poolsize
 
     def set_boundary_inversion(self):
         """
