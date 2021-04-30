@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Testing the plotting functions.
+"""
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -234,3 +239,20 @@ def test_trace_plot_labels_error(nested_samples):
         plot.plot_trace(log_x, nested_samples, labels=['1', '2', '3'])
 
     assert 'Missing labels' in str(excinfo.value)
+
+
+def test_histogram_plot():
+    """Test the basic histogram plot"""
+    x = np.random.randn(100)
+    with patch('matplotlib.pyplot.hist') as mocked_hist:
+        plot.plot_histogram(x, bins=10, density=True, label='test')
+    mocked_hist.assert_called_once_with(
+        x, bins=10, density=True, histtype='step')
+
+
+def test_histogram_plot_save(tmpdir):
+    """Test to make sure the figure is saved."""
+    x = np.random.randn(100)
+    fig = plot.plot_histogram(x, filename=tmpdir + 'hist.png')
+    assert fig is None
+    assert os.path.exists(tmpdir + 'hist.png')
