@@ -323,7 +323,19 @@ class FlowProposal(RejectionProposal):
         self.latent_prior = latent_prior
 
     def configure_plotting(self, plot):
-        """Configure plotting"""
+        """Configure plotting.
+
+        Plotting is split into training and pool. Training referes to plots
+        produced during training and pool refers to plots produces during
+        the population stage.
+
+        Parameters
+        ----------
+        plot : {True, False, 'all', 'train', 'pool', 'min', 'minimal'}
+            Level of plotting. `all`, `train` and `pool` enable corner style
+            plots. All other values that evaluate to True enable 1d histogram
+            plots. False disables all plotting.
+        """
         if plot:
             if isinstance(plot, str):
                 if plot == 'all':
@@ -333,15 +345,14 @@ class FlowProposal(RejectionProposal):
                     self._plot_pool = False
                     self._plot_training = 'all'
                 elif plot == 'pool':
-                    self._plot_pool = True
+                    self._plot_pool = 'all'
                     self._plot_training = False
                 elif plot == 'minimal' or plot == 'min':
                     self._plot_pool = True
                     self._plot_training = True
                 else:
                     logger.warning(
-                        f'Unknown plot argument: {plot}, setting all false'
-                        )
+                        f'Unknown plot argument: {plot}, setting all false')
                     self._plot_pool = False
                     self._plot_training = False
             else:
@@ -452,7 +463,7 @@ class FlowProposal(RejectionProposal):
         logger.debug(f'Updating poolsize with acceptance: {acceptance:.3f}')
         if not acceptance:
             logger.warning('Acceptance is zero, using maximum scale')
-            self._poolsize_scale = self.max_poolize_scale
+            self._poolsize_scale = self.max_poolsize_scale
         else:
             self._poolsize_scale = 1.0 / acceptance
             if self._poolsize_scale > self.max_poolsize_scale:
@@ -479,10 +490,13 @@ class FlowProposal(RejectionProposal):
                         not set(self.boundary_inversion).issubset(
                             self.rescale_parameters)):
                     raise RuntimeError(
-                                'Boundaries are not in known parameters')
+                                'Boundaries are not in rescaled parameters')
 
             if not isinstance(self.boundary_inversion, list):
-                self.boundary_inversion = self.names.copy()
+                if isinstance(self.rescale_parameters, list):
+                    self.boundary_inversion = self.rescale_parameters.copy()
+                else:
+                    self.boundary_inversion = self.names.copy()
 
             logger.info('Appyling boundary inversion to: '
                         f'{self.boundary_inversion}')
@@ -1181,11 +1195,14 @@ class FlowProposal(RejectionProposal):
         x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
 
         if not x.size:
-            return x, log_q
+            return log_q, x
 
         if self.truncate:
+            if worst_q is None:
+                raise RuntimeError('Cannot use truncation with worst_q')
             cut = log_q >= worst_q
             x = x[cut]
+            z = z[cut]
             log_q = log_q[cut]
 
         # rescale given priors used initially, need for priors
@@ -1508,18 +1525,25 @@ class FlowProposal(RejectionProposal):
 
     def reset(self):
         """Reset the proposal"""
+        self.indices = []
         self.samples = None
         self.x = None
         self.populated = False
         self.populated_count = 0
+        self.population_acceptance = None
+        self.r = None
+        self.alt_dist = None
+        self._checked_population = True
 
     def __getstate__(self):
         state = self.__dict__.copy()
         state['initialised'] = False
-        state['weights_file'] = state['flow'].weights_file
+        state['weights_file'] = \
+            getattr(state.get('flow'), 'weights_file', None)
 
         # Mask may be generate via permutation, so must be saved
-        if 'mask' in state['flow'].model_config['kwargs']:
+        if 'mask' in getattr(state.get('flow'), 'model_config', {}).get(
+                'kwargs', []):
             state['mask'] = state['flow'].model_config['kwargs']['mask']
         else:
             state['mask'] = None

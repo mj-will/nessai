@@ -19,6 +19,7 @@ tests for this reparameterisation.
 - Added tests for `AugmentedFlowProposal`.
 - Added an example using `AugmentedFlowProposal`.
 - Added eggbox example.
+- Added an error if calling `FlowProposal.rejection_sampling` with `FlowProposal.truncate=True` but `worst_q=None`.
 
 ### Changed
 
@@ -28,6 +29,7 @@ tests for this reparameterisation.
 - `nessai.model.Model` now inherits from `abc.ABC` and `log_prior` and `log_likelihood` are now `abstractmethods`. This prevents the class from being used without redefining those methods.
 - Updated `AumgentedFlowProposal` to work with current version of `FlowProposal`
 - Fix random seed unit tests.
+- Improved `FlowProposal.reset` so that all attributes that are changed by calling `draw` are reset.
 
 ### Fixed
 
@@ -37,6 +39,9 @@ tests for this reparameterisation.
 - Fixed a bug when using unbounded priors related to `Model.verify_model`
 - Fix inversion-split with `RescaleToBounds`
 - Fixed `AugmentedGWFlowProposal`.
+- Fix typo in `FlowProposal.set_poolsize_scale` when `acceptance=0`
+- Fixed unintended behaviour when `rescale_parameters` is a list and `boundary_inversion=True`, where the code would try apply inversion to all parameters in `Model.names`.
+- Fixed bug where `z` returned by `FlowProposal.rejection_sampling` was incorrect when using truncation (which is not recommended).
 
 
 ## [0.2.4] - 2021-03-08
