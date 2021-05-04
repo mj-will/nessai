@@ -163,7 +163,8 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         return fig
 
 
-def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
+def plot_indices(indices, nlive=None, weights=None, plot_breakdown=True,
+                 filename=None):
     """
     Histogram indices for index insertion tests, also includes the CDF.
 
@@ -173,16 +174,28 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
         List of insertion indices to plot
     nlive : int
         Number of live points used in the nested sampling run
-    filename : str
-        Filename used to save the figure.
+    weights : array_like, optional
+        Weights for each sample.
     plot_breakdown : bool, optional
        If true, then the CDF for every nlive points is also plotted as grey
        lines.
+    filename : str
+        Filename used to save the figure.
     """
     indices = np.asarray(indices)
     if not indices.size or not nlive:
         logger.warning('Not producing indices plot.')
         return
+    if weights is not None:
+        weights = np.asarray(weights)
+        print(weights)
+        if not indices.size == weights.size:
+            raise ValueError(
+                'Indices and weights arrays are different sizes: '
+                f'{indices.size}, {weights.size}.'
+            )
+    else:
+        weights = np.ones(len(indices))
 
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     nbins = min(len(np.histogram_bin_edges(indices, 'auto')) - 1, 1000)
@@ -190,14 +203,15 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
         for i in range(len(indices) // nlive):
             ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
                        histtype='step', density=True, alpha=0.1, color='black',
-                       lw=0.5, cumulative=True, range=(0, nlive-1))
+                       lw=0.5, cumulative=True, range=(0, nlive-1),
+                       weights=weights[i * nlive:(i+1) * nlive])
 
     ax[0].hist(indices, density=True, color='tab:blue', linewidth=1.25,
                histtype='step', bins=nbins, label='produced',
-               range=(0, nlive-1))
+               range=(0, nlive-1), weights=weights)
     ax[1].hist(indices, density=True, color='tab:blue', linewidth=1.25,
                histtype='step', bins=nlive, label='produced',
-               cumulative=True, range=(0, nlive-1))
+               cumulative=True, range=(0, nlive-1), weights=weights)
 
     if nlive is not None:
         ax[0].axhline(1 / nlive, color='black', linewidth=1.25,
