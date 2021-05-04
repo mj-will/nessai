@@ -2,7 +2,10 @@
 """
 Functions realted to computing the evidence and posterior samples.
 """
+import logging
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class LogNegativeError(ValueError):
@@ -57,7 +60,7 @@ def log_integrate_log_trap(log_func, log_support):
     return np.logaddexp.reduce(log_func_sum + log_dxs)
 
 
-def compute_weights(samples, nlive):
+def compute_weights(samples, nlive, log_vols=None):
     """
     Returns the log-evidence and log-weights for the log-likelihood samples
     assumed to the result of nested sampling with nlive live points
@@ -77,20 +80,24 @@ def compute_weights(samples, nlive):
         Array of computed weigths (already normalised by the log-evidence).
     """
     samples = np.asarray(samples)
-    start_data = np.concatenate(([float('-inf')], samples[:-nlive]))
-    end_data = samples[-nlive:]
 
-    log_wts = np.zeros(samples.shape[0])
-
-    log_vols_start = np.cumsum(np.ones(len(start_data) + 1)
-                               * np.log1p(-1. / nlive)) - np.log1p(-1 / nlive)
-    log_vols_end = np.zeros(len(end_data))
-    log_vols_end[-1] = np.NINF
-    log_vols_end[0] = log_vols_start[-1] + np.log1p(-1.0 / nlive)
-    for i in range(len(end_data) - 1):
-        log_vols_end[i+1] = log_vols_end[i] + np.log1p(-1.0 / (nlive - i))
-
-    log_likes = np.concatenate((start_data, end_data, [end_data[-1]]))
+    if log_vols is None:
+        start_data = np.concatenate(([float('-inf')], samples[:-nlive]))
+        end_data = samples[-nlive:]
+        logger.warning('Computing posterior weights assuming equal weights')
+        log_vols_start = np.cumsum(
+            np.ones(len(start_data) + 1) * np.log1p(-1. / nlive)) \
+            - np.log1p(-1 / nlive)
+        log_vols_end = np.zeros(len(end_data))
+        log_vols_end[-1] = np.NINF
+        log_vols_end[0] = log_vols_start[-1] + np.log1p(-1.0 / nlive)
+        for i in range(len(end_data) - 1):
+            log_vols_end[i+1] = log_vols_end[i] + np.log1p(-1.0 / (nlive - i))
+        log_vols = np.concatenate((log_vols_start, log_vols_end))
+        log_likes = np.concatenate((start_data, end_data, [end_data[-1]]))
+    else:
+        log_vols = np.concatenate([log_vols, [-np.inf]])
+        log_likes = np.concatenate([[-np.inf], samples, [samples[-1]]])
 
     log_vols = np.concatenate((log_vols_start, log_vols_end))
     log_ev = log_integrate_log_trap(log_likes, log_vols)
