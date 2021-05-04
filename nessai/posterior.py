@@ -21,6 +21,12 @@ def logsubexp(x, y):
     ----------
     x, y : float or array_like
         Inputs
+
+    Raises
+    ------
+    LogNegativeError
+        If the value of x is less than y and the calculation would require
+        computing the log of a negative number.
     """
     if np.any(x < y):
         raise LogNegativeError('cannot take log of negative number '
