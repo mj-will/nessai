@@ -99,7 +99,6 @@ def compute_weights(samples, nlive, log_vols=None):
         log_vols = np.concatenate([log_vols, [-np.inf]])
         log_likes = np.concatenate([[-np.inf], samples, [samples[-1]]])
 
-    log_vols = np.concatenate((log_vols_start, log_vols_end))
     log_ev = log_integrate_log_trap(log_likes, log_vols)
 
     log_dXs = logsubexp(log_vols[:-1], log_vols[1:])
@@ -110,7 +109,8 @@ def compute_weights(samples, nlive, log_vols=None):
     return log_ev, log_wts
 
 
-def draw_posterior_samples(nested_samples, nlive):
+def draw_posterior_samples(nested_samples, nlive, log_vols=None,
+                           method='rejection_sampling', n=None):
     """
     Draw posterior samples given the nested samples and number of live points.
 
@@ -126,7 +126,25 @@ def draw_posterior_samples(nested_samples, nlive):
     array_like
         Samples from the posterior distribution.
     """
-    log_Z, log_w = compute_weights(nested_samples['logL'], nlive)
+    log_Z, log_w = \
+        compute_weights(nested_samples['logL'], nlive, log_vols=log_vols)
     log_w -= np.max(log_w)
-    log_u = np.log(np.random.rand(nested_samples.size))
-    return nested_samples[log_w > log_u]
+    if method == 'rejection_sampling':
+        logger.info('Producing posterior samplies using rejection sampling')
+        if n is not None:
+            logger.warning(
+                'Number of samples cannot be specified for rejection sampling')
+        log_u = np.log(np.random.rand(nested_samples.size))
+        return nested_samples[log_w > log_u]
+    elif method == 'importance_sampling':
+        logger.info('Producing posterior samplies using importance sampling')
+        p = np.exp(log_w)
+        p /= p.sum()
+        if n is None:
+            n = int(1 / np.sum(p ** 2.0))
+            logger.info(
+                f'Computed effective sample size for importance sampling: {n}')
+        return np.random.choice(nested_samples, size=n, p=p, replace=True)
+    else:
+        raise RuntimeError(
+            f'Unknown method of drawing posterior sampling: {method}')
