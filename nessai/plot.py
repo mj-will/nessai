@@ -292,7 +292,8 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
     if not nested_samples.dtype.names:
         raise TypeError('Nested samples must be a structured array')
 
-    names = nested_samples.dtype.names[:-2]
+    names = [n for n in nested_samples.dtype.names
+             if n not in ['logP', 'logW', 'logL']]
 
     if labels is None:
         labels = names
