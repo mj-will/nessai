@@ -223,7 +223,7 @@ class NestedSampler:
         Threshold to determine if the flow should be retrained, will not
         retrain if cooldown is not satisfied.
     sampling_method : {'rejection_sampling', 'importance_sampling'}, optional
-        Sampling method used for. Defaults to rejection samplig where samples
+        Sampling method used. Defaults to rejection samplig where samples
         are given equal weights. Importance samples uses weights computed
         in the proposal process.
     kwargs :
@@ -384,8 +384,16 @@ class NestedSampler:
         return self.state.info[-1]
 
     @property
+    def log_prior_volumes(self):
+        return self.state.log_vols
+
+    @property
     def likelihood_calls(self):
         return self.model.likelihood_evaluations
+
+    @property
+    def sample_weights(self):
+        return np.asarray(self.nested_samples)['logW']
 
     @property
     def likelihood_evaluation_time(self):
