@@ -54,7 +54,7 @@ def test_new_point(model):
     log_q = model.new_point_log_prob(new_point)
     assert (new_point['x'] < 5) & (new_point['y'] > -5)
     assert (new_point['y'] < 5) & (new_point['y'] > -5)
-    assert log_q == 0
+    assert log_q == -np.log(100)
 
 
 def test_new_point_multiple(model):
@@ -70,7 +70,7 @@ def test_new_point_multiple(model):
     assert all(np.isfinite(new_points['logP']))
     assert all(new_points['x'] < 5) & all(new_points['x'] > -5)
     assert all(new_points['y'] < 5) & all(new_points['y'] > -5)
-    assert (log_q == 0).all()
+    assert (log_q == -np.log(100)).all()
 
 
 def test_likelihood_evaluations(model):
