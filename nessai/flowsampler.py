@@ -42,12 +42,20 @@ class FlowSampler:
         threads.
     exit_code : int, optional
         Exit code to use when forceably exiting the sampler.
+    posterior_sampling : {'rejection_sampling', 'importance_sampling'}
+        Sampling method used to produce posterior samples.
+    n_posterior_samples : int, optional
+        Number of posterior samples to produce. Only applies to importance
+        sampling. If `None` the effective sample size is used.
     kwargs :
         Keyword arguments passed to :obj:`~nessai.nestedsampler.NestedSampler`.
     """
     def __init__(self, model, output='./', resume=True,
                  resume_file='nested_sampler_resume.pkl', weights_file=None,
-                 exit_code=130, max_threads=1, **kwargs):
+                 exit_code=130, max_threads=1,
+                 posterior_sampling='rejection_sampling',
+                 n_posterior_samples=None,
+                 **kwargs):
 
         configure_threads(
             max_threads=max_threads,
@@ -56,6 +64,16 @@ class FlowSampler:
             )
 
         self.exit_code = exit_code
+
+        if posterior_sampling in ['rejection_sampling', 'importance_sampling']:
+            self._posterior_sampling = posterior_sampling
+        else:
+            raise ValueError(
+                "Unknown method for producing posterior samples "
+                f"(`posterior_samping`): {posterior_sampling}. "
+                "Choose from 'rejection_sampling' or 'importance_sampling'"
+            )
+        self.n_posterior_samples = n_posterior_samples
 
         self.output = os.path.join(output, '')
         if resume:
@@ -114,8 +132,13 @@ class FlowSampler:
 
         logger.info('Starting post processing')
         logger.info('Computing posterior samples')
-        self.posterior_samples = draw_posterior_samples(self.nested_samples,
-                                                        self.ns.nlive)
+        self.posterior_samples = draw_posterior_samples(
+            self.nested_samples,
+            self.ns.nlive,
+            method=self._posterior_sampling,
+            log_vols=self.ns.log_prior_volumes,
+            n=self.n_posterior_samples
+        )
         logger.info(f'Returned {self.posterior_samples.size} '
                     'posterior samples')
 
@@ -128,9 +151,10 @@ class FlowSampler:
             plot.plot_live_points(self.posterior_samples,
                                   filename=(f'{self.output}/'
                                             'posterior_distribution.png'))
-
-            plot.plot_indices(self.ns.insertion_indices, self.ns.nlive,
-                              filename=f'{self.output}/insertion_indices.png')
+            plot.plot_indices(
+                self.ns.insertion_indices,
+                self.ns.nlive,
+                filename=os.path.join(self.output, 'insertion_indices.png'))
 
             self.ns.state.plot(f'{self.output}/logXlogL.png')
 
