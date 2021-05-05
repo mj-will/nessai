@@ -114,7 +114,7 @@ class Model(ABC):
         ndarray
             Log proposal probability for each point
         """
-        return -np.log(np.prod(self.upper_bounds - self.lower_bounds)) \
+        return -np.log(self.upper_bounds - self.lower_bounds).sum() \
             * np.ones(x.size)
 
     def _single_new_point(self):
