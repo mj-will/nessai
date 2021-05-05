@@ -1418,7 +1418,7 @@ class FlowProposal(RejectionProposal):
                                             dtype=self.samples['logL'].dtype)
 
         self.indices = np.random.permutation(self.samples.size).tolist()
-        self.population_acceptance = self.x.size / proposed
+        self.population_acceptance = accepted / proposed
         self.populated_count += 1
         self.populated = True
         self._checked_population = False
