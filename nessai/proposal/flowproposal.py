@@ -622,6 +622,9 @@ class FlowProposal(RejectionProposal):
                     'prime prior but it cannot be enabled with the current '
                     'settings.')
 
+        if self.use_x_prime_prior and not self._rejection_sampling:
+            logger.warning('Using prime priors and importance sampling!')
+
         self.rescale = self._rescale_w_reparameterisation
         self.inverse_rescale = \
             self._inverse_rescale_w_reparameterisation
@@ -725,6 +728,7 @@ class FlowProposal(RejectionProposal):
 
         x_prime['logP'] = x['logP']
         x_prime['logL'] = x['logL']
+        x_prime['logW'] = x['logW']
         return x_prime, log_J
 
     def _inverse_rescale_w_reparameterisation(self, x_prime, **kwargs):
@@ -735,6 +739,7 @@ class FlowProposal(RejectionProposal):
 
         x['logP'] = x_prime['logP']
         x['logL'] = x_prime['logL']
+        x['logW'] = x_prime['logW']
         return x, log_J
 
     def _rescale_to_bounds(self, x, compute_radius=False, test=None):
@@ -791,6 +796,7 @@ class FlowProposal(RejectionProposal):
                 x_prime[rn] = x[n]
         x_prime['logP'] = x['logP']
         x_prime['logL'] = x['logL']
+        x_prime['logW'] = x['logW']
         return x_prime, log_J
 
     def _inverse_rescale_to_bounds(self, x_prime):
@@ -822,6 +828,7 @@ class FlowProposal(RejectionProposal):
                 x[n] = x_prime[rn]
         x['logP'] = x_prime['logP']
         x['logL'] = x_prime['logL']
+        x['logW'] = x_prime['logW']
         return x, log_J
 
     def rescale(self, x, compute_radius=False, **kwargs):
@@ -1129,7 +1136,7 @@ class FlowProposal(RejectionProposal):
 
     def log_prior(self, x):
         """
-        Compute the prior probability using the user-defined model
+        Compute the prior probability using the user-defined model.
 
         Parameters
         ----------
@@ -1234,6 +1241,26 @@ class FlowProposal(RejectionProposal):
         return z[indices], x[indices]
 
     def importance_sampling(self, z, worst_q=None):
+        """Perform injection sampling.
+
+        Converts samples from the latent space and computed the corresponding
+        weights. No samples are discarded and the weights `'logW'` are set.
+
+        Parameters
+        ----------
+        z : :obj:`numpy.ndarray`, :obj:`torch.Tensor`
+            Array of samples from the latent space
+        worst_q : float, optional
+            Lower bound on the log-probability computed using the flow that
+            is used to truncate new samples. Not recommended.
+
+        Returns
+        -------
+        z : :obj:`numpy.ndarray`
+            Latent samples
+        x : :obj:`numpy.ndarray`
+            Samples in the data space.
+        """
         x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
 
         if self._draw_flow:
