@@ -52,6 +52,8 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     else:
         hue = None
 
+    logger.debug(f'Producing corner-like plot for {len(df)} points.')
+
     try:
         fig = sns.PairGrid(df, corner=True, diag_sharey=False)
         fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
