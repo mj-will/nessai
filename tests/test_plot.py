@@ -137,11 +137,17 @@ def test_plot_1d_comparison_1d():
 
 
 @pytest.mark.parametrize('plot_breakdown', [False, True])
-def test_plot_indices_breakdown(plot_breakdown):
-    """Test plotting insertion indices with and without breakdown"""
+@pytest.mark.parametrize('weights', [False, True])
+def test_plot_indices_breakdown(plot_breakdown, weights):
+    """Test plotting insertion indices with and without breakdown."""
     nlive = 100
     indices = np.random.randint(0, nlive, 1000)
-    plot.plot_indices(indices, nlive=nlive, plot_breakdown=plot_breakdown)
+    if weights:
+        weights = np.random.rand(1000)
+    else:
+        weights = None
+    plot.plot_indices(indices, nlive=nlive, weights=weights,
+                      plot_breakdown=plot_breakdown)
     plt.close()
 
 
