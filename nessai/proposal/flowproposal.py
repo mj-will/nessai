@@ -469,6 +469,9 @@ class FlowProposal(RejectionProposal):
         """
         Update poolsize given the current acceptance.
 
+        Also updates the drawsize when using importance sampling to match
+        the poolsize time the inverse of acceptance.
+
         Parameters
         ----------
         acceptance : float
@@ -486,8 +489,11 @@ class FlowProposal(RejectionProposal):
                 self._poolsize_scale = self.max_poolsize_scale
             if self._poolsize_scale < 1.:
                 self._poolsize_scale = 1.
+        logger.debug(f'New poolsize: {self.poolsize}')
         if not self._rejection_sampling:
-            self.drawsize = self.poolsize
+            factor = 1.01 / self.acceptance[-1] if self.acceptance else 1.01
+            self.drawsize = int(factor * self.poolsize)
+            logger.debug(f'New drawsize: {self.drawsize}')
 
     def set_boundary_inversion(self):
         """
@@ -1398,7 +1404,7 @@ class FlowProposal(RejectionProposal):
             accepted += x.size
 
             if accepted > percent * N:
-                logger.info(f'Accepted {accepted} / {N} points, '
+                logger.info(f'Accepted {min(accepted, N)} / {N} points, '
                             f'acceptance: {accepted/proposed:.4}')
                 percent += 0.1
 
@@ -1413,7 +1419,7 @@ class FlowProposal(RejectionProposal):
                 f'Current approximate acceptance {self.approx_acceptance[-1]}')
             self.evaluate_likelihoods()
             self.acceptance.append(
-                self.compute_acceptance(worst_point['logL']))
+                self.compute_acceptance(worst_point['logL'].min()))
             logger.debug(f'Current acceptance {self.acceptance[-1]}')
         else:
             self.samples['logL'] = np.zeros(self.samples.size,
