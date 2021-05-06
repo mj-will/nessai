@@ -23,6 +23,17 @@ def test_populate(proposal, poolsize):
 
     assert proposal.samples.size == poolsize
     assert proposal.populated
+    assert (proposal.samples['logW'] == 0.).all()
+
+
+def test_populate_importance(proposal, poolsize):
+    """Test the population process for importance sampling"""
+    proposal._rejection_sampling = False
+    proposal.populate(N=poolsize)
+
+    assert proposal.samples.size == poolsize
+    assert proposal.populated
+    assert (proposal.samples['logW'] == 0.).all()
 
 
 def test_draw(model, proposal, poolsize):
