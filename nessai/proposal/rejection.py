@@ -22,12 +22,20 @@ class RejectionProposal(Proposal):
     poolsize : int, optional
         Number of new samples to store in the pool.
     """
-    def __init__(self, model, poolsize=1000, **kwargs):
+    def __init__(self, model, poolsize=1000,
+                 sampling_method='rejection_sampling', **kwargs):
         super(RejectionProposal, self).__init__(model, **kwargs)
         self._poolsize = poolsize
         self.populated = False
         self._checked_population = True
         self.population_acceptance = None
+
+        if sampling_method is None or sampling_method == 'rejection_sampling':
+            self._rejection_sampling = True
+        elif sampling_method == 'importance_sampling':
+            self._rejection_sampling = False
+        else:
+            raise ValueError(f'Unknown sampling method: {sampling_method}')
 
     @property
     def poolsize(self):
@@ -77,14 +85,17 @@ class RejectionProposal(Proposal):
             N = self.poolsize
         x = self.draw_proposal()
         log_w = self.compute_weights(x)
-        log_u = np.log(np.random.rand(N))
-        indices = np.where((log_w - log_u) >= 0)[0]
-        self.samples = x[indices]
+        if self._rejection_sampling:
+            log_u = np.log(np.random.rand(N))
+            indices = np.where((log_w - log_u) >= 0)[0]
+            self.samples = x[indices]
+        else:
+            x['logW'] = log_w
+            self.samples = x
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
         self.population_acceptance = self.samples.size / self.poolsize
         if self.pool is not None:
             self.evaluate_likelihoods()
-        self.samples['logW'] = log_w
         self.populated = True
         self._checked_population = False
 

@@ -139,6 +139,8 @@ class FlowProposal(RejectionProposal):
         Dictionary of kwargs passed to the function for drawing samples
         in the latent space. See the functions in utils for the possible
         kwargs.
+    compute_likelihood : bool, optional
+        Equivalent to check_acceptance.
     """
 
     def __init__(self,
@@ -174,6 +176,7 @@ class FlowProposal(RejectionProposal):
                  detect_edges_kwargs=None,
                  reparameterisations=None,
                  sampling_method=None,
+                 compute_likelihood=True,
                  **kwargs):
 
         super(FlowProposal, self).__init__(model)
@@ -216,7 +219,7 @@ class FlowProposal(RejectionProposal):
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
         self.update_bounds = update_bounds
-        self.check_acceptance = check_acceptance
+        self.check_acceptance = check_acceptance or compute_likelihood
         self.rescale_bounds = rescale_bounds
         self.truncate = truncate
         self.zero_reset = zero_reset
@@ -1234,7 +1237,6 @@ class FlowProposal(RejectionProposal):
 
         # rescale given priors used initially, need for priors
         log_w = self.compute_weights(x, log_q)
-        x['logW'] = np.zeros(x.size)
         log_u = np.log(np.random.rand(x.shape[0]))
         indices = np.where(log_w >= log_u)[0]
 
@@ -1358,10 +1360,10 @@ class FlowProposal(RejectionProposal):
         self.alt_dist = self.get_alt_distribution()
 
         if not self.keep_samples or not self.indices:
-            self.x = np.empty(N,  dtype=self.population_dtype)
+            self.x = np.zeros(N,  dtype=self.population_dtype)
             self.x['logP'] = np.nan * np.ones(N)
             self.indices = []
-            z_samples = np.empty([N, self.flow_dims])
+            z_samples = np.zeros([N, self.flow_dims])
 
         proposed = 0
         accepted = 0

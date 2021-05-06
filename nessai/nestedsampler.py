@@ -73,7 +73,9 @@ class _NSIntegralState:
 
         if log_w_norm is None:
             log_w_norm = np.log(nlive)
-            assert logW == 0.
+            if not logW == 0.:
+                raise ValueError(
+                    'Weights must be zero when normalisation is None')
 
         if (logL <= self.logLs[-1]):
             logger.warning('NS integrator received non-monotonic logL.'
@@ -335,13 +337,7 @@ class NestedSampler:
         self.cooldown = cooldown
         self.memory = memory
 
-        logger.debug(f'Sampling method: {sampling_method}')
-        if sampling_method is None or sampling_method == 'rejection_sampling':
-            self._rejection_sampling = True
-        elif sampling_method == 'importance_sampling':
-            self._rejection_sampling = False
-        else:
-            raise ValueError(f'Unknown sampling method: {sampling_method}')
+        self.configure_sampling_method(sampling_method)
 
         self.configure_flow_reset(reset_weights, reset_permutations)
 
@@ -438,6 +434,23 @@ class NestedSampler:
         else:
             return 0
 
+    def configure_sampling_method(self, sampling_method):
+        """Configure the sampling method.
+
+        Parameters
+        ----------
+        sampling_method : str, {'rejection_sampling', 'importance_sampling'}
+            Method to use for computing the evidence.
+        """
+        logger.info(f'Sampling method: {sampling_method}')
+        self.sampling_method = sampling_method
+        if sampling_method is None or sampling_method == 'rejection_sampling':
+            self._rejection_sampling = True
+        elif sampling_method == 'importance_sampling':
+            self._rejection_sampling = False
+        else:
+            raise ValueError(f'Unknown sampling method: {sampling_method}')
+
     def configure_uninformed_proposal(self,
                                       uninformed_proposal,
                                       analytic_priors,
@@ -491,6 +504,7 @@ class NestedSampler:
             else:
                 from .proposal import RejectionProposal as uninformed_proposal
                 kwargs['poolsize'] = self.nlive
+                kwargs['sampling_method'] = self.sampling_method
 
         logger.debug(f'Using uninformed proposal: {uninformed_proposal}')
         logger.debug(f'Parsing kwargs to uninformed proposal: {kwargs}')
@@ -1092,6 +1106,7 @@ class NestedSampler:
                 f"it: {self.iteration:5d}: "
                 f"n eval: {self.likelihood_calls} "
                 f"H: {self.state.info[-1]:.2f} "
+                f"W: {self.relative_weight:.1f} "
                 f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
                 f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
                 f"logLmax: {self.logLmax:.2f}")
