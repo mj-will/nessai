@@ -1285,7 +1285,8 @@ class FlowProposal(RejectionProposal):
         # rescale given priors used initially, need for priors
         log_w = self.compute_weights(x, log_q)
         x['logW'] = log_w
-        return z, x
+        in_bounds = np.isfinite(x['logP'])
+        return z, x[in_bounds]
 
     def convert_to_samples(self, x, plot=True):
         """
