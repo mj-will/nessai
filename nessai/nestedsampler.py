@@ -1177,7 +1177,8 @@ class NestedSampler:
                 try:
                     self.log_w_norm = logsubexp(self.log_w_norm, p['logW'])
                 except LogNegativeError:
-                    assert i == (len(self.live_points) - 1)
+                    if not i == (len(self.live_points) - 1):
+                        logger.warning(f'Live point {i} has a zero weight')
                     self.log_w_norm = -np.inf
             self.nested_samples.append(p)
 
