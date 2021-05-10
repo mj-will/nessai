@@ -73,7 +73,6 @@ class RejectionProposal(Proposal):
         x['logP'] = self.model.log_prior(x)
         log_q = self.log_proposal(x)
         log_w = x['logP'] - log_q
-        # TODO: why is this not zero?
         return log_w
 
     def populate(self, N=None):
