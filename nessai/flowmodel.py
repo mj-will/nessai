@@ -233,7 +233,7 @@ class FlowModel:
 
         return train_tensor, val_tensor
 
-    def _train(self, tensor, noise_scale=0.0):
+    def _train(self, tensor, noise_scale=0.0, shuffle=True):
         """
         Loop over the data and update the weights
 
@@ -260,6 +260,9 @@ class FlowModel:
                 return -model.log_prob(data).mean()
 
         n = 0
+        if shuffle:
+            p = torch.randperm(tensor.shape[0])
+            tensor = tensor[p, :]
         for data in tensor.split(self.batch_size):
             if noise_scale:
                 data += noise_scale * torch.randn_like(data)
