@@ -224,7 +224,7 @@ class FlowModel:
 
         if not type(batch_size) is int:
             if batch_size == 'all':
-                batch_size = x_train.shape[0]
+                self.batch_size = x_train.shape[0]
             else:
                 raise RuntimeError(f'Unknown batch size: {batch_size}')
         train_tensor = \
