@@ -682,19 +682,23 @@ class NestedSampler:
             self.log_w_norm = np.logaddexp(self.log_w_norm, live_point['logW'])
         return index - 1
 
+    def _increment(self, worst):
+        """Increment the evidence and adjust the weights normalisation"""
+        if self._rejection_sampling:
+            self.state.increment(worst)
+        else:
+            # self.log_w_norm = logsumexp(self.live_points['logW'])
+            self.state.increment(worst, log_w_norm=self.log_w_norm)
+            self.log_w_norm = logsubexp(self.log_w_norm, worst['logW'])
+
     def consume_sample(self):
         """
         Replace a sample for single thread
         """
         worst = self.live_points[0].copy()
         self.logLmin = worst['logL']
-        if self._rejection_sampling:
-            self.state.increment(worst)
-        else:
-            self.state.increment(worst, log_w_norm=self.log_w_norm)
-            self.log_w_norm = logsubexp(self.log_w_norm, worst['logW'])
         self.nested_samples.append(worst)
-
+        self._increment(worst)
         self.condition = np.logaddexp(self.state.logZ,
                                       self.logLmax
                                       - self.iteration / float(self.nlive)) \
