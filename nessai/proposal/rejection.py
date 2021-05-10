@@ -73,7 +73,7 @@ class RejectionProposal(Proposal):
         x['logP'] = self.model.log_prior(x)
         log_q = self.log_proposal(x)
         log_w = x['logP'] - log_q
-        log_w -= np.nanmax(log_w)
+        # TODO: why is this not zero?
         return log_w
 
     def populate(self, N=None):
@@ -86,6 +86,7 @@ class RejectionProposal(Proposal):
         x = self.draw_proposal()
         log_w = self.compute_weights(x)
         if self._rejection_sampling:
+            log_w -= np.nanmax(log_w)
             log_u = np.log(np.random.rand(N))
             indices = np.where((log_w - log_u) >= 0)[0]
             self.samples = x[indices]
