@@ -1203,7 +1203,6 @@ class FlowProposal(RejectionProposal):
 
         x['logL'] = log_q
         log_w = x['logP'] - log_q
-        log_w -= np.max(log_w)
         return log_w
 
     def rejection_sampling(self, z, worst_q=None):
@@ -1243,6 +1242,7 @@ class FlowProposal(RejectionProposal):
 
         # rescale given priors used initially, need for priors
         log_w = self.compute_weights(x, log_q)
+        log_w -= np.nanmax(log_w)
         log_u = np.log(np.random.rand(x.shape[0]))
         indices = np.where(log_w >= log_u)[0]
 
