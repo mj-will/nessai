@@ -47,6 +47,10 @@ class _NSIntegralState:
         self.reset()
         self.track_gradients = track_gradients
 
+    @property
+    def log_importance_weights(self):
+        return np.array(self.logLs) + np.array(self.log_vols)
+
     def reset(self):
         """
         Reset the sampler to its initial state at logZ = -infinity
@@ -54,7 +58,9 @@ class _NSIntegralState:
         self.logZ = -np.inf
         self.oldZ = -np.inf
         self.logX = 0
-        self.info = [0.]
+        # Information will not be updated on the first iteration, so add
+        # two zeroes so the lists are all consistent
+        self.info = [0., 0.]
         # Start with a dummy sample enclosing the whole prior
         self.logLs = [-np.inf]   # Likelihoods sampled
         self.log_vols = [0.0]    # Volumes enclosed by contours
@@ -325,6 +331,7 @@ class NestedSampler:
         self.population_iterations = []
         self.checkpoint_iterations = []
         self.W_history = []
+        self.entropy_history = []
 
         if max_iteration is None:
             self.max_iteration = np.inf
@@ -416,7 +423,21 @@ class NestedSampler:
         if self.log_w_norm is None:
             return self.nlive
         else:
-            return np.exp(self.log_w_norm)
+            return self.nlive \
+                   * np.exp(logsumexp(2 * self.live_points['logW'])
+                            - 2 * self.log_w_norm)
+
+    @property
+    def log_importance_weights(self):
+        return self.state.log_importance_weights
+
+    @property
+    def entropy(self):
+        lv = np.asarray(self.state.log_vols)
+        ll = np.asarray(self.state.logLs)
+        log_dXs = logsubexp(lv[:-1], lv[1:])
+        log_p = ll[1:-1] + log_dXs[:-1] - self.state.logZ
+        return -np.sum(np.exp(log_p) * log_p)
 
     @property
     def current_sampling_time(self):
@@ -1020,8 +1041,12 @@ class NestedSampler:
         ax[1].set_zorder(ax_dx.get_zorder()+1)
         ax[1].patch.set_visible(False)
 
-        ax[2].plot(it, self.W_history)
-        ax[2].set_ylabel('Effective sampling \n size')
+        ax[2].plot(state_its, np.exp(self.log_importance_weights[:ns]))
+        ax[2].set_ylabel('Effective prior \n samples')
+
+        ax_en = plt.twinx(ax[2])
+        ax_en.plot(it, self.entropy_history, c=colours[1], ls=ls[1])
+        ax_en.set_ylabel('Entropy')
 
         ax[3].plot(it, self.logZ_history, label='logZ', c=colours[0], ls=ls[0])
         ax[3].set_ylabel('logZ')
@@ -1104,6 +1129,7 @@ class NestedSampler:
             self.dZ_history.append(self.condition)
             self.mean_acceptance_history.append(self.mean_acceptance)
             self.W_history.append(self.relative_weight)
+            self.entropy_history.append(self.entropy)
 
         if not (self.iteration % self.nlive) or force:
             logger.warning(
