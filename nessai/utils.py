@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Various utilies related to logging, saving and loading files, edge detection
+and sampling latent distributions.
+"""
 import json
 import logging
 import os
@@ -14,29 +19,43 @@ from .livepoint import live_points_to_dict
 logger = logging.getLogger(__name__)
 
 
-def logit(x):
+def logit(x, fuzz=1e-2):
     """
     Logit function that also returns log Jacobian
 
     Parameters
     ----------
-    x: array_like
+    x : ndarray
+        Array of values
+    fuzz : float, optional
+        Fuzz used to avoid nans in logit. Values are rescaled from [0, 1]
+        to [0-fuzz, 1+fuzz]. By default no fuzz is applied
     """
+    x += fuzz
+    x /= (1 + 2 * fuzz)
     return np.log(x) - np.log(1 - x), -np.log(np.abs(x - x ** 2))
 
 
-def sigmoid(x):
+def sigmoid(x, fuzz=1e-2):
     """
     Sigmoid function that also returns log Jacobian
 
     Parameters
     ----------
-    x: array_like
+    x : ndarray
+        Array of values
+    fuzz : float, optional
+        Fuzz used to avoid nans in logit
     """
     x = np.asarray(x)
-    log_J = np.nan_to_num(-x - 2 * np.log(np.exp(-x) + 1),
-                          nan=np.NINF, neginf=np.NINF)
-    return np.divide(1, 1 + np.exp(-x)), log_J
+    x = np.divide(1, 1 + np.exp(-x))
+    log_J = np.log(np.abs(x - x ** 2))
+    x *= (1 + 2 * fuzz)
+    x -= fuzz
+    return x, log_J
+
+
+rescaling_functions = {'logit': (logit, sigmoid)}
 
 
 def compute_indices_ks_test(indices, nlive, mode='D+'):
@@ -46,16 +65,16 @@ def compute_indices_ks_test(indices, nlive, mode='D+'):
 
     Parameters
     ----------
-    indices: array_like
+    indices : array_like
         Indices of newly inserteed live points
-    nlive: int
+    nlive : int
         Number of live points
 
     Returns
     ------
-    D: float
+    D : float
         Two-sided KS statistic
-    p: float
+    p : float
         p-value
     """
     if len(indices):
@@ -79,14 +98,14 @@ def bonferroni_correction(p_values, alpha=0.05):
     """
     Apply the Bonferroni correction for multiple tests.
 
-    Based on the implementation in `statmodels.stats.multitest`
+    Based on the implementation in ``statmodels.stats.multitest``
 
     Parameters
     ----------
-    p_values :  array_like, 1-d
-        Uncorrelated p-values
+    p_values :  array_like
+        Uncorrelated p-values.
     alpha : float, optional
-        Family wise error rate
+        Family wise error rate.
     """
     p_values = np.asarray(p_values)
     alpha_bon = alpha / p_values.size
@@ -114,7 +133,7 @@ def draw_surface_nsphere(dims, r=1, N=1000):
 
     Returns
     -------
-    array_like
+    ndarray
         Array of samples with shape (N, dims)
     """
     x = np.random.randn(N, dims)
@@ -140,7 +159,7 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
 
     Returns
     -------
-    array_like
+    ndarray
         Array of samples with shape (N, dims)
     """
     x = draw_surface_nsphere(dims, r=1, N=N)
@@ -151,16 +170,16 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
 
 def get_uniform_distribution(dims, r, device='cpu'):
     """
-    Return a Pytorch distribution that is uniform in the number of
-    dims specified
+    Return a torch distribution that is uniform in the number of dims
+    specified.
 
     Parameters
     ----------
-    dims: int
-        Number of dimensions
-    r: float
-        Radius to use for lower and upper bounds
-    device: str, optional (cpu)
+    dims : int
+        Number of dimensions.
+    r : float
+        Radius to use for lower and upper bounds.
+    device : str, optional
         Device on which the distribution is placed.
 
     Returns
@@ -180,16 +199,17 @@ def get_multivariate_normal(dims, var=1, device='cpu'):
 
     Parameters
     ----------
-    dims: int
-        Number of dimensions
-    var: float, optional (1)
-        Standard deviation
-    device: str, optional (cpu)
+    dims : int
+        Number of dimensions.
+    var : float, optional
+        Variance.
+    device : str, optional
         Device on which the distribution is placed.
 
     Returns
     -------
-        Instance of MultivariateNormal with correct variance and dims
+    :obj:`nessai.flows.distributions.MultivariateNormal`
+        Instance of MultivariateNormal with correct variance and dims.
     """
     loc = torch.zeros(dims).to(device).double()
     covar = var * torch.eye(dims).to(device).double()
@@ -198,8 +218,26 @@ def get_multivariate_normal(dims, var=1, device='cpu'):
 
 def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     """
-    Draw from a uniform distribution on [0, 1], deals with extra input
-    parameters used by other draw functions
+    Draw from a uniform distribution on [0, 1].
+
+    Deals with extra input parameters used by other draw functions
+
+    Parameters
+    ----------
+    dims : int
+        Dimension of the n-sphere
+    r : float, optional
+        Radius of the n-ball. (Ignored by this function)
+    N : int, ignored
+        Number of samples to draw
+    fuzz : float, ignored
+        Fuzz factor by which to increase the radius of the n-ball. (Ingored by
+        this function)
+
+    Returns
+    -------
+    ndarraay
+        Array of samples with shape (N, dims)
     """
     return np.random.uniform(0, 1, (N, dims))
 
@@ -222,7 +260,7 @@ def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
 
     Returns
     -------
-    array_like
+    ndarray
         Array of samples with shape (N, dims)
     """
     return np.random.randn(N, dims)
@@ -245,7 +283,7 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1):
 
     Returns
     -------
-    array_like
+    ndarray
         Array of samples with shape (N, dims)
     """
     sigma = np.sqrt(var)
@@ -283,7 +321,7 @@ def replace_in_list(target_list, targets, replacements):
             replacements = list(replacements)
 
     if not all([t in target_list for t in targets]):
-        raise ValueError(f'Target(s) not in target list: {targets}')
+        raise ValueError(f'Targets {targets} not in list: {target_list}')
 
     for t, r in zip(targets, replacements):
         i = target_list.index(t)
@@ -296,16 +334,16 @@ def rescale_zero_to_one(x, xmin, xmax):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values to rescale
     xmin, xmax : floats
         Minimum and maximum values to use for rescaling
 
     Returns
     -------
-    array_like
+    ndarray
         Array of rescaled values
-    array_like
+    ndarray
         Array of log determinants of Jacobians for each sample
     """
     return (x - xmin) / (xmax - xmin), -np.log(xmax - xmin)
@@ -317,16 +355,16 @@ def inverse_rescale_zero_to_one(x, xmin, xmax):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values to rescale
     xmin, xmax : floats
         Minimum and maximum values to use for rescaling
 
     Returns
     -------
-    array_like
+    ndarray
         Array of rescaled values
-    array_like
+    ndarray
         Array of log determinants of Jacobians for each sample
     """
     return (xmax - xmin) * x + xmin, np.log(xmax - xmin)
@@ -338,16 +376,16 @@ def rescale_minus_one_to_one(x, xmin, xmax):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values to rescale
     xmin, xmax : floats
         Minimum and maximum values to use for rescaling
 
     Returns
     -------
-    array_like
+    ndarray
         Array of rescaled values
-    array_like
+    ndarray
         Array of log determinants of Jacobians for each sample
     """
     return ((2. * (x - xmin) / (xmax - xmin)) - 1,
@@ -360,80 +398,126 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
 
     Parameters
     ----------
-    x : array_like
+    x : ndarray
         Array of values to rescale
     xmin, xmax : floats
         Minimum and maximum values to use for rescaling
 
     Returns
     -------
-    array_like
+    ndarray
         Array of rescaled values
-    array_like
+    ndarray
         Array of log determinants of Jacobians for each sample
     """
     return ((xmax - xmin) * ((x + 1) / 2.) + xmin,
             np.log(xmax - xmin) - np.log(2))
 
 
-def detect_edge(x, bounds, percent=0.1, cutoff=0.1, nbins='fd',
-                both=False, allow_none=False, test=None):
+def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
+                allow_both=False, allow_none=False,
+                allowed_bounds=['lower', 'upper'], test=None):
     """
     Detect edges in input distributions based on the density.
-
-    Checks if data is uniform over the interval specified by the bounds and if
-    the data is normally distributed about the mid-point of the bounds
 
     Parameters
     ----------
     x: array_like
         Samples
-    bounds: list
-        Lower and upper bound
+    x_range : array_like, optional
+        Lower and upper bounds used to check inversion, if not specified
+        min and max of data are used.
     percent: float (0.1)
         Percentage of interval used to check edges
     cutoff: float (0.1)
         Minimum fraction of the maximum density contained within the
         percentage of the interval specified
-    both: bool
+    nbins : float or 'auto'
+        Number of bins used for histogram.
+    allow_both: bool
         Allow function to return both instead of force either upper or lower
     allow_none: bool
         Allow for neither lower or upper bound to be returned
+    allowed_bounds : list
+        List of alloweds bounds.
+    test : str or None
+        If not None this skips the process and just returns the value of test.
+        This is used to verify the inversion in all possible scenarios.
+
+    Returns
+    -------
+    str or False, {'lower', 'upper', 'both', False}
+        Returns the boundary to apply the inversion or False is no inversion
+        is to be applied
     """
+    bounds = ['lower', 'upper']
     if test is not None:
-        return test
-    hist, bins = np.histogram(x, bins=nbins, density=True)
-    n = int(len(bins) * percent)
+        logger.debug('Using test in detect_edge')
+        if test in bounds and test not in allowed_bounds:
+            logger.debug(f'{test} is not an allowed bound, returning False')
+            return False
+        else:
+            return test
+    if not all(b in bounds for b in allowed_bounds):
+        raise RuntimeError(f'Unknown allowed bounds: {allowed_bounds}')
+    if nbins == 'auto':
+        nbins = auto_bins(x)
+
+    hist, bins = np.histogram(x, bins=nbins, density=True, range=x_range)
+    n = max(int(len(bins) * percent), 1)
     bounds_fraction = \
         np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (bins[1] - bins[0])
-    uniform_p = stats.kstest(x, 'uniform', args=(bounds[0], np.ptp(bounds)))[1]
-    normal_p = stats.kstest(x, 'norm', args=(np.sum(bounds) / 2,))[1]
-    max_density = hist.max() * (bins[1] - bins[0])
+    max_idx = np.argmax(hist)
+    max_density = hist[max_idx] * (bins[1] - bins[0])
     logger.debug(f'Max. density: {max_density:.3f}')
-    if uniform_p >= 0.05:
-        logger.debug('Samples pass KS test for uniform')
-        if both:
-            return 'both'
-        else:
-            return np.random.choice(['lower', 'upper'])
-    elif normal_p >= 0.05 and allow_none:
-        logger.debug('Samples pass KS test for normal distribution')
-        return False
+
+    for i, b in enumerate(bounds):
+        if b not in allowed_bounds:
+            bounds.pop(i)
+            bounds_fraction = np.delete(bounds_fraction, i)
+    if max_idx <= n and 'lower' in bounds:
+        return bounds[0]
+    elif max_idx >= (len(bins) - n) and 'upper' in bounds:
+        return bounds[-1]
     elif not np.any(bounds_fraction > cutoff * max_density) and allow_none:
         logger.debug('Density too low at both bounds')
         return False
     else:
-        if np.all(bounds_fraction > cutoff * max_density) and both:
+        if (np.all(bounds_fraction > cutoff * max_density) and allow_both and
+                len(bounds) > 1):
             logger.debug('Both bounds above cutoff')
             return 'both'
         else:
-            bound = np.argmax(bounds_fraction)
-            if bound == 0:
-                return 'lower'
-            elif bound == 1:
-                return 'upper'
-            else:
-                raise RuntimeError('Bounds were not computed correctly')
+            return bounds[np.argmax(bounds_fraction)]
+
+
+def configure_edge_detection(d, detect_edges):
+    """
+    Configure parameters for edge detection
+
+    Parameters
+    ----------
+    d : dict
+        Dictionary of kwargs passed to detect_edge.
+    detect_edges : bool
+        If true allows for no inversion to be applied.
+
+    Returns
+    -------
+    dict
+        Updated kwargs
+    """
+    default = dict(cutoff=0.5)
+    if d is None:
+        d = {}
+    if detect_edges:
+        d['allow_none'] = True
+    else:
+        d['allow_none'] = False
+        d['cutoff'] = 0.0
+    default.update(d)
+    logger.debug(f'detect edges kwargs: {default}')
+    return default
 
 
 def compute_minimum_distances(samples, metric='euclidean'):
@@ -443,16 +527,15 @@ def compute_minimum_distances(samples, metric='euclidean'):
     Parameters
     ----------
     samples : array_like
-        Array of samples
-    metric : str, optional (euclidean)
+        Array of samples.
+    metric : str, optional
         Metric to use. See scipy docs for list of metrics:
-        https://docs.scipy.org/doc/scipy/reference/generated/
-        scipy.spatial.distance.cdist.html
+        https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.distance.cdist.html
 
     Returns
     -------
     array_like
-        Distance to nearest neighbour for each sample
+        Distance to nearest neighbour for each sample.
     """
     d = spatial.distance.cdist(samples, samples, metric)
     d[d == 0] = np.nan
@@ -462,22 +545,24 @@ def compute_minimum_distances(samples, metric='euclidean'):
 
 def setup_logger(output=None, label='nessai', log_level='INFO'):
     """
-    Setup logger
+    Setup the logger.
 
-    Based on the implementation in Bilby
+    Based on the implementation in Bilby:
+    https://git.ligo.org/lscsoft/bilby/-/blob/master/bilby/core/utils.py#L448
 
     Parameters
     ----------
     output : str, optional
-        Path of to output directory
+        Path of to output directory.
     label : str, optional
-        Label for this instance of the logger
-    log_level : {'ERROR', 'WARNING', 'INFO', 'DEBUG'}
-        Level of logging parsed to logger
+        Label for this instance of the logger.
+    log_level : {'ERROR', 'WARNING', 'INFO', 'DEBUG'}, optional
+        Level of logging passed to logger.
 
     Returns
     -------
-    logger
+    :obj:`logging.Logger`
+        Instance of the Logger class.
     """
     from . import __version__ as version
     if type(log_level) is str:
@@ -526,9 +611,19 @@ def setup_logger(output=None, label='nessai', log_level='INFO'):
 
 def is_jsonable(x):
     """
-    Check if an object is JSON serialisable
+    Check if an object is JSON serialisable.
 
     Based on: https://stackoverflow.com/a/53112659
+
+    Parameters
+    ----------
+    x : obj
+        Object to check
+
+    Returns
+    -------
+    bool
+        Boolean that indicates if the object is JSON serialisable.
     """
     try:
         json.dumps(x)
@@ -539,13 +634,20 @@ def is_jsonable(x):
 
 class FPJSONEncoder(json.JSONEncoder):
     """
-    Class to encode numpy arrays and other non-serialisable objects in
-    FlowProposal
+    Class to encode numpy arrays and other non-serialisable objects.
 
-    Based on: https://stackoverflow.com/a/57915246
+    Based on: https://stackoverflow.com/a/57915246.
+
+    Examples
+    --------
+    This class should be used in the ``cls`` argument::
+
+        with open(filename, 'w') as wf:
+             json.dump(d, wf, indent=4, cls=FPJSONEncoder)
     """
-    def default(self, obj):
 
+    def default(self, obj):
+        """Method that returns a serialisable object"""
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):
@@ -559,19 +661,21 @@ class FPJSONEncoder(json.JSONEncoder):
 
 
 def safe_file_dump(data, filename, module, save_existing=False):
-    """ Safely dump data to a .pickle file
+    """Safely dump data to a .pickle file
 
     See Bilby for the original impletmentation:
     https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
 
     Parameters
     ----------
-    data:
-        data to dump
-    filename: str
-        The file to dump to
-    module: pickle, dill
-        The python module to use
+    data :
+        Data to dump.
+    filename : str
+        The file to dump to.
+    module : {pickle, dill}
+        The python module to use.
+    save_existing : bool, optional
+        If true move the existing file to <file>.old.
     """
     if save_existing:
         if os.path.exists(filename):
@@ -586,8 +690,16 @@ def safe_file_dump(data, filename, module, save_existing=False):
 
 def save_live_points(live_points, filename):
     """
-    Save live points to a file. Live points are converted to a dictionary
-    and then saved.
+    Save live points to a file using JSON.
+
+    Live points are converted to a dictionary and then saved.
+
+    Parameters
+    ----------
+    live_points : ndarray
+        Live points to save.
+    filename : str
+        File to save to.
     """
     d = live_points_to_dict(live_points)
     with open(filename, 'w') as wf:
@@ -601,18 +713,18 @@ def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
 
     Notes
     -----
-    Uses torch.set_num_threads. If pytorch threads is None but other
+    Uses ``torch.set_num_threads``. If pytorch threads is None but other
     arguments are specified them the value is inferred from them.
 
     Parameters
     ----------
-    max_threads: int (None)
+    max_threads: int, optional
         Maximum total number of threads to use between PyTorch and
-        multiprocessing
-    pytorch_threads: int (None)
-        Maximum number of threads for PyTorch on CPU
-    n_pool: int (None)
-        Number of pools to use if using multiprocessing
+        multiprocessing.
+    pytorch_threads: int, optional
+        Maximum number of threads for PyTorch on CPU.
+    n_pool: int, optional
+        Number of pools to use if using multiprocessing.
     """
     if max_threads is not None:
         if pytorch_threads is not None and pytorch_threads > max_threads:
@@ -640,3 +752,118 @@ def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
         logger.debug(
             f'Setting maximum number of PyTorch threads to {pytorch_threads}')
         torch.set_num_threads(pytorch_threads)
+
+
+def _hist_bin_fd(x):
+    """
+    The Freedman-Diaconis histogram bin estimator.
+
+    See original Numpy implementation.
+
+    Parameters
+    ----------
+    x : array_like
+        Input data that is to be histogrammed, trimmed to range. May not
+        be empty.
+    Returns
+    -------
+    h : An estimate of the optimal bin width for the given data.
+    """
+    iqr = np.subtract(*np.percentile(x, [75, 25]))
+    return 2.0 * iqr * x.size ** (-1.0 / 3.0)
+
+
+def _hist_bin_sturges(x):
+    """
+    Sturges histogram bin estimator.
+
+    See original Numpy implementation.
+
+    Parameters
+    ----------
+    x : array_like
+        Input data that is to be histogrammed, trimmed to range. May not
+        be empty.
+    Returns
+    -------
+    h : An estimate of the optimal bin width for the given data.
+    """
+    return np.ptp(x) / (np.log2(x.size) + 1.0)
+
+
+def auto_bins(x, max_bins=50):
+    """
+    Compute the number bins for a histogram using numpy.histogram_bin_edges
+    but enforece a maximum number of bins.
+
+    Parameters
+    ----------
+    array : array_like
+        Input data
+    bins : int or sequence of scalars or str, optional
+        Method for determining number of bins, see numpy documentation
+    max_bins : int, optional (1000)
+        Maximum number of bins
+
+    Returns
+    -------
+    int
+        Number of bins
+    """
+    x = np.asarray(x)
+    if not x.size:
+        raise RuntimeError('Input array is empty!')
+    fd_bw = _hist_bin_fd(x)
+    sturges_bw = _hist_bin_sturges(x)
+    if fd_bw:
+        bw = min(fd_bw, sturges_bw)
+    else:
+        bw = sturges_bw
+
+    if bw:
+        n_bins = int(np.ceil(np.ptp(x)) / bw)
+    else:
+        n_bins = 1
+
+    nbins = min(n_bins, max_bins)
+    return nbins
+
+
+def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
+                              offset=0, rescale_bounds=[-1, 1],
+                              inversion=False):
+    """
+    Determine the values of the prior min and max in the rescaled
+    space.
+
+    Parameters
+    ----------
+    prior_min : float
+        Mininum of the prior.
+    prior_max : float
+        Maximum of the prior.
+    x_min : float
+        New minimum.
+    x_max : float
+        New maximum.
+    invert : False or {'upper', 'lower', 'both'}
+        Type of inversion.
+    """
+    if x_min == x_max:
+        raise RuntimeError('New minimum and maximum are equal')
+    scale = rescale_bounds[1] - rescale_bounds[0]
+    shift = rescale_bounds[0]
+    lower = scale * (prior_min - offset - x_min) / (x_max - x_min) + shift
+    upper = scale * (prior_max - offset - x_min) / (x_max - x_min) + shift
+    if not inversion:
+        return lower, upper
+    elif (not invert or invert is None):
+        return 2 * lower - 1, 2 * upper - 1
+    elif invert == 'upper':
+        return lower - 1, 1 - lower
+    elif invert == 'lower':
+        return -upper, upper
+    elif invert == 'both':
+        return -0.5, 1.5
+    else:
+        raise RuntimeError

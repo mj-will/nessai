@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Distributions to use as the 'base distribution' for normalising flows.
+"""
 
 from nflows.distributions import Distribution
 from nflows.utils import torchutils
@@ -6,7 +10,17 @@ import torch
 
 
 class MultivariateNormal(Distribution):
-    """A multivariate Normal with zero mean and specified covariance."""
+    """
+    A multivariate Normal with zero mean and specified covariance.
+
+    Parameters
+    ----------
+    shape : tuple
+        Shape of distribution, this is used to determine the number of
+        dimensions.
+    var : float, optional
+        Variance of the distrinution.
+    """
 
     def __init__(self, shape, var=1):
         super().__init__()

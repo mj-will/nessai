@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Implementation of Real Non Volume Preserving flows.
+"""
 import logging
 
 import torch
@@ -13,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 class FlexibleRealNVP(NFlow):
     """
-    Modified version of SimpleRealNVP from nflows that allows for a custom
+    Implementation of RealNVP.
+
+    This class modifies ``SimpleRealNVP`` from nflows to allows for a custom
     mask to be parsed as a numpy array and allows for MLP to be used
     instead of a ResNet
 

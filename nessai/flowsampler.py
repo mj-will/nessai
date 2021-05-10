@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Main code that handles running and checkpoiting the sampler.
+"""
 import json
 import logging
 import os
@@ -18,67 +22,69 @@ logger = logging.getLogger(__name__)
 
 class FlowSampler:
     """
-    Main class to handle running the nested sampler
+    Main class to handle running the nested sampler.
 
     Parameters
     ----------
     model : :obj:`nessai.model.Model`
-        User-defined model
-    output : str, optional (./)
+        User-defined model.
+    output : str, optional
         Output directory
-    resume : bool, optional (True)
-        If True try to resume the sampler is the resume file existis
+    resume : bool, optional
+        If True try to resume the sampler is the resume file existis.
     resume_file : str, optional
-        File to resume sampler from
+        File to resume sampler from.
     weights_files : str, optional
         Weights files used to resume sampler that replaces the weights file
         saved internally.
+    max_threads : int, optional
+        Maximum number of threads to use. If ``None`` torch uses all available
+        threads.
+    exit_code : int, optional
+        Exit code to use when forceably exiting the sampler.
     kwargs :
-        Keyword arguments parsed to NestedSampler. See NestedSampler for
-        details
+        Keyword arguments passed to :obj:`~nessai.nestedsampler.NestedSampler`.
     """
-
     def __init__(self, model, output='./', resume=True,
                  resume_file='nested_sampler_resume.pkl', weights_file=None,
-                 exit_code=130, **kwargs):
+                 exit_code=130, max_threads=1, **kwargs):
 
         configure_threads(
-            max_threads=kwargs.get('max_threads', None),
+            max_threads=max_threads,
             pytorch_threads=kwargs.get('pytorch_threads', None),
             n_pool=kwargs.get('n_pool', None)
             )
 
         self.exit_code = exit_code
 
-        self.output = output
+        self.output = os.path.join(output, '')
         if resume:
-            if not any((os.path.exists(self.output + f) for f in
+            if not any((os.path.exists(os.path.join(self.output, f)) for f in
                         [resume_file, resume_file + '.old'])):
                 logger.warning('No files to resume from, starting sampling')
-                self.ns = NestedSampler(model, output=output,
+                self.ns = NestedSampler(model, output=self.output,
                                         resume_file=resume_file, **kwargs)
             else:
                 try:
-                    self.ns = NestedSampler.resume(output + resume_file,
-                                                   model,
-                                                   kwargs['flow_config'],
-                                                   weights_file)
+                    self.ns = NestedSampler.resume(
+                        os.path.join(self.output, resume_file), model,
+                        kwargs['flow_config'], weights_file)
                 except (FileNotFoundError, RuntimeError) as e:
-                    logger.error(f'Could not load resume file from: {output} '
-                                 f'with error {e}')
+                    logger.error(
+                        f'Could not load resume file from: {self.output} '
+                        f'with error {e}')
                     try:
                         resume_file += '.old'
-                        self.ns = NestedSampler.resume(output + resume_file,
-                                                       model,
-                                                       kwargs['flow_config'],
-                                                       weights_file)
+                        self.ns = NestedSampler.resume(
+                            os.path.join(self.output, resume_file), model,
+                            kwargs['flow_config'], weights_file)
                     except RuntimeError as e:
                         logger.error('Could not load old resume '
-                                     f'file from: {output}')
+                                     f'file from: {self.output}')
                         raise RuntimeError('Could not resume sampler '
                                            f'with error: {e}')
         else:
-            self.ns = NestedSampler(model, output=output,
+            self.ns = NestedSampler(model, output=self.output,
                                     resume_file=resume_file, **kwargs)
 
         self.save_kwargs(kwargs)
@@ -88,15 +94,22 @@ class FlowSampler:
             signal.signal(signal.SIGINT, self.safe_exit)
             signal.signal(signal.SIGALRM, self.safe_exit)
         except AttributeError:
-            logger.debug('Can not set signal attributes on this system')
+            logger.critical('Can not set signal attributes on this system')
 
-    def run(self, resume=False, plot=True, save=True):
+    def run(self, plot=True, save=True):
         """
         Run the nested samper
+
+        Parameters
+        ----------
+        plot : bool, optional
+            Toggle plots produced once the sampler has converged
+        save : bool, opitional
+            Toggle automatic saving of results
         """
         self.ns.initialise()
         self.logZ, self.nested_samples = \
-            self.ns.nested_sampling_loop(save=save)
+            self.ns.nested_sampling_loop()
         logger.info((f'Total sampling time: {self.ns.sampling_time}'))
 
         logger.info('Starting post processing')
@@ -112,11 +125,6 @@ class FlowSampler:
         if plot:
             from nessai import plot
 
-            plot.plot_likelihood_evaluations(
-                    self.ns.likelihood_evaluations,
-                    self.ns.nlive,
-                    filename=f'{self.output}/likelihood_evaluations.png')
-
             plot.plot_live_points(self.posterior_samples,
                                   filename=(f'{self.output}/'
                                             'posterior_distribution.png'))
@@ -128,7 +136,14 @@ class FlowSampler:
 
     def save_kwargs(self, kwargs):
         """
-        Save the key-word arguments used
+        Save the dictionary of keyword arguments used.
+
+        Uses an encoder class to handle numpy arrays.
+
+        Parameters
+        ----------
+        kwargs : dict
+            Dictionary of kwargs to save.
         """
         d = kwargs.copy()
         with open(f'{self.output}/config.json', 'w') as wf:
@@ -143,7 +158,12 @@ class FlowSampler:
 
     def save_results(self, filename):
         """
-        Save the results from sampling
+        Save the results from sampling to a specific JSON file.
+
+        Parameters
+        ----------
+        filename : str
+            Name of file to save results to.
         """
         iterations = np.arange(len(self.ns.min_likelihood)) \
             * (self.ns.nlive // 10)
@@ -173,9 +193,10 @@ class FlowSampler:
         d['information'] = self.ns.information
         d['sampling_time'] = self.ns.sampling_time.total_seconds()
         d['training_time'] = self.ns.training_time.total_seconds()
-        d['population_time'] = self.ns.proposal.population_time.total_seconds()
-        if (t := self.ns.proposal.logl_eval_time.total_seconds()):
-            d['likelihood_evaluation_time'] = t
+        d['population_time'] = self.ns.proposal_population_time.total_seconds()
+        if self.ns.likelihood_evaluation_time.total_seconds():
+            d['likelihood_evaluation_time'] = \
+                self.ns.likelihood_evaluation_time.total_seconds()
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=FPJSONEncoder)
@@ -185,11 +206,8 @@ class FlowSampler:
         Safely exit. This includes closing the multiprocessing pool.
         """
         logger.warning(f'Trying to safely exit with code {signum}')
-
+        self.ns.proposal.close_pool(code=signum)
         self.ns.checkpoint()
-
-        if self.ns.proposal.pool is not None:
-            self.ns.proposal.close_pool()
 
         logger.warning(f'Exiting with code: {self.exit_code}')
         sys.exit(self.exit_code)

@@ -5,8 +5,6 @@ import pytest
 
 import nessai.utils as utils
 
-from conftest import cuda
-
 
 @pytest.mark.parametrize("x, y, log_J", [(0., -np.inf, np.inf),
                                          (1., np.inf, np.inf)])
@@ -15,7 +13,7 @@ def test_logit_bounds(x, y, log_J):
     Test logit at the bounds
     """
     with pytest.warns(RuntimeWarning):
-        assert utils.logit(x) == (y, log_J)
+        assert utils.logit(x, fuzz=0) == (y, log_J)
 
 
 @pytest.mark.parametrize("x, y, log_J", [(np.inf, 1, -np.inf),
@@ -24,7 +22,7 @@ def test_sigmoid_bounds(x, y, log_J):
     """
     Test sigmoid for inf
     """
-    assert utils.sigmoid(x) == (y, log_J)
+    assert utils.sigmoid(x, fuzz=0) == (y, log_J)
 
 
 @pytest.mark.parametrize("p", [1e-5, 0.5, 1 - 1e-5])
@@ -32,8 +30,8 @@ def test_logit_sigmoid(p):
     """
     Test invertibility of sigmoid(logit(x))
     """
-    x = utils.logit(p)
-    y = utils.sigmoid(x[0])
+    x = utils.logit(p, fuzz=0)
+    y = utils.sigmoid(x[0], fuzz=0)
     np.testing.assert_equal(p, y[0])
     np.testing.assert_almost_equal(x[1] + y[1], 0)
 
@@ -43,8 +41,8 @@ def test_sigmoid_logit(p):
     """
     Test invertibility of logit(sigmoid(x))
     """
-    x = utils.sigmoid(p)
-    y = utils.logit(x[0])
+    x = utils.sigmoid(p, fuzz=0)
+    y = utils.logit(x[0], fuzz=0)
     np.testing.assert_almost_equal(p, y[0])
     np.testing.assert_almost_equal(x[1] + y[1], 0)
 
@@ -130,7 +128,7 @@ def test_get_uniform_distribution_cpu():
     assert dist.sample().get_device() == -1
 
 
-@cuda
+@pytest.mark.cuda
 def test_get_uniform_distribution_cuda():
     """
     Test function for getting uniform torch distrbution over n dimensions
@@ -154,3 +152,20 @@ def test_draw_truncated_gaussian_1d(r, var, fuzz):
                         loc=0, scale=sigma)
     _, p = stats.kstest(np.squeeze(s), d.cdf)
     assert p >= 0.05
+
+
+def test_auto_bins_max_bins():
+    """Test the autobin function returns the max bins"""
+    assert utils.auto_bins(np.random.rand(100), max_bins=2) <= 2
+
+
+def test_auto_bins_single_point():
+    """Test to ensure the function produces a result with one sample"""
+    assert utils.auto_bins(np.random.rand()) >= 1
+
+
+def test_auto_bins_no_samples():
+    """Test to ensure the function produces a result with one sample"""
+    with pytest.raises(RuntimeError) as excinfo:
+        assert utils.auto_bins([])
+    assert 'Input array is empty!' in str(excinfo.value)
