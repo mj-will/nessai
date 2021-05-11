@@ -37,6 +37,7 @@ tests for this reparameterisation.
 - Fixed a bug when using unbounded priors related to `Model.verify_model`
 - Fix inversion-split with `RescaleToBounds`
 - Fixed `AugmentedGWFlowProposal`.
+- Fixed a bug with `plot_live_points` when the hue parameter (`c`) was constant.
 
 
 ## [0.2.4] - 2021-03-08
