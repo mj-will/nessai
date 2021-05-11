@@ -752,7 +752,10 @@ class NestedSampler:
         """
         Mean acceptance of the last nlive // 10 points
         """
-        return np.mean(self.acceptance_history)
+        if self.acceptance_history:
+            return np.mean(self.acceptance_history)
+        else:
+            return np.nan
 
     def check_proposal_switch(self):
         """
