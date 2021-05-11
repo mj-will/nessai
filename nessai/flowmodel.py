@@ -258,6 +258,9 @@ class FlowModel:
         train_loader, val_loader : :obj:`torch.utils.data.Dataloader`
             Dataloaders with training and validaiton data
         """
+        if not self.initialised:
+            self.initialise()
+
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
 
@@ -274,6 +277,9 @@ class FlowModel:
                 self.batch_size = x_train.shape[0]
             else:
                 raise RuntimeError(f'Unknown batch size: {batch_size}')
+        else:
+            self.batch_size = batch_size
+
         train_tensor = \
             torch.from_numpy(x_train.astype(np.float32)).to(self.device)
         val_tensor = torch.from_numpy(x_val.astype(np.float32)).to(self.device)
@@ -313,13 +319,14 @@ class FlowModel:
         for data in tensor.split(self.batch_size):
             if noise_scale:
                 data += noise_scale * torch.randn_like(data)
-            self.optimiser.zero_grad()
+            for param in model.parameters():
+                param.grad = None
             loss = loss_fn(data)
             train_loss += loss.item()
             loss.backward()
             if self.clip_grad_norm:
                 clip_grad_norm_(model.parameters(), self.clip_grad_norm)
-            self.optimiser.step()
+            self._optimiser.step()
             n += 1
 
         if self.annealing:
@@ -411,7 +418,7 @@ class FlowModel:
             max_epochs = self.max_epochs
         if self.annealing:
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                    self.optimiser, max_epochs)
+                    self._optimiser, max_epochs)
         if patience is None:
             patience = self.patience
         best_epoch = 0
