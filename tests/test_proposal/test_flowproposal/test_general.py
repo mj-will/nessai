@@ -96,3 +96,14 @@ def test_training_plots(proposal, tmpdir, plot):
     assert os.path.exists(f'{output}/x_generated.png') is bool(plot)
     assert os.path.exists(f'{output}/x_prime_samples.png') is bool(plot)
     assert os.path.exists(f'{output}/x_prime_generated.png') is bool(plot)
+
+
+def test_pool_plot_all(proposal, tmpdir):
+    """Test for the plots that show the pool of samples"""
+    output = tmpdir.mkdir('test_pool_plot')
+    proposal.output = output
+    proposal._plot_pool = 'all'
+    proposal.populated_count = 0
+    x = numpy_array_to_live_points(np.random.randn(10, 2), ['x', 'y'])
+    FlowProposal.plot_pool(proposal, None, x)
+    assert os.path.exists(f'{output}/pool_0.png')
