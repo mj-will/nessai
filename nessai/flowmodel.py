@@ -57,10 +57,20 @@ def update_config(d):
     dict
         Dictionary with updated default configuration
     """
-    default_model = dict(n_inputs=None, n_neurons=32, n_blocks=4, n_layers=2,
-                         ftype='RealNVP', device_tag='cpu', flow=None,
-                         kwargs=dict(batch_norm_between_layers=True,
-                                     linear_transform='lu'))
+    default_model = dict(
+        n_inputs=None,
+        n_neurons=32,
+        n_blocks=4,
+        n_layers=2,
+        ftype='RealNVP',
+        device_tag='cpu',
+        flow=None,
+        inference_device_tag=None,
+        kwargs=dict(
+            batch_norm_between_layers=True,
+            linear_transform='lu'
+        )
+    )
 
     default = dict(
         lr=0.001,
@@ -113,6 +123,8 @@ class FlowModel:
         self.output = output
         self.setup_from_input_dict(config)
         self.weights_file = None
+        self.device = None
+        self.inference_device = None
 
     def save_input(self, config, output_file=None):
         """
@@ -196,12 +208,36 @@ class FlowModel:
             - Updating the model configuration
             - Initialising the normalising flow
             - Initialiseing the optimiser
+            - Configuring the inference device
         """
         self.update_mask()
         self.model, self.device = setup_model(self.model_config)
+        logger.debug(f'Training device: {self.device}')
+        self.inference_device = torch.device(
+            self.model_config.get('inference_device_tag', self.device)
+            or self.device
+        )
+        logger.debug(f'Inference device: {self.inference_device}')
+
         self._optimiser = self.get_optimiser(
             self.optimiser, **self.optimiser_kwargs)
         self.initialised = True
+
+    def move_to(self, device, update_default=False):
+        """Move the flow to a different device.
+
+        Parameters
+        ----------
+        device : str
+            Device to move flow to.
+        update_default : bool, optional
+            If True, the default device for the flow (and data) will be
+            updated.
+        """
+        device = torch.device(device)
+        self.model.to(device)
+        if update_default:
+            self.device = device
 
     def prep_data(self, samples, val_size, batch_size):
         """
@@ -366,6 +402,8 @@ class FlowModel:
         else:
             noise_scale = self.noise_scale
 
+        self.move_to(self.device)
+
         train_tensor, val_tensor = self.prep_data(samples, val_size=val_size,
                                                   batch_size=self.batch_size)
 
@@ -412,6 +450,7 @@ class FlowModel:
 
         self.model.load_state_dict(best_model)
         self.save_weights(current_weights_file)
+        self.move_to(self.inference_device)
         self.model.eval()
 
         if plot:
@@ -508,7 +547,7 @@ class FlowModel:
         log_prob : ndarray
             Log probabilties for each samples
         """
-        x = torch.Tensor(x.astype(np.float32)).to(self.device)
+        x = torch.Tensor(x.astype(np.float32)).to(self.model.device)
         self.model.eval()
         with torch.no_grad():
             z, log_prob = self.model.forward_and_log_prob(x)
@@ -558,7 +597,8 @@ class FlowModel:
 
             with torch.no_grad():
                 if isinstance(z, np.ndarray):
-                    z = torch.Tensor(z.astype(np.float32)).to(self.device)
+                    z = torch.Tensor(z.astype(np.float32)).to(
+                        self.model.device)
                 log_prob = log_prob_fn(z)
                 x, log_J = self.model.inverse(z, context=None)
                 log_prob -= log_J
