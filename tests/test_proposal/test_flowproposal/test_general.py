@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Tests related to general aspects of the proposal"""
+import os
 import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
 from nessai.proposal import FlowProposal
+from nessai.livepoint import numpy_array_to_live_points
 
 
 def test_draw_populated(proposal):
@@ -59,3 +61,38 @@ def test_draw_not_popluated(proposal, update):
     proposal.populate.assert_called_once_with(1., N=100)
 
     assert proposal.update_poolsize_scale.called == update
+
+
+@pytest.mark.parametrize('plot', [False, 'all'])
+def test_training_plots(proposal, tmpdir, plot):
+    """Make sure traings plots are correctly produced"""
+    proposal._plot_training = plot
+    output = tmpdir.mkdir('test/')
+
+    names = ['x', 'y']
+    prime_names = ['x_prime', 'y_prime']
+    z = np.random.randn(10, 2)
+    x = np.random.randn(10, 2)
+    x_prime = x / 2
+    proposal.training_data = numpy_array_to_live_points(x, names)
+    proposal.training_data_prime = \
+        numpy_array_to_live_points(x_prime, prime_names)
+    x_gen = numpy_array_to_live_points(x, names)
+    x_prime_gen = numpy_array_to_live_points(x_prime, prime_names)
+    proposal.dims = 2
+    proposal.rescale_parameters = names
+    proposal.rescaled_names = prime_names
+
+    proposal.forward_pass = MagicMock(return_value=(z, None))
+    proposal.backward_pass = MagicMock(return_value=(x_prime_gen, np.ones(10)))
+    proposal.inverse_rescale = MagicMock(return_value=(x_gen, np.ones(10)))
+    proposal.check_prior_bounds = lambda *args: args
+    proposal.model = MagicMock()
+    proposal.model.names = names
+
+    FlowProposal._plot_training_data(proposal, output)
+
+    assert os.path.exists(f'{output}/x_samples.png') is bool(plot)
+    assert os.path.exists(f'{output}/x_generated.png') is bool(plot)
+    assert os.path.exists(f'{output}/x_prime_samples.png') is bool(plot)
+    assert os.path.exists(f'{output}/x_prime_generated.png') is bool(plot)
