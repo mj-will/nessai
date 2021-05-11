@@ -1,6 +1,12 @@
 
+# -*- coding: utf-8 -*-
+"""
+Test the FlowModel object.
+"""
 import numpy as np
 import pytest
+import torch
+from unittest.mock import create_autospec, MagicMock, patch
 
 from nessai.flowmodel import update_config, FlowModel
 
@@ -8,6 +14,11 @@ from nessai.flowmodel import update_config, FlowModel
 @pytest.fixture()
 def data_dim():
     return 2
+
+
+@pytest.fixture()
+def model():
+    return create_autospec(FlowModel)
 
 
 @pytest.fixture(scope='function')
@@ -49,28 +60,47 @@ def test_init_config_class(tmpdir):
     assert fm.model_config['flow'].__name__ == 'FlexibleRealNVP'
 
 
-@pytest.mark.parametrize('val_size, batch_size', [(0.1, 1),
-                                                  (0.1, 100),
-                                                  (0.1, 'all'),
+def test_initialise(model):
+    """Test the intialise method"""
+    model.get_optimiser = MagicMock()
+    model.model_config = dict(n_neurons=2)
+    model.inference_device = None
+    model.optimiser = 'adam'
+    model.optimiser_kwargs = {'weights': 0.1}
+    with patch('nessai.flowmodel.setup_model',
+               return_value=('model', 'cpu')) as mock:
+        FlowModel.initialise(model)
+    mock.assert_called_once_with(model.model_config)
+    model.get_optimiser.assert_called_once_with('adam', weights=0.1)
+    assert model.inference_device == torch.device('cpu')
+
+
+@pytest.mark.parametrize('optimiser', ['Adam', 'AdamW', 'SGD'])
+def test_get_optimiser(model, optimiser):
+    """Test to make sure the three supported optimisers work"""
+    model.lr = 0.1
+    model.model = MagicMock()
+    with patch(f'torch.optim.{optimiser}') as mock:
+        FlowModel.get_optimiser(model, optimiser)
+    mock.assert_called_once()
+
+
+@pytest.mark.parametrize('val_size, batch_size', [(0.1, 100),
                                                   (0.5, 'all')])
 def test_prep_data(flow_model, data_dim, val_size, batch_size):
     """
     Test the data prep, make sure batch sizes and validation size
     produce the correct result.
     """
-    n = 1000
+    n = 100
     x = np.random.randn(n, data_dim)
 
     train, val = flow_model.prep_data(x, val_size, batch_size)
-    train_batch = next(iter(train))[0]
-    val_batch = next(iter(val))[0]
-
     if batch_size == 'all':
         batch_size = int(n * (1 - val_size))
 
-    assert list(train_batch.shape) == [batch_size, data_dim]
-    assert list(val_batch.shape) == [int(val_size * n), data_dim]
-    assert len(train) * train_batch.shape[0] + val_batch.shape[0] == n
+    assert flow_model.batch_size == batch_size
+    assert train.shape[0] + val.shape[0] == n
 
 
 @pytest.mark.parametrize('batch_size', [None, '10', True, False])
@@ -107,7 +137,7 @@ def test_training_additional_config_args(flow_config, data_dim, tmpdir,
 
     assert getattr(flow_model, key) == value
 
-    x = np.random.randn(1000, data_dim)
+    x = np.random.randn(100, data_dim)
     flow_model.train(x)
 
 
