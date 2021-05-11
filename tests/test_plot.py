@@ -15,7 +15,7 @@ from nessai.livepoint import numpy_array_to_live_points
 @pytest.fixture()
 def live_points(model):
     """Set of live points"""
-    return model.new_point(N=100)
+    return model.new_point(N=10)
 
 
 @pytest.fixture()
@@ -35,6 +35,13 @@ def test_plot_live_points_bounds(live_points, bounds, model):
 def test_plot_live_points_hue(live_points, c, model):
     """Test generating a plot for a set of live points with a hue."""
     plot.plot_live_points(live_points, c=c)
+    plt.close()
+
+
+def test_plot_live_points_constant_hue(live_points):
+    """Test to make sure that constant hue is handled correctly"""
+    live_points['logL'] = np.ones(live_points.size)
+    plot.plot_live_points(live_points, c='logL')
     plt.close()
 
 
