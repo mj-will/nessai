@@ -2,6 +2,7 @@
 """Test methods related to initialising and resuming the proposal method"""
 import os
 import pytest
+from unittest import TestCase
 from unittest.mock import patch, MagicMock
 
 from nessai.proposal import FlowProposal
@@ -134,6 +135,7 @@ def test_reset(proposal):
     proposal.samples = 2
     proposal.populated = True
     proposal.populated_count = 10
+    proposal._edges = {'x': 2}
     FlowProposal.reset(proposal)
     assert proposal.x is None
     assert proposal.samples is None
@@ -142,6 +144,7 @@ def test_reset(proposal):
     assert proposal.r is None
     assert proposal.alt_dist is None
     assert proposal._checked_population
+    assert proposal._edges['x'] is None
 
 
 @pytest.mark.integration
@@ -170,3 +173,25 @@ def test_reset_integration(tmpdir, model):
         del d['inverse_rescale']
 
     assert d1 == d2
+
+
+@pytest.mark.parametrize('rescale', [True, False])
+def test_test_draw(tmpdir, model, rescale):
+    """Verify that the `test_draw` method works.
+
+    This method checks that samples can be drawn from the flow and then
+    resets the flows. This test makes sure the flow is correctly reset.
+    """
+    output = tmpdir.mkdir('test')
+    fp = FlowProposal(
+        model, output=output, poolsize=100, rescale_parameters=rescale)
+    fp.initialise()
+    # Call these since they are worked out the first time they're called
+    fp.x_dtype, fp.x_prime_dtype
+    orig_state = fp.__getstate__()
+
+    t = TestCase()
+    t.maxDiff = None
+    t.assertDictEqual(fp.__getstate__(), orig_state)
+    fp.test_draw()
+    t.assertDictEqual(fp.__getstate__(), orig_state)
