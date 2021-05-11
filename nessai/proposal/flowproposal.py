@@ -1558,9 +1558,13 @@ class FlowProposal(RejectionProposal):
         self.populated = False
         self.populated_count = 0
         self.population_acceptance = None
+        self._poolsize_scale = 1.0
         self.r = None
         self.alt_dist = None
         self._checked_population = True
+        self.acceptance = []
+        self.approx_acceptance = []
+        self._edges = {k: None for k in self._edges.keys()}
 
     def __getstate__(self):
         state = self.__dict__.copy()
