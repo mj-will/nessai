@@ -62,14 +62,18 @@ def update_config(d):
                          kwargs=dict(batch_norm_between_layers=True,
                                      linear_transform='lu'))
 
-    default = dict(lr=0.001,
-                   annealing=False,
-                   clip_grad_norm=5,
-                   batch_size=100,
-                   val_size=0.1,
-                   max_epochs=500,
-                   patience=20,
-                   noise_scale=0.0)
+    default = dict(
+        lr=0.001,
+        annealing=False,
+        clip_grad_norm=5,
+        batch_size=100,
+        val_size=0.1,
+        max_epochs=500,
+        patience=20,
+        noise_scale=0.0,
+        optimiser='adam',
+        optimiser_kwargs={}
+    )
 
     if d is None:
         default['model_config'] = default_model
@@ -163,7 +167,7 @@ class FlowModel:
         """
         pass
 
-    def get_optimiser(self):
+    def get_optimiser(self, optimiser='adam', **kwargs):
         """
         Get the optimiser and ensure it is always correctly intialised.
 
@@ -172,10 +176,16 @@ class FlowModel:
         :obj:`torch.optim.Adam`
             Instance of the Adam optimiser from torch.optim
         """
+        optimisers = {
+            'adam': (torch.optim.Adam, {'weight_decay': 1e-6}),
+            'adamw': (torch.optim.AdamW, {}),
+            'sgd': (torch.optim.SGD, {})
+        }
         if self.model is None:
             raise RuntimeError('Cannot initialise optimiser before model')
-        return torch.optim.Adam(self.model.parameters(),
-                                lr=self.lr, weight_decay=1e-6)
+        optim, default_kwargs = optimisers.get(optimiser.lower())
+        default_kwargs.update(kwargs)
+        return optim(self.model.parameters(), lr=self.lr, **default_kwargs)
 
     def initialise(self):
         """
@@ -189,7 +199,8 @@ class FlowModel:
         """
         self.update_mask()
         self.model, self.device = setup_model(self.model_config)
-        self.optimiser = self.get_optimiser()
+        self._optimiser = self.get_optimiser(
+            self.optimiser, **self.optimiser_kwargs)
         self.initialised = True
 
     def prep_data(self, samples, val_size, batch_size):
@@ -476,7 +487,8 @@ class FlowModel:
         elif permutations:
             self.model.apply(reset_permutations)
             logger.debug('Reset linear transforms')
-        self.optimiser = self.get_optimiser()
+        self._optimiser = self.get_optimiser(
+            self.optimiser, **self.optimiser_kwargs)
         logger.debug('Reseting optimiser')
 
     def forward_and_log_prob(self, x):
