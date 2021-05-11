@@ -92,6 +92,8 @@ def test_configure_reparameterisations_incorrect_type(proposal):
 def test_rescale_w_reparameterisation(proposal, n):
     """Test rescaling when using reparameterisation dict"""
     x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y'])
+    x['logL'] = np.random.randn(n)
+    x['logP'] = np.random.randn(n)
     x_prime = numpy_array_to_live_points(
         np.random.randn(n, 2), ['x_prime', 'y_prime'])
     proposal.x_prime_dtype = \
@@ -104,5 +106,32 @@ def test_rescale_w_reparameterisation(proposal, n):
         FlowProposal._rescale_w_reparameterisation(
             proposal, x, compute_radius=False, test='lower')
 
-    np.testing.assert_array_equal(x_prime, x_prime_out)
+    np.testing.assert_array_equal(
+        x_prime[['x_prime', 'y_prime']], x_prime_out[['x_prime', 'y_prime']])
+    np.testing.assert_array_equal(
+        x[['logP', 'logL']], x_prime_out[['logL', 'logP']])
     proposal._reparameterisation.reparameterise.assert_called_once()
+
+
+@pytest.mark.parametrize('n', [1, 10])
+def test_inverse_rescale_w_reparameterisation(proposal, n):
+    """Test rescaling when using reparameterisation dict"""
+    x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y'])
+    x_prime = numpy_array_to_live_points(
+        np.random.randn(n, 2), ['x_prime', 'y_prime'])
+    x_prime['logL'] = np.random.randn(n)
+    x_prime['logP'] = np.random.randn(n)
+    proposal.x_dtype = \
+        [('x', 'f8'), ('y', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.inverse_reparameterise = \
+        MagicMock(return_value=[x, x_prime, np.ones(x.size)])
+
+    x_out, log_j = \
+        FlowProposal._inverse_rescale_w_reparameterisation(
+            proposal, x_prime)
+
+    np.testing.assert_array_equal(x[['x', 'y']], x_out[['x', 'y']])
+    np.testing.assert_array_equal(
+        x_prime[['logP', 'logL']], x_out[['logL', 'logP']])
+    proposal._reparameterisation.inverse_reparameterise.assert_called_once()
