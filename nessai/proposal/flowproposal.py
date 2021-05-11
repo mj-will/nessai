@@ -879,6 +879,75 @@ class FlowProposal(RejectionProposal):
                 self._min = {n: np.min(x[n]) for n in self.model.names}
                 self._max = {n: np.max(x[n]) for n in self.model.names}
 
+    def _plot_training_data(self, output):
+        """Plot the training data and compare to the results"""
+        z_training_data, _ = self.forward_pass(self.training_data,
+                                               rescale=True)
+        z_gen = np.random.randn(self.training_data.size, self.dims)
+
+        fig = plt.figure()
+        plt.hist(np.sqrt(np.sum(z_training_data ** 2, axis=1)), 'auto')
+        plt.xlabel('Radius')
+        fig.savefig(os.path.join(output, 'radial_dist.png'))
+        plt.close(fig)
+
+        plot_1d_comparison(
+            z_training_data,
+            z_gen,
+            labels=['z_live_points', 'z_generated'],
+            convert_to_live_points=True,
+            filename=os.path.join(output, 'z_comparison.png')
+        )
+
+        x_prime_gen, log_prob = self.backward_pass(z_gen, rescale=False)
+        x_prime_gen['logL'] = log_prob
+        x_gen, log_J = self.inverse_rescale(x_prime_gen)
+        x_gen, log_J, x_prime_gen = \
+            self.check_prior_bounds(x_gen, log_J, x_prime_gen)
+        x_gen['logL'] += log_J
+
+        plot_1d_comparison(
+            self.training_data,
+            x_gen,
+            parameters=self.model.names,
+            labels=['live points', 'generated'],
+            filename=os.path.join(output, 'x_comparison.png')
+        )
+
+        if self._plot_training == 'all':
+            plot_live_points(
+                self.training_data,
+                c='logL',
+                filename=os.path.join(output, 'x_samples.png')
+            )
+
+            plot_live_points(
+                x_gen,
+                c='logL',
+                filename=os.path.join(output, 'x_generated.png')
+                )
+
+        if self.rescale_parameters:
+            if self._plot_training == 'all':
+                plot_live_points(
+                    self.training_data_prime,
+                    c='logL',
+                    filename=os.path.join(output, 'x_prime_samples.png')
+                )
+                plot_live_points(
+                    x_prime_gen,
+                    c='logL',
+                    filename=os.path.join(output, 'x_prime_generated.png')
+                )
+
+            plot_1d_comparison(
+                self.training_data_prime,
+                x_prime_gen,
+                parameters=self.rescaled_names,
+                labels=['live points', 'generated'],
+                filename=os.path.join(output, 'x_prime_comparison.png')
+            )
+
     def train(self, x, plot=True):
         """
         Train the normalising flow given some of the live points.
@@ -894,8 +963,8 @@ class FlowProposal(RejectionProposal):
             proceed with caution!
         """
         if (plot and self._plot_training) or self.save_training_data:
-            block_output = \
-                self.output + f'/training/block_{self.training_count}/'
+            block_output = os.path.join(
+                self.output, 'training', f'block_{self.training_count}', '')
         else:
             block_output = self.output
 
@@ -903,67 +972,25 @@ class FlowProposal(RejectionProposal):
             os.makedirs(block_output, exist_ok=True)
 
         if self.save_training_data:
-            save_live_points(x, f'{block_output}/training_data.json')
+            save_live_points(
+                x, os.path.join(block_output, 'training_data.json'))
 
         self.training_data = x.copy()
         self.check_state(self.training_data)
 
-        if self._plot_training == 'all' and plot:
-            plot_live_points(x, c='logL',
-                             filename=block_output + 'x_samples.png')
-
-        x_prime, log_J = self.rescale(x)
+        x_prime, _ = self.rescale(x)
 
         self.training_data_prime = x_prime.copy()
 
-        if self.rescale_parameters and self._plot_training == 'all' and plot:
-            plot_live_points(x_prime, c='logL',
-                             filename=block_output + 'x_prime_samples.png')
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
         x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
+
         self.flow.train(x_prime_array,
-                        output=block_output, plot=self._plot_training)
+                        output=block_output, plot=self._plot_training and plot)
 
         if self._plot_training and plot:
-            z_training_data, _ = self.forward_pass(self.training_data,
-                                                   rescale=True)
-            z_gen = np.random.randn(x.size, self.dims)
-
-            fig = plt.figure()
-            plt.hist(np.sqrt(np.sum(z_training_data ** 2, axis=1)), 'auto')
-            plt.xlabel('Radius')
-            fig.savefig(block_output + 'radial_dist.png')
-            plt.close(fig)
-
-            plot_1d_comparison(z_training_data, z_gen,
-                               labels=['z_live_points', 'z_generated'],
-                               convert_to_live_points=True,
-                               filename=block_output + 'z_comparison.png')
-            x_prime_gen, log_prob = self.backward_pass(z_gen, rescale=False)
-            x_prime_gen['logL'] = log_prob
-            x_gen, log_J = self.inverse_rescale(x_prime_gen)
-            x_gen, log_J, x_prime_gen = \
-                self.check_prior_bounds(x_gen, log_J, x_prime_gen)
-            x_gen['logL'] += log_J
-            if self._plot_training == 'all':
-                plot_live_points(
-                    x_prime_gen,
-                    c='logL',
-                    filename=block_output + 'x_prime_generated.png'
-                    )
-            if self.rescale_parameters:
-                if self._plot_training == 'all':
-                    plot_live_points(x_gen, c='logL',
-                                     filename=block_output + 'x_generated.png')
-                plot_1d_comparison(
-                    x_prime, x_prime_gen, parameters=self.rescaled_names,
-                    labels=['live points', 'generated'],
-                    filename=block_output + 'x_prime_comparison.png')
-
-            plot_1d_comparison(x, x_gen, parameters=self.model.names,
-                               labels=['live points', 'generated'],
-                               filename=block_output + 'x_comparison.png')
+            self._plot_training_data(block_output)
 
         self.populated = False
         self.training_count += 1
