@@ -2,10 +2,12 @@
 """
 Test functions related to training and using the flow.
 """
-from nessai.proposal import FlowProposal
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
+
+from nessai.livepoint import numpy_array_to_live_points
+from nessai.proposal import FlowProposal
 
 
 def test_reset_model_weights(proposal):
@@ -82,3 +84,55 @@ def test_backward_pass(proposal, model, log_p):
     proposal.inverse_rescale.assert_called_once()
     proposal.flow.sample_and_log_prob.assert_called_once_with(
         z=z, alt_dist=None)
+
+
+@pytest.mark.parametrize('save', [True, False])
+@pytest.mark.parametrize('plot', [True, False])
+@pytest.mark.parametrize('plot_training', [True, False])
+def test_training(proposal, tmpdir, save, plot, plot_training):
+    """Test the training method"""
+    output = tmpdir.mkdir('test/')
+    data = np.random.randn(10, 2)
+    data_prime = data / 2
+    x = numpy_array_to_live_points(data, ['x', 'y'])
+    x_prime = numpy_array_to_live_points(data_prime, ['x_prime', 'y_prime'])
+    log_j = np.ones(data.shape[0])
+
+    proposal.training_count = 0
+    proposal.populated = True
+    proposal._plot_training = plot_training
+    proposal.save_training_data = save
+    proposal.rescale_parameters = ['x']
+    proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal.output = output
+
+    proposal.check_state = MagicMock()
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.flow = MagicMock()
+    proposal.flow.train = MagicMock()
+    proposal._plot_training_data = MagicMock()
+
+    with patch('nessai.proposal.flowproposal.live_points_to_array',
+               return_value=data_prime), \
+         patch('nessai.proposal.flowproposal.save_live_points') as mock_save:
+        FlowProposal.train(proposal, x, plot=plot)
+
+    np.testing.assert_array_equal(x, proposal.training_data)
+
+    if save or (plot and plot_training):
+        output = f'{output}/training/block_0/'
+
+    if save:
+        mock_save.assert_called_once()
+
+    if plot and plot_training:
+        proposal._plot_training_data.assert_called_once_with(output)
+    elif not plot or not plot_training:
+        proposal._plot_training_data.assert_not_called()
+
+    proposal.check_state.assert_called_once_with(proposal.training_data)
+    proposal.rescale.assert_called_once_with(x)
+    proposal.flow.train.assert_called_once_with(
+        data_prime, output=output, plot=plot and plot_training)
+    assert proposal.training_count == 1
+    assert proposal.populated is False
