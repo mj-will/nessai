@@ -28,20 +28,24 @@ def test_plot_live_points_bounds(live_points, bounds, model):
     """Test generating a plot for a set of live points."""
     if bounds:
         bounds = model.bounds
-    plot.plot_live_points(live_points, bounds=bounds)
+    fig = plot.plot_live_points(live_points, bounds=bounds)
+    assert fig is not None
+    plt.close()
 
 
 @pytest.mark.parametrize('c', [None, 'x'])
 def test_plot_live_points_hue(live_points, c, model):
     """Test generating a plot for a set of live points with a hue."""
-    plot.plot_live_points(live_points, c=c)
+    fig = plot.plot_live_points(live_points, c=c)
+    assert fig is not None
     plt.close()
 
 
 def test_plot_live_points_constant_hue(live_points):
     """Test to make sure that constant hue is handled correctly"""
     live_points['logL'] = np.ones(live_points.size)
-    plot.plot_live_points(live_points, c='logL')
+    fig = plot.plot_live_points(live_points, c='logL')
+    assert fig is not None
     plt.close()
 
 
@@ -59,7 +63,8 @@ def test_plot_live_points_save(live_points, save, model, tmpdir):
 def test_plot_live_points_1d():
     """Test generating the live points plot for one parameter"""
     live_points = np.random.randn(100).view([('x', 'f8')])
-    plot.plot_live_points(live_points)
+    fig = plot.plot_live_points(live_points)
+    assert fig is not None
     plt.close()
 
 
