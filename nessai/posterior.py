@@ -1,63 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Functions realted to computing the evidence and posterior samples.
+Functions realted to computing the posterior samples.
 """
 import logging
 import numpy as np
 
+from .evidence import logsubexp, log_integrate_log_trap
+
 logger = logging.getLogger(__name__)
-
-
-class LogNegativeError(ValueError):
-    """Error raised when try to compute the log of a negative number"""
-    pass
-
-
-def logsubexp(x, y):
-    """
-    Helper function to compute the exponential
-    of a difference between two numbers
-
-    Computes: ``x + np.log1p(-np.exp(y-x))``
-
-    Parameters
-    ----------
-    x, y : float or array_like
-        Inputs
-
-    Raises
-    ------
-    LogNegativeError
-        If the value of x is less than y and the calculation would require
-        computing the log of a negative number.
-    """
-    if np.any(x < y):
-        raise LogNegativeError('cannot take log of negative number '
-                               f'{str(x)!s} - {str(y)!s}')
-
-    return x + np.log1p(-np.exp(y - x))
-
-
-def log_integrate_log_trap(log_func, log_support):
-    """
-    Trapezoidal integration of given log(func). Returns log of the integral.
-
-    Parameters
-    ----------
-    log_func : array_like
-        Log values of the function to integrate over.
-    log_support : array_like
-        Log-evidences for each value.
-
-    Returns
-    -------
-    float
-        Log of the result of the integral.
-    """
-    log_func_sum = np.logaddexp(log_func[:-1], log_func[1:]) - np.log(2)
-    log_dxs = logsubexp(log_support[:-1], log_support[1:])
-
-    return np.logaddexp.reduce(log_func_sum + log_dxs)
 
 
 def compute_weights(samples, nlive, log_vols=None):

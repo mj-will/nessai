@@ -5,7 +5,11 @@ Test the object that handles the nested sampling evidence and prior volumes.
 import numpy as np
 import pytest
 
-from nessai.nestedsampler import _NSIntegralState
+from nessai.evidence import (
+    _NSIntegralState,
+    logsubexp,
+    LogNegativeError
+)
 
 
 @pytest.fixture()
@@ -21,6 +25,21 @@ def point():
 @pytest.fixture
 def second_point():
     return {'logL': -5.0, 'logW': 0.}
+
+
+def test_logsubexp():
+    """Test the values returned by logsubexp"""
+    out = logsubexp(2, 1)
+    np.testing.assert_almost_equal(out, np.log(np.exp(2) - np.exp(1)),
+                                   decimal=12)
+
+
+def test_logsubexp_negative():
+    """
+    Test behaviour of logsubexp for x < y
+    """
+    with pytest.raises(LogNegativeError):
+        logsubexp(1, 2)
 
 
 def test_increment(point, nlive):
@@ -71,9 +90,9 @@ def test_info(point, second_point, nlive):
     """Test to check the information increases as expected"""
     state = _NSIntegralState(nlive)
     state.increment(point)
-    assert state.info == [0.]
+    assert state.info == [0., 0.]
     state.increment(second_point)
-    assert state.info[1] > 0
+    assert state.info[2] > 0
 
 
 def test_track_gradients(point, second_point, nlive):
