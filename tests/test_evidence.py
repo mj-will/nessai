@@ -5,12 +5,23 @@ Test the object that handles the nested sampling evidence and prior volumes.
 import numpy as np
 import pytest
 
-from nessai.nestedsampler import _NSIntegralState
+from nessai.evidence import (
+    _NSIntegralState,
+    logsubexp,
+)
 
 
 @pytest.fixture()
 def nlive():
     return 100
+
+
+def test_logsubexp_negative():
+    """
+    Test behaviour of logsubexp for x < y
+    """
+    with pytest.raises(Exception):
+        logsubexp(1, 2)
 
 
 def test_increment(nlive):
