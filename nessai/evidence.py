@@ -10,6 +10,11 @@ import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 
 
+class LogNegativeError(ValueError):
+    """Error raised when try to compute the log of a negative number"""
+    pass
+
+
 def logsubexp(x, y):
     """
     Helper function to compute the exponential
@@ -21,10 +26,16 @@ def logsubexp(x, y):
     ----------
     x, y : float or array_like
         Inputs
+
+    Raises
+    ------
+    LogNegativeError
+        If the value of x is less than y and the calculation would require
+        computing the log of a negative number.
     """
     if np.any(x < y):
-        raise RuntimeError('cannot take log of negative number '
-                           f'{str(x)!s} - {str(y)!s}')
+        raise LogNegativeError('cannot take log of negative number '
+                               f'{str(x)!s} - {str(y)!s}')
 
     return x + np.log1p(-np.exp(y - x))
 
@@ -68,32 +79,46 @@ class _NSIntegralState:
         self.reset()
         self.track_gradients = track_gradients
 
+    @property
+    def log_importance_weights(self):
+        return np.array(self.logLs) + np.array(self.log_vols)
+
     def reset(self):
         """
         Reset the sampler to its initial state at logZ = -infinity
         """
         self.logZ = -np.inf
         self.oldZ = -np.inf
-        self.logw = 0
+        self.logX = 0
         self.info = [0.]
         # Start with a dummy sample enclosing the whole prior
         self.logLs = [-np.inf]   # Likelihoods sampled
         self.log_vols = [0.0]    # Volumes enclosed by contours
         self.gradients = [0]
 
-    def increment(self, logL, nlive=None):
+    def increment(self, x, nlive=None, log_w_norm=None):
         """
         Increment the state of the evidence integrator
         Simply uses rectangle rule for initial estimate
         """
+        logL = x['logL']
+        logW = x['logW']
+
+        if nlive is None:
+            nlive = self.nlive
+
+        if log_w_norm is None:
+            log_w_norm = np.log(nlive)
+            if not logW == 0.:
+                raise ValueError(
+                    'Weights must be zero when normalisation is None')
+
         if (logL <= self.logLs[-1]):
             logger.warning('NS integrator received non-monotonic logL.'
                            f'{self.logLs[-1]:.5f} -> {logL:.5f}')
-        if nlive is None:
-            nlive = self.nlive
         oldZ = self.logZ
-        logt = - 1.0 / nlive
-        Wt = self.logw + logL + np.log1p(-np.exp(logt))
+        logt = -np.exp(logW - log_w_norm)
+        Wt = self.logX + logL + np.log1p(-np.exp(logt))
         self.logZ = np.logaddexp(self.logZ, Wt)
         # Update information estimate
         if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
@@ -104,11 +129,13 @@ class _NSIntegralState:
             if np.isnan(info):
                 info = 0
             self.info.append(info)
+        else:
+            self.info.append(0.0)
 
         # Update history
-        self.logw += logt
+        self.logX += logt
         self.logLs.append(logL)
-        self.log_vols.append(self.logw)
+        self.log_vols.append(self.logX)
         if self.track_gradients:
             self.gradients.append((self.logLs[-1] - self.logLs[-2])
                                   / (self.log_vols[-1] - self.log_vols[-2]))
