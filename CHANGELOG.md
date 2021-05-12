@@ -28,7 +28,7 @@ tests for this reparameterisation.
 - `nessai.model.Model` now inherits from `abc.ABC` and `log_prior` and `log_likelihood` are now `abstractmethods`. This prevents the class from being used without redefining those methods.
 - Updated `AumgentedFlowProposal` to work with current version of `FlowProposal`
 - Fix random seed unit tests.
-- Move `_NSIntergralState` and some functions from `posterior.py` to a `evidence.py`
+- Move `_NSIntegralState` and some functions from `posterior.py` to `evidence.py`
 
 ### Fixed
 
