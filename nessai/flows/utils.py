@@ -67,9 +67,9 @@ def setup_model(config):
         if ftype.lower() not in flows:
             raise RuntimeError(f'Unknown flow type: {ftype}. Choose from:'
                                f'{flows.keys()}')
-        if (('mask' in kwargs and kwargs['mask'] is not None) or
-                ('net' in kwargs and kwargs['net'] is not None) and
-                ftype not in ['realnvp', 'frealnvp']):
+        if ((('mask' in kwargs and kwargs['mask'] is not None) or
+                ('net' in kwargs and kwargs['net'] is not None)) and
+                ftype.lower() not in ['realnvp', 'frealnvp']):
             raise RuntimeError('Custom masks and networks are only '
                                'supported for RealNVP')
 

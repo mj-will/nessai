@@ -1,49 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Functions realted to computing the evidence and posterior samples.
+Functions realted to computing the posterior samples.
 """
 import numpy as np
 
-
-def logsubexp(x, y):
-    """
-    Helper function to compute the exponential
-    of a difference between two numbers
-
-    Computes: ``x + np.log1p(-np.exp(y-x))``
-
-    Parameters
-    ----------
-    x, y : float or array_like
-        Inputs
-    """
-    if np.any(x < y):
-        raise RuntimeError('cannot take log of negative number '
-                           f'{str(x)!s} - {str(y)!s}')
-
-    return x + np.log1p(-np.exp(y - x))
-
-
-def log_integrate_log_trap(log_func, log_support):
-    """
-    Trapezoidal integration of given log(func). Returns log of the integral.
-
-    Parameters
-    ----------
-    log_func : array_like
-        Log values of the function to integrate over.
-    log_support : array_like
-        Log-evidences for each value.
-
-    Returns
-    -------
-    float
-        Log of the result of the integral.
-    """
-    log_func_sum = np.logaddexp(log_func[:-1], log_func[1:]) - np.log(2)
-    log_dxs = logsubexp(log_support[:-1], log_support[1:])
-
-    return np.logaddexp.reduce(log_func_sum + log_dxs)
+from .evidence import logsubexp, log_integrate_log_trap
 
 
 def compute_weights(samples, nlive):

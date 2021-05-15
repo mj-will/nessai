@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+Testing the plotting functions.
+"""
+import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -10,7 +15,7 @@ from nessai.livepoint import numpy_array_to_live_points
 @pytest.fixture()
 def live_points(model):
     """Set of live points"""
-    return model.new_point(N=100)
+    return model.new_point(N=10)
 
 
 @pytest.fixture()
@@ -23,13 +28,24 @@ def test_plot_live_points_bounds(live_points, bounds, model):
     """Test generating a plot for a set of live points."""
     if bounds:
         bounds = model.bounds
-    plot.plot_live_points(live_points, bounds=bounds)
+    fig = plot.plot_live_points(live_points, bounds=bounds)
+    assert fig is not None
+    plt.close()
 
 
 @pytest.mark.parametrize('c', [None, 'x'])
 def test_plot_live_points_hue(live_points, c, model):
     """Test generating a plot for a set of live points with a hue."""
-    plot.plot_live_points(live_points, c=c)
+    fig = plot.plot_live_points(live_points, c=c)
+    assert fig is not None
+    plt.close()
+
+
+def test_plot_live_points_constant_hue(live_points):
+    """Test to make sure that constant hue is handled correctly"""
+    live_points['logL'] = np.ones(live_points.size)
+    fig = plot.plot_live_points(live_points, c='logL')
+    assert fig is not None
     plt.close()
 
 
@@ -47,7 +63,8 @@ def test_plot_live_points_save(live_points, save, model, tmpdir):
 def test_plot_live_points_1d():
     """Test generating the live points plot for one parameter"""
     live_points = np.random.randn(100).view([('x', 'f8')])
-    plot.plot_live_points(live_points)
+    fig = plot.plot_live_points(live_points)
+    assert fig is not None
     plt.close()
 
 
@@ -234,3 +251,20 @@ def test_trace_plot_labels_error(nested_samples):
         plot.plot_trace(log_x, nested_samples, labels=['1', '2', '3'])
 
     assert 'Missing labels' in str(excinfo.value)
+
+
+def test_histogram_plot():
+    """Test the basic histogram plot"""
+    x = np.random.randn(100)
+    with patch('matplotlib.pyplot.hist') as mocked_hist:
+        plot.plot_histogram(x, bins=10, density=True, label='test')
+    mocked_hist.assert_called_once_with(
+        x, bins=10, density=True, histtype='step')
+
+
+def test_histogram_plot_save(tmpdir):
+    """Test to make sure the figure is saved."""
+    x = np.random.randn(100)
+    fig = plot.plot_histogram(x, filename=tmpdir + 'hist.png')
+    assert fig is None
+    assert os.path.exists(tmpdir + 'hist.png')
