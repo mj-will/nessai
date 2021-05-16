@@ -6,8 +6,17 @@ import numpy as np
 import pytest
 
 from nessai.nestedsampler import NestedSampler
-from nessai.proposal import RejectionProposal, AnalyticProposal, FlowProposal
-from nessai.gw.proposal import GWFlowProposal, LegacyGWFlowProposal
+from nessai.proposal import (
+    AnalyticProposal,
+    AugmentedFlowProposal,
+    RejectionProposal,
+    FlowProposal
+)
+from nessai.gw.proposal import (
+    AugmentedGWFlowProposal,
+    GWFlowProposal,
+    LegacyGWFlowProposal
+)
 
 
 @pytest.fixture
@@ -106,7 +115,9 @@ def test_no_flow_proposal_class(sampler):
 
 @pytest.mark.parametrize('flow_class, result_class',
                          [['FlowProposal', FlowProposal],
+                          ['AugmentedFlowProposal', AugmentedFlowProposal],
                           ['GWFlowProposal', GWFlowProposal],
+                          ['AugmentedGWFlowProposal', AugmentedGWFlowProposal],
                           ['LegacyGWFlowProposal', LegacyGWFlowProposal]])
 def test_flow__class(flow_class, result_class, sampler):
     """Test the correct class is imported and used"""
