@@ -160,6 +160,7 @@ class NestedSampler:
         self.setup_random_seed(seed)
         self.accepted = 0
         self.rejected = 1
+        self.initialised = False
 
         self.checkpointing = checkpointing
         self.checkpoint_on_training = checkpoint_on_training
@@ -208,28 +209,15 @@ class NestedSampler:
         self.population_iterations = []
         self.checkpoint_iterations = []
 
-        if max_iteration is None:
-            self.max_iteration = np.inf
-        else:
-            self.max_iteration = max_iteration
-
         self.acceptance_threshold = acceptance_threshold
 
         self.train_on_empty = train_on_empty
         self.cooldown = cooldown
         self.memory = memory
 
+        self.configure_max_iteration(max_iteration)
         self.configure_flow_reset(reset_weights, reset_permutations)
-
-        if training_frequency in [None, 'inf', 'None']:
-            logger.warning('Proposal will only train when empty')
-            self.training_frequency = np.inf
-        else:
-            self.training_frequency = training_frequency
-
-        self.max_count = 0
-
-        self.initialised = False
+        self.configure_training_frequency(training_frequency)
 
         if uninformed_proposal_kwargs is None:
             uninformed_proposal_kwargs = {}
@@ -289,11 +277,47 @@ class NestedSampler:
 
     @property
     def last_updated(self):
-        """Last time the normalising flow was retraining"""
+        """Last time the normalising flow was retrained"""
         if self.training_iterations:
             return self.training_iterations[-1]
         else:
-            return 0
+            return None
+
+    @property
+    def mean_acceptance(self):
+        """
+        Mean acceptance of the last nlive // 10 points
+        """
+        if self.acceptance_history:
+            return np.mean(self.acceptance_history)
+        else:
+            return np.nan
+
+    def configure_max_iteration(self, max_iteration):
+        """Configure the maximum iteration.
+
+        If None then no maximum is set.
+
+        Parameter
+        ---------
+        max_iteration : int, None
+            Maximum iteration.
+        """
+        if max_iteration is None:
+            self.max_iteration = np.inf
+        else:
+            self.max_iteration = max_iteration
+
+    def configure_training_frequency(self, training_frequency):
+        """Configure the training frequency.
+
+        If None, 'inf' or 'None' flow will only train when empty.
+        """
+        if training_frequency in [None, 'inf', 'None']:
+            logger.warning('Proposal will only train when empty')
+            self.training_frequency = np.inf
+        else:
+            self.training_frequency = training_frequency
 
     def configure_uninformed_proposal(self,
                                       uninformed_proposal,
@@ -646,16 +670,6 @@ class NestedSampler:
 
         if all(flags):
             self.initialised = True
-
-    @property
-    def mean_acceptance(self):
-        """
-        Mean acceptance of the last nlive // 10 points
-        """
-        if self.acceptance_history:
-            return np.mean(self.acceptance_history)
-        else:
-            return np.nan
 
     def check_proposal_switch(self):
         """
