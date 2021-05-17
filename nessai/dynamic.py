@@ -81,7 +81,7 @@ class DynamicNestedSampler(NestedSampler):
         """
         n = len(self.nested_samples)
         pad = int(pad * n)
-        bounds = np.arange(n)[weights > (fraction * max(weights))]
+        bounds = np.arange(n)[weights >= (fraction * max(weights))]
         bounds = (min(bounds) - pad, min(max(bounds) + pad, n - 1))
         logger.debug(f'Bounds: {bounds}')
         return bounds
