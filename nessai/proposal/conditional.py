@@ -90,12 +90,12 @@ class ConditionalFlowProposal(FlowProposal):
             self.flow_config['model_config']['kwargs']['context_features'] = \
                     self.conditional_dims
 
-    def reset_reparmeterisation(self):
+    def reset_reparameterisation(self):
         """Reset the model.
 
         This resets the stored min and max logL and calls the parent method.
         """
-        super().reset_reparmeterisation()
+        super().reset_reparameterisation()
         self._min_logL = None
         self._max_logL = None
 
@@ -136,6 +136,8 @@ class ConditionalFlowProposal(FlowProposal):
 
         Includes likelihood rescaling to [0, 1].
         """
+        if not self.conditional:
+            return
         context = np.empty([x.size, self.conditional_dims])
         if self.conditional_likelihood:
             context[:, self.likelihood_index] = rescale_zero_to_one(
