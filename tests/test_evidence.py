@@ -4,6 +4,7 @@ Test the object that handles the nested sampling evidence and prior volumes.
 """
 import numpy as np
 import pytest
+from unittest.mock import create_autospec, MagicMock
 
 from nessai.evidence import (
     _NSIntegralState,
@@ -27,6 +28,11 @@ def second_point():
     return {'logL': -5.0, 'logW': 0.}
 
 
+@pytest.fixture
+def state():
+    return create_autospec(_NSIntegralState)
+
+
 def test_logsubexp():
     """Test the values returned by logsubexp"""
     out = logsubexp(2, 1)
@@ -40,6 +46,25 @@ def test_logsubexp_negative():
     """
     with pytest.raises(LogNegativeError):
         logsubexp(1, 2)
+
+
+def test_log_weights(state):
+    """Test the log-weights method"""
+    state.logLs = [-np.inf, -10, -5]
+    state.log_vols = [0.0, -0.2, -0.4]
+    log_w = _NSIntegralState.log_weights(state)
+    assert len(log_w) == 2
+
+
+def test_importance_weights(state):
+    """Test the importance weights"""
+    state.logLs = [-np.inf, -10, -5]
+    state.log_vols = [0.0, -0.2, -0.4]
+    state.log_w_norm = [0.1, 0.1]
+    state.logZ = -0.5
+    state.log_weights = \
+        MagicMock(return_value=_NSIntegralState.log_weights(state))
+    w, zw, pw = _NSIntegralState.importance_weights(state, G=0.9)
 
 
 def test_increment(point, nlive):
