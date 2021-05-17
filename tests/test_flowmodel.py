@@ -4,6 +4,7 @@
 Test the FlowModel object.
 """
 import numpy as np
+import pickle
 import pytest
 import torch
 from unittest.mock import create_autospec, MagicMock, patch
@@ -100,7 +101,29 @@ def test_prep_data(flow_model, data_dim, val_size, batch_size):
         batch_size = int(n * (1 - val_size))
 
     assert flow_model.batch_size == batch_size
-    assert train.shape[0] + val.shape[0] == n
+    assert len(train) + len(val) == n
+
+
+@pytest.mark.parametrize('val_size, batch_size', [(0.1, 100),
+                                                  (0.5, 'all')])
+def test_prep_data_dataloader(flow_model, data_dim, val_size, batch_size):
+    """
+    Test the data prep, make sure batch sizes and validation size
+    produce the correct result.
+    """
+    n = 100
+    x = np.random.randn(n, data_dim)
+
+    train, val = flow_model.prep_data(
+        x, val_size, batch_size, use_dataloader=True)
+    train_batch = next(iter(train))[0]
+    val_batch = next(iter(val))[0]
+    if batch_size == 'all':
+        batch_size = int(n * (1 - val_size))
+
+    assert train.batch_size == batch_size
+    assert list(val_batch.shape) == [int(val_size * n), data_dim]
+    assert len(train) * train_batch.shape[0] + val_batch.shape[0] == n
 
 
 @pytest.mark.parametrize('batch_size', [None, '10', True, False])
@@ -113,14 +136,16 @@ def test_incorrect_batch_size_type(flow_model, data_dim, batch_size):
     assert 'Unknown batch size' in str(excinfo.value)
 
 
-def test_training(flow_model, data_dim):
+@pytest.mark.parametrize('dataloader', [False, True])
+def test_training(flow_model, data_dim, dataloader):
     """Test class until training"""
     x = np.random.randn(1000, data_dim)
+    flow_model.use_dataloader = dataloader
     flow_model.train(x)
     assert flow_model.weights_file is not None
 
 
-@pytest.mark.parametrize('key, value', [('anneling', True),
+@pytest.mark.parametrize('key, value', [('annealing', True),
                                         ('noise_scale', 0.1),
                                         ('noise_scale', 'adaptive'),
                                         ('max_epochs', 51)])
@@ -148,6 +173,14 @@ def test_early_optimiser_init(flow_model):
     assert 'Cannot initialise optimiser' in str(excinfo.value)
 
 
+@pytest.mark.parametrize('weights', [False, True])
+@pytest.mark.parametrize('perms', [False, True])
+def test_reset_model(flow_model, weights, perms):
+    """Test reseting the model"""
+    flow_model.initialise()
+    flow_model.reset_model(weights=weights, permutations=perms)
+
+
 def test_sample_and_log_prob_not_initialised(flow_model, data_dim):
     """
     Ensure user cannot call the method before the model initialise.
@@ -157,7 +190,7 @@ def test_sample_and_log_prob_not_initialised(flow_model, data_dim):
     assert 'Model is not initialised' in str(excinfo.value)
 
 
-@pytest.mark.parametrize('N', [1, 100, 1000])
+@pytest.mark.parametrize('N', [1, 100])
 def test_sample_and_log_prob_no_latent(flow_model, data_dim, N):
     """
     Test the basic use of sample and log prob and ensure correct output
@@ -167,3 +200,50 @@ def test_sample_and_log_prob_no_latent(flow_model, data_dim, N):
     x, log_prob = flow_model.sample_and_log_prob(N=N)
     assert x.shape == (N, data_dim)
     assert log_prob.size == N
+
+
+@pytest.mark.parametrize('N', [1, 100])
+def test_sample_and_log_prob_with_latent(flow_model, data_dim, N):
+    """
+    Test the basic use of sample and log prob when samples from the
+    latent space are provided
+    """
+    flow_model.initialise()
+    z = np.random.randn(N, data_dim)
+    x, log_prob = flow_model.sample_and_log_prob(z=z)
+    assert x.shape == (N, data_dim)
+    assert log_prob.size == N
+
+
+@pytest.mark.parametrize('N', [1, 100])
+def test_forward_and_log_prob(flow_model, data_dim, N):
+    """Test the basic use of forward and log prob"""
+    flow_model.initialise()
+    x = np.random.randn(N, data_dim)
+    z, log_prob = flow_model.forward_and_log_prob(x)
+    assert z.shape == (N, data_dim)
+    assert log_prob.size == N
+
+
+def test_move_to_update_default(model):
+    """Ensure the stored device is updated"""
+    model.device = 'cuda'
+    model.model = MagicMock()
+    model.model.to = MagicMock()
+    FlowModel.move_to(model, 'cpu', update_default=True)
+    assert model.device == torch.device('cpu')
+    model.model.to.assert_called_once()
+
+
+@patch('torch.save')
+def test_save_weights(mock_save, model):
+    """Test saving the weights"""
+    model.model = MagicMock()
+    FlowModel.save_weights(model, 'model.pt')
+    mock_save.assert_called_once()
+    assert model.weights_file == 'model.pt'
+
+
+def test_get_state(flow_model):
+    """Make the object can be pickled"""
+    pickle.dumps(flow_model)
