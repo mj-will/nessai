@@ -10,7 +10,7 @@ from .evidence import logsubexp, log_integrate_log_trap
 logger = logging.getLogger(__name__)
 
 
-def compute_weights(samples, nlive, log_vols=None):
+def compute_weights(samples, nlive=None, log_vols=None):
     """
     Returns the log-evidence and log-weights for the log-likelihood samples
     assumed to the result of nested sampling with nlive live points
