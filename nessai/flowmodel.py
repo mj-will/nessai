@@ -448,7 +448,7 @@ class FlowModel:
         torch.save(self.model.state_dict(), weights_file)
         self.weights_file = weights_file
 
-    def load_weights(self, weights_file):
+    def load_weights(self, weights_file, update_weights_file=True):
         """
         Load weights for the model and initialiases the model if it is not
         intialised. The weights_file attribute is also updated.
@@ -463,11 +463,13 @@ class FlowModel:
         # TODO: these two methods are basically the same
         if not self.initialised:
             self.initialise()
+        logger.debug(f'Loading weights from: {weights_file}')
         self.model.load_state_dict(torch.load(weights_file))
         self.model.eval()
-        self.weights_file = weights_file
+        if update_weights_file:
+            self.weights_file = weights_file
 
-    def reload_weights(self, weights_file):
+    def reload_weights(self, weights_file=None):
         """
         Trys to the load the weights file and if not, trys to load
         the weights file stored internally.
