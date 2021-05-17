@@ -6,6 +6,7 @@ import logging
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.special import logsumexp
 
 logger = logging.getLogger(__name__)
 
@@ -74,14 +75,11 @@ class _NSIntegralState:
         If true the gradient of the change in logL w.r.t logX is saved each
         time `increment` is called.
     """
-    def __init__(self, nlive, track_gradients=True):
+    def __init__(self, nlive, G=None, track_gradients=True):
         self.nlive = nlive
+        self.G = G
         self.reset()
         self.track_gradients = track_gradients
-
-    @property
-    def log_importance_weights(self):
-        return np.array(self.logLs) + np.array(self.log_vols)
 
     def reset(self):
         """
@@ -95,6 +93,7 @@ class _NSIntegralState:
         self.logLs = [-np.inf]   # Likelihoods sampled
         self.log_vols = [0.0]    # Volumes enclosed by contours
         self.gradients = [0]
+        self.log_w_norm = []
 
     def increment(self, x, nlive=None, log_w_norm=None):
         """
@@ -122,10 +121,11 @@ class _NSIntegralState:
         self.logZ = np.logaddexp(self.logZ, Wt)
         # Update information estimate
         if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
-            info = np.exp(Wt - self.logZ) * logL \
-                  + np.exp(oldZ - self.logZ) \
-                  * (self.info[-1] + oldZ) \
-                  - self.logZ
+            info = (
+                np.exp(Wt - self.logZ) * logL
+                + np.exp(oldZ - self.logZ) * (self.info[-1] + oldZ)
+                - self.logZ
+            )
             if np.isnan(info):
                 info = 0
             self.info.append(info)
@@ -133,9 +133,11 @@ class _NSIntegralState:
             self.info.append(0.0)
 
         # Update history
+        # Current X is just t_i * X_(i-1)
         self.logX += logt
         self.logLs.append(logL)
         self.log_vols.append(self.logX)
+        self.log_w_norm.append(log_w_norm)
         if self.track_gradients:
             self.gradients.append((self.logLs[-1] - self.logLs[-2])
                                   / (self.log_vols[-1] - self.log_vols[-2]))
@@ -149,6 +151,49 @@ class _NSIntegralState:
         self.logZ = log_integrate_log_trap(np.array(self.logLs),
                                            np.array(self.log_vols))
         return self.logZ
+
+    def log_weights(self, trap=False):
+        """Compute the weights for all of the dead points."""
+        log_l = np.array(self.logLs + [self.logLs[-1]])
+        log_vols = np.array(self.log_vols + [-np.inf])
+        log_dvols = logsubexp(log_vols[:-1], log_vols[1:])
+        if trap:
+            log_dvols -= np.log(2)
+        return log_l[1:-1] + log_dvols[:-1]
+
+    @property
+    def effective_sample_size(self):
+        """Computes the Kish effective sample size"""
+        log_w = self.log_weights()
+        ess = 2 * logsumexp(log_w) - logsumexp(2 * log_w)
+        return np.exp(ess)
+
+    def importance_weights(self, G=None):
+        """Compute the importance of all of the samples.
+
+        Based on the implementation in dynesty: \
+            https://github.com/joshspeagle/dynesty/blob/master/py/dynesty/dynamicsampler.py
+        """
+        if G is None:
+            G = self.G
+        log_wt = self.log_weights()
+
+        # log_z_remain = self.logLs[-1] + self.log_vols[-1]
+        log_z_above = np.logaddexp.accumulate(log_wt)
+        # log_z_tot = np.logaddexp(log_z_above, log_z_remain)
+
+        # log_z_in = logsubexp(
+        #     log_z_tot * np.ones(log_z_above.size), log_z_above)
+        log_z_weight = log_z_above - np.array(self.log_w_norm)
+        log_z_weight -= logsumexp(log_z_weight)
+        z_weight = np.exp(log_z_weight)
+        log_z = logsumexp(log_wt)
+
+        p_weight = np.exp(log_wt - log_z)
+
+        weight = (1 - G) * z_weight + G * p_weight
+
+        return weight, z_weight, p_weight
 
     def plot(self, filename=None):
         """
