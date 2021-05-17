@@ -207,6 +207,7 @@ class FlowProposal(RejectionProposal):
         self.worst_logL = None
         self._draw_flow = False
         self.conditional = False
+        self._history = {'bounds': {}}
 
         self.reparameterisations = reparameterisations
 
@@ -905,6 +906,8 @@ class FlowProposal(RejectionProposal):
             if self._reparameterisation is not None:
                 self._reparameterisation.update_bounds(x)
             else:
+                self._history['bounds'][self.training_count] = \
+                    (self._min, self._max)
                 self._min = {n: np.min(x[n]) for n in self.model.names}
                 self._max = {n: np.max(x[n]) for n in self.model.names}
 
@@ -1618,6 +1621,27 @@ class FlowProposal(RejectionProposal):
         else:
             self._min = {n: self.model.bounds[n][0] for n in self.model.names}
             self._max = {n: self.model.bounds[n][1] for n in self.model.names}
+
+    def load_proposal_from_count(self, count, update_weights_file=False):
+        """Reload a specific version of the flow"""
+        if count > self.training_count:
+            raise RuntimeError(
+                f'Flow has only been trained {self.training_count} times. '
+                f'Cannot load flow for {count}.'
+            )
+        weights_file = os.path.join(
+            self.output,
+            'training',
+            f'block_{count}',
+            'model.pt'
+        )
+        self.flow.load_weights(
+            weights_file, update_weights_file=update_weights_file)
+
+        if self.update_bounds:
+            logger.debug('Restoring bounds')
+            self._min = self._history['bounds'][count][0]
+            self._max = self._history['bounds'][count][1]
 
     def reset(self):
         """Reset the proposal"""
