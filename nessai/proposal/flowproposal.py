@@ -1014,7 +1014,8 @@ class FlowProposal(RejectionProposal):
         out = (a[idx] for a in (x,) + args)
         return out
 
-    def forward_pass(self, x, rescale=True, compute_radius=True, context=None):
+    def forward_pass(self, x, rescale=True, compute_radius=True,
+                     conditional=None):
         """
         Pass a vector of points through the model
 
@@ -1027,8 +1028,8 @@ class FlowProposal(RejectionProposal):
         compute_radius : bool, optional (True)
             Flag parsed to rescaling for rescaling specific to radius
             computation
-        context : array_like, optional
-            Context array passed to the flow.
+        conditional: array_like, optional
+            Conditional array passed to the flow.
 
         Returns
         -------
@@ -1047,11 +1048,12 @@ class FlowProposal(RejectionProposal):
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
-        z, log_prob = self.flow.forward_and_log_prob(x, context=context)
+        z, log_prob = self.flow.forward_and_log_prob(
+            x, conditional=conditional)
 
         return z, log_prob + log_J
 
-    def backward_pass(self, z, rescale=True, context=None):
+    def backward_pass(self, z, rescale=True, conditional=None):
         """
         A backwards pass from the model (latent -> real)
 
@@ -1061,7 +1063,7 @@ class FlowProposal(RejectionProposal):
             Structured array of points in the latent space
         rescale : bool, optional (True)
             Apply inverse rescaling function
-        context : array_like, optional
+        conditional : array_like, optional
             Context array passed to the flow.
 
         Returns
@@ -1075,7 +1077,7 @@ class FlowProposal(RejectionProposal):
         # Compute the log probability
         try:
             x, log_prob = self.flow.sample_and_log_prob(
-                z=z, alt_dist=self.alt_dist, context=context)
+                z=z, alt_dist=self.alt_dist, conditional=conditional)
         except AssertionError:
             return np.array([]), np.array([])
 

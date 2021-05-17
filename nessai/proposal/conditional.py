@@ -18,6 +18,11 @@ logger = logging.getLogger(__name__)
 class ConditionalFlowProposal(FlowProposal):
     """Conditional version of FlowProposal.
 
+    In nessai parameter which are not included directly in the mapping are
+    refered to as conditional parameters. However, in ``nflows`` the term
+    context is used instead. As such, ``FlowModel`` uses both terms since
+    it interfaces with ``nflows``.
+
     Parameters
     ----------
     model : :obj:`nessai.model.Model`
@@ -105,59 +110,59 @@ class ConditionalFlowProposal(FlowProposal):
         the train function. Live points should be in the X' (x prime) space.
         """
         x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
-        context = self.get_context(x_prime)
-        self.train_context(context)
-        self.flow.train(x_prime_array, context=context, output=output,
+        conditional = self.get_conditional(x_prime)
+        self.train_conditional(conditional)
+        self.flow.train(x_prime_array, conditional=conditional, output=output,
                         plot=self._plot_training)
 
-    def train_context(self, context):
-        """Update the methods for sampling the context"""
+    def train_conditional(self, conditional):
+        """Update the methods for sampling the conditional"""
         if self.conditional_likelihood:
             self.likelihood_distribution.update_samples(
-                    context[:, self.likelihood_index],
+                    conditional[:, self.likelihood_index],
                     reset=self.update_bounds)
 
-    def sample_context_parameters(self, n):
+    def sample_conditional_parameters(self, n):
         """
-        Draw n samples from the context distributions.
+        Draw n samples from the conditional distributions.
         """
-        context = np.empty([n, self.conditional_dims])
+        conditional = np.empty([n, self.conditional_dims])
         if self.conditional_likelihood:
-            context[:, self.likelihood_index] = \
+            conditional[:, self.likelihood_index] = \
                 self.likelihood_distribution.sample(
                     n, min_logL=self.rescaled_worst_logL)
 
-        return context
+        return conditional
 
-    def get_context(self, x):
+    def get_conditional(self, x):
         """
-        Get the context parameters if empty return None
+        Get the conditional parameters if empty return None
 
 
         Includes likelihood rescaling to [0, 1].
         """
         if not self.conditional:
             return
-        context = np.empty([x.size, self.conditional_dims])
+        conditional = np.empty([x.size, self.conditional_dims])
         if self.conditional_likelihood:
-            context[:, self.likelihood_index] = rescale_zero_to_one(
+            conditional[:, self.likelihood_index] = rescale_zero_to_one(
                 x['logL'].flatten(), self._min_logL, self._max_logL)[0]
 
-        if context.size:
-            return context
+        if conditional.size:
+            return conditional
 
-    def forward_pass(self, x, context=None, **kwargs):
+    def forward_pass(self, x, conditional=None, **kwargs):
         """
         Pass a vector of points through the flow model.
 
-        Calls the parent method with a context. Context is either specified
-        or retrived using `get_context`
+        Calls the parent method with a conditional. Context is either specified
+        or retrived using `get_conditional`
 
         Parameters
         ----------
         x : array_like
             Live points to map to the latent space
-        context : array_like, optional
+        conditional : array_like, optional
             Context array passed to the flow.
         kwargs :
             Keyword arguments passed to the parent method
@@ -170,12 +175,13 @@ class ConditionalFlowProposal(FlowProposal):
             Log probabilties corresponding to each sample (including the
             jacobian)
         """
-        if context is None and self.conditional:
-            context = self.get_context(x)
-        z, log_prob = super().forward_pass(x, context=context, **kwargs)
+        if conditional is None and self.conditional:
+            conditional = self.get_conditional(x)
+        z, log_prob = super().forward_pass(
+            x, conditional=conditional, **kwargs)
         return z, log_prob
 
-    def backward_pass(self, z, context=None, **kwargs):
+    def backward_pass(self, z, conditional=None, **kwargs):
         """
         A backwards pass from the model (latent -> real)
 
@@ -183,7 +189,7 @@ class ConditionalFlowProposal(FlowProposal):
         ----------
         z : array_like
             Structured array of points in the latent space
-        context : array_like, optional
+        conditional : array_like, optional
             Context array passed to the flow.
         kwargs :
             Keyword arguments passed to the parent method
@@ -196,8 +202,9 @@ class ConditionalFlowProposal(FlowProposal):
             Log probabilties corresponding to each sample (including the
             Jacobian)
         """
-        if context is None and self.conditional:
-            context = self.sample_context_parameters(z.shape[0])
+        if conditional is None and self.conditional:
+            conditional = self.sample_conditional_parameters(z.shape[0])
 
-        x, log_prob = super().backward_pass(z, context=context, **kwargs)
+        x, log_prob = super().backward_pass(
+            z, conditional=conditional, **kwargs)
         return x, log_prob

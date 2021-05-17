@@ -133,7 +133,7 @@ class FlowModel:
         self.device = None
         self.inference_device = None
         self.use_dataloader = False
-        self.has_context = False
+        self.has_conditional = False
 
     def save_input(self, config, output_file=None):
         """
@@ -229,7 +229,7 @@ class FlowModel:
         logger.debug(f'Inference device: {self.inference_device}')
 
         if self.model_config.get('kwargs', {}).get('context_features', False):
-            self.has_context = True
+            self.has_conditional = True
             self.use_dataloader = True
 
         self._optimiser = self.get_optimiser(
@@ -252,7 +252,7 @@ class FlowModel:
         if update_default:
             self.device = device
 
-    def prep_data(self, samples, val_size, batch_size, context=None,
+    def prep_data(self, samples, val_size, batch_size, conditional=None,
                   use_dataloader=False):
         """
         Prep data and return dataloaders for training
@@ -266,8 +266,8 @@ class FlowModel:
             validation.
         batch_size : int
             Batch size used when contructing dataloaders.
-        context : array_like, optional
-            Array of context data
+        conditional : array_like, optional
+            Array of conditional data
         use_dataloader : bool, optional
             If True data is returned in a dataloader else a tensor is returned.
 
@@ -298,20 +298,23 @@ class FlowModel:
         else:
             self.batch_size = batch_size
 
-        if use_dataloader or context is not None:
+        if use_dataloader or conditional is not None:
             logger.debug('Using dataloaders')
 
             train_tensor = torch.from_numpy(x_train.astype(np.float32))
             val_tensor = torch.from_numpy(x_val.astype(np.float32))
 
-            if context is not None:
-                context_train, context_val = context[:n], context[n:]
-                train_context_tensor = torch.from_numpy(context_train).float()
+            if conditional is not None:
+                conditional_train, conditional_val = \
+                    conditional[:n], conditional[n:]
+                train_conditional_tensor = \
+                    torch.from_numpy(conditional_train).float()
                 train_dataset = torch.utils.data.TensorDataset(
-                    train_tensor, train_context_tensor)
-                val_context_tensor = torch.from_numpy(context_val).float()
+                    train_tensor, train_conditional_tensor)
+                val_conditional_tensor = \
+                    torch.from_numpy(conditional_val).float()
                 val_dataset = torch.utils.data.TensorDataset(
-                    val_tensor, val_context_tensor)
+                    val_tensor, val_conditional_tensor)
             else:
                 train_dataset = torch.utils.data.TensorDataset(train_tensor)
                 val_dataset = torch.utils.data.TensorDataset(val_tensor)
@@ -355,8 +358,8 @@ class FlowModel:
         if hasattr(model, 'loss_function'):
             loss_fn = model.loss_function
         else:
-            def loss_fn(data, context):
-                return -model.log_prob(data, context).mean()
+            def loss_fn(data, conditional):
+                return -model.log_prob(data, conditional).mean()
 
         if not is_dataloader:
             p = torch.randperm(train_data.shape[0])
@@ -365,13 +368,13 @@ class FlowModel:
         n = 0
         for data in train_data:
             if is_dataloader:
-                if self.has_context:
-                    context = data[1].to(self.device)
+                if self.has_conditional:
+                    conditional = data[1].to(self.device)
                 else:
-                    context = None
+                    conditional = None
                 data = data[0].to(self.device)
             else:
-                context = None
+                conditional = None
 
             if noise_scale:
                 data += noise_scale * torch.randn_like(data)
@@ -379,7 +382,7 @@ class FlowModel:
             for param in model.parameters():
                 param.grad = None
 
-            loss = loss_fn(data, context=context)
+            loss = loss_fn(data, conditional=conditional)
             train_loss += loss.item()
             loss.backward()
 
@@ -417,28 +420,28 @@ class FlowModel:
         if hasattr(model, 'loss_function'):
             loss_fn = model.loss_function
         else:
-            def loss_fn(data, context):
-                return -model.log_prob(data, context).mean()
+            def loss_fn(data, conditional):
+                return -model.log_prob(data, conditional).mean()
 
         if is_dataloader:
             n = 0
             for data in val_data:
-                if self.has_context:
-                    context = data[1].to(self.device)
+                if self.has_conditional:
+                    conditional = data[1].to(self.device)
                 else:
-                    context = None
+                    conditional = None
                 data = data[0].to(self.device)
                 with torch.no_grad():
-                    val_loss += loss_fn(data, context=context).item()
+                    val_loss += loss_fn(data, conditional=conditional).item()
                 n += 1
 
             return val_loss / n
         else:
             with torch.no_grad():
-                val_loss += loss_fn(val_data, context=None).item()
+                val_loss += loss_fn(val_data, conditional=None).item()
             return val_loss
 
-    def train(self, samples, context=None, max_epochs=None, patience=None,
+    def train(self, samples, conditional=None, max_epochs=None, patience=None,
               output=None, val_size=None, plot=True):
         """
         Train the flow on a set of samples.
@@ -488,7 +491,7 @@ class FlowModel:
             samples,
             val_size=val_size,
             batch_size=self.batch_size,
-            context=context,
+            conditional=conditional,
             use_dataloader=self.use_dataloader
         )
 
@@ -622,7 +625,7 @@ class FlowModel:
             self.optimiser, **self.optimiser_kwargs)
         logger.debug('Reseting optimiser')
 
-    def forward_and_log_prob(self, x, context=None):
+    def forward_and_log_prob(self, x, conditional=None):
         """
         Forward pass through the model and return the samples in the latent
         space with their log probabilties
@@ -640,17 +643,20 @@ class FlowModel:
             Log probabilties for each samples
         """
         x = torch.Tensor(x.astype(np.float32)).to(self.model.device)
-        if context is not None:
-            context = torch.from_numpy(context).float().to(self.model.device)
+        if conditional is not None:
+            conditional = \
+                torch.from_numpy(conditional).float().to(self.model.device)
         self.model.eval()
         with torch.no_grad():
-            z, log_prob = self.model.forward_and_log_prob(x, context=context)
+            z, log_prob = \
+                self.model.forward_and_log_prob(x, context=conditional)
 
         z = z.detach().cpu().numpy()
         log_prob = log_prob.detach().cpu().numpy()
         return z, log_prob
 
-    def sample_and_log_prob(self, N=1, z=None, context=None, alt_dist=None):
+    def sample_and_log_prob(self, N=1, z=None, conditional=None,
+                            alt_dist=None):
         """
         Generate samples from samples drawn from the base distribution or
         and alternative distribution from provided latent samples
@@ -681,13 +687,14 @@ class FlowModel:
         if self.model.training:
             self.model.eval()
 
-        if context is not None:
-            if isinstance(context, np.ndarray):
-                context = torch.from_numpy(context).float().to(self.device)
+        if conditional is not None:
+            if isinstance(conditional, np.ndarray):
+                conditional = \
+                    torch.from_numpy(conditional).float().to(self.device)
         if z is None:
             with torch.no_grad():
                 x, log_prob = self.model.sample_and_log_prob(
-                    N, context=context)
+                    N, context=conditional)
         else:
             if alt_dist is not None:
                 log_prob_fn = alt_dist.log_prob
@@ -699,7 +706,7 @@ class FlowModel:
                     z = torch.Tensor(z.astype(np.float32)).to(
                         self.model.device)
                 log_prob = log_prob_fn(z)
-                x, log_J = self.model.inverse(z, context=context)
+                x, log_J = self.model.inverse(z, context=conditional)
                 log_prob -= log_J
 
         x = x.detach().cpu().numpy()

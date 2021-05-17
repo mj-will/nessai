@@ -90,11 +90,14 @@ def test_update_flow_config(proposal):
     """
     proposal.conditional = True
     proposal.flow_config = {'model_config': {'kwargs': {}}}
+    proposal.conditional_dims = 2
     with patch('nessai.proposal.conditional.FlowProposal.update_flow_config') \
             as m:
         ConditionalFlowProposal.update_flow_config(proposal)
 
     m.assert_called_once()
+    assert proposal.flow_config['model_config']['kwargs']['context_features'] \
+        == 2
 
 
 def test_reset_reparameterisations(proposal):
@@ -115,9 +118,9 @@ def test_train_on_data(proposal):
     proposal.rescaled_names = ['a', 'b']
     a = np.random.randn(10, 2)
     x_prime = numpy_array_to_live_points(a, proposal.rescaled_names)
-    context = np.arange(10)
-    proposal.get_context = MagicMock(return_value=context)
-    proposal.train_context = MagicMock()
+    conditional = np.arange(10)
+    proposal.get_conditional = MagicMock(return_value=conditional)
+    proposal.train_conditional = MagicMock()
     proposal._plot_training = False
     proposal.flow = MagicMock()
     proposal.flow.train = MagicMock()
@@ -125,23 +128,23 @@ def test_train_on_data(proposal):
                return_value=a):
         ConditionalFlowProposal.train_on_data(proposal, x_prime, output)
 
-    proposal.get_context.assert_called_once_with(x_prime)
-    proposal.train_context.assert_called_once_with(context)
+    proposal.get_conditional.assert_called_once_with(x_prime)
+    proposal.train_conditional.assert_called_once_with(conditional)
     proposal.flow.train.assert_called_once_with(
-        a, context=context, output=output, plot=False)
+        a, conditional=conditional, output=output, plot=False)
 
 
 @pytest.mark.parametrize('update', [False, True])
-def test_train_context(proposal, update):
-    """Test training on the context"""
+def test_train_conditional(proposal, update):
+    """Test training on the conditional"""
     proposal.conditional_likelihood = True
-    context = np.array([[1, 2], [3, 4]])
+    conditional = np.array([[1, 2], [3, 4]])
     proposal.update_bounds = update
     proposal.likelihood_index = 1
     proposal.likelihood_distribution = MagicMock()
     proposal.likelihood_distribution.update_samples = MagicMock()
 
-    ConditionalFlowProposal.train_context(proposal, context)
+    ConditionalFlowProposal.train_conditional(proposal, conditional)
 
     print(proposal.likelihood_distribution.update_samples.call_args[0])
     np.testing.assert_array_equal(
@@ -152,8 +155,8 @@ def test_train_context(proposal, update):
             call_args[1]['reset']) is update
 
 
-def test_sample_context_parameters(proposal):
-    """Test sampling context parameters"""
+def test_sample_conditional_parameters(proposal):
+    """Test sampling conditional parameters"""
     c = np.arange(10)
     proposal.conditional_likelihood = True
     proposal.conditional_dims = 2
@@ -162,7 +165,7 @@ def test_sample_context_parameters(proposal):
     proposal.likelihood_distribution.sample = MagicMock(return_value=c)
     proposal.rescaled_worst_logL = -0.5
 
-    out = ConditionalFlowProposal.sample_context_parameters(proposal, 10)
+    out = ConditionalFlowProposal.sample_conditional_parameters(proposal, 10)
 
     proposal.likelihood_distribution.sample.assert_called_once_with(
         10, min_logL=-0.5
@@ -171,8 +174,8 @@ def test_sample_context_parameters(proposal):
     np.testing.assert_array_equal(out[:, 1], c)
 
 
-def test_get_context_likelihood(proposal):
-    """Assert `get_context` returns the correct likelihood context"""
+def test_get_conditional_likelihood(proposal):
+    """Assert `get_conditional` returns the correct likelihood conditional"""
     proposal.conditional = True
     proposal.conditional_dims = 1
     proposal.conditional_likelihood = True
@@ -180,13 +183,13 @@ def test_get_context_likelihood(proposal):
     proposal._min_logL = 0.0
     proposal._max_logL = 10.0
     x = np.array([1, 2], dtype=[('logL', 'f8')])
-    c = ConditionalFlowProposal.get_context(proposal, x)
+    c = ConditionalFlowProposal.get_conditional(proposal, x)
 
     assert np.array_equal(c, np.array([[0.1], [0.2]]))
 
 
-def test_get_context_no_conditionals(proposal):
-    """Assert `get_context` returns None with no conditional parameters but \
+def test_get_conditional_no_conditionals(proposal):
+    """Assert `get_conditional` returns None with no conditional parameters but \
         conditional=True.
 
     This should not happen during use.
@@ -195,30 +198,30 @@ def test_get_context_no_conditionals(proposal):
     proposal.conditional_likelihood = False
     proposal.conditional_dims = 0
     x = np.array([1, 2])
-    c = ConditionalFlowProposal.get_context(proposal, x)
+    c = ConditionalFlowProposal.get_conditional(proposal, x)
     assert c is None
 
 
-def test_get_context_not_conditional(proposal):
-    """Assert `get_context` returns None if conditional=False"""
+def test_get_conditional_not_conditional(proposal):
+    """Assert `get_conditional` returns None if conditional=False"""
     proposal.conditional = False
-    assert ConditionalFlowProposal.get_context(proposal, 2) is None
+    assert ConditionalFlowProposal.get_conditional(proposal, 2) is None
 
 
 def test_forward_pass(proposal):
     """Test the forward pass method"""
     proposal.conditional = True
     c = np.array([3, 4])
-    proposal.get_context = MagicMock(return_value=c)
+    proposal.get_conditional = MagicMock(return_value=c)
     x = np.array([1, 2])
     with patch('nessai.proposal.conditional.FlowProposal.forward_pass',
                return_value=(1, 2)) \
             as mock:
         out = ConditionalFlowProposal.forward_pass(
-            proposal, x, context=None, compute_radius=True)
+            proposal, x, conditional=None, compute_radius=True)
 
-    mock.assert_called_once_with(x, context=c, compute_radius=True)
-    proposal.get_context.assert_called_once_with(x)
+    mock.assert_called_once_with(x, conditional=c, compute_radius=True)
+    proposal.get_conditional.assert_called_once_with(x)
     assert out == (1, 2)
 
 
@@ -226,16 +229,16 @@ def test_backward_pass(proposal):
     """Test the backward pass method"""
     proposal.conditional = True
     c = np.array([3, 4])
-    proposal.sample_context_parameters = MagicMock(return_value=c)
+    proposal.sample_conditional_parameters = MagicMock(return_value=c)
     x = np.array([1, 2])
     with patch('nessai.proposal.conditional.FlowProposal.backward_pass',
                return_value=(1, 2)) \
             as mock:
         out = ConditionalFlowProposal.backward_pass(
-            proposal, x, context=None, compute_radius=True)
+            proposal, x, conditional=None, compute_radius=True)
 
-    mock.assert_called_once_with(x, context=c, compute_radius=True)
-    proposal.sample_context_parameters.assert_called_once_with(x.size)
+    mock.assert_called_once_with(x, conditional=c, compute_radius=True)
+    proposal.sample_conditional_parameters.assert_called_once_with(x.size)
     assert out == (1, 2)
 
 
