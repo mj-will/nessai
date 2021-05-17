@@ -19,6 +19,8 @@ tests for this reparameterisation.
 - Added tests for `AugmentedFlowProposal`.
 - Added an example using `AugmentedFlowProposal`.
 - Added eggbox example.
+- Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
+- Add options to train with different optimisers: Adam, AdamW, SGD
 
 ### Changed
 
