@@ -14,7 +14,8 @@ from nessai.proposal import AnalyticProposal, RejectionProposal, FlowProposal
 def test_analytic_pool(proposal, n_pool, model, tmpdir):
     try:
         prop = proposal(model, n_pool=n_pool, poolsize=10, plot=False,
-                        max_radius=2, output=str(tmpdir.mkdir('test')))
+                        max_radius=2, output=str(tmpdir.mkdir('test')),
+                        compute_likelihood=False)
     except TypeError:
         prop = proposal(model, n_pool=n_pool, poolsize=10)
 
