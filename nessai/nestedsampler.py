@@ -316,10 +316,6 @@ class NestedSampler:
                             - 2 * self.log_w_norm)
 
     @property
-    def log_importance_weights(self):
-        return self.state.log_importance_weights
-
-    @property
     def entropy(self):
         lv = np.asarray(self.state.log_vols)
         ll = np.asarray(self.state.logLs)
@@ -587,8 +583,8 @@ class NestedSampler:
         index = np.searchsorted(self.live_points['logL'], live_point['logL'])
         self.live_points[:index - 1] = self.live_points[1:index]
         self.live_points[index - 1] = live_point
-        if not self._rejection_sampling:
-            self.log_w_norm = np.logaddexp(self.log_w_norm, live_point['logW'])
+        # if not self._rejection_sampling:
+        # self.log_w_norm = np.logaddexp(self.log_w_norm, live_point['logW'])
         return index - 1
 
     def _increment(self, worst):
@@ -596,9 +592,9 @@ class NestedSampler:
         if self._rejection_sampling:
             self.state.increment(worst)
         else:
-            # self.log_w_norm = logsumexp(self.live_points['logW'])
+            self.log_w_norm = logsumexp(self.live_points['logW'])
             self.state.increment(worst, log_w_norm=self.log_w_norm)
-            self.log_w_norm = logsubexp(self.log_w_norm, worst['logW'])
+            # self.log_w_norm = logsubexp(self.log_w_norm, worst['logW'])
 
     def consume_sample(self):
         """
@@ -929,8 +925,9 @@ class NestedSampler:
         ax[1].set_zorder(ax_dx.get_zorder()+1)
         ax[1].patch.set_visible(False)
 
-        ax[2].plot(state_its, np.exp(self.log_importance_weights[:ns]))
-        ax[2].set_ylabel('Effective prior \n samples')
+        w = np.exp(self.state.log_weights())
+        ax[2].plot(np.arange(w.size), w)
+        ax[2].set_ylabel('Sample weights')
 
         ax_en = plt.twinx(ax[2])
         ax_en.plot(it, self.entropy_history, c=colours[1], ls=ls[1])
@@ -1087,6 +1084,9 @@ class NestedSampler:
         """
         Finalise things after sampling
         """
+        if self.finalised:
+            logger.warning('Sampler already finalised')
+            return
         logger.info('Finalising')
         for i, p in enumerate(self.live_points):
             self.state.increment(p, nlive=self.nlive-i,
