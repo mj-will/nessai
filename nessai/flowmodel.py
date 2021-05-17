@@ -32,7 +32,10 @@ def update_config(d):
         val_size=0.1
         max_epochs=500
         patience=20
-        noise_scale=0.0
+        noise_scale=0.0,
+        use_dataloader=False,
+        optimiser='adam',
+        optimiser_kwargs={}
         model_config=default_model
 
     where ``default model`` is::
@@ -41,7 +44,9 @@ def update_config(d):
         n_blocks=4
         n_layers=2
         ftype='RealNVP'
-        device_tag='cpu'
+        device_tag='cpu',
+        flow=None,
+        inference_device_tag=None,
         kwargs={batch_norm_between_layers=True, linear_transform='lu'}
 
     The kwargs can contain any additional keyword arguments that are specific
@@ -81,6 +86,7 @@ def update_config(d):
         max_epochs=500,
         patience=20,
         noise_scale=0.0,
+        use_dataloader=False,
         optimiser='adam',
         optimiser_kwargs={}
     )
@@ -123,8 +129,10 @@ class FlowModel:
         self.output = output
         self.setup_from_input_dict(config)
         self.weights_file = None
+
         self.device = None
         self.inference_device = None
+        self.use_dataloader = False
 
     def save_input(self, config, output_file=None):
         """
@@ -239,7 +247,7 @@ class FlowModel:
         if update_default:
             self.device = device
 
-    def prep_data(self, samples, val_size, batch_size):
+    def prep_data(self, samples, val_size, batch_size, use_dataloader=False):
         """
         Prep data and return dataloaders for training
 
@@ -252,11 +260,13 @@ class FlowModel:
             validation.
         batch_size : int
             Batch size used when contructing dataloaders.
+        use_dataloader : bool, optional
+            If True data is returned in a dataloader else a tensor is returned.
 
         Returns
         -------
-        train_loader, val_loader : :obj:`torch.utils.data.Dataloader`
-            Dataloaders with training and validaiton data
+        train_data, val_data :
+            Training and validation data as either a tensor or dataloader
         """
         if not self.initialised:
             self.initialise()
@@ -280,22 +290,39 @@ class FlowModel:
         else:
             self.batch_size = batch_size
 
-        train_tensor = \
-            torch.from_numpy(x_train.astype(np.float32)).to(self.device)
-        val_tensor = torch.from_numpy(x_val.astype(np.float32)).to(self.device)
+        if use_dataloader:
+            logger.debug('Using dataloaders')
+            train_tensor = torch.from_numpy(x_train.astype(np.float32))
+            train_dataset = torch.utils.data.TensorDataset(train_tensor)
+            train_data = torch.utils.data.DataLoader(
+                train_dataset, batch_size=self.batch_size, shuffle=True)
 
-        return train_tensor, val_tensor
+            val_tensor = torch.from_numpy(x_val.astype(np.float32))
+            val_dataset = torch.utils.data.TensorDataset(val_tensor)
+            val_data = torch.utils.data.DataLoader(
+                val_dataset, batch_size=x_val.shape[0], shuffle=False)
+        else:
+            logger.debug('Using tensors')
+            train_data = \
+                torch.from_numpy(x_train.astype(np.float32)).to(self.device)
+            val_data = \
+                torch.from_numpy(x_val.astype(np.float32)).to(self.device)
 
-    def _train(self, tensor, noise_scale=0.0, shuffle=True):
+        return train_data, val_data
+
+    def _train(self, train_data, noise_scale=0.0, is_dataloader=False):
         """
         Loop over the data and update the weights
 
         Parameters
         ----------
-        loader : :obj:`torch.util.data.Dataloader`
-            Dataloader with data to train on
+        train_data : :obj:`torch.util.data.Dataloader` or :obj:`torch.Tensor`
+            Training data. If a tensor is provided, it is split into batches
+            using the batch size.
         noise_scale : float, optional
             Scale of Gaussian noise added to data.
+        is_dataloader : bool, optional
+            Must be True when using a dataloader
 
         Returns
         -------
@@ -312,11 +339,14 @@ class FlowModel:
             def loss_fn(data):
                 return -model.log_prob(data).mean()
 
+        if not is_dataloader:
+            p = torch.randperm(train_data.shape[0])
+            train_data = train_data[p, :].split(self.batch_size)
+
         n = 0
-        if shuffle:
-            p = torch.randperm(tensor.shape[0])
-            tensor = tensor[p, :]
-        for data in tensor.split(self.batch_size):
+        for data in train_data:
+            if is_dataloader:
+                data = data[0].to(self.device)
             if noise_scale:
                 data += noise_scale * torch.randn_like(data)
             for param in model.parameters():
@@ -334,14 +364,16 @@ class FlowModel:
 
         return train_loss / n
 
-    def _validate(self, tensor):
+    def _validate(self, val_data, is_dataloader=False):
         """
         Loop over the data and get validation loss
 
         Parameters
         ----------
-        loader : :obj:`torch.util.data.Dataloader`
+        val_data : :obj:`torch.util.data.Dataloader` or :obj:`torch.Tensor
             Dataloader with data to validate on
+        is_dataloader : bool, optional
+            Boolean to indicate if the data is a dataloader
 
         Returns
         -------
@@ -357,13 +389,21 @@ class FlowModel:
         else:
             def loss_fn(data):
                 return -model.log_prob(data).mean()
-        n = 0
-        for data in tensor.split(self.batch_size):
-            with torch.no_grad():
-                val_loss += loss_fn(data).item()
-            n += 1
 
-        return val_loss / n
+        if is_dataloader:
+            n = 0
+            for data in val_data:
+                if is_dataloader:
+                    data = data[0].to(self.device)
+                with torch.no_grad():
+                    val_loss += loss_fn(data).item()
+                n += 1
+
+            return val_loss / n
+        else:
+            with torch.no_grad():
+                val_loss += loss_fn(val_data).item()
+            return val_loss
 
     def train(self, samples, max_epochs=None, patience=None, output=None,
               val_size=None, plot=True):
@@ -411,8 +451,12 @@ class FlowModel:
 
         self.move_to(self.device)
 
-        train_tensor, val_tensor = self.prep_data(samples, val_size=val_size,
-                                                  batch_size=self.batch_size)
+        train_data, val_data = self.prep_data(
+            samples,
+            val_size=val_size,
+            batch_size=self.batch_size,
+            use_dataloader=self.use_dataloader
+        )
 
         if max_epochs is None:
             max_epochs = self.max_epochs
@@ -436,8 +480,15 @@ class FlowModel:
         logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
-            loss = self._train(train_tensor, noise_scale=noise_scale)
-            val_loss = self._validate(val_tensor)
+            loss = self._train(
+                train_data,
+                noise_scale=noise_scale,
+                is_dataloader=self.use_dataloader
+            )
+            val_loss = self._validate(
+                val_data,
+                is_dataloader=self.use_dataloader
+            )
             if plot:
                 history['loss'].append(loss)
                 history['val_loss'].append(val_loss)
