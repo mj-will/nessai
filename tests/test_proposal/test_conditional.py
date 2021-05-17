@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test the conditional proposal"""
+from nessai.livepoint import numpy_array_to_live_points
 import numpy as np
 import pytest
 from unittest.mock import create_autospec, patch, MagicMock
@@ -56,6 +57,21 @@ def test_set_rescaling(proposal):
     m.assert_called_once()
 
 
+def test_check_state(proposal):
+    """Test the check state method.
+
+    Checks that the parent method has been called and that the min and max
+    likelihoods are set.
+    """
+    proposal.update_bounds = True
+    x = {'logL': np.arange(10)}
+    with patch('nessai.proposal.conditional.FlowProposal.check_state') as m:
+        ConditionalFlowProposal.check_state(proposal, x)
+    m.assert_called_once_with(x)
+    assert proposal._min_logL == 0
+    assert proposal._max_logL == 9
+
+
 def test_configure_likelihood_parameter(proposal):
     """Make sure the likelihood parameter is correctly added"""
     proposal.conditional_likelihood = True
@@ -65,6 +81,20 @@ def test_configure_likelihood_parameter(proposal):
     mock.assert_called_once_with('logL', rescale=False)
     assert proposal.likelihood_index == 1
     assert proposal.conditional_parameters == ['c1', 'logL']
+
+
+def test_update_flow_config(proposal):
+    """Test updating the flow config.
+
+    If the proposal is conditional, this should add `context_features`.
+    """
+    proposal.conditional = True
+    proposal.flow_config = {'model_config': {'kwargs': {}}}
+    with patch('nessai.proposal.conditional.FlowProposal.update_flow_config') \
+            as m:
+        ConditionalFlowProposal.update_flow_config(proposal)
+
+    m.assert_called_once()
 
 
 def test_reset_reparameterisations(proposal):
@@ -77,6 +107,68 @@ def test_reset_reparameterisations(proposal):
     mock.assert_called_once()
     assert proposal._min_logL is None
     assert proposal._max_logL is None
+
+
+def test_train_on_data(proposal):
+    """Test the train on data method"""
+    output = 'out'
+    proposal.rescaled_names = ['a', 'b']
+    a = np.random.randn(10, 2)
+    x_prime = numpy_array_to_live_points(a, proposal.rescaled_names)
+    context = np.arange(10)
+    proposal.get_context = MagicMock(return_value=context)
+    proposal.train_context = MagicMock()
+    proposal._plot_training = False
+    proposal.flow = MagicMock()
+    proposal.flow.train = MagicMock()
+    with patch('nessai.proposal.conditional.live_points_to_array',
+               return_value=a):
+        ConditionalFlowProposal.train_on_data(proposal, x_prime, output)
+
+    proposal.get_context.assert_called_once_with(x_prime)
+    proposal.train_context.assert_called_once_with(context)
+    proposal.flow.train.assert_called_once_with(
+        a, context=context, output=output, plot=False)
+
+
+@pytest.mark.parametrize('update', [False, True])
+def test_train_context(proposal, update):
+    """Test training on the context"""
+    proposal.conditional_likelihood = True
+    context = np.array([[1, 2], [3, 4]])
+    proposal.update_bounds = update
+    proposal.likelihood_index = 1
+    proposal.likelihood_distribution = MagicMock()
+    proposal.likelihood_distribution.update_samples = MagicMock()
+
+    ConditionalFlowProposal.train_context(proposal, context)
+
+    print(proposal.likelihood_distribution.update_samples.call_args[0])
+    np.testing.assert_array_equal(
+        proposal.likelihood_distribution.update_samples.call_args[0][0],
+        np.array([2, 4])
+    )
+    assert (proposal.likelihood_distribution.update_samples.
+            call_args[1]['reset']) is update
+
+
+def test_sample_context_parameters(proposal):
+    """Test sampling context parameters"""
+    c = np.arange(10)
+    proposal.conditional_likelihood = True
+    proposal.conditional_dims = 2
+    proposal.likelihood_index = 1
+    proposal.likelihood_distribution = MagicMock()
+    proposal.likelihood_distribution.sample = MagicMock(return_value=c)
+    proposal.rescaled_worst_logL = -0.5
+
+    out = ConditionalFlowProposal.sample_context_parameters(proposal, 10)
+
+    proposal.likelihood_distribution.sample.assert_called_once_with(
+        10, min_logL=-0.5
+    )
+
+    np.testing.assert_array_equal(out[:, 1], c)
 
 
 def test_get_context_likelihood(proposal):
@@ -105,6 +197,12 @@ def test_get_context_no_conditionals(proposal):
     x = np.array([1, 2])
     c = ConditionalFlowProposal.get_context(proposal, x)
     assert c is None
+
+
+def test_get_context_not_conditional(proposal):
+    """Assert `get_context` returns None if conditional=False"""
+    proposal.conditional = False
+    assert ConditionalFlowProposal.get_context(proposal, 2) is None
 
 
 def test_forward_pass(proposal):
