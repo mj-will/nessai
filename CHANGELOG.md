@@ -19,6 +19,8 @@ tests for this reparameterisation.
 - Added tests for `AugmentedFlowProposal`.
 - Added an example using `AugmentedFlowProposal`.
 - Added eggbox example.
+- Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
+- Add options to train with different optimisers: Adam, AdamW, SGD
 
 ### Changed
 
@@ -28,6 +30,7 @@ tests for this reparameterisation.
 - `nessai.model.Model` now inherits from `abc.ABC` and `log_prior` and `log_likelihood` are now `abstractmethods`. This prevents the class from being used without redefining those methods.
 - Updated `AumgentedFlowProposal` to work with current version of `FlowProposal`
 - Fix random seed unit tests.
+- Move `_NSIntegralState` and some functions from `posterior.py` to `evidence.py`
 
 ### Fixed
 
@@ -37,6 +40,7 @@ tests for this reparameterisation.
 - Fixed a bug when using unbounded priors related to `Model.verify_model`
 - Fix inversion-split with `RescaleToBounds`
 - Fixed `AugmentedGWFlowProposal`.
+- Fixed a bug with `plot_live_points` when the hue parameter (`c`) was constant.
 
 
 ## [0.2.4] - 2021-03-08

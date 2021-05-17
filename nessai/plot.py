@@ -49,6 +49,10 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
 
     if c is not None:
         hue = df[c]
+        if np.all(hue == hue[0]):
+            logger.warning(
+                f'Selected hue variable: {c} is constant! Disabling.')
+            hue = None
     else:
         hue = None
 
