@@ -11,6 +11,7 @@ import sys
 import numpy as np
 
 from . import __version__ as version
+from .dynamic import DynamicNestedSampler
 from .livepoint import live_points_to_dict
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
@@ -47,6 +48,8 @@ class FlowSampler:
     n_posterior_samples : int, optional
         Number of posterior samples to produce. Only applies to importance
         sampling. If `None` the effective sample size is used.
+    dynamic : bool, optional
+        Enable dynamic nested sampling
     kwargs :
         Keyword arguments passed to :obj:`~nessai.nestedsampler.NestedSampler`.
     """
@@ -55,6 +58,7 @@ class FlowSampler:
                  exit_code=130, max_threads=1,
                  posterior_sampling='rejection_sampling',
                  n_posterior_samples=None,
+                 dynamic=False,
                  **kwargs):
 
         configure_threads(
@@ -75,16 +79,21 @@ class FlowSampler:
             )
         self.n_posterior_samples = n_posterior_samples
 
+        if dynamic:
+            SamplerClass = DynamicNestedSampler
+        else:
+            SamplerClass = NestedSampler
+
         self.output = os.path.join(output, '')
         if resume:
             if not any((os.path.exists(os.path.join(self.output, f)) for f in
                         [resume_file, resume_file + '.old'])):
                 logger.warning('No files to resume from, starting sampling')
-                self.ns = NestedSampler(model, output=self.output,
-                                        resume_file=resume_file, **kwargs)
+                self.ns = SamplerClass(model, output=self.output,
+                                       resume_file=resume_file, **kwargs)
             else:
                 try:
-                    self.ns = NestedSampler.resume(
+                    self.ns = SamplerClass.resume(
                         os.path.join(self.output, resume_file), model,
                         kwargs['flow_config'], weights_file)
                 except (FileNotFoundError, RuntimeError) as e:
@@ -93,7 +102,7 @@ class FlowSampler:
                         f'with error {e}')
                     try:
                         resume_file += '.old'
-                        self.ns = NestedSampler.resume(
+                        self.ns = SamplerClass.resume(
                             os.path.join(self.output, resume_file), model,
                             kwargs['flow_config'], weights_file)
                     except RuntimeError as e:
@@ -102,8 +111,8 @@ class FlowSampler:
                         raise RuntimeError('Could not resume sampler '
                                            f'with error: {e}')
         else:
-            self.ns = NestedSampler(model, output=self.output,
-                                    resume_file=resume_file, **kwargs)
+            self.ns = SamplerClass(model, output=self.output,
+                                   resume_file=resume_file, **kwargs)
 
         self.save_kwargs(kwargs)
 
