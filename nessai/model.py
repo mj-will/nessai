@@ -16,8 +16,7 @@ from .livepoint import (
 
 logger = logging.getLogger(__name__)
 
-
-class Model(ABC):
+class Model:
     """Base class for the user-defined model being sampled.
 
     The user must define the attributes ``names`` ``bounds`` and the metods
@@ -220,20 +219,20 @@ class Model(ABC):
         """
         Returns log-prior, must be defined by the user.
         """
-        pass
+        raise NotImplementedError("Your model must implement log_prior")
 
-    @abstractmethod
     def log_likelihood(self, x):
         """
         Returns the log-likelihood, must be defined by the user.
         """
-        pass
+        raise NotImplementedError("Your model must implement log_likelihood")
+
 
     async def async_log_likelihood(self, x):
         """
         Co-routine for evaluating log likelihood
         """
-        return self.log_likelihood(x)
+        return self.evaluate_log_likelihood(x)
 
     def evaluate_log_likelihood(self, x):
         """

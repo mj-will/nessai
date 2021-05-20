@@ -21,7 +21,7 @@ def _log_likelihood_wrapper(x):
     """
     Wrapper for the log likelihood
     """
-    return _model.evaluate_log_likelihood(x)
+    return _model.async_log_likelihood(x)
 
 
 class Proposal:
@@ -104,17 +104,15 @@ class Proposal:
             self.pool = None
             logger.info("Finished closing worker pool.")
 
-    def evaluate_likelihoods(self):
+    async def evaluate_likelihoods(self):
         """
         Evaluate the likelihoods for the pool of live points.
 
-        If the multiprocessing pool has been started, the samples will be map
-        using `pool.map`.
         """
         st = datetime.datetime.now()
-        result = [asyncio.run(self.model.async_log_likelihood(s))
-                  for s in self.samples]
-        print(result)
+        result = await asyncio.gather(*[self.model.async_log_likelihood(s)
+                  for s in self.samples])
+        #print(result)
         self.samples['logL'] = result
         """
         if self.pool is None:

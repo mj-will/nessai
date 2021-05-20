@@ -517,11 +517,11 @@ class NestedSampler:
             np.savetxt(os.path.join(self.output, filename),
                        self.insertion_indices, newline='\n', delimiter=' ')
 
-    def log_likelihood(self, x):
+    async def log_likelihood(self, x):
         """
         Wrapper for the model likelihood so evaluations are counted
         """
-        return self.model.log_likelihood(x)
+        return await self.model.async_log_likelihood(x)
 
     def yield_sample(self, oldparam):
         """

@@ -12,9 +12,9 @@ torch.manual_seed(170817)
 
 _requires_dependency_cache = dict()
 
-
 @pytest.fixture()
 def model():
+    
     class TestModel(Model):
 
         def __init__(self):
@@ -28,13 +28,13 @@ def model():
                           & (x[n] <= self.bounds[n][1])) \
                         / (self.bounds[n][1] - self.bounds[n][0])
             return log_p
-
+        
         def log_likelihood(self, x):
             log_l = 0
             for pn in self.names:
                 log_l += norm.logpdf(x[pn])
             return log_l
-
+        
     return TestModel()
 
 
