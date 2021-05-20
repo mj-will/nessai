@@ -84,6 +84,16 @@ def test_likelihood_evaluations(model):
     assert model.likelihood_evaluations == 1
 
 
+@pytest.mark.asyncio
+async def test_async_likelihood_evaluations(model):
+    """
+    Test asynchronous likelihood evaluations
+    """
+    new_points = model.new_point(N=1)
+    log_l = await model.async_log_likelihood(new_points)
+    assert log_l.size == 1
+
+
 def test_missing_log_prior():
     """
     Test to ensure a model cannot be instantiated without a log-prior method.
