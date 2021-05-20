@@ -28,7 +28,7 @@ from ..plot import plot_live_points, plot_1d_comparison
 from .rejection import RejectionProposal
 from ..utils import (
     get_uniform_distribution,
-    get_multivariate_normal,
+    get_truncated_normal,
     detect_edge,
     configure_edge_detection,
     save_live_points
@@ -1444,9 +1444,13 @@ class FlowProposal(RejectionProposal):
                                             device=self.flow.device)
         elif self.latent_prior == 'truncated_gaussian':
             if 'var' in self.draw_latent_kwargs:
-                return get_multivariate_normal(
-                    self.flow_dims, var=self.draw_latent_kwargs['var'],
-                    device=self.flow.device)
+                raise NotImplementedError('Variance is not implemented')
+            else:
+                return get_truncated_normal(
+                    self.flow_dims,
+                    self.r * self.fuzz,
+                    device=self.flow.device
+                )
 
     def _draw_flow_latent_prior(self, dims, N=1000, **kwargs):
         with torch.no_grad():
@@ -1525,7 +1529,6 @@ class FlowProposal(RejectionProposal):
             plot_1d_comparison(
                 self.training_data, x, labels=['live points', 'pool'],
                 filename=f'{self.output}/pool_{self.populated_count}.png')
-
             z_tensor = torch.from_numpy(z).to(self.flow.device)
             with torch.no_grad():
                 if self.alt_dist is not None:
