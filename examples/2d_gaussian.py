@@ -76,7 +76,7 @@ flow_config = dict(
 # The FlowSampler object is used to managed the sampling as has more
 # configuration options
 fp = FlowSampler(GaussianModel(), output=output, flow_config=flow_config,
-                 resume=False, seed=1234)
+                 resume=False, seed=1234, check_acceptance=True)
 
 # And go!
 fp.run()

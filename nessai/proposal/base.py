@@ -4,6 +4,7 @@ Base object for all proposal classes.
 """
 import datetime
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +112,11 @@ class Proposal:
         using `pool.map`.
         """
         st = datetime.datetime.now()
+        result = [asyncio.run(self.model.async_log_likelihood(s))
+                  for s in self.samples]
+        print(result)
+        self.samples['logL'] = result
+        """
         if self.pool is None:
             for s in self.samples:
                 s['logL'] = self.model.evaluate_log_likelihood(s)
@@ -118,7 +124,7 @@ class Proposal:
             self.samples['logL'] = self.pool.map(_log_likelihood_wrapper,
                                                  self.samples)
             self.model.likelihood_evaluations += self.samples.size
-
+        """
         self.logl_eval_time += (datetime.datetime.now() - st)
 
     def draw(self, old_param):
