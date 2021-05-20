@@ -1,10 +1,18 @@
+# -*- coding: utf-8 -*-
+"""
+Test the distributions for flows include in nessai.
+"""
 
 import numpy as np
 from scipy import stats
 import torch
 import pytest
 
-from nessai.flows.distributions import MultivariateNormal
+from nessai.flows.distributions import (
+    MultivariateNormal,
+    SphericalTruncatedNormal,
+    UniformNBall
+)
 
 
 @pytest.fixture
@@ -83,3 +91,80 @@ def test_mean_context(dist):
     """
     with pytest.raises(NotImplementedError):
         dist._mean(True)
+
+
+def test_nball_log_prob():
+    """Test the log-probability of the n-ball"""
+    dist = UniformNBall(3)
+
+    x_in = torch.tensor([[0.5, 0.5, 0.5]])
+
+    log_prob = dist.log_prob(x_in)
+
+    assert np.isfinite(log_prob)
+    assert log_prob == -np.log((4 / 3) * np.pi)
+
+
+def test_nball_log_prob_out():
+    """Test the log-probability of the n-ball outside of bounds"""
+    dist = UniformNBall(3)
+
+    x_in = torch.tensor([[0.99, 0.0, 0.0]])
+
+    log_prob = dist.log_prob(x_in)
+    print(log_prob)
+
+    assert np.isfinite(log_prob)
+    assert log_prob == -np.log((4 / 3) * np.pi)
+
+
+@pytest.mark.parametrize('radius', [1, 3, 9])
+def test_nball_sample(radius):
+    """Test the n-ball with different radii"""
+    dist = UniformNBall([3], radius=radius)
+
+    x = dist.sample(10).numpy()
+    r = np.sqrt(np.sum(x ** 2, axis=1))
+    assert (r <= radius).all()
+
+
+def test_truncate_normal_log_prob():
+    """Test the log-probability of the truncated normal"""
+
+    dist = SphericalTruncatedNormal(1, 1.0)
+
+    x = torch.tensor([[0.5], [0.5]])
+
+    true_log_prob = stats.truncnorm(-1, 1).logpdf(x)
+    log_prob = dist.log_prob(x)
+    np.testing.assert_almost_equal(log_prob, true_log_prob[:, 0])
+
+
+@pytest.mark.parametrize('dims', [2, 4, 20])
+@pytest.mark.parametrize('r', [0.5, 1.0, 2.0, 5.0, 10.0])
+def test_truncate_normal_log_prob_n_dims(dims, r):
+    """Test the log-probability of the truncated normal in n dimensions"""
+
+    dist = SphericalTruncatedNormal(dims, r)
+
+    x = torch.randn(10, dims)
+
+    true_log_prob = stats.truncnorm(-r, r).logpdf(x).sum(axis=1)
+    true_log_prob[np.linalg.norm(x, axis=1) > r] = -np.inf
+    log_prob = dist.log_prob(x)
+    np.testing.assert_array_almost_equal(log_prob, true_log_prob)
+
+
+def test_truncate_normal_log_prob_out_of_bounds():
+    """
+    Test the log-probability of the truncated normal for a point outside the
+    radius
+    """
+
+    dist = SphericalTruncatedNormal(2, 1.0)
+
+    x = torch.tensor([[1.5, 0.5]])
+
+    true_log_prob = stats.truncnorm(-1, 1).logpdf(x).sum(axis=1)
+    log_prob = dist.log_prob(x)
+    np.testing.assert_almost_equal(log_prob, true_log_prob)
