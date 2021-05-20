@@ -14,7 +14,11 @@ import torch
 from torch.distributions import MultivariateNormal
 
 from .livepoint import live_points_to_dict
-from .flows.distributions import BoxUniform
+from .flows.distributions import (
+    BoxUniform,
+    UniformNBall,
+    SphericalTruncatedNormal
+)
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +196,28 @@ def get_uniform_distribution(dims, r, device='cpu'):
     return BoxUniform(low=-r, high=r)
 
 
+def get_uniform_nball_distribution(dims, r, device='cpu'):
+    """
+    Return a torch distribution that is uniform in the number of dims
+    specified.
+
+    Parameters
+    ----------
+    dims : int
+        Number of dimensions.
+    r : float
+        Radius to use for lower and upper bounds.
+    device : str, optional
+        Device on which the distribution is placed.
+
+    Returns
+    -------
+    :obj:`nessai.flows.distributions.UniformNBall`
+        Instance of `UniformNBall` with the given radius.
+    """
+    return UniformNBall(dims, radius=r).to(device)
+
+
 def get_multivariate_normal(dims, var=1, device='cpu'):
     """
     Return a Pytorch distribution that is normally distributed in n dims
@@ -214,6 +240,24 @@ def get_multivariate_normal(dims, var=1, device='cpu'):
     loc = torch.zeros(dims).to(device).double()
     covar = var * torch.eye(dims).to(device).double()
     return MultivariateNormal(loc, covariance_matrix=covar)
+
+
+def get_truncated_normal(dims, r=1, device='cpu'):
+    """
+
+    Parameters
+    ----------
+    dims : int
+        Number of dimensions.
+    r : float, optional
+        Radius
+    device : str, optional
+        Device on which the distribution is placed.
+
+    Returns
+    -------
+    """
+    return SphericalTruncatedNormal(dims, r).to(device)
 
 
 def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
