@@ -836,9 +836,15 @@ class NestedSampler:
             self.check_flow_model_reset()
 
             training_data = self.live_points.copy()
-            if self.memory and (len(self.nested_samples) >= self.memory):
-                training_data = np.concatenate([
-                    training_data, self.nested_samples[-self.memory:].copy()])
+            if self.memory:
+                if self.memory == 'all':
+                    training_data = np.concatenate([
+                        training_data, self.nested_samples.copy()])
+                elif (len(self.nested_samples) >= self.memory):
+                    training_data = np.concatenate([
+                        training_data,
+                        self.nested_samples[-self.memory:].copy()
+                     ])
 
             st = datetime.datetime.now()
             self.proposal.train(training_data)
