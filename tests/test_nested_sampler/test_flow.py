@@ -3,7 +3,7 @@
 Test the functions related to the flow in the proposal.
 """
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import call, MagicMock
 from nessai.nestedsampler import NestedSampler
 
 
@@ -131,3 +131,80 @@ def test_check_training_false(sampler, config):
     train, force = NestedSampler.check_training(sampler)
     assert train is False
     assert force is False
+
+
+@pytest.mark.parametrize('training_count', [10, 100])
+def test_check_flow_model_reset_weights(sampler, training_count):
+    """Assert flow model only weights are reset"""
+    sampler.proposal = MagicMock()
+    sampler.proposal.reset_model_weights = MagicMock()
+    sampler.reset_acceptance = False
+    sampler.reset_weights = 10
+    sampler.reset_permutations = 0
+    sampler.proposal.training_count = training_count
+
+    NestedSampler.check_flow_model_reset(sampler)
+
+    sampler.proposal.reset_model_weights.assert_called_once_with(weights=True)
+
+
+@pytest.mark.parametrize('training_count', [10, 100])
+def test_check_flow_model_reset_permutations(sampler, training_count):
+    """Assert flow model only permutations are reset"""
+    sampler.proposal = MagicMock()
+    sampler.proposal.reset_model_weights = MagicMock()
+    sampler.reset_acceptance = False
+    sampler.reset_weights = 0
+    sampler.reset_permutations = 10
+    sampler.proposal.training_count = training_count
+
+    NestedSampler.check_flow_model_reset(sampler)
+
+    sampler.proposal.reset_model_weights.assert_called_once_with(
+        weights=False, permutations=True)
+
+
+@pytest.mark.parametrize('training_count', [10, 100])
+def test_check_flow_model_reset_both(sampler, training_count):
+    """Assert flow model only permutations are reset"""
+    sampler.proposal = MagicMock()
+    sampler.proposal.reset_model_weights = MagicMock()
+    sampler.reset_acceptance = False
+    sampler.reset_weights = 10
+    sampler.reset_permutations = 10
+    sampler.proposal.training_count = training_count
+
+    NestedSampler.check_flow_model_reset(sampler)
+
+    calls = [call(weights=True), call(weights=False, permutations=True)]
+    sampler.proposal.reset_model_weights.assert_has_calls(calls)
+
+
+def test_check_flow_model_reset_acceptance(sampler):
+    """
+    Assert flow model is reset based on acceptance is reset_acceptance is True.
+    """
+    sampler.proposal = MagicMock()
+    sampler.proposal.reset_model_weights = MagicMock()
+    sampler.reset_acceptance = True
+    sampler.mean_block_acceptance = 0.1
+    sampler.acceptance_threshold = 0.5
+    sampler.proposal.training_count = 1
+
+    NestedSampler.check_flow_model_reset(sampler)
+
+    sampler.proposal.reset_model_weights.assert_called_once_with(
+        weights=True, permutations=True)
+
+
+def test_check_flow_model_reset_not_trained(sampler):
+    """
+    Verify that the flow model is not reset if it has never been trained.
+    """
+    sampler.proposal = MagicMock()
+    sampler.proposal.reset_model_weights = MagicMock()
+    sampler.proposal.training_count = 0
+
+    NestedSampler.check_flow_model_reset(sampler)
+
+    sampler.proposal.reset_model_weights.assert_not_called()
