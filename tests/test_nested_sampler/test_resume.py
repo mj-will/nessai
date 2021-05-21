@@ -50,7 +50,7 @@ def test_checkpoint(sampler, periodic):
         assert sampler.checkpoint_iterations == [10, 20]
 
 
-def test_resume(sampler, model):
+def test_resume(model):
     """Test the resume method"""
     obj = MagicMock()
     obj.model = None
