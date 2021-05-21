@@ -4,6 +4,7 @@ Test the functions related to configuring proposal methods
 """
 import numpy as np
 import pytest
+from unittest.mock import MagicMock
 
 from nessai.nestedsampler import NestedSampler
 from nessai.proposal import (
@@ -142,3 +143,36 @@ def test_flow_class_not_subclass(sampler):
     with pytest.raises(RuntimeError) as excinfo:
         NestedSampler.configure_flow_proposal(sampler, FakeProposal, {}, False)
     assert 'inherits' in str(excinfo.value)
+
+
+@pytest.mark.parametrize('val', [(0.1, 10), (0.8, 200)])
+def test_proposal_switch(sampler, val):
+    """Test the method for switching proposals"""
+    sampler.mean_block_acceptance = 0.5
+    sampler.mean_acceptance = val[0]
+    sampler.uninformed_acceptance_threshold = 0.5
+    sampler.iteration = val[1]
+    sampler.maximum_uninformed = 100
+    sampler._flow_proposal = MagicMock()
+    sampler._flow_proposal.n_pool = 2
+    sampler._flow_proposal.configure_pool = MagicMock()
+    sampler._uninformed_proposal = MagicMock()
+    sampler._uninformed_proposal.pool = True
+    sampler._uninformed_proposal.close_pool = MagicMock()
+    sampler.proposal = sampler._uninformed_proposal
+
+    assert NestedSampler.check_proposal_switch(sampler) is True
+
+    assert sampler.uninformed_sampling is False
+    assert sampler.proposal == sampler._flow_proposal
+    sampler._uninformed_proposal.close_pool.assert_called_once()
+    sampler._flow_proposal.configure_pool.assert_called_once()
+
+
+def test_proposal_no_switch(sampler):
+    """Ensure proposal is not switched"""
+    sampler.mean_acceptance = 0.5
+    sampler.uninformed_acceptance_threshold = 0.1
+    sampler.iteration = 10
+    sampler.maximum_uninformed = 100
+    assert NestedSampler.check_proposal_switch(sampler) is False
