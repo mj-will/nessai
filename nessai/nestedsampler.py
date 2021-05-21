@@ -471,14 +471,27 @@ class NestedSampler:
             torch.manual_seed(self.seed)
 
     def configure_flow_reset(self, reset_weights, reset_permutations):
+        """Configure how often the flow parameters are reset.
+
+        Values are converted to floats.
+
+        Parameters
+        ----------
+        reset_weights : int, float or bool
+            Frequency with which the weights will be reset.
+        reset_permutations : int, float or bool
+            Frequency with which the permutations will be reset.
+        """
         if isinstance(reset_weights, (int, float)):
             self.reset_weights = float(reset_weights)
         else:
-            raise RuntimeError
+            raise TypeError(
+                '`reset_weights` must be a bool, int or float')
         if isinstance(reset_permutations, (int, float)):
             self.reset_permutations = float(reset_permutations)
         else:
-            raise RuntimeError
+            raise TypeError(
+                '`reset_permutations` must be a bool, int or float')
 
     def check_insertion_indices(self, rolling=True, filename=None):
         """
