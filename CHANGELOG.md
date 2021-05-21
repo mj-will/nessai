@@ -29,6 +29,7 @@ tests for this reparameterisation.
 - Updated `AumgentedFlowProposal` to work with current version of `FlowProposal`
 - Fix random seed unit tests.
 - Move `_NSIntegralState` and some functions from `posterior.py` to `evidence.py`
+- `NestedSampler.check_flow_model_reset` will now NOT reset the flow it has never been trained (i.e `proposal.training_count==0`)
 
 ### Fixed
 
