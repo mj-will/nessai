@@ -19,7 +19,6 @@ from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_indices, plot_trace
 from .evidence import (
     _NSIntegralState,
-    LogNegativeError,
     logsubexp
 )
 from .proposal import FlowProposal
@@ -1099,8 +1098,9 @@ class NestedSampler:
                                  log_w_norm=self.log_w_norm)
             if not self._rejection_sampling:
                 try:
-                    self.log_w_norm = logsubexp(self.log_w_norm, p['logW'])
-                except LogNegativeError:
+                    self.log_w_norm = \
+                        logsumexp(self.live_points[(i + 1):]['logW'])
+                except ValueError:
                     if not i == (len(self.live_points) - 1):
                         logger.warning(f'Live point {i} has a zero weight')
                     self.log_w_norm = -np.inf
