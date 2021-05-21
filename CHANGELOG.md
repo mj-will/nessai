@@ -31,6 +31,7 @@ tests for this reparameterisation.
 - Updated `AumgentedFlowProposal` to work with current version of `FlowProposal`
 - Fix random seed unit tests.
 - Move `_NSIntegralState` and some functions from `posterior.py` to `evidence.py`
+- Moved all legacy gw functions to `nessai/gw/legacy.py` and removed them from the coverage report.
 
 ### Fixed
 
