@@ -579,13 +579,10 @@ class LegacyGWFlowProposal(FlowProposal):
         Configure the sky parameters
         """
         if all(p in self.names for p in ['ra', 'dec']):
-            from .utils import ra_dec_to_cartesian, cartesian_to_ra_dec
             self.sky_angles = ['ra', 'dec']
             self.sky_to_cartesian = ra_dec_to_cartesian
             self.cartesian_to_sky = cartesian_to_ra_dec
         elif all(p in self.names for p in ['azimuth', 'zenith']):
-            from .utils import (azimuth_zenith_to_cartesian,
-                                cartesian_to_azimuth_zenith)
             self.sky_angles = ['azimuth', 'zenith']
             self.sky_to_cartesian = azimuth_zenith_to_cartesian
             self.cartesian_to_sky = cartesian_to_azimuth_zenith
