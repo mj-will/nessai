@@ -126,7 +126,19 @@ def test_flow__class(flow_class, result_class, sampler):
 
 
 def test_unknown_flow_class(sampler):
-    """Test the to check the error raised if an uknown class is used"""
+    """Test to check the error raised if an unknown class is used"""
     with pytest.raises(RuntimeError) as excinfo:
         NestedSampler.configure_flow_proposal(sampler, 'GWProposal', {}, False)
     assert 'Unknown' in str(excinfo.value)
+
+
+def test_flow_class_not_subclass(sampler):
+    """
+    Test to check an error is raised in the class does not inherit from
+    FlowProposal
+    """
+    class FakeProposal:
+        pass
+    with pytest.raises(RuntimeError) as excinfo:
+        NestedSampler.configure_flow_proposal(sampler, FakeProposal, {}, False)
+    assert 'inherits' in str(excinfo.value)
