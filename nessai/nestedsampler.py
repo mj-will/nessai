@@ -751,8 +751,17 @@ class NestedSampler:
 
     def check_flow_model_reset(self):
         """
-        Check if the normalising flow model should be reset
+        Check if the normalising flow model should be reset.
+
+        Checks acceptance if `reset_acceptance` is True and always checks
+        how many times the flow has been trained.
+
+        Flow will not be reset if it has not been trained. To force a reset
+        manually call `proposal.reset_model_weights`.
         """
+        if not self.proposal.training_count:
+            return
+
         if (self.reset_acceptance
                 and self.mean_block_acceptance < self.acceptance_threshold):
             self.proposal.reset_model_weights(weights=True, permutations=True)
