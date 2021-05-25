@@ -603,10 +603,15 @@ class NestedSampler:
         self.logLmin = worst['logL']
         self.nested_samples.append(worst)
         self._increment(worst)
-        self.condition = np.logaddexp(self.state.logZ,
-                                      self.logLmax
-                                      - self.iteration / float(self.nlive)) \
-            - self.state.logZ
+        if self._rejection_sampling:
+            self.condition = np.logaddexp(
+                self.state.logZ,
+                self.logLmax - self.iteration / float(self.nlive)) \
+                - self.state.logZ
+        else:
+            self.condition = np.logaddexp(
+                self.state.logZ, self.state.logX + self.logLmax) \
+                - self.state.logZ
 
         # Replace the points we just consumed with the next acceptable ones
         # Make sure we are mixing the chains
