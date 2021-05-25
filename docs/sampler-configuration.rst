@@ -1,25 +1,25 @@
-======================
+=====================
 Sampler Configuration
-======================
+=====================
 
+There are various settings in ``nessai`` which can be configured. These can be grouped in to general settings and proposal settings. The former controls general aspects of the sampler such as the model being sampler or how many live points are used. The latter affect the proposal process and how new points are drawn.
 
-The proposal process is managed by a proposal object that inherits from ``Proposal``. By default the sampler starts with *uniformed sampling* were samples are drawn using the ``new_point`` method from the model. Once a specific criteria the sampler switches to using a proposal method which includes a normalising flow (FlowPropolsal). Both stages of the sampling are configure when creating an instance of ``FlowSampler``.
+All of the settings are controled when creating an instance of :class:`~nessai.flowsampler.FlowSampler`. The most important settings to consider when using ``nessai`` are the :doc:`reparameterisations<reparameterisations>` used for the proposals.
 
 General configuration
 =====================
 
-These are general settings which apply to the whole algorithm:
+These are general settings which apply to the whole algorithm and are parsed to :mod:`~nessai.nestedsampler.NestedSampler`. However some of these settings, such as :code:`training_frequency` which defines how often the proposal method is retrained.
 
-.. autoclass:: nessai.nestedsampler.NestedSampler
+.. autoapiclass:: nessai.nestedsampler.NestedSampler
     :members: None
 
-For a complete list see :py:class:`nessai.nestedsampler.NestedSampler`
 
+Proposal configuration
+======================
 
-Configuring uninformed proposal
-===============================
+The proposal configuration includes a variety of settings ranging from the hyper-parameters for the normalising flow to the size of pool used to store new samples. This also includes the reparameterisations which are essential to efficient sampling. All the available settings are listed below and there are dedicated pages that explain how to configure the :doc:`reparmeterisations<reparameterisations>` and :doc:`normalising
+flows<normalising-flows-configuration>`.
 
-
-
-Configuring FlowProposal
-========================
+.. autoapiclass:: nessai.proposal.flowproposal.FlowProposal
+    :members: None

@@ -1,13 +1,10 @@
 #!/usr/bin/env python
 
 # Example of using Nessai with Bilby (Requires seperate installation)
-# See 2d_gaussian.py for a more detailed explanation
+# See 2d_gaussian.py for a more detailed explanation of using nessai
 
 import bilby
 import numpy as np
-import torch
-
-torch.set_num_threads(1)
 
 # The output from the sampler will be saved to:
 # '$outdir/$label_flowproposal/'
@@ -15,7 +12,8 @@ torch.set_num_threads(1)
 outdir = './outdir/'
 label = 'bilby_example'
 
-bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level='DEBUG')
+# Setup the bilby logger
+bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level='INFO')
 
 # Define a likelihood using Bilby
 
@@ -45,21 +43,19 @@ likelihood = SimpleGaussianLikelihood()
 flow_config = dict(
         max_epochs=50,
         patience=10,
-        model_config=dict(n_blocks=2, n_neurons=8, n_layers=2,
+        model_config=dict(n_blocks=2, n_neurons=4, n_layers=2,
                           device_tag='cpu',
                           kwargs=dict(batch_norm_between_layers=True))
         )
 
 # Run using bilby.run_sampler, any kwargs are parsed to the sampler
-# NOTE: when using Bilby if the priors can be sampled analytically  the flat
-# `analytic_priors` enables faster initial sampling
-# `proposal_plots` enables plots for each block of training and each
-# population stage
+# NOTE: when using Bilby if the priors can be sampled analytically  the flag
+# `analytic_priors` enables faster initial sampling. See 'further details' in
+# the documentation for more details
 result = bilby.run_sampler(outdir=outdir, label=label, resume=False, plot=True,
                            likelihood=likelihood, priors=priors,
                            sampler='nessai', nlive=1000,
                            maximum_uninformed=2000, flow_config=flow_config,
                            rescale_parameters=True,
                            injection_parameters={'x': 0.0, 'y': 0.0},
-                           proposal_plots=True, analytic_priors=True,
-                           training_frequency=1000, seed=1234)
+                           analytic_priors=True, seed=1234)

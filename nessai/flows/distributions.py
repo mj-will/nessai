@@ -1,12 +1,27 @@
+# -*- coding: utf-8 -*-
+"""
+Distributions to use as the 'base distribution' for normalising flows.
+"""
 
 from nflows.distributions import Distribution
+from nflows.distributions.uniform import BoxUniform as BaseBoxUniform
 from nflows.utils import torchutils
 import numpy as np
 import torch
 
 
 class MultivariateNormal(Distribution):
-    """A multivariate Normal with zero mean and specified covariance."""
+    """
+    A multivariate Normal with zero mean and specified covariance.
+
+    Parameters
+    ----------
+    shape : tuple
+        Shape of distribution, this is used to determine the number of
+        dimensions.
+    var : float, optional
+        Variance of the distrinution.
+    """
 
     def __init__(self, shape, var=1):
         super().__init__()
@@ -44,3 +59,17 @@ class MultivariateNormal(Distribution):
             return self._log_z.new_zeros(self._shape)
         else:
             raise NotImplementedError
+
+
+class BoxUniform(BaseBoxUniform):
+    """Wrapper to `nflows.distributions.uniform.BoxUniform`"""
+
+    def sample(self, n=1):
+        """Sample from the box uniform"""
+        return super().sample((n,))
+
+    def sample_and_log_prob(self, n=1):
+        """Sample from the distribution and compute the log prob"""
+        x = self.sample(n)
+        log_prob = self.log_prob(x)
+        return x, log_prob

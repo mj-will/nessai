@@ -1,4 +1,8 @@
-
+# -*- coding: utf-8 -*-
+"""
+Base objects for implementing normalising flows.
+"""
+from inspect import signature
 from torch.nn import Module
 
 
@@ -8,10 +12,17 @@ class BaseFlow(Module):
 
     If implementing flows using distributions and transforms see NFlow.
     """
+    device = None
+
+    def to(self, device):
+        """Wrapper that stores the device before moving the flow"""
+        self.device = device
+        super().to(device)
+
     def forward(self, x, context=None):
         """
         Apply the forward transformation and return samples in the
-        latent space and log |J|
+        latent space and the log-Jacobian determinant.
 
         Returns
         -------
@@ -26,7 +37,7 @@ class BaseFlow(Module):
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
-        data space and log |J|
+        data space and the log-Jacobian determinant.
 
         Returns
         -------
@@ -89,10 +100,10 @@ class BaseFlow(Module):
     def sample_and_log_prob(self, n, context=None):
         """
         Generates samples from the flow, together with their log probabilities
-        in the data space log p(x) = log p(z) + log|J|.
+        in the data space ``log p(x) = log p(z) + log|J|``.
 
-        For flows, this is more efficient that calling `sample` and `log_prob`
-        separately.
+        For flows, this is more efficient that calling ``sample`` and
+        ``log_prob`` separately.
 
         Returns
         -------
@@ -109,8 +120,11 @@ class NFlow(BaseFlow):
     Base class for flow objects implemented according to outline in nflows.
     These take an instance of a transform and a distribution from nflows.
 
-    This replaces `Flow` from nflows. It removes the context and includes
-    additional methods which are called in FlowModel.
+    This replaces `Flow` from nflows. It uses the same design but does
+    not comply with the distribtuion class used there.
+
+    Credit to Miles Crammer for implementing this in nflows: \
+        https://github.com/bayesiains/nflows/pull/33
 
     Parameters
     ----------
@@ -137,18 +151,21 @@ class NFlow(BaseFlow):
 
         self._transform = transform
         self._distribution = distribution
+        distribution_signature = signature(self._distribution.log_prob)
+        distribution_arguments = distribution_signature.parameters.keys()
+        self._context_used_in_base = 'context' in distribution_arguments
 
     def forward(self, x, context=None):
         """
         Apply the forward transformation and return samples in the latent
-        space and log |J|
+        space and log-Jacobian determinant.
         """
         return self._transform.forward(x, context=context)
 
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
-        data space and log |J| (not log probability)
+        data space and log-Jacobian determinant (not log probability).
         """
         return self._transform.inverse(z, context=context)
 
@@ -159,7 +176,10 @@ class NFlow(BaseFlow):
 
         Does NOT need to be specified by the user
         """
-        noise = self._distribution.sample(num_samples, context=context)
+        if self._context_used_in_base:
+            noise = self._distribution.sample(num_samples, context=context)
+        else:
+            noise = self._distribution.sample(num_samples)
 
         samples, _ = self._transform.inverse(noise, context=context)
 
@@ -173,7 +193,7 @@ class NFlow(BaseFlow):
         Does NOT need to specified by the user
         """
         noise, logabsdet = self._transform(inputs, context=context)
-        log_prob = self._distribution.log_prob(noise, context=context)
+        log_prob = self.base_distribution_log_prob(noise, context=context)
         return log_prob + logabsdet
 
     def base_distribution_log_prob(self, z, context=None):
@@ -181,7 +201,25 @@ class NFlow(BaseFlow):
         Computes the log probability of samples in the latent for
         the base distribution in the flow.
         """
-        return self._distribution.log_prob(z, context=context)
+        if self._context_used_in_base:
+            return self._distribution.log_prob(z, context=context)
+        else:
+            return self._distribution.log_prob(z)
+
+    def sample_base_distribution(self, n, context=None):
+        if self._context_used_in_base:
+            return self._distribution.sample(n, context=context)
+        else:
+            return self._distribution.sample(n)
+
+    def sample_base_distribution_and_log_prob(self, n, context=None):
+        """
+        Draw samples from base distribution.
+        """
+        if self._context_used_in_base:
+            return self._distribution.sample_and_log_prob(n, context=context)
+        else:
+            return self._distribution.sample_and_log_prob(n)
 
     def forward_and_log_prob(self, x, context=None):
         """
@@ -202,14 +240,13 @@ class NFlow(BaseFlow):
     def sample_and_log_prob(self, N, context=None):
         """
         Generates samples from the flow, together with their log probabilities
-        in the data space log p(x) = log p(z) + log|J|.
+        in the data space ``log p(x) = log p(z) + log|J|``.
 
-        For flows, this is more efficient that calling `sample` and `log_prob`
-        separately.
+        For flows, this is more efficient that calling ``sample`` and
+        ``log_prob`` separately.
         """
-        z, log_prob = self._distribution.sample_and_log_prob(
+        z, log_prob = self.sample_base_distribution_and_log_prob(
             N, context=context)
-
         samples, logabsdet = self._transform.inverse(z, context=context)
 
         return samples, log_prob - logabsdet

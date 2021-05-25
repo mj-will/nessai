@@ -1,4 +1,9 @@
 pytest
 pytest-timeout
 pytest-rerunfailures
+pytest-cov
+pytest-integration
 pre-commit
+lalsuite
+bilby
+astropy

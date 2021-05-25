@@ -1,5 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+Implementation of Neural Spline Flows.
+"""
 import logging
 
+
+import torch
 import torch.nn.functional as F
 
 from nflows.distributions import StandardNormal
@@ -8,6 +14,7 @@ from nflows.nn.nets import ResidualNet
 from nflows.utils import create_alternating_binary_mask
 
 from .base import NFlow
+from .distributions import BoxUniform
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +23,7 @@ class NeuralSplineFlow(NFlow):
     """
     Implementation of Neural Spline Flow
 
-    NSF: https://arxiv.org/abs/1906.04032
+    See: https://arxiv.org/abs/1906.04032
 
     Parameters
     ----------
@@ -54,6 +61,7 @@ class NeuralSplineFlow(NFlow):
         num_layers,
         num_blocks_per_layer,
         num_bins=8,
+        context_features=None,
         activation=F.relu,
         dropout_probability=0.0,
         batch_norm_within_layers=False,
@@ -62,8 +70,14 @@ class NeuralSplineFlow(NFlow):
         linear_transform='permutation',
         tails='linear',
         tail_bound=1.0,
+        base_distribution=None,
         **kwargs
     ):
+
+        if base_distribution == 'uniform' and tails:
+            logger.warning('Tails not used with uniform distribution.')
+            tails = None
+            tail_bound = 1.0
 
         def create_linear_transform():
             if linear_transform == 'permutation':
@@ -79,6 +93,8 @@ class NeuralSplineFlow(NFlow):
                     transforms.SVDLinear(features, num_householder=10,
                                          identity_init=True)
                 ])
+            elif not linear_transform:
+                return None
             else:
                 raise ValueError
 
@@ -87,6 +103,7 @@ class NeuralSplineFlow(NFlow):
                 in_features,
                 out_features,
                 hidden_features=hidden_features,
+                context_features=context_features,
                 num_blocks=num_blocks_per_layer,
                 activation=activation,
                 dropout_probability=dropout_probability,
@@ -107,12 +124,18 @@ class NeuralSplineFlow(NFlow):
 
         transforms_list = []
         for i in range(num_layers):
-            transforms_list.append(create_linear_transform())
+            if linear_transform is not None:
+                transforms_list.append(create_linear_transform())
             transforms_list.append(spline_constructor(i))
             if batch_norm_between_layers:
                 transforms_list.append(transforms.BatchNorm(features=features))
 
-        distribution = StandardNormal([features])
+        if base_distribution is None or base_distribution == 'gaussian':
+            distribution = StandardNormal([features])
+        elif base_distribution == 'uniform':
+            lower = torch.zeros(features)
+            upper = torch.ones(features)
+            distribution = BoxUniform(lower, upper)
 
         super().__init__(
             transform=transforms.CompositeTransform(transforms_list),

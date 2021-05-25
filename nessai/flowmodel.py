@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Object and functions to handle training the normalising flow.
+"""
 import copy
 import json
 import logging
@@ -16,24 +20,33 @@ logger = logging.getLogger(__name__)
 
 def update_config(d):
     """
-    Update the default configuration dictionary.
+    Update the configuration dictionary to include the defaults.
 
-    The default configuration is:
+    Notes
+    -----
+    The default configuration is::
+
         lr=0.001
         annealing=False
         batch_size=100
         val_size=0.1
         max_epochs=500
         patience=20
-        noise_scale=0.0
+        noise_scale=0.0,
+        use_dataloader=False,
+        optimiser='adam',
+        optimiser_kwargs={}
         model_config=default_model
 
-    where `default model` is:
+    where ``default model`` is::
+
         n_neurons=32
         n_blocks=4
         n_layers=2
         ftype='RealNVP'
-        device_tag='cpu'
+        device_tag='cpu',
+        flow=None,
+        inference_device_tag=None,
         kwargs={batch_norm_between_layers=True, linear_transform='lu'}
 
     The kwargs can contain any additional keyword arguments that are specific
@@ -49,19 +62,34 @@ def update_config(d):
     dict
         Dictionary with updated default configuration
     """
-    default_model = dict(n_inputs=None, n_neurons=32, n_blocks=4, n_layers=2,
-                         ftype='RealNVP', device_tag='cpu',
-                         kwargs=dict(batch_norm_between_layers=True,
-                                     linear_transform='lu'))
+    default_model = dict(
+        n_inputs=None,
+        n_neurons=32,
+        n_blocks=4,
+        n_layers=2,
+        ftype='RealNVP',
+        device_tag='cpu',
+        flow=None,
+        inference_device_tag=None,
+        kwargs=dict(
+            batch_norm_between_layers=True,
+            linear_transform='lu'
+        )
+    )
 
-    default = dict(lr=0.001,
-                   annealing=False,
-                   clip_grad_norm=5,
-                   batch_size=100,
-                   val_size=0.1,
-                   max_epochs=500,
-                   patience=20,
-                   noise_scale=0.0)
+    default = dict(
+        lr=0.001,
+        annealing=False,
+        clip_grad_norm=5,
+        batch_size=100,
+        val_size=0.1,
+        max_epochs=500,
+        patience=20,
+        noise_scale=0.0,
+        use_dataloader=False,
+        optimiser='adam',
+        optimiser_kwargs={}
+    )
 
     if d is None:
         default['model_config'] = default_model
@@ -82,16 +110,17 @@ class FlowModel:
     Object that contains the normalsing flows and handles training and data
     pre-processing.
 
-    Does NOT use stuctured arrays for live points, `Proposal` object
-    should act as the interface between structured and unstructured arrays
-    of live points.
+    Does NOT use stuctured arrays for live points, \
+            :obj:`~nessai.proposal.base.Proposal`
+    object should act as the interface between structured used by the sampler
+    and unstructured arrays of live points used for training.
 
     Parameters
     ----------
-    config : dict, optional (None)
+    config : dict, optional
         Configuration used for the normalising flow. If None, default values
         are used.
-    output : str, optional ('./')
+    output : str, optional
         Path for output, this includes weights files and the loss plot.
     """
     def __init__(self, config=None, output='./'):
@@ -101,6 +130,11 @@ class FlowModel:
         self.setup_from_input_dict(config)
         self.weights_file = None
 
+        self.device = None
+        self.inference_device = None
+        self.use_dataloader = False
+        self.has_conditional = False
+
     def save_input(self, config, output_file=None):
         """
         Save the dictionary used as an inputs as a JSON file in the output
@@ -109,7 +143,7 @@ class FlowModel:
         Parameters
         ----------
         config : dict
-            Dictionary to save
+            Dictionary to save.
         ouput_file : str, optional
             File to save the config to.
         """
@@ -148,12 +182,13 @@ class FlowModel:
         self.save_input(config)
 
     def update_mask(self):
-        """
-        Get a the mask
+        """Method to update the ask upon calling ``initialise``
+
+        By default the mask is left unchanged.
         """
         pass
 
-    def get_optimiser(self):
+    def get_optimiser(self, optimiser='adam', **kwargs):
         """
         Get the optimiser and ensure it is always correctly intialised.
 
@@ -162,29 +197,88 @@ class FlowModel:
         :obj:`torch.optim.Adam`
             Instance of the Adam optimiser from torch.optim
         """
+        optimisers = {
+            'adam': (torch.optim.Adam, {'weight_decay': 1e-6}),
+            'adamw': (torch.optim.AdamW, {}),
+            'sgd': (torch.optim.SGD, {})
+        }
         if self.model is None:
             raise RuntimeError('Cannot initialise optimiser before model')
-        return torch.optim.Adam(self.model.parameters(),
-                                lr=self.lr, weight_decay=1e-6)
+        optim, default_kwargs = optimisers.get(optimiser.lower())
+        default_kwargs.update(kwargs)
+        return optim(self.model.parameters(), lr=self.lr, **default_kwargs)
 
     def initialise(self):
         """
         Initialise the model and optimiser.
 
         This includes:
-            * Updating the model configuration
-            * Initialising the normalising flow
-            * Initialiseing the optimiser
+
+            - Updating the model configuration
+            - Initialising the normalising flow
+            - Initialiseing the optimiser
+            - Configuring the inference device
         """
         self.update_mask()
         self.model, self.device = setup_model(self.model_config)
-        self.optimiser = self.get_optimiser()
+        logger.debug(f'Training device: {self.device}')
+        self.inference_device = torch.device(
+            self.model_config.get('inference_device_tag', self.device)
+            or self.device
+        )
+        logger.debug(f'Inference device: {self.inference_device}')
+
+        if self.model_config.get('kwargs', {}).get('context_features', False):
+            self.has_conditional = True
+            self.use_dataloader = True
+
+        self._optimiser = self.get_optimiser(
+            self.optimiser, **self.optimiser_kwargs)
         self.initialised = True
 
-    def prep_data(self, samples, val_size, batch_size, context=None):
+    def move_to(self, device, update_default=False):
+        """Move the flow to a different device.
+
+        Parameters
+        ----------
+        device : str
+            Device to move flow to.
+        update_default : bool, optional
+            If True, the default device for the flow (and data) will be
+            updated.
+        """
+        device = torch.device(device)
+        self.model.to(device)
+        if update_default:
+            self.device = device
+
+    def prep_data(self, samples, val_size, batch_size, conditional=None,
+                  use_dataloader=False):
         """
         Prep data and return dataloaders for training
+
+        Parameters
+        ----------
+        samples : array_like
+            Array of samples to split in to training and validation.
+        val_size : float
+            Float between 0 and 1 that defines the fraction of data used for
+            validation.
+        batch_size : int
+            Batch size used when contructing dataloaders.
+        conditional : array_like, optional
+            Array of conditional data
+        use_dataloader : bool, optional
+            If True data is returned in a dataloader else a tensor is returned.
+
+        Returns
+        -------
+        train_data, val_data :
+            Training and validation data as either a tensor or dataloader
         """
+        if not self.initialised:
+            self.initialise()
+
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
 
@@ -198,49 +292,64 @@ class FlowModel:
 
         if not type(batch_size) is int:
             if batch_size == 'all':
-                batch_size = x_train.shape[0]
+                self.batch_size = x_train.shape[0]
             else:
                 raise RuntimeError(f'Unknown batch size: {batch_size}')
-
-        train_tensor = torch.from_numpy(x_train).float()
-        val_tensor = torch.from_numpy(x_val.astype(np.float32))
-
-        if context is not None:
-            context_train, context_val = context[:n], context[n:]
-            train_context_tensor = torch.from_numpy(context_train).float()
-            train_dataset = torch.utils.data.TensorDataset(
-                train_tensor, train_context_tensor)
-            val_context_tensor = torch.from_numpy(context_val).float()
-            val_dataset = torch.utils.data.TensorDataset(
-                val_tensor, val_context_tensor)
         else:
-            train_dataset = torch.utils.data.TensorDataset(train_tensor)
-            val_dataset = torch.utils.data.TensorDataset(val_tensor)
+            self.batch_size = batch_size
 
-        train_loader = torch.utils.data.DataLoader(train_dataset,
-                                                   batch_size=batch_size,
-                                                   shuffle=True)
+        if use_dataloader or conditional is not None:
+            logger.debug('Using dataloaders')
 
-        val_loader = torch.utils.data.DataLoader(val_dataset,
-                                                 batch_size=x_val.shape[0],
-                                                 shuffle=False)
+            train_tensor = torch.from_numpy(x_train.astype(np.float32))
+            val_tensor = torch.from_numpy(x_val.astype(np.float32))
 
-        return train_loader, val_loader
+            if conditional is not None:
+                conditional_train, conditional_val = \
+                    conditional[:n], conditional[n:]
+                train_conditional_tensor = \
+                    torch.from_numpy(conditional_train).float()
+                train_dataset = torch.utils.data.TensorDataset(
+                    train_tensor, train_conditional_tensor)
+                val_conditional_tensor = \
+                    torch.from_numpy(conditional_val).float()
+                val_dataset = torch.utils.data.TensorDataset(
+                    val_tensor, val_conditional_tensor)
+            else:
+                train_dataset = torch.utils.data.TensorDataset(train_tensor)
+                val_dataset = torch.utils.data.TensorDataset(val_tensor)
 
-    def _train(self, loader, noise_scale=0.0):
+            train_data = torch.utils.data.DataLoader(
+                train_dataset, batch_size=self.batch_size, shuffle=True)
+            val_data = torch.utils.data.DataLoader(
+                val_dataset, batch_size=x_val.shape[0], shuffle=False)
+        else:
+            logger.debug('Using tensors')
+            train_data = \
+                torch.from_numpy(x_train.astype(np.float32)).to(self.device)
+            val_data = \
+                torch.from_numpy(x_val.astype(np.float32)).to(self.device)
+
+        return train_data, val_data
+
+    def _train(self, train_data, noise_scale=0.0, is_dataloader=False):
         """
         Loop over the data and update the weights
 
         Parameters
         ----------
-        loader : :obj:`torch.util.data.Dataloader`
-            Dataloader with data to train on
-        noise_scale : float, optional (0.0)
-            Scale of Gaussian noise added to data
+        train_data : :obj:`torch.util.data.Dataloader` or :obj:`torch.Tensor`
+            Training data. If a tensor is provided, it is split into batches
+            using the batch size.
+        noise_scale : float, optional
+            Scale of Gaussian noise added to data.
+        is_dataloader : bool, optional
+            Must be True when using a dataloader
 
         Returns
         -------
-        Mean of training loss for each batch
+        float
+            Mean of training loss for each batch.
         """
         model = self.model
         model.train()
@@ -249,42 +358,60 @@ class FlowModel:
         if hasattr(model, 'loss_function'):
             loss_fn = model.loss_function
         else:
-            def loss_fn(data, context):
-                return -model.log_prob(data, context).mean()
+            def loss_fn(data, conditional):
+                return -model.log_prob(data, conditional).mean()
 
-        for idx, data in enumerate(loader):
-            if noise_scale:
-                data[0] += noise_scale * torch.randn_like(data[0])
-            if len(data) > 1:
-                context = data[1].to(self.device)
+        if not is_dataloader:
+            p = torch.randperm(train_data.shape[0])
+            train_data = train_data[p, :].split(self.batch_size)
+
+        n = 0
+        for data in train_data:
+            if is_dataloader:
+                if self.has_conditional:
+                    conditional = data[1].to(self.device)
+                else:
+                    conditional = None
+                data = data[0].to(self.device)
             else:
-                context = None
-            data = data[0].to(self.device)
-            self.optimiser.zero_grad()
-            loss = loss_fn(data, context)
+                conditional = None
+
+            if noise_scale:
+                data += noise_scale * torch.randn_like(data)
+
+            for param in model.parameters():
+                param.grad = None
+
+            loss = loss_fn(data, conditional=conditional)
             train_loss += loss.item()
             loss.backward()
+
             if self.clip_grad_norm:
                 clip_grad_norm_(model.parameters(), self.clip_grad_norm)
-            self.optimiser.step()
+
+            self._optimiser.step()
+            n += 1
 
         if self.annealing:
             self.scheduler.step()
 
-        return train_loss / len(loader)
+        return train_loss / n
 
-    def _validate(self, loader):
+    def _validate(self, val_data, is_dataloader=False):
         """
         Loop over the data and get validation loss
 
         Parameters
         ----------
-        loader : :obj:`torch.util.data.Dataloader`
+        val_data : :obj:`torch.util.data.Dataloader` or :obj:`torch.Tensor
             Dataloader with data to validate on
+        is_dataloader : bool, optional
+            Boolean to indicate if the data is a dataloader
 
         Returns
         -------
-        Mean of training loss for each batch
+        float
+            Mean of training loss for each batch.
         """
         model = self.model
         model.eval()
@@ -293,21 +420,28 @@ class FlowModel:
         if hasattr(model, 'loss_function'):
             loss_fn = model.loss_function
         else:
-            def loss_fn(data, context):
-                return -model.log_prob(data, context).mean()
+            def loss_fn(data, conditional):
+                return -model.log_prob(data, conditional).mean()
 
-        for idx, data in enumerate(loader):
-            if len(data) > 1:
-                context = data[1].to(self.device)
-            else:
-                context = None
-            data = data[0].to(self.device)
+        if is_dataloader:
+            n = 0
+            for data in val_data:
+                if self.has_conditional:
+                    conditional = data[1].to(self.device)
+                else:
+                    conditional = None
+                data = data[0].to(self.device)
+                with torch.no_grad():
+                    val_loss += loss_fn(data, conditional=conditional).item()
+                n += 1
+
+            return val_loss / n
+        else:
             with torch.no_grad():
-                val_loss += loss_fn(data, context).item()
+                val_loss += loss_fn(val_data, conditional=None).item()
+            return val_loss
 
-        return val_loss / len(loader)
-
-    def train(self, samples, context=None, max_epochs=None, patience=None,
+    def train(self, samples, conditional=None, max_epochs=None, patience=None,
               output=None, val_size=None, plot=True):
         """
         Train the flow on a set of samples.
@@ -317,7 +451,7 @@ class FlowModel:
 
         Parameters
         ----------
-        samples : :obj:`np.ndarray`
+        samples : ndarray
             Unstructured numpy array containing data to train on
         max_epochs : int, optional
             Maxinum number of epochs that is used instead of value
@@ -351,16 +485,21 @@ class FlowModel:
         else:
             noise_scale = self.noise_scale
 
-        train_loader, val_loader = self.prep_data(samples,
-                                                  val_size=val_size,
-                                                  batch_size=self.batch_size,
-                                                  context=context)
+        self.move_to(self.device)
+
+        train_data, val_data = self.prep_data(
+            samples,
+            val_size=val_size,
+            batch_size=self.batch_size,
+            conditional=conditional,
+            use_dataloader=self.use_dataloader
+        )
 
         if max_epochs is None:
             max_epochs = self.max_epochs
         if self.annealing:
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                    self.optimiser, max_epochs)
+                    self._optimiser, max_epochs)
         if patience is None:
             patience = self.patience
         best_epoch = 0
@@ -378,8 +517,15 @@ class FlowModel:
         logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
-            loss = self._train(train_loader, noise_scale=noise_scale)
-            val_loss = self._validate(val_loader)
+            loss = self._train(
+                train_data,
+                noise_scale=noise_scale,
+                is_dataloader=self.use_dataloader
+            )
+            val_loss = self._validate(
+                val_data,
+                is_dataloader=self.use_dataloader
+            )
             if plot:
                 history['loss'].append(loss)
                 history['val_loss'].append(val_loss)
@@ -399,15 +545,21 @@ class FlowModel:
 
         self.model.load_state_dict(best_model)
         self.save_weights(current_weights_file)
+        self.move_to(self.inference_device)
         self.model.eval()
 
         if plot:
-            plot_loss(epoch, history, output=output)
+            plot_loss(epoch, history, filename=output + '/loss.png')
 
     def save_weights(self, weights_file):
         """
         Save the weights file. If the file already exists move it to
-        `model.py.old` and then save the file.
+        ``<weights_file>.old`` and then save the file.
+
+        Parameters
+        ----------
+        weights_file : str
+            Path to to file to save weights. Recommended file type is ``.pt``.
         """
         if os.path.exists(weights_file):
             shutil.move(weights_file, weights_file + '.old')
@@ -420,7 +572,7 @@ class FlowModel:
         Load weights for the model and initialiases the model if it is not
         intialised. The weights_file attribute is also updated.
 
-        Model is loaded in evaluation mode (model.eval())
+        Model is loaded in evaluation mode (``model.eval()``)
 
         Parameters
         ----------
@@ -451,7 +603,14 @@ class FlowModel:
 
     def reset_model(self, weights=True, permutations=False):
         """
-        Reset the weights of the model and optimiser
+        Reset the weights of the model and optimiser.
+
+        Parameters
+        ----------
+        weights : bool, optional
+            If true the model weights are reset.
+        permutations : bool, optional
+            If true any permutations (linear transforms) are reset.
         """
         if not any([weights, permutations]):
             logger.debug('Nothing to reset')
@@ -462,38 +621,42 @@ class FlowModel:
         elif permutations:
             self.model.apply(reset_permutations)
             logger.debug('Reset linear transforms')
-        self.optimiser = self.get_optimiser()
+        self._optimiser = self.get_optimiser(
+            self.optimiser, **self.optimiser_kwargs)
         logger.debug('Reseting optimiser')
 
-    def forward_and_log_prob(self, x, context=None):
+    def forward_and_log_prob(self, x, conditional=None):
         """
         Forward pass through the model and return the samples in the latent
         space with their log probabilties
 
         Parameters
         ----------
-        x : array_like
+        x : ndarray
             Array of samples
 
         Returns
         -------
-        z : :obj:`np.ndarray`
+        z : ndarray
             Samples in the latent space
-        log_prob : :obj:`np.ndarray`
+        log_prob : ndarray
             Log probabilties for each samples
         """
-        x = torch.Tensor(x.astype(np.float32)).to(self.device)
-        if context is not None:
-            context = torch.from_numpy(context).float().to(self.device)
+        x = torch.Tensor(x.astype(np.float32)).to(self.model.device)
+        if conditional is not None:
+            conditional = \
+                torch.from_numpy(conditional).float().to(self.model.device)
         self.model.eval()
         with torch.no_grad():
-            z, log_prob = self.model.forward_and_log_prob(x, context=context)
+            z, log_prob = \
+                self.model.forward_and_log_prob(x, context=conditional)
 
         z = z.detach().cpu().numpy()
         log_prob = log_prob.detach().cpu().numpy()
         return z, log_prob
 
-    def sample_and_log_prob(self, N=1, z=None, context=None, alt_dist=None):
+    def sample_and_log_prob(self, N=1, z=None, conditional=None,
+                            alt_dist=None):
         """
         Generate samples from samples drawn from the base distribution or
         and alternative distribution from provided latent samples
@@ -502,34 +665,36 @@ class FlowModel:
         ----------
         N : int, optional
             Number of samples to draw if z is not specified
-        z : array_like, optional
-            Array of latent samples to map the the data space, if `alt_dist`
+        z : ndarray, optional
+            Array of latent samples to map the the data space, if ``alt_dist``
             is not specified they are assumed to be drawn from the base
             distribution of the flow.
         alt_dist : :obj:`nflows.distribution.Distribution`
             Distribution object from which the latent samples z were
-            drawn from. Must have a `log_prob` method that accepts an
-            instance of torch.Tensor
+            drawn from. Must have a ``log_prob`` method that accepts an
+            instance of ``torch.Tensor``
 
         Returns
         -------
-        samples : :obj:`np.ndarray`
-            Tensor containing samples in the latent space
-        log_prob : :obj:`np.ndarray`
-            Tensor containing the log probabaility that corresponds to each
-            sample
+        samples : ndarray
+            Array containing samples in the latent space.
+        log_prob : ndarray
+            Array containing the log probabaility that corresponds to each
+            sample.
         """
         if self.model is None:
             raise RuntimeError('Model is not initialised yet!')
         if self.model.training:
             self.model.eval()
 
-        if context is not None:
-            if isinstance(context, np.ndarray):
-                context = torch.from_numpy(context).float().to(self.device)
-        if z is None and context is None:
+        if conditional is not None:
+            if isinstance(conditional, np.ndarray):
+                conditional = \
+                    torch.from_numpy(conditional).float().to(self.device)
+        if z is None:
             with torch.no_grad():
-                x, log_prob = self.model.sample_and_log_prob(N)
+                x, log_prob = self.model.sample_and_log_prob(
+                    N, context=conditional)
         else:
             if alt_dist is not None:
                 log_prob_fn = alt_dist.log_prob
@@ -538,14 +703,22 @@ class FlowModel:
 
             with torch.no_grad():
                 if isinstance(z, np.ndarray):
-                    z = torch.Tensor(z.astype(np.float32)).to(self.device)
+                    z = torch.Tensor(z.astype(np.float32)).to(
+                        self.model.device)
                 log_prob = log_prob_fn(z)
-                x, log_J = self.model.inverse(z, context=context)
+                x, log_J = self.model.inverse(z, context=conditional)
                 log_prob -= log_J
 
         x = x.detach().cpu().numpy()
         log_prob = log_prob.detach().cpu().numpy()
         return x, log_prob
+
+    def sample_latent_space(self, n):
+        """Draw samples from the flow's latent space"""
+        with torch.no_grad():
+            z, log_prob = \
+                self.model.sample_base_distribution_and_log_prob(n)
+        return z.cpu().numpy(), log_prob.cpu().numpy()
 
     def __getstate__(self):
         state = self.__dict__.copy()

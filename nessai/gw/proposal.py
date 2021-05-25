@@ -1,20 +1,22 @@
-import os
+# -*- coding: utf-8 -*-
+"""
+Specific proposal methods for sampling gravitational-wave models.
+"""
 import logging
 
 import numpy as np
-from scipy.stats import chi, norm
+from scipy.stats import chi
 
 from ..proposal import FlowProposal
-from ..flowmodel import FlowModel
 from ..utils import (
     replace_in_list,
     rescale_zero_to_one,
     inverse_rescale_zero_to_one,
     rescale_minus_one_to_one,
     inverse_rescale_minus_one_to_one,
-    detect_edge,
-    determine_rescaled_bounds)
+    detect_edge)
 from .utils import (
+    determine_rescaled_bounds,
     angle_to_cartesian,
     cartesian_to_angle,
     zero_one_to_cartesian,
@@ -32,6 +34,7 @@ from .priors import (
     log_spin_prior,
     log_spin_prior_uniform)
 
+from ..proposal.augmented import AugmentedFlowProposal
 from .reparameterisations import get_gw_reparameterisation
 
 logger = logging.getLogger(__name__)
@@ -108,8 +111,8 @@ class LegacyGWFlowProposal(FlowProposal):
 
         if all([isinstance(inv, list) for inv in [defaults['inversion'],
                                                   defaults['log_inversion']]]):
-            if s := (set(defaults['inversion'])
-                     & set(defaults['log_inversion'])):
+            s = set(defaults['inversion']) & set(defaults['log_inversion'])
+            if s:
                 raise RuntimeError('Inversion and log_inversion have common '
                                    f'parameters: {s}')
 
@@ -234,6 +237,8 @@ class LegacyGWFlowProposal(FlowProposal):
             logger.debug(f'Time offset: {self.time_offset}')
             # Save the bounds since we're using different bounds
             self.time_bounds = self.model.bounds[self.time] - self.time_offset
+            self._rescaled_min['time'] = -1
+            self._rescaled_max['time'] = 1
 
     def configure_sky(self):
         """
@@ -316,9 +321,16 @@ class LegacyGWFlowProposal(FlowProposal):
 
             logger.debug('Checking spin angles')
             for i in [1, 2]:
-                if ((((a := f'tilt_{i}') in self.names) or
-                        ((a := f'cos_tilt_{i}') in self.names)) and
-                        a in self._remaining):
+                if f'tilt_{i}' in self.names:
+                    a = f'tilt_{i}'
+                elif f'cos_tilt_{i}' in self.names:
+                    a = f'cos_tilt_{i}'
+                else:
+                    continue
+
+                if a in self._remaining:
+                    logger.debug(f'Adding reparameterisations for {a}')
+                    radial = f'a_{i}'
                     if 'cos' in a:
                         zero = 'centre'
                     else:
@@ -327,7 +339,8 @@ class LegacyGWFlowProposal(FlowProposal):
                         scale = 2. * np.pi / np.ptp(self.model.bounds[a])
                     else:
                         scale = 1.0
-                    if ((radial := f'a_{i}') in self.names and
+
+                    if (radial in self.names and
                             radial in self._remaining and
                             not (radial in self._log_inversion or
                                  radial in self._inversion or
@@ -337,7 +350,7 @@ class LegacyGWFlowProposal(FlowProposal):
                         self._remaining.remove(radial)
                     else:
                         self.setup_angle(a, scale=scale, zero=zero)
-                        self._remaining.remove(a)
+                    self._remaining.remove(a)
 
             for a in ['phi_jl', 'phi_12']:
                 if a in self.names and a in self._remaining:
@@ -532,8 +545,8 @@ class LegacyGWFlowProposal(FlowProposal):
                 self._rescaled_max[rn] = xmax
 
         else:
-            for n, rn in zip(['chirp_mass', 'geocent_time'],
-                             ['chirp_mass_prime', 'time']):
+            for n, rn in zip(['chirp_mass'],
+                             ['chirp_mass_prime']):
                 if n in self.model.names:
                     self._rescaled_min[rn], _ = rescale_minus_one_to_one(
                         self.model.bounds[n][0], self._min[n], self._max[n])
@@ -1006,9 +1019,11 @@ class LegacyGWFlowProposal(FlowProposal):
                 # if the radial parameter is present in x
                 # use it, else samples with be drawn from a chi with
                 # 2 d.o.f
-                if (n := a['radial']) in self.model.names:
+                if a['radial'] in self.model.names:
                     r, lj = rescale_zero_to_one(
-                        x[n], xmin=self._min[n], xmax=self._max[n])
+                        x[n],
+                        xmin=self._min[a['radial']],
+                        xmax=self._max[a['radial']])
                     log_J += lj
                     # r = np.log(r)
                     # log_J -= r
@@ -1079,9 +1094,11 @@ class LegacyGWFlowProposal(FlowProposal):
                 log_J += lj
                 # if the radial parameter is defined in the model
                 # rescale it using the bounds
-                if (n := a['radial']) in self.model.names:
+                if a['radial'] in self.model.names:
                     r, lj = inverse_rescale_zero_to_one(
-                        r, xmin=self._min[n], xmax=self._max[n])
+                        r,
+                        xmin=self._min[a['radial']],
+                        xmax=self._max[a['radial']])
                     log_J += lj
                 x[a['radial']] = r
 
@@ -1200,8 +1217,8 @@ class LegacyGWFlowProposal(FlowProposal):
                 log_p += chi.logpdf(x[self.distance], 3)
         if self._search_angles:
             for a in self._search_angles.values():
-                if not (n := a['radial']) in self.model.names:
-                    log_p += chi.logpdf(x[n], 2)
+                if not a['radial'] in self.model.names:
+                    log_p += chi.logpdf(x[a['radial']], 2)
 
         if self._angle_conversion:
             for a in self._angle_conversion.values():
@@ -1319,71 +1336,6 @@ class LegacyGWFlowProposal(FlowProposal):
         return log_p - log_J
 
 
-class AugmentedGWFlowProposal(LegacyGWFlowProposal):
-
-    def __init__(self, model, augment_features=1, **kwargs):
-        super().__init__(model, **kwargs)
-        self.augment_features = augment_features
-
-    def set_rescaling(self):
-        super().set_rescaling()
-        self.augment_names = [f'e_{i}' for i in range(self.augment_features)]
-        self.names += self.augment_names
-        self.rescaled_names += self.augment_names
-        self.exclude += self.augment_names
-        logger.info(f'augmented x space parameters: {self.names}')
-        logger.info(f'parameters to rescale {self.rescale_parameters}')
-        logger.info(
-            f'augmented x prime space parameters: {self.rescaled_names}'
-        )
-
-    def initialise(self):
-        """
-        Initialise the proposal class
-        """
-        if not os.path.exists(self.output):
-            os.makedirs(self.output, exist_ok=True)
-
-        self.set_rescaling()
-
-        m = np.ones(self.rescaled_dims)
-        m[-self.augment_features:] = -1
-        self.flow_config['model_config']['kwargs']['mask'] = m
-
-        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
-
-        self.flow = FlowModel(config=self.flow_config, output=self.output)
-        self.flow.initialise()
-        self.populated = False
-        self.initialised = True
-
-    def rescale(self, x):
-        x_prime, log_J = super().rescale(x)
-        if x_prime.size == 1:
-            x_prime[self.augment_names] = self.augment_features * (0.,)
-        else:
-            for an in self.augment_names:
-                x_prime[an] = np.random.randn(x_prime.size)
-        return x_prime, log_J
-
-    def augmented_prior(self, x):
-        """
-        Log guassian for augmented variables
-        """
-        logP = 0.
-        for n in self.augment_names:
-            logP += norm.logpdf(x[n])
-        return logP
-
-    def log_prior(self, x):
-        """
-        Compute the prior probability
-        """
-        logP = super().log_prior(x)
-        logP += self.augmented_prior(x)
-        return logP
-
-
 class GWFlowProposal(FlowProposal):
     """Wrapper for FlowProposal that has defaults for CBC-PE"""
     aliases = {
@@ -1443,3 +1395,12 @@ class GWFlowProposal(FlowProposal):
                 f'Add reparameterisation for {p} with config: {kwargs}')
             self._reparameterisation.add_reparameterisation(
                 reparam(parameters=p, prior_bounds=prior_bounds, **kwargs))
+
+
+class AugmentedGWFlowProposal(AugmentedFlowProposal, GWFlowProposal):
+    """Augmented version of GWFlowProposal.
+
+    See :obj:`~nessai.proposal.augmented.AugmentedFlowProposal` and
+    :obj:`~nessai.gw.proposal.GWFlowPropsosal`
+    """
+    pass

@@ -1,8 +1,11 @@
-=================
+===============
+Further details
+===============
+
 Using live points
 =================
 
-Live points in nessai are stored in numpy structured arrays. These are array have fields which can be accessed like the values of dictionaries but they can also be indexed. Nessai include various functions for constructing live point arrays and also converting these arrays to other common python formats, see :py:mod:`nessai.livepoint`
+Live points in ``nessai`` are stored in numpy structured arrays. These are array have fields which can be accessed like the values of dictionaries but they can also be indexed. ``nessai`` include various functions for constructing live point arrays and also converting these arrays to other common python formats, see mod:`nessai.livepoint`
 
 Here's an example of contructing a live point:
 
@@ -48,3 +51,18 @@ Importantly the structured arrays used for live points can also contain multiple
            0.33988486, 0.82653691, 0.62390321, 0.21743918, 0.45478996])
     >>> y[0]      # the first live point
     (0.72451217, 0.1788154, 0., 0.)
+
+
+Using analytic priors
+=====================
+
+``nessai`` includes the option for sampling from analytic priors. This should be enabled when the method :meth:`nessai.model.Model.new_point` draws directly from the priors. This eliminates the need for additional rejection sampling to ensure new points are correctly distributed.
+
+To use this setting, the user must re-dedine ``new_point`` when defining the model as described in :doc:`running the sampler<running-the-sampler>`. This method must return samples as live points, see :ref:`using live points<Using live points>`. Once the method is redefined, set :code:`analytic_priors=True` when calling :class:`~nessai.flowsampler.FlowSampler`.
+
+
+Detailed explanation of outputs
+===============================
+
+.. note::
+    This section has not been completed yet
