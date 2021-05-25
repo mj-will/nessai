@@ -379,6 +379,9 @@ class NestedSampler:
             if isinstance(flow_class, str):
                 if flow_class == 'GWFlowProposal':
                     from .gw.proposal import GWFlowProposal as flow_class
+                elif flow_class == 'ConditionalGWFlowProposal':
+                    from .gw.proposal import (
+                        ConditionalGWFlowProposal as flow_class)
                 elif flow_class == 'AugmentedGWFlowProposal':
                     from .gw.proposal import (
                         AugmentedGWFlowProposal as flow_class)
@@ -389,6 +392,9 @@ class NestedSampler:
                 elif flow_class == 'AugmentedFlowProposal':
                     from .proposal import AugmentedFlowProposal
                     flow_class = AugmentedFlowProposal
+                elif flow_class == 'ConditionalFlowProposal':
+                    from .proposal import ConditionalFlowProposal
+                    flow_class = ConditionalFlowProposal
                 else:
                     raise RuntimeError(f'Unknown flow class: {flow_class}')
             elif not issubclass(flow_class, FlowProposal):
