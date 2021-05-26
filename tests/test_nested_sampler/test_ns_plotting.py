@@ -9,8 +9,9 @@ from unittest.mock import MagicMock, patch
 from nessai.nestedsampler import NestedSampler
 
 
+@pytest.mark.parametrize('track_gradients', [False, True])
 @pytest.mark.parametrize('filename', [None, 'test.png'])
-def test_plot_state(sampler, tmpdir, filename):
+def test_plot_state(sampler, tmpdir, filename, track_gradients):
     """Test making the state plot"""
     x = np.arange(10)
     sampler.min_likelihood = x
@@ -24,6 +25,7 @@ def test_plot_state(sampler, tmpdir, filename):
     sampler.checkpoint_iterations = [600]
     sampler.likelihood_evaluations = x
     sampler.state = MagicMock()
+    sampler.state.track_gradients = track_gradients
     sampler.state.gradients = np.arange(1050)
     sampler.logZ_history = x
     sampler.dZ_history = x

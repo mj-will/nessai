@@ -69,6 +69,16 @@ def test_resume(model):
     assert obj.resumed is True
 
 
+def test_get_state(sampler):
+    """Test the getstate method used for pickling.
+
+    It should remove the model.
+    """
+    sampler.model = MagicMock()
+    state = NestedSampler.__getstate__(sampler)
+    assert 'model' not in state
+
+
 @pytest.mark.integration_test
 def test_checkpoint_integration(complete_sampler):
     """Integration test for checkpointing the sampler."""
