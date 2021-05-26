@@ -24,13 +24,82 @@ def live_points():
 def sampler(sampler):
     sampler.state = MagicMock()
     sampler.state.logZ = -4.0
+    sampler.state.info = [0.0]
     sampler.nlive = 4
     sampler.nested_samples = []
     sampler.iteration = 0
     sampler.block_iteration = 0
     sampler.logLmax = 5
     sampler.insertion_indices = []
+    sampler.accepted = 0
+    sampler.rejected = 0
+    sampler.block_acceptance = 0.0
+    sampler.acceptance_history = []
+    sampler.info_enabled = True
     return sampler
+
+
+def test_log_likelihood(sampler):
+    """Test the log-likelihood method.
+
+    This method is ununsed in the sampler and there only for the user.
+    """
+    sampler.model.log_likelihood = MagicMock()
+    NestedSampler.log_likelihood(sampler, [0.1])
+    sampler.model.log_likelihood.assert_called_once_with([0.1])
+
+
+def test_intialise(sampler):
+    """Test the initialise method when being used without resuming"""
+    sampler._flow_proposal = MagicMock()
+    sampler._uninformed_proposal = MagicMock()
+    sampler.populate_live_points = MagicMock()
+
+    sampler._flow_proposal.initialised = False
+    sampler._uninformed_proposal.initialised = False
+    sampler.live_points = None
+    sampler.iteration = 0
+    sampler.maximum_uninformed = 10
+    sampler.condition = 1.0
+    sampler.tolerance = 0.1
+    sampler.initialised = False
+
+    NestedSampler.initialise(sampler)
+
+    sampler._flow_proposal.initialise.assert_called_once()
+    sampler._uninformed_proposal.initialise.assert_called_once()
+    sampler.populate_live_points.assert_called_once()
+    assert sampler.initialised is True
+    assert sampler.proposal is sampler._uninformed_proposal
+    sampler.proposal.configure_pool.assert_called_once()
+
+
+def test_intialise_resume(sampler):
+    """Test the initialise method when being used after resuming.
+
+    In this case the live points are not None
+    """
+    sampler._flow_proposal = MagicMock()
+    sampler._uninformed_proposal = MagicMock()
+    sampler.populate_live_points = MagicMock()
+
+    sampler._flow_proposal.initialised = False
+    sampler._uninformed_proposal.initialised = False
+    sampler.live_points = [0.0]
+    sampler.iteration = 100
+    sampler.maximum_uninformed = 10
+    sampler.condition = 1.0
+    sampler.tolerance = 0.1
+    sampler.initialised = False
+
+    NestedSampler.initialise(sampler)
+
+    sampler._flow_proposal.initialise.assert_called_once()
+    sampler._uninformed_proposal.initialise.assert_called_once()
+    sampler.populate_live_points.assert_not_called()
+    assert sampler.initialised is False
+    assert sampler.proposal is sampler._flow_proposal
+    sampler.proposal.configure_pool.assert_called_once()
 
 
 def test_finalise(sampler, live_points):
@@ -62,4 +131,47 @@ def test_consume_sample(sampler, live_points):
     sampler.yield_sample = MagicMock()
     sampler.yield_sample.return_value = iter([(1, new_sample)])
 
+    sampler.insert_live_point = MagicMock(return_value=0)
+    sampler.check_state = MagicMock()
+
     NestedSampler.consume_sample(sampler)
+
+    sampler.insert_live_point.assert_called_once_with(new_sample)
+    sampler.check_state.assert_not_called()
+
+    assert sampler.nested_samples == [live_points[0]]
+    assert sampler.logLmin == 0.0
+    assert sampler.accepted == 1
+    assert sampler.block_acceptance == 1.0
+    assert sampler.acceptance_history == [1.0]
+    assert sampler.mean_block_acceptance == 1.0
+    assert sampler.insertion_indices == [0]
+
+
+def test_consume_sample_reject(sampler, live_points):
+    """Test the defauly behaviour of consume sample"""
+    sampler.live_points = live_points
+    reject_sample = parameters_to_live_point((-0.5,), ['x'])
+    reject_sample['logL'] = -0.5
+    new_sample = parameters_to_live_point((0.5,), ['x'])
+    new_sample['logL'] = 0.5
+    sampler.yield_sample = MagicMock()
+    sampler.yield_sample.return_value = \
+        iter([(1, reject_sample), (1, new_sample)])
+
+    sampler.insert_live_point = MagicMock(return_value=0)
+    sampler.check_state = MagicMock()
+
+    NestedSampler.consume_sample(sampler)
+
+    sampler.insert_live_point.assert_called_once_with(new_sample)
+    sampler.check_state.assert_called_once()
+
+    assert sampler.nested_samples == [live_points[0]]
+    assert sampler.logLmin == 0.0
+    assert sampler.rejected == 1
+    assert sampler.accepted == 1
+    assert sampler.block_acceptance == 0.5
+    assert sampler.acceptance_history == [0.5]
+    assert sampler.mean_block_acceptance == 0.5
+    assert sampler.insertion_indices == [0]
