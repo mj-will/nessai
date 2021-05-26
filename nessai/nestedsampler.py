@@ -281,7 +281,7 @@ class NestedSampler:
         if self.training_iterations:
             return self.training_iterations[-1]
         else:
-            return None
+            return 0
 
     @property
     def mean_acceptance(self):

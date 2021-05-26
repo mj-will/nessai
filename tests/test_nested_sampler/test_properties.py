@@ -88,7 +88,7 @@ def test_last_updated(sampler):
 def test_last_updated_no_training(sampler):
     """Assert None is return if the flow has not been trained"""
     sampler.training_iterations = []
-    assert NestedSampler.last_updated.__get__(sampler) is None
+    assert NestedSampler.last_updated.__get__(sampler) == 0
 
 
 def test_mean_acceptance(sampler):
