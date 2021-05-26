@@ -690,18 +690,31 @@ class NestedSampler:
         if all(flags):
             self.initialised = True
 
-    def check_proposal_switch(self):
+    def check_proposal_switch(self, force=False):
         """
         Check if the proposal should be switch from uninformed to
         flowproposal given the current state.
+
+        If the flow proposal is already in use, no changes are made.
+
+        Parameters
+        ----------
+        force : bool, optional
+            If True proposal is forced to switch.
 
         Returns
         -------
         bool
             Flag to indicated if proposal was switched
         """
-        if ((self.mean_acceptance < self.uninformed_acceptance_threshold)
-                or (self.iteration >= self.maximum_uninformed)):
+        if (
+            (self.mean_acceptance < self.uninformed_acceptance_threshold)
+            or (self.iteration >= self.maximum_uninformed)
+            or force
+        ):
+            if self.proposal is self._flow_proposal:
+                logger.warning('Already using flowproposal')
+                return True
             logger.warning('Switching to FlowProposal')
             # Make sure the pool is closed
             if self.proposal.pool is not None:
@@ -1020,6 +1033,8 @@ class NestedSampler:
         was resumed.
         """
         if self.resumed:
+            if self.uninformed_sampling is False:
+                self.check_proposal_switch(force=True)
             # If pool is populated reset the flag since it is set to
             # false during initialisation
             if hasattr(self._flow_proposal, 'resume_populated'):
