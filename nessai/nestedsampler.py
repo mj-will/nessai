@@ -673,7 +673,10 @@ class NestedSampler:
             self._uninformed_proposal.initialise()
             flags[1] = True
 
-        if self.iteration < self.maximum_uninformed:
+        if (
+            self.iteration < self.maximum_uninformed
+            and self.uninformed_sampling
+        ):
             self.proposal = self._uninformed_proposal
         else:
             self.proposal = self._flow_proposal
