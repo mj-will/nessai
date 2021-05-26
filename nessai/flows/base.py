@@ -11,6 +11,13 @@ class BaseFlow(Module):
 
     If implementing flows using distributions and transforms see NFlow.
     """
+    device = None
+
+    def to(self, device):
+        """Wrapper that stores the device before moving the flow"""
+        self.device = device
+        super().to(device)
+
     def forward(self, x, context=None):
         """
         Apply the forward transformation and return samples in the

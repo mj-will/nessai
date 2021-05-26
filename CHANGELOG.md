@@ -19,6 +19,8 @@ tests for this reparameterisation.
 - Added tests for `AugmentedFlowProposal`.
 - Added an example using `AugmentedFlowProposal`.
 - Added eggbox example.
+- Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
+- Add options to train with different optimisers: Adam, AdamW, SGD
 
 ### Changed
 
@@ -30,6 +32,7 @@ tests for this reparameterisation.
 - Fix random seed unit tests.
 - Move `_NSIntegralState` and some functions from `posterior.py` to `evidence.py`
 - `NestedSampler.check_flow_model_reset` will now NOT reset the flow it has never been trained (i.e `proposal.training_count==0`)
+- Moved all legacy gw functions to `nessai/gw/legacy.py` and removed them from the coverage report.
 
 ### Fixed
 
