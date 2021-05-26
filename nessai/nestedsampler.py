@@ -1054,9 +1054,8 @@ class NestedSampler:
             self.initialise(live_points=True)
 
         if self.prior_sampling:
-            for i in range(self.nlive):
-                self.nested_samples = self.params.copy()
-            return
+            self.nested_samples = self.live_points.copy()
+            return self.nested_samples
 
         self.check_resume()
 
