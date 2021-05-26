@@ -16,8 +16,8 @@ from nessai.proposal import (
 from nessai.gw.proposal import (
     AugmentedGWFlowProposal,
     GWFlowProposal,
-    LegacyGWFlowProposal
 )
+from nessai.gw.legacy import LegacyGWFlowProposal
 
 
 @pytest.fixture
