@@ -630,12 +630,18 @@ class NestedSampler:
                     count, live_point = next(
                             self.yield_sample(self.model.new_point()))
                     if np.isnan(live_point['logL']):
-                        logger.warning('Likelihood function returned NaN for '
-                                       'live_points ' + str(live_points[i]))
                         logger.warning(
-                            'You may want to check your likelihood function')
-                    if (live_point['logP'] != -np.inf and
-                            live_point['logL'] != -np.inf):
+                            'Likelihood function returned NaN for '
+                            f'live_point {live_point}'
+                        )
+                        logger.warning(
+                            'You may want to check your likelihood function'
+                        )
+                        break
+                    if (
+                        np.isfinite(live_point['logP'])
+                        and np.isfinite(live_point['logL'])
+                    ):
                         live_points[i] = live_point
                         i += 1
                         pbar.update()

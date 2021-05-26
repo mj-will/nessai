@@ -27,6 +27,18 @@ def test_populate_live_points(sampler):
     assert len(sampler.live_points) == sampler.nlive
 
 
+def test_populate_live_points_nans(sampler):
+    """Test popluting the live points with NaN values"""
+    new_points = sampler.model.new_point(sampler.nlive + 1)
+    new_points['logL'][4] = np.nan
+    sampler.yield_sample = MagicMock(
+        return_value=iter(zip(np.ones(sampler.nlive + 1), new_points))
+        )
+    NestedSampler.populate_live_points(sampler)
+    assert len(sampler.live_points) == sampler.nlive
+    assert not np.isnan(sampler.live_points['logL']).any()
+
+
 @pytest.mark.parametrize('rolling', [False, True])
 @patch('nessai.nestedsampler.compute_indices_ks_test', return_value=(0.1, 0.5))
 def test_insertion_indices(mock_fn, rolling, sampler):
