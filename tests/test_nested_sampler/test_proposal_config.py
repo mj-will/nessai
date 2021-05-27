@@ -176,3 +176,20 @@ def test_proposal_no_switch(sampler):
     sampler.iteration = 10
     sampler.maximum_uninformed = 100
     assert NestedSampler.check_proposal_switch(sampler) is False
+
+
+def test_proposal_already_switched(sampler):
+    """Test switching when proposal is already switched"""
+    sampler.mean_acceptance = 0.5
+    sampler.uninformed_acceptance_threshold = 0.1
+    sampler.mean_block_acceptance = 0.5
+    sampler.iteration = 10
+    sampler.maximum_uninformed = 100
+    sampler._flow_proposal = MagicMock()
+    sampler._flow_proposal.ns_acceptance = 0.2
+    sampler.uninformed_sampling = False
+    sampler.proposal = sampler._flow_proposal
+    assert NestedSampler.check_proposal_switch(sampler, force=True) is True
+    assert sampler.proposal is sampler._flow_proposal
+    # If proposal was switched again, acceptance would change
+    assert sampler.proposal.ns_acceptance == 0.2

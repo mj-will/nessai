@@ -288,31 +288,3 @@ def test_train_proposal_memory(sampler):
     assert sampler.completed_training is True
     assert sampler.block_iteration == 0
     assert sampler.block_acceptance == 0
-
-
-def test_check_resume(sampler):
-    """Test check resume method"""
-    sampler.resumed = True
-    sampler._flow_proposal = MagicMock()
-    sampler._flow_proposal.populated = False
-    sampler._flow_proposal._resume_populated = True
-    sampler._flow_proposal.indices = [1, 2, 3]
-
-    NestedSampler.check_resume(sampler)
-
-    assert sampler.resumed is False
-    assert sampler._flow_proposal.populated is True
-
-
-def test_check_resume_no_indices(sampler):
-    """Test check resume method"""
-    sampler.resumed = True
-    sampler._flow_proposal = MagicMock()
-    sampler._flow_proposal.populated = False
-    sampler._flow_proposal._resume_populated = True
-    sampler._flow_proposal.indices = []
-
-    NestedSampler.check_resume(sampler)
-
-    assert sampler.resumed is False
-    assert sampler._flow_proposal.populated is False

@@ -50,6 +50,38 @@ def test_checkpoint(sampler, periodic):
         assert sampler.checkpoint_iterations == [10, 20]
 
 
+def test_check_resume(sampler):
+    """Test check resume method"""
+    sampler.uninformed_sampling = False
+    sampler.check_proposal_switch = MagicMock()
+    sampler.resumed = True
+    sampler._flow_proposal = MagicMock()
+    sampler._flow_proposal.populated = False
+    sampler._flow_proposal._resume_populated = True
+    sampler._flow_proposal.indices = [1, 2, 3]
+
+    NestedSampler.check_resume(sampler)
+
+    sampler.check_proposal_switch.assert_called_once_with(force=True)
+    assert sampler.resumed is False
+    assert sampler._flow_proposal.populated is True
+
+
+def test_check_resume_no_indices(sampler):
+    """Test check resume method"""
+    sampler.uninformed_sampling = True
+    sampler.resumed = True
+    sampler._flow_proposal = MagicMock()
+    sampler._flow_proposal.populated = False
+    sampler._flow_proposal._resume_populated = True
+    sampler._flow_proposal.indices = []
+
+    NestedSampler.check_resume(sampler)
+
+    assert sampler.resumed is False
+    assert sampler._flow_proposal.populated is False
+
+
 def test_resume(model):
     """Test the resume method"""
     obj = MagicMock()
