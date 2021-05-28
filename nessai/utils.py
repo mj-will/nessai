@@ -9,7 +9,7 @@ import os
 import shutil
 
 import numpy as np
-from scipy import stats, spatial, interpolate
+from scipy import stats, spatial, interpolate, special
 import torch
 from torch.distributions import MultivariateNormal
 
@@ -170,6 +170,37 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
     R = np.random.uniform(0, 1, (N, 1))
     z = R ** (1 / dims) * x
     return fuzz * r * z
+
+
+def area_sphere(n, r=1):
+    """Compute the area of the sphere in n dimensions for a given radius.
+
+    Note that n here is the number of dimensions.
+    E.g. in 3 dimensions its a (3-1)=2-sphere.
+
+    2 pi ^(n/2) / gamma(n/2)
+
+    Parameters
+    ----------
+    n : int
+        Dimensions of the space. NOT the n for the n-sphere.
+    r : float
+        Radius of the (n-1)-sphere.
+    """
+    return ((2 * np.pi ** (n / 2)) / special.gamma(n / 2)) * r ** (n-1)
+
+
+def volume_nball(n, r=1):
+    """Compute the volume of the n-ball of a given radius.
+
+    Parameters
+    ----------
+    n : int
+        Dimensions of the n-ball.
+    r : float
+        Radius of the n-sphere
+    """
+    return (np.pi ** (n/2) / special.gamma(n / 2 + 1)) * r ** n
 
 
 def get_uniform_distribution(dims, r, device='cpu'):
