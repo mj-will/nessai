@@ -2,8 +2,9 @@
 """
 Function and classes for testing nessai.
 """
-from .proposal import AnalyticGaussianProposal
+from .proposal import ExactGaussianProposal, ExactUniformProposal
 
 __all__ = [
-    "AnalyticGaussianProposal"
+    "ExactGaussianProposal",
+    "ExactUniformProposal"
 ]
