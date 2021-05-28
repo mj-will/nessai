@@ -20,6 +20,9 @@ tests for this reparameterisation.
 - Added an example using `AugmentedFlowProposal`.
 - Added eggbox example.
 - Added an error if calling `FlowProposal.rejection_sampling` with `FlowProposal.truncate=True` but `worst_q=None`.
+- Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
+- Add options to train with different optimisers: Adam, AdamW, SGD
+- Add tests for `NestedSampler`
 
 ### Changed
 
@@ -30,6 +33,12 @@ tests for this reparameterisation.
 - Updated `AumgentedFlowProposal` to work with current version of `FlowProposal`
 - Fix random seed unit tests.
 - Improved `FlowProposal.reset` so that all attributes that are changed by calling `draw` are reset.
+- Move `_NSIntegralState` and some functions from `posterior.py` to `evidence.py`
+- `NestedSampler.check_flow_model_reset` will now NOT reset the flow it has never been trained (i.e `proposal.training_count==0`)
+- Moved all legacy gw functions to `nessai/gw/legacy.py` and removed them from the coverage report.
+- Minor improvements to `NestedSampler`
+- Better handling on NaNs in `NestedSampler.populate_live_points`
+
 
 ### Fixed
 
@@ -43,6 +52,7 @@ tests for this reparameterisation.
 - Fix typo in `FlowProposal.set_poolsize_scale` when `acceptance=0`
 - Fixed unintended behaviour when `rescale_parameters` is a list and `boundary_inversion=True`, where the code would try apply inversion to all parameters in `Model.names`.
 - Fixed bug where `z` returned by `FlowProposal.rejection_sampling` was incorrect when using truncation (which is not recommended).
+- Fix `prior_sampling`
 
 
 ## [0.2.4] - 2021-03-08

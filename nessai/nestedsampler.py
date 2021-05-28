@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
 from .plot import plot_indices, plot_trace
-from .posterior import log_integrate_log_trap
+from .evidence import _NSIntegralState
 from .proposal import FlowProposal
 from .utils import (
     safe_file_dump,
@@ -27,106 +27,6 @@ sns.set()
 sns.set_style('ticks')
 
 logger = logging.getLogger(__name__)
-
-
-class _NSIntegralState:
-    """
-    Stores the state of the nested sampling integrator
-
-    Parameters
-    ----------
-    nlive : int
-        Number of live points
-    track_gradients : bool, optional
-        If true the gradient of the change in logL w.r.t logX is saved each
-        time `increment` is called.
-    """
-    def __init__(self, nlive, track_gradients=True):
-        self.nlive = nlive
-        self.reset()
-        self.track_gradients = track_gradients
-
-    def reset(self):
-        """
-        Reset the sampler to its initial state at logZ = -infinity
-        """
-        self.logZ = -np.inf
-        self.oldZ = -np.inf
-        self.logw = 0
-        self.info = [0.]
-        # Start with a dummy sample enclosing the whole prior
-        self.logLs = [-np.inf]   # Likelihoods sampled
-        self.log_vols = [0.0]    # Volumes enclosed by contours
-        self.gradients = [0]
-
-    def increment(self, logL, nlive=None):
-        """
-        Increment the state of the evidence integrator
-        Simply uses rectangle rule for initial estimate
-        """
-        if (logL <= self.logLs[-1]):
-            logger.warning('NS integrator received non-monotonic logL.'
-                           f'{self.logLs[-1]:.5f} -> {logL:.5f}')
-        if nlive is None:
-            nlive = self.nlive
-        oldZ = self.logZ
-        logt = - 1.0 / nlive
-        Wt = self.logw + logL + np.log1p(-np.exp(logt))
-        self.logZ = np.logaddexp(self.logZ, Wt)
-        # Update information estimate
-        if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
-            info = np.exp(Wt - self.logZ) * logL \
-                  + np.exp(oldZ - self.logZ) \
-                  * (self.info[-1] + oldZ) \
-                  - self.logZ
-            if np.isnan(info):
-                info = 0
-            self.info.append(info)
-
-        # Update history
-        self.logw += logt
-        self.logLs.append(logL)
-        self.log_vols.append(self.logw)
-        if self.track_gradients:
-            self.gradients.append((self.logLs[-1] - self.logLs[-2])
-                                  / (self.log_vols[-1] - self.log_vols[-2]))
-
-    def finalise(self):
-        """
-        Compute the final evidence with more accurate integrator
-        Call at end of sampling run to refine estimate
-        """
-        # Trapezoidal rule
-        self.logZ = log_integrate_log_trap(np.array(self.logLs),
-                                           np.array(self.log_vols))
-        return self.logZ
-
-    def plot(self, filename=None):
-        """
-        Plot the logX vs logL
-
-        Parameters
-        ----------
-        filename : str, optional
-            Filename name for saving the figure. If not specified the figure
-            is returned.
-        """
-        fig = plt.figure()
-        plt.plot(self.log_vols, self.logLs)
-        plt.title(f'log Z={self.logZ:.2f} '
-                  f'H={self.info[-1] * np.log2(np.e):.2f} bits')
-        plt.grid(which='both')
-        plt.xlabel('log prior-volume')
-        plt.ylabel('log-likelihood')
-        plt.xlim([self.log_vols[-1], self.log_vols[0]])
-        plt.yscale('symlog')
-
-        if filename is not None:
-            fig.savefig(filename, bbox_inches='tight')
-            plt.close()
-            logger.info(f'Saved nested sampling plot as {filename}')
-        else:
-            return fig
 
 
 class NestedSampler:
@@ -260,6 +160,7 @@ class NestedSampler:
         self.setup_random_seed(seed)
         self.accepted = 0
         self.rejected = 1
+        self.initialised = False
 
         self.checkpointing = checkpointing
         self.checkpoint_on_training = checkpoint_on_training
@@ -308,28 +209,15 @@ class NestedSampler:
         self.population_iterations = []
         self.checkpoint_iterations = []
 
-        if max_iteration is None:
-            self.max_iteration = np.inf
-        else:
-            self.max_iteration = max_iteration
-
         self.acceptance_threshold = acceptance_threshold
 
         self.train_on_empty = train_on_empty
         self.cooldown = cooldown
         self.memory = memory
 
+        self.configure_max_iteration(max_iteration)
         self.configure_flow_reset(reset_weights, reset_permutations)
-
-        if training_frequency in [None, 'inf', 'None']:
-            logger.warning('Proposal will only train when empty')
-            self.training_frequency = np.inf
-        else:
-            self.training_frequency = training_frequency
-
-        self.max_count = 0
-
-        self.initialised = False
+        self.configure_training_frequency(training_frequency)
 
         if uninformed_proposal_kwargs is None:
             uninformed_proposal_kwargs = {}
@@ -389,11 +277,47 @@ class NestedSampler:
 
     @property
     def last_updated(self):
-        """Last time the normalising flow was retraining"""
+        """Last time the normalising flow was retrained"""
         if self.training_iterations:
             return self.training_iterations[-1]
         else:
             return 0
+
+    @property
+    def mean_acceptance(self):
+        """
+        Mean acceptance of the last nlive // 10 points
+        """
+        if self.acceptance_history:
+            return np.mean(self.acceptance_history)
+        else:
+            return np.nan
+
+    def configure_max_iteration(self, max_iteration):
+        """Configure the maximum iteration.
+
+        If None then no maximum is set.
+
+        Parameter
+        ---------
+        max_iteration : int, None
+            Maximum iteration.
+        """
+        if max_iteration is None:
+            self.max_iteration = np.inf
+        else:
+            self.max_iteration = max_iteration
+
+    def configure_training_frequency(self, training_frequency):
+        """Configure the training frequency.
+
+        If None, 'inf' or 'None' flow will only train when empty.
+        """
+        if training_frequency in [None, 'inf', 'None']:
+            logger.warning('Proposal will only train when empty')
+            self.training_frequency = np.inf
+        else:
+            self.training_frequency = training_frequency
 
     def configure_uninformed_proposal(self,
                                       uninformed_proposal,
@@ -483,7 +407,7 @@ class NestedSampler:
                     from .gw.proposal import (
                         AugmentedGWFlowProposal as flow_class)
                 elif flow_class == 'LegacyGWFlowProposal':
-                    from .gw.proposal import LegacyGWFlowProposal as flow_class
+                    from .gw.legacy import LegacyGWFlowProposal as flow_class
                 elif flow_class == 'FlowProposal':
                     flow_class = FlowProposal
                 elif flow_class == 'AugmentedFlowProposal':
@@ -547,14 +471,27 @@ class NestedSampler:
             torch.manual_seed(self.seed)
 
     def configure_flow_reset(self, reset_weights, reset_permutations):
+        """Configure how often the flow parameters are reset.
+
+        Values are converted to floats.
+
+        Parameters
+        ----------
+        reset_weights : int, float or bool
+            Frequency with which the weights will be reset.
+        reset_permutations : int, float or bool
+            Frequency with which the permutations will be reset.
+        """
         if isinstance(reset_weights, (int, float)):
             self.reset_weights = float(reset_weights)
         else:
-            raise RuntimeError
+            raise TypeError(
+                '`reset_weights` must be a bool, int or float')
         if isinstance(reset_permutations, (int, float)):
             self.reset_permutations = float(reset_permutations)
         else:
-            raise RuntimeError
+            raise TypeError(
+                '`reset_permutations` must be a bool, int or float')
 
     def check_insertion_indices(self, rolling=True, filename=None):
         """
@@ -693,12 +630,18 @@ class NestedSampler:
                     count, live_point = next(
                             self.yield_sample(self.model.new_point()))
                     if np.isnan(live_point['logL']):
-                        logger.warning('Likelihood function returned NaN for '
-                                       'live_points ' + str(live_points[i]))
                         logger.warning(
-                            'You may want to check your likelihood function')
-                    if (live_point['logP'] != -np.inf and
-                            live_point['logL'] != -np.inf):
+                            'Likelihood function returned NaN for '
+                            f'live_point {live_point}'
+                        )
+                        logger.warning(
+                            'You may want to check your likelihood function'
+                        )
+                        break
+                    if (
+                        np.isfinite(live_point['logP'])
+                        and np.isfinite(live_point['logL'])
+                    ):
                         live_points[i] = live_point
                         i += 1
                         pbar.update()
@@ -730,7 +673,10 @@ class NestedSampler:
             self._uninformed_proposal.initialise()
             flags[1] = True
 
-        if self.iteration < self.maximum_uninformed:
+        if (
+            self.iteration < self.maximum_uninformed
+            and self.uninformed_sampling
+        ):
             self.proposal = self._uninformed_proposal
         else:
             self.proposal = self._flow_proposal
@@ -747,28 +693,31 @@ class NestedSampler:
         if all(flags):
             self.initialised = True
 
-    @property
-    def mean_acceptance(self):
-        """
-        Mean acceptance of the last nlive // 10 points
-        """
-        if self.acceptance_history:
-            return np.mean(self.acceptance_history)
-        else:
-            return np.nan
-
-    def check_proposal_switch(self):
+    def check_proposal_switch(self, force=False):
         """
         Check if the proposal should be switch from uninformed to
         flowproposal given the current state.
+
+        If the flow proposal is already in use, no changes are made.
+
+        Parameters
+        ----------
+        force : bool, optional
+            If True proposal is forced to switch.
 
         Returns
         -------
         bool
             Flag to indicated if proposal was switched
         """
-        if ((self.mean_acceptance < self.uninformed_acceptance_threshold)
-                or (self.iteration >= self.maximum_uninformed)):
+        if (
+            (self.mean_acceptance < self.uninformed_acceptance_threshold)
+            or (self.iteration >= self.maximum_uninformed)
+            or force
+        ):
+            if self.proposal is self._flow_proposal:
+                logger.warning('Already using flowproposal')
+                return True
             logger.warning('Switching to FlowProposal')
             # Make sure the pool is closed
             if self.proposal.pool is not None:
@@ -824,8 +773,17 @@ class NestedSampler:
 
     def check_flow_model_reset(self):
         """
-        Check if the normalising flow model should be reset
+        Check if the normalising flow model should be reset.
+
+        Checks acceptance if `reset_acceptance` is True and always checks
+        how many times the flow has been trained.
+
+        Flow will not be reset if it has not been trained. To force a reset
+        manually call `proposal.reset_model_weights`.
         """
+        if not self.proposal.training_count:
+            return
+
         if (self.reset_acceptance
                 and self.mean_block_acceptance < self.acceptance_threshold):
             self.proposal.reset_model_weights(weights=True, permutations=True)
@@ -1033,7 +991,7 @@ class NestedSampler:
                 f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
                 f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
                 f"logLmax: {self.logLmax:.2f}")
-            self.checkpoint(periodic=True)
+            self.checkpoint(periodic=not force)
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
@@ -1078,6 +1036,8 @@ class NestedSampler:
         was resumed.
         """
         if self.resumed:
+            if self.uninformed_sampling is False:
+                self.check_proposal_switch(force=True)
             # If pool is populated reset the flag since it is set to
             # false during initialisation
             if hasattr(self._flow_proposal, 'resume_populated'):
@@ -1112,9 +1072,8 @@ class NestedSampler:
             self.initialise(live_points=True)
 
         if self.prior_sampling:
-            for i in range(self.nlive):
-                self.nested_samples = self.params.copy()
-            return
+            self.nested_samples = self.live_points.copy()
+            return self.nested_samples
 
         self.check_resume()
 
