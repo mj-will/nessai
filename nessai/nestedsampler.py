@@ -665,6 +665,8 @@ class NestedSampler:
                                dtype=get_dtype(self.model.names,
                                                DEFAULT_FLOAT_DTYPE))
 
+        self.proposal.draw_priors = True
+
         with tqdm(total=self.nlive, desc='Drawing live points') as pbar:
             while i < self.nlive:
                 while i < self.nlive:
@@ -681,6 +683,8 @@ class NestedSampler:
                         i += 1
                         pbar.update()
                         break
+
+        self.proposal.draw_priors = False
 
         self.live_points = np.sort(live_points, order='logL')
         if not self._rejection_sampling:
