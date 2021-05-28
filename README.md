@@ -1,6 +1,7 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4550694.svg)](https://doi.org/10.5281/zenodo.4550694) [![PyPI](https://img.shields.io/pypi/v/nessai)](https://pypi.org/project/nessai/) [![Documentation Status](https://readthedocs.org/projects/nessai/badge/?version=latest)](https://nessai.readthedocs.io/en/latest/?badge=latest) [![codecov](https://codecov.io/gh/mj-will/nessai/branch/main/graph/badge.svg?token=O7SN167SK6)](https://codecov.io/gh/mj-will/nessai)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4550693.svg)](https://doi.org/10.5281/zenodo.4550693) [![PyPI](https://img.shields.io/pypi/v/nessai)](https://pypi.org/project/nessai/) [![Documentation Status](https://readthedocs.org/projects/nessai/badge/?version=latest)](https://nessai.readthedocs.io/en/latest/?badge=latest) ![tests](https://github.com/mj-will/nessai/actions/workflows/tests.yml/badge.svg) ![int-tests](https://github.com/mj-will/nessai/actions/workflows/integration-tests.yml/badge.svg) [![codecov](https://codecov.io/gh/mj-will/nessai/branch/main/graph/badge.svg?token=O7SN167SK6)](https://codecov.io/gh/mj-will/nessai)
 
-# Nessai: Nested Sampling with Artificial Intelligence
+
+# nessai: Nested Sampling with Artificial Intelligence
 
 ``nessai`` (/ˈnɛsi/): Nested Sampling with Aritificial Intelligence
 
@@ -20,13 +21,11 @@ Installing via ``conda`` is not currently supported.
 
 By default the version of PyTroch will not necessarily match the drivers on your system, to install a different version with the correct CUDA support see the PyTorch homepage for instructions: https://pytorch.org/.
 
-### Adding Bilby
+### Using ``bilby``
 
-This package requieres a fork of Bilby that includes the sampler, it can be installed by running (this requires pip):
+As of `bilby` version 1.1.0, ``nessai`` is now supported by default but it is still an optional requirement. See the [``bilby`` documentation](https://lscsoft.docs.ligo.org/bilby/index.html) for installation instructions for `bilby`
 
-```console
-$ pip install git+https://git.ligo.org/michael.williams/bilby.git@add-nessai-sampler#egg=bilby
-```
+See the examples included with ``nessai`` for how to run ``nessai`` via ``bilby``.
 
 ## Documentation
 
@@ -62,12 +61,18 @@ If you find ``nessai`` useful in your work please cite the DOI for this code and
   url          = {https://doi.org/10.5281/zenodo.4550693}
 }
 
-@article{williams2021nested,
-  title={Nested Sampling with Normalising Flows for Gravitational-Wave Inference},
-  author={Michael J. Williams and John Veitch and Chris Messenger},
-  year={2021},
-  eprint={2102.11056},
-  archivePrefix={arXiv},
-  primaryClass={gr-qc}
+@article{PhysRevD.103.103006,
+  title = {Nested sampling with normalizing flows for gravitational-wave inference},
+  author = {Williams, Michael J. and Veitch, John and Messenger, Chris},
+  journal = {Phys. Rev. D},
+  volume = {103},
+  issue = {10},
+  pages = {103006},
+  numpages = {19},
+  year = {2021},
+  month = {May},
+  publisher = {American Physical Society},
+  doi = {10.1103/PhysRevD.103.103006},
+  url = {https://link.aps.org/doi/10.1103/PhysRevD.103.103006}
 }
 ```
