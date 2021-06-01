@@ -1579,10 +1579,10 @@ class FlowProposal(RejectionProposal):
         else:
             state['mask'] = None
         state['pool'] = None
-        if state['populated'] and self.indices:
+        if state['populated'] and state['indices']:
             state['resume_populated'] = True
         else:
-            state['resumed_populated'] = False
+            state['resume_populated'] = False
 
         # user provides model and config for resume
         # flow can be reconstructed from resume
