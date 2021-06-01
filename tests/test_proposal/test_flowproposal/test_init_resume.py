@@ -92,6 +92,35 @@ def test_resume_w_update_bounds(proposal, data, count):
             proposal.check_state.assert_called_once_with(data)
 
 
+@pytest.mark.parametrize('populated', [False, True])
+def test_get_state(proposal, populated):
+    """Test the get state method used for pickling the proposal.
+
+    Tests cases where the proposal is and isn't populated.
+    """
+
+    proposal.populated = populated
+    proposal.indices = [1, 2]
+    proposal._reparameterisation = MagicMock()
+    proposal.model = MagicMock()
+    proposal._flow_config = {}
+    proposal.pool = MagicMock()
+    proposal.initialised = True
+    proposal.flow = MagicMock()
+    proposal.flow.weights_file = 'file'
+
+    state = FlowProposal.__getstate__(proposal)
+
+    assert state['resume_populated'] is populated
+    assert state['pool'] is None
+    assert state['initialised'] is False
+    assert state['weights_file'] == 'file'
+    assert '_reparameterisation' not in state
+    assert 'model' not in state
+    assert 'flow' not in state
+    assert '_flow_config' not in state
+
+
 @pytest.mark.integration_test
 @pytest.mark.parametrize('reparameterisation', [False, True])
 @pytest.mark.parametrize('init', [False, True])
