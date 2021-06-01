@@ -10,6 +10,22 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 
+@pytest.fixture
+def dummy_rc():
+    """Dummy reparameteristation class"""
+    m = MagicMock()
+    m.__name__ = 'DummyReparameterisation'
+    return m
+
+
+@pytest.fixture
+def dummy_cmb_rc():
+    """Dummy combined reparameteristation class"""
+    m = MagicMock()
+    m.add_reparameterisation = MagicMock()
+    return m
+
+
 def test_default_reparameterisation(proposal):
     """Test to make sure default reparameterisation does not cause errors
     for default proposal.
@@ -24,23 +40,105 @@ def test_get_reparamaterisation(mocked_fn, proposal):
     assert mocked_fn.called_once_with('angle')
 
 
+def test_configure_reparameterisations_dict(proposal, dummy_cmb_rc, dummy_rc):
+    """Test configuration for reparameterisations dictionary.
+
+    Also tests to make sure boundary inversion is set.
+    """
+    dummy_rc.return_value = 'r'
+    # Need to add the parameters before hand to prevent a
+    # NullReparameterisation from being added
+    dummy_cmb_rc.parameters = ['x']
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = MagicMock(return_value=(
+        dummy_rc, {'boundary_inversion': True}
+    ))
+    proposal.model = MagicMock()
+    proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    proposal.names = ['x']
+
+    with patch('nessai.proposal.flowproposal.CombinedReparameterisation',
+               return_value=dummy_cmb_rc) as mocked_class:
+        FlowProposal.configure_reparameterisations(
+            proposal, {'x': {'reparameterisation': 'default'}})
+
+    proposal.get_reparameterisation.assert_called_once_with('default')
+    proposal.add_default_reparameterisations.assert_called_once()
+    dummy_rc.assert_called_once_with(
+        prior_bounds={'x': [-1, 1]},
+        parameters='x',
+        boundary_inversion=True
+    )
+    mocked_class.assert_called_once()
+    proposal._reparameterisation.add_reparameterisations.\
+        assert_called_once_with('r')
+
+    assert proposal.boundary_inversion is True
+    assert proposal.names == ['x']
+
+
+@patch('nessai.proposal.flowproposal.CombinedReparameterisation')
+def test_configure_reparameterisations_dict_w_params(mocked_class, proposal,
+                                                     dummy_rc, dummy_cmb_rc):
+    """Test configuration for reparameterisations dictionary with parameters.
+
+    For example:
+
+        {'x': {'reparmeterisation': 'default', 'parameters': 'y'}}
+
+    This should add both x and y to the reparameterisation.
+    """
+    dummy_rc.return_value = 'r'
+    # Need to add the parameters before hand to prevent a
+    # NullReparameterisation from being added
+    dummy_cmb_rc.parameters = ['x', 'y']
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = MagicMock(return_value=(
+        dummy_rc, {},
+    ))
+    proposal.model = MagicMock()
+    proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    proposal.names = ['x', 'y']
+
+    with patch('nessai.proposal.flowproposal.CombinedReparameterisation',
+               return_value=dummy_cmb_rc) as mocked_class:
+        FlowProposal.configure_reparameterisations(
+            proposal,
+            {'x': {'reparameterisation': 'default', 'parameters': ['y']}}
+        )
+
+    proposal.get_reparameterisation.assert_called_once_with('default')
+    proposal.add_default_reparameterisations.assert_called_once()
+    dummy_rc.assert_called_once_with(
+        prior_bounds={'x': [-1, 1], 'y': [-1, 1]},
+        parameters=['y', 'x'],
+    )
+    mocked_class.assert_called_once()
+    proposal._reparameterisation.add_reparameterisations.\
+        assert_called_once_with('r')
+
+    assert proposal.names == ['x', 'y']
+
+
 @patch('nessai.reparameterisations.CombinedReparameterisation')
-def test_configure_reparameterisations_dict(mocked_class, proposal):
-    """Test configuration for reparameterisations dictionary"""
+def test_configure_reparameterisations_dict_missing(mocked_class, proposal):
+    """
+    Test configuration for reparameterisations dictionary when missing
+    the reparameterisation for a parameter.
+
+    This should raise a runtime error.
+    """
     proposal.add_default_reparameterisations = MagicMock()
     proposal.get_reparameterisation = get_reparameterisation
     proposal.model = MagicMock
     proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     proposal.names = ['x', 'y']
-    FlowProposal.configure_reparameterisations(
-        proposal, {'x': {'reparameterisation': 'default'}})
 
-    proposal.add_default_reparameterisations.assert_called_once()
-    assert proposal.rescaled_names == ['x_prime', 'y']
-    assert proposal.rescale_parameters == ['x']
-    assert proposal._reparameterisation.parameters == ['x', 'y']
-    assert proposal._reparameterisation.prime_parameters == ['x_prime', 'y']
-    assert mocked_class.called_once
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.configure_reparameterisations(
+            proposal, {'x': {'scale': 1.0}})
+
+    assert 'No reparameterisation found for x' in str(excinfo.value)
 
 
 @patch('nessai.reparameterisations.CombinedReparameterisation')
@@ -86,6 +184,16 @@ def test_configure_reparameterisations_incorrect_type(proposal):
     with pytest.raises(TypeError) as excinfo:
         FlowProposal.configure_reparameterisations(proposal, ['default'])
     assert 'must be a dictionary' in str(excinfo.value)
+
+
+def test_configure_reparameterisations_incorrect_config_type(proposal):
+    """Assert an error is raised when the config for a key is not a dictionary
+    or a known reparameterisation.
+    """
+    proposal.names = ['x']
+    with pytest.raises(TypeError) as excinfo:
+        FlowProposal.configure_reparameterisations(proposal, {'x': ['a']})
+    assert 'Unknown config type' in str(excinfo.value)
 
 
 @pytest.mark.parametrize('n', [1, 10])
