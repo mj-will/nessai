@@ -16,7 +16,7 @@ from ..utils import (
     draw_nsphere,
     draw_truncated_gaussian,
     volume_nball,
-    area_sphere,
+    surface_area_sphere,
 )
 
 
@@ -84,7 +84,7 @@ class ExactGaussianProposal(ExactProposal):
         """The log proposal probability"""
         r = np.sqrt(np.sum(x ** 2, axis=-1))
         log_p = self._chi.logpdf(r) - self._chi.logcdf(r_max)
-        log_norm = np.log(area_sphere(self.model.dims, r=r))
+        log_norm = np.log(surface_area_sphere(self.model.dims, r=r))
         return log_p - log_norm
 
     def _sample(self, r, N=1):
