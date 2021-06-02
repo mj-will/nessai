@@ -3,14 +3,17 @@
 Distributions to use as the 'base distribution' for normalising flows.
 """
 import logging
-import math
 
 from nflows.distributions import Distribution
 from nflows.distributions.uniform import BoxUniform as BaseBoxUniform
 from nflows.utils import torchutils
 import numpy as np
+
 from scipy.special import gamma
+import scipy.stats as scipystats
+
 import torch
+import torch.distributions as torchdist
 
 
 logger = logging.getLogger(__name__)
@@ -71,8 +74,7 @@ class SphericalTruncatedNormal(Distribution):
     """
     A Gaussian distribution truncated to lie within an n-ball of radius r.
 
-    Based on the implentation by toshas: \
-        https://github.com/toshas/torch_truncnorm
+    Only supports shapes (None, n).
 
     Parameters
     ----------
@@ -81,28 +83,32 @@ class SphericalTruncatedNormal(Distribution):
     r : float
         Radius of the n-ball
     """
-    def __init__(self, shape, r):
+    def __init__(self, n, r):
+        from ..utils import surface_area_sphere
         super().__init__()
-        if isinstance(shape, int):
-            shape = (shape,)
-        self._shape = torch.Size(shape)
+        self._shape = torch.Size((n,))
 
         logger.debug(f'Truncated normal with r={r:.3}')
 
+        self._chi2 = torchdist.Chi2(n)
+
         self.register_buffer('r', torch.tensor(r, dtype=torch.float64))
+        self.register_buffer('n', torch.tensor(n, dtype=torch.int))
 
         self.register_buffer(
-            "_log_z",
-            (
-                np.prod(self._shape)
-                * (-0.5 * np.log(2 * np.pi)
-                    - torch.log(self._phi(self.r) - self._phi(-self.r)))
-            ),
+            "_log_cdf",
+            torch.tensor(scipystats.chi2(n).logcdf(r ** 2)),
             persistent=False)
 
-    @staticmethod
-    def _phi(x):
-        return 0.5 * (1.0 + (x / math.sqrt(2.0)).erf())
+        # Surface area an n-shpere with radius 1
+        self.register_buffer(
+            '_log_surface_area',
+            torch.log(torch.tensor(surface_area_sphere(n, r=1))),
+            persistent=False,
+        )
+
+    def _log_norm(self, r):
+        return self._log_surface_area + (self.n - 1) * torch.log(r)
 
     def _log_prob(self, inputs, context):
         if inputs.shape[1:] != self._shape:
@@ -111,9 +117,16 @@ class SphericalTruncatedNormal(Distribution):
                     self._shape, inputs.shape[1:]
                 )
             )
-        ib = self.r.gt(torch.linalg.norm(inputs, dim=1)).type_as(inputs)
-        return torch.log(ib) + self._log_z \
-            - 0.5 * torchutils.sum_except_batch(inputs ** 2, num_batch_dims=1)
+        r2 = torch.sum(torch.pow(inputs, 2), dim=1)
+        r = r2.sqrt()
+        ib = self.r.gt(r).type_as(inputs)
+        return (
+            torch.log(ib) +
+            torch.log(2 * r) +
+            self._chi2.log_prob(r2) -
+            self._log_norm(r) -
+            self._log_cdf
+        )
 
     def _sample(self, num_samples, context):
         raise RuntimeError

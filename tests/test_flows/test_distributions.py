@@ -4,7 +4,7 @@ Test the distributions for flows include in nessai.
 """
 
 import numpy as np
-from scipy import stats
+from scipy import stats, special
 import torch
 import pytest
 
@@ -129,7 +129,10 @@ def test_nball_sample(radius):
 
 
 def test_truncate_normal_log_prob():
-    """Test the log-probability of the truncated normal"""
+    """Test the log-probability of the truncated normal in 1-d.
+
+    This should be equal to a normal truncated Gaussian.
+    """
 
     dist = SphericalTruncatedNormal(1, 1.0)
 
@@ -140,17 +143,27 @@ def test_truncate_normal_log_prob():
     np.testing.assert_almost_equal(log_prob, true_log_prob[:, 0])
 
 
-@pytest.mark.parametrize('dims', [2, 4, 20])
-@pytest.mark.parametrize('r', [0.5, 1.0, 2.0, 5.0, 10.0])
+@pytest.mark.parametrize('dims', [2, 4, 10])
+@pytest.mark.parametrize('r', [0.5, 1.0, 5.0, 10.0])
 def test_truncate_normal_log_prob_n_dims(dims, r):
-    """Test the log-probability of the truncated normal in n dimensions"""
+    """Test the log-probability of the truncated normal in n dimensions.
+
+    Compares the expected value
+        chi(r|k) / S_(n-1)(r) * CDF(r_max)
+    """
 
     dist = SphericalTruncatedNormal(dims, r)
 
     x = torch.randn(10, dims)
 
-    true_log_prob = stats.truncnorm(-r, r).logpdf(x).sum(axis=1)
-    true_log_prob[np.linalg.norm(x, axis=1) > r] = -np.inf
+    r_x = np.sqrt(np.sum(x.numpy() ** 2, axis=-1))
+    surface_area = \
+        ((2 * np.pi ** (dims / 2)) / special.gamma(dims / 2)) * \
+        r_x ** (dims - 1)
+    true_log_prob = np.log(
+        stats.chi(dims).pdf(r_x) / (surface_area * stats.chi(dims).cdf(r))
+    )
+    true_log_prob[r_x > r] = -np.inf
     log_prob = dist.log_prob(x)
     np.testing.assert_array_almost_equal(log_prob, true_log_prob)
 

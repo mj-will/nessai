@@ -172,13 +172,14 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
     return fuzz * r * z
 
 
-def area_sphere(n, r=1):
-    """Compute the area of the sphere in n dimensions for a given radius.
+def surface_area_sphere(n, r=1):
+    """Compute the surface area of the sphere in n dimensions for a given
+    radius.
 
     Note that n here is the number of dimensions.
     E.g. in 3 dimensions its a (3-1)=2-sphere.
 
-    2 pi ^(n/2) / gamma(n/2)
+    2 pi ^(n/2) / gamma(n/2) * r
 
     Parameters
     ----------

@@ -169,3 +169,19 @@ def test_auto_bins_no_samples():
     with pytest.raises(RuntimeError) as excinfo:
         assert utils.auto_bins([])
     assert 'Input array is empty!' in str(excinfo.value)
+
+
+@pytest.mark.parametrize('r', [1, 5, 100])
+def test_area_sphere_2d(r):
+    """Test the surface area of a sphere in 2-d"""
+    a = utils.surface_area_sphere(2, r=r)
+    expected_value = 2 * np.pi * r
+    np.testing.assert_almost_equal(expected_value, a)
+
+
+@pytest.mark.parametrize('r', [1, 5, 100])
+def test_area_sphere_3d(r):
+    """Test the surface area of a sphere in 3-d"""
+    a = utils.surface_area_sphere(3, r=r)
+    expected_value = 4 * np.pi * r ** 2
+    np.testing.assert_almost_equal(expected_value, a)
