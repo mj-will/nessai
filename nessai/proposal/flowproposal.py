@@ -1458,12 +1458,19 @@ class FlowProposal(RejectionProposal):
         """
         if self._plot_pool == 'all':
             plot_live_points(
-                x, c='logL',
-                filename=f'{self.output}/pool_{self.populated_count}.png')
+                x,
+                c='logL',
+                filename=os.path.join(self.output,
+                                      f'pool_{self.populated_count}.png')
+            )
         else:
             plot_1d_comparison(
-                self.training_data, x, labels=['live points', 'pool'],
-                filename=f'{self.output}/pool_{self.populated_count}.png')
+                self.training_data,
+                x,
+                labels=['live points', 'pool'],
+                filename=os.path.join(self.output,
+                                      f'pool_{self.populated_count}.png')
+            )
 
             z_tensor = torch.from_numpy(z).to(self.flow.device)
             with torch.no_grad():
@@ -1485,7 +1492,9 @@ class FlowProposal(RejectionProposal):
             axs[2].set_xlabel('r')
             plt.tight_layout()
             fig.savefig(
-                f'{self.output}/pool_{self.populated_count}_log_q.png')
+                os.path.join(self.output,
+                             f'pool_{self.populated_count}_log_q.png')
+            )
             plt.close(fig)
 
     def resume(self, model, flow_config, weights_file=None):
