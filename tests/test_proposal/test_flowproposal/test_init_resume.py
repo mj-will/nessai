@@ -176,7 +176,7 @@ def test_reset(proposal):
     assert proposal._edges['x'] is None
 
 
-@pytest.mark.integration
+@pytest.mark.integration_test
 def test_reset_integration(tmpdir, model):
     """Test reset method interation with other methods"""
     proposal = FlowProposal(model, poolsize=10)
@@ -205,6 +205,7 @@ def test_reset_integration(tmpdir, model):
 
 
 @pytest.mark.parametrize('rescale', [True, False])
+@pytest.mark.integration_test
 def test_test_draw(tmpdir, model, rescale):
     """Verify that the `test_draw` method works.
 
