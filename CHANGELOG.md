@@ -48,6 +48,7 @@ tests for this reparameterisation.
 - Fixed `AugmentedGWFlowProposal`.
 - Fixed a bug with `plot_live_points` when the hue parameter (`c`) was constant.
 - Fix `prior_sampling`
+- Fixed a bug with the reparmeterisation `Rescale` when `scale` was set to a negative number.
 
 
 ## [0.2.4] - 2021-03-08
