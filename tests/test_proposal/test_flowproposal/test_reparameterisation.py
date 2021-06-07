@@ -196,6 +196,117 @@ def test_configure_reparameterisations_incorrect_config_type(proposal):
     assert 'Unknown config type' in str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    'reparam',
+    [{'z': {'reparameterisation': 'sine'}}, {'sine': {'parameters': ['x']}}]
+)
+def test_configure_reparameterisation_unknown(proposal, reparam):
+    """
+    Assert an error is raised if an unknown reparameterisation or parameters
+    is passed.
+    """
+    proposal.names = ['x']
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.configure_reparameterisations(proposal, reparam)
+    assert 'is not a parameter in the model or a known' in str(excinfo.value)
+
+
+def test_configure_reparameterisation_no_parameters(proposal, dummy_rc):
+    """Assert an error is raised if no parameters are specified"""
+    proposal.names = ['x']
+    proposal.get_reparameterisation = MagicMock(return_value=(
+        dummy_rc, {},
+    ))
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.configure_reparameterisations(
+            proposal, {'default': {'update_bounds': True}})
+    assert 'No parameters key' in str(excinfo.value)
+
+
+def test_set_rescaling_with_model(proposal, model):
+    """
+    Test setting the rescaling when the model contains reparmaeterisations.
+    """
+    proposal.model = model
+    proposal.model.reparameterisations = {'x': 'default'}
+    proposal.set_boundary_inversion = MagicMock()
+
+    def update(self):
+        proposal.rescale_parameters = ['x']
+        proposal.rescaled_names = ['x_prime']
+
+    proposal.configure_reparameterisations = MagicMock()
+    proposal.configure_reparameterisations.side_effect = update
+
+    FlowProposal.set_rescaling(proposal)
+
+    proposal.set_boundary_inversion.assert_called_once()
+    proposal.configure_reparameterisations.assert_called_once_with(
+        {'x': 'default'}
+    )
+    assert proposal.reparameterisations == {'x': 'default'}
+    assert proposal.rescaled_names == ['x_prime']
+
+
+def test_set_rescaling_with_reparameterisations(proposal, model):
+    """
+    Test setting the rescaling when a reparameterisations dict is defined.
+    """
+    proposal.model = model
+    proposal.model.reparameterisations = None
+    proposal.reparameterisations = {'x': 'default'}
+    proposal.set_boundary_inversion = MagicMock()
+
+    def update(self):
+        proposal.rescale_parameters = ['x']
+        proposal.rescaled_names = ['x_prime']
+
+    proposal.configure_reparameterisations = MagicMock()
+    proposal.configure_reparameterisations.side_effect = update
+
+    FlowProposal.set_rescaling(proposal)
+
+    proposal.set_boundary_inversion.assert_called_once()
+    proposal.configure_reparameterisations.assert_called_once_with(
+        {'x': 'default'}
+    )
+    assert proposal.reparameterisations == {'x': 'default'}
+    assert proposal.rescaled_names == ['x_prime']
+
+
+@pytest.mark.parametrize('update_bounds', [True, False])
+@pytest.mark.parametrize(
+    'rescale_parameters',
+    [
+        (False, ['x', 'y']),
+        (True, ['x_prime', 'y_prime']),
+        (['x'], ['x_prime', 'y'])
+    ]
+)
+def test_set_rescaling_parameters_list(proposal, model, update_bounds,
+                                       rescale_parameters):
+    """Test setting rescaling without reparameterisations"""
+    proposal.model = model
+    proposal.model.reparameterisations = None
+    proposal.reparameterisations = None
+    proposal.configure_reparameterisations = MagicMock()
+
+    proposal.rescale_parameters = rescale_parameters[0]
+    proposal.rescale_bounds = [-1, 1]
+    proposal.update_bounds = update_bounds
+
+    FlowProposal.set_rescaling(proposal)
+
+    proposal.configure_reparameterisations.assert_not_called()
+    assert proposal.rescaled_names == rescale_parameters[1]
+
+    if rescale_parameters[0]:
+        assert proposal._rescale_factor == 2.0
+        assert proposal._rescale_shift == -1.0
+        assert proposal._min == {'x': -5, 'y': -5}
+        assert proposal._max == {'x': 5, 'y': 5}
+
+
 @pytest.mark.parametrize('n', [1, 10])
 def test_rescale_w_reparameterisation(proposal, n):
     """Test rescaling when using reparameterisation dict"""
@@ -224,7 +335,7 @@ def test_rescale_w_reparameterisation(proposal, n):
 @pytest.mark.parametrize('n', [1, 10])
 def test_inverse_rescale_w_reparameterisation(proposal, n):
     """Test rescaling when using reparameterisation dict"""
-    x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y'])
+    x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y']).squeeze()
     x_prime = numpy_array_to_live_points(
         np.random.randn(n, 2), ['x_prime', 'y_prime'])
     x_prime['logL'] = np.random.randn(n)
@@ -243,3 +354,35 @@ def test_inverse_rescale_w_reparameterisation(proposal, n):
     np.testing.assert_array_equal(
         x_prime[['logP', 'logL']], x_out[['logL', 'logP']])
     proposal._reparameterisation.inverse_reparameterise.assert_called_once()
+
+
+@pytest.mark.parametrize('n', [1, 10])
+@pytest.mark.parametrize('compute_radius', [False, True])
+def test_rescale_to_bounds(proposal, model, n, compute_radius):
+    """Test the default rescaling to bounds"""
+    x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y']).squeeze()
+    x_prime_expected = numpy_array_to_live_points(
+        np.zeros([n, 2]), ['x_prime', 'y_prime'])
+
+    x_prime_expected['x_prime'] = 2 * (x['x'] + 5) / 10 - 1
+    x_prime_expected['y_prime'] = 2 * (x['y'] + 4) / 8 - 1
+
+    proposal.x_prime_dtype = \
+        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+
+    proposal.names = ['x', 'y']
+    proposal.rescale_parameters = ['x', 'y']
+    proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal.model = model
+    proposal.boundary_inversion = []
+
+    proposal._rescale_factor = 2.0
+    proposal._rescale_shift = -1.0
+    proposal._min = {'x': -5, 'y': -4}
+    proposal._max = {'x': 5, 'y': 4}
+
+    x_prime, log_j = \
+        FlowProposal._rescale_to_bounds(
+            proposal, x, compute_radius=compute_radius)
+
+    np.testing.assert_array_equal(x_prime, x_prime_expected)
