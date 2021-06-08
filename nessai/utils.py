@@ -867,3 +867,18 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
         return -0.5, 1.5
     else:
         raise RuntimeError
+
+
+def get_subset_arrays(indices, *args):
+    """Return a subset of a set of arrays.
+
+    Assumes all arrays are the same length.
+
+    Parameters
+    ----------
+    indices : array
+        Array of indices or boolean array of same length as input arrays
+    args : arrays
+        Set of arrays to index.
+    """
+    return (a[indices] for a in args)

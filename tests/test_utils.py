@@ -169,3 +169,27 @@ def test_auto_bins_no_samples():
     with pytest.raises(RuntimeError) as excinfo:
         assert utils.auto_bins([])
     assert 'Input array is empty!' in str(excinfo.value)
+
+
+def test_get_subset_arrays_indices():
+    """Test get subset arrays with indices"""
+    indices = np.array([1, 3, 5])
+    x = np.arange(6)
+    y = -np.arange(6)
+
+    x_out, y_out = utils.get_subset_arrays(indices, x, y)
+
+    np.testing.assert_equal(x_out, [1, 3, 5])
+    np.testing.assert_equal(y_out, [-1, -3, -5])
+
+
+def test_get_subset_arrays_booleans():
+    """Test get subset arrays with an array of booleans"""
+    valid = np.array([False, True, False, True, False, True])
+    x = np.arange(6)
+    y = -np.arange(6)
+
+    x_out, y_out = utils.get_subset_arrays(valid, x, y)
+
+    np.testing.assert_equal(x_out, [1, 3, 5])
+    np.testing.assert_equal(y_out, [-1, -3, -5])
