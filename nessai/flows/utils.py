@@ -122,6 +122,8 @@ def reset_weights(module):
         module.bias.data.zero_()
         module.running_mean.zero_()
         module.running_var.fill_(1)
+    else:
+        logger.warning(f'Could not reset: {module}')
 
 
 def reset_permutations(module):
