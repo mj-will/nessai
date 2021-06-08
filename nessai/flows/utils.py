@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from nflows.transforms.normalization import BatchNorm
 from nflows.transforms.lu import LULinear
 from nflows.transforms.permutations import RandomPermutation
-from nflows.nn.nets import MLP
+from nflows.nn.nets import MLP as NFlowsMLP
 
 from .realnvp import FlexibleRealNVP
 from .maf import MaskedAutoregressiveFlow
@@ -144,34 +144,26 @@ def reset_permutations(module):
         module._permutation = torch.randperm(len(module._permutation))
 
 
-class CustomMLP(MLP):
+class MLP(NFlowsMLP):
     """
-    MLP which handles additional kwargs that are supplied by some
-    flow models
+    MLP which can be called with context.
     """
-    def __init__(self, *args, **kwargs):
-        super(CustomMLP, self).__init__(*args, **kwargs)
+    def forward(self, inputs, context=None):
+        """Forward method that allows for kwargs such as context.
 
-    def forward(self, inputs, *args, **kwargs):
-        """Forward method that allows for kwargs such as context"""
-        if inputs.shape[1:] != self._in_shape:
-            raise ValueError(
-                "Expected inputs of shape {}, got {}.".format(
-                    self._in_shape, inputs.shape[1:]
-                )
-            )
+        Parameters
+        ----------
+        inputs : :obj:`torch.tensor`
+            Inputs to the MLP
+        context : None
+            Conditional inputs, must be None. Only implemeted to the
+            function is compatible with other methods.
 
-        inputs = inputs.reshape(-1, np.prod(self._in_shape))
-        outputs = self._input_layer(inputs)
-        outputs = self._activation(outputs)
-
-        for hidden_layer in self._hidden_layers:
-            outputs = hidden_layer(outputs)
-            outputs = self._activation(outputs)
-
-        outputs = self._output_layer(outputs)
-        if self._activate_output:
-            outputs = self._activation(outputs)
-        outputs = outputs.reshape(-1, *self._out_shape)
-
-        return outputs
+        Raises
+        ------
+        RuntimeError
+            If te context is not None.
+        """
+        if context is not None:
+            raise RuntimeError('MLP does not support conditional inputs')
+        super().forward(inputs)

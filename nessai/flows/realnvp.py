@@ -130,7 +130,7 @@ class FlexibleRealNVP(NFlow):
                     use_batch_norm=batch_norm_within_layers
                     )
         elif net.lower() == 'mlp':
-            from .utils import CustomMLP
+            from .utils import MLP
             if batch_norm_within_layers:
                 logger.warning('Batch norm within layers not supported for '
                                'MLP, will be ignored')
@@ -140,7 +140,7 @@ class FlexibleRealNVP(NFlow):
             hidden_features = num_blocks_per_layer * [hidden_features]
 
             def create_net(in_features, out_features):
-                return CustomMLP(
+                return MLP(
                         (in_features,),
                         (out_features,),
                         hidden_features,
