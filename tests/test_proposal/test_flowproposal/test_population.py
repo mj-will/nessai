@@ -2,7 +2,7 @@
 """Test methods related to popluation of the proposal after training"""
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 
 from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
@@ -196,3 +196,81 @@ def test_convert_to_samples_with_prime(mock_plot, proposal):
         filename='.//pool_prime_1.png')
     proposal.inverse_rescale.assert_called_once()
     assert out_samples.dtype.names == ('x', 'logP', 'logL')
+
+
+def test_populate(proposal):
+    """Test the main populate method"""
+    n_dims = 2
+    poolsize = 10
+    drawsize = 5
+    names = ['x', 'y']
+    worst_point = np.array([1, 2])
+    worst_z = np.random.randn(1, n_dims)
+    worst_q = np.random.randn(1)
+    z = [
+        np.random.randn(drawsize, n_dims),
+        np.random.randn(drawsize, n_dims),
+        np.random.randn(drawsize, n_dims)
+    ]
+    x = [
+        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+    ]
+
+    proposal.max_radius = 50
+    proposal.dims = n_dims
+    proposal.poolsize = poolsize
+    proposal.drawsize = drawsize
+    proposal.min_radius = 0.1
+    proposal.fuzz = 1.0
+    proposal.indices = []
+    proposal.keep_samples = False
+    proposal.fixed_radius = False
+    proposal.compute_radius_with_all = False
+    proposal.check_acceptance = False
+    proposal._plot_pool = True
+    proposal.populated_count = 1
+    proposal.population_dtype = \
+        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    proposal.draw_latent_kwargs = {'var': 2.0}
+
+    proposal.forward_pass = MagicMock(return_value=(worst_z, worst_q))
+    proposal.radius = MagicMock(return_value=(1.0, worst_q))
+    proposal.get_alt_distribution = MagicMock(return_value=None)
+    proposal.draw_latent_prior = MagicMock(side_effect=z)
+    proposal.rejection_sampling = MagicMock(
+        side_effect=[(a[:-1], b[:-1]) for a, b in zip(z, x)]
+    )
+
+    proposal.plot_pool = MagicMock()
+    proposal.convert_to_samples = MagicMock(
+        side_effect=lambda *args, **kwargs: args[0]
+    )
+
+    FlowProposal.populate(proposal, worst_point, N=10, plot=True)
+
+    proposal.forward_pass.assert_called_once_with(
+        worst_point, rescale=True, compute_radius=True,
+    )
+    proposal.radius.assert_called_once_with(worst_z, worst_q)
+    assert proposal.r == 1
+
+    draw_calls = [
+        call(2, r=1.0, N=5, fuzz=1.0, var=2.0),
+        call(2, r=1.0, N=5, fuzz=1.0, var=2.0),
+    ]
+    proposal.draw_latent_prior.assert_has_calls(draw_calls)
+
+    rejection_calls = [
+        call(z[0], worst_q), call(z[1], worst_q), call(z[2], worst_q)
+    ]
+    proposal.rejection_sampling.assert_has_calls(rejection_calls)
+
+    # TODO: call with
+    proposal.plot_pool.assert_called_once()
+    proposal.convert_to_samples.assert_called_once()
+
+    assert proposal.population_acceptance == (10 / 15)
+    assert proposal.populated_count == 2
+    assert proposal.populated is True
