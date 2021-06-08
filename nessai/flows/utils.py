@@ -165,5 +165,7 @@ class MLP(NFlowsMLP):
             If te context is not None.
         """
         if context is not None:
-            raise RuntimeError('MLP does not support conditional inputs')
-        super().forward(inputs)
+            raise NotImplementedError(
+                'MLP with conditional inputs is not implemented.'
+            )
+        return super().forward(inputs)
