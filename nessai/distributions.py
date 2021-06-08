@@ -123,3 +123,78 @@ class InterpolatedDistribution:
         else:
             return ((self.inverse_cdf(u, **kwargs) - self.min) /
                     (self.max - self.min))
+
+
+class CategoricalDistribution:
+    """Distribution for handling discrete conditional parameters.
+
+
+    Parameters
+    ----------
+    n : int
+        Number of discrete parameters
+    """
+    def __init__(self, n=None, classes=None, samples=None):
+        self.n = n
+        self.samples = None
+        self.p = None
+        self.classes = sorted(classes) if classes is not None else None
+
+        if samples is not None:
+            self.update_samples(samples)
+
+    def update_samples(self, samples, reset=False):
+        """Update the samples used to determine the distribution
+        Parameters
+        ----------
+        samples : array_like
+            Samples used for the update
+        reset : bool, optional
+            If True new samples are used to replace previous samples.
+            If False samples are added to existing samples
+        """
+        samples = np.squeeze(np.array(samples))
+        if samples.ndim > 1:
+            raise RuntimeError('Samples must be a 1-dimensional array')
+        classes = np.unique(samples).tolist()
+
+        if self.classes is None:
+            self.classes = classes
+            logger.info(f'Found classes: {classes}')
+        elif not np.isin(classes, self.classes).all():
+            raise RuntimeError(
+                f'New samples contain different classes: {classes}. '
+                f'Expected {self.classes}'
+            )
+
+        if self.n is None:
+            self.n = len(classes)
+        elif len(classes) > self.n:
+            raise RuntimeError(
+                f'Categorical distribution has {self.n} classes, '
+                f'{len(classes)} given.'
+            )
+
+        if reset or self.samples is None:
+            self.samples = samples
+            logger.debug('Replacing existing samples')
+        else:
+            logger.debug('Adding to existing samples')
+            self.samples = np.concatenate([self.samples, samples], axis=-1)
+
+        unique, counts = np.unique(self.samples, return_counts=True)
+        self.p = self.n * [0]
+        for u, c in zip(unique, counts):
+            self.p[self.classes.index(u)] = c / self.samples.size
+
+        logger.info(f'New probabilities ({self.classes}): {self.p}')
+
+    def sample(self, n=1):
+        """Draw a new sample(s) from the categorical distribution.
+
+        Parameters
+        ----------
+        n :  int, optional
+            Number of samples to draw.
+        """
+        return np.random.choice(self.classes, size=(n, 1), p=self.p)
