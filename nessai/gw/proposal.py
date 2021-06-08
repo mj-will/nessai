@@ -35,6 +35,7 @@ from .priors import (
     log_spin_prior_uniform)
 
 from ..proposal.augmented import AugmentedFlowProposal
+from ..proposal.conditional import ConditionalFlowProposal
 from .reparameterisations import get_gw_reparameterisation
 
 logger = logging.getLogger(__name__)
@@ -1401,6 +1402,15 @@ class AugmentedGWFlowProposal(AugmentedFlowProposal, GWFlowProposal):
     """Augmented version of GWFlowProposal.
 
     See :obj:`~nessai.proposal.augmented.AugmentedFlowProposal` and
+    :obj:`~nessai.gw.proposal.GWFlowPropsosal`
+    """
+    pass
+
+
+class ConditionalGWFlowProposal(ConditionalFlowProposal, GWFlowProposal):
+    """Conditional version of GWFlowProposal.
+
+    See :obj:`~nessai.proposal.conditional.ConditionalFlowProposal` and
     :obj:`~nessai.gw.proposal.GWFlowPropsosal`
     """
     pass

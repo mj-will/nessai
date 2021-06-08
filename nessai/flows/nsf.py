@@ -73,9 +73,6 @@ class NeuralSplineFlow(NFlow):
         base_distribution=None,
         **kwargs
     ):
-        if batch_norm_between_layers:
-            logger.warning('BatchNorm cannot be used with splines')
-            batch_norm_between_layers = False
 
         if base_distribution == 'uniform' and tails:
             logger.warning('Tails not used with uniform distribution.')
@@ -130,6 +127,8 @@ class NeuralSplineFlow(NFlow):
             if linear_transform is not None:
                 transforms_list.append(create_linear_transform())
             transforms_list.append(spline_constructor(i))
+            if batch_norm_between_layers:
+                transforms_list.append(transforms.BatchNorm(features=features))
 
         if base_distribution is None or base_distribution == 'gaussian':
             distribution = StandardNormal([features])
