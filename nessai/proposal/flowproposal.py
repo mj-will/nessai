@@ -687,7 +687,7 @@ class FlowProposal(RejectionProposal):
             else:
                 # ratio = x_out.size // x.size
                 for f in x.dtype.names:
-                    if not any([np.any(np.isclose(x[f], xo))
+                    if not all([np.any(np.isclose(x[f], xo))
                                 for xo in x_out[f]]):
                         raise RuntimeError(
                             'Duplicate samples must map to same input values. '
