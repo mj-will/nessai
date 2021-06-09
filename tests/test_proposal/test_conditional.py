@@ -52,9 +52,19 @@ def test_set_rescaling(proposal):
 
     Checks to make sure the parent method is called.
     """
+    proposal.conditional = True
+    proposal.configure_likelihood_parameter = MagicMock()
+    proposal.configure_categorical_parameters = MagicMock()
+    proposal.rescaled_names = ['x', 'y']
+    proposal.conditional_parameters = ['y', 'logL']
+    proposal.categorical_parameters = ['y']
     with patch('nessai.proposal.conditional.FlowProposal.set_rescaling') as m:
         ConditionalFlowProposal.set_rescaling(proposal)
     m.assert_called_once()
+
+    proposal.configure_likelihood_parameter.assert_called_once()
+    proposal.configure_categorical_parameters.assert_called_once()
+    assert proposal.flow_names == ['x']
 
 
 def test_check_state(proposal):
@@ -135,9 +145,10 @@ def test_train_on_data(proposal):
 
 
 @pytest.mark.parametrize('update', [False, True])
-def test_train_conditional(proposal, update):
-    """Test training on the conditional"""
+def test_train_conditional_likelihood(proposal, update):
+    """Test training on the conditional parameters when using the likelihood"""
     proposal.conditional_likelihood = True
+    proposal.categorical_parameters = None
     conditional = np.array([[1, 2], [3, 4]])
     proposal.update_bounds = update
     proposal.likelihood_index = 1
@@ -155,10 +166,11 @@ def test_train_conditional(proposal, update):
             call_args[1]['reset']) is update
 
 
-def test_sample_conditional_parameters(proposal):
-    """Test sampling conditional parameters"""
+def test_sample_conditional_parameters_likelihood(proposal):
+    """Test sampling conditional parameters for the likelihood"""
     c = np.arange(10)
     proposal.conditional_likelihood = True
+    proposal.categorical_parameters = None
     proposal.conditional_dims = 2
     proposal.likelihood_index = 1
     proposal.likelihood_distribution = MagicMock()
@@ -179,6 +191,7 @@ def test_get_conditional_likelihood(proposal):
     proposal.conditional = True
     proposal.conditional_dims = 1
     proposal.conditional_likelihood = True
+    proposal.categorical_parameters = None
     proposal.likelihood_index = 0
     proposal._min_logL = 0.0
     proposal._max_logL = 10.0
@@ -196,6 +209,7 @@ def test_get_conditional_no_conditionals(proposal):
     """
     proposal.conditional = True
     proposal.conditional_likelihood = False
+    proposal.categorical_parameters = None
     proposal.conditional_dims = 0
     x = np.array([1, 2])
     c = ConditionalFlowProposal.get_conditional(proposal, x)
@@ -263,3 +277,22 @@ def test_conditional_init(proposal_init):
     assert proposal_init.conditional_parameters == ['logL']
     assert (proposal_init.
             flow_config['model_config']['kwargs']['context_features'] == 1)
+
+
+@pytest.mark.integration_test
+def test_no_conditional_parameters(model, tmpdir):
+    """Test initialise the proposal with out any conditional parameters.
+
+    This should raise a runtime error.
+    """
+    proposal = ConditionalFlowProposal(
+        model,
+        output=str(tmpdir.mkdir('conditional')),
+        conditional_likelihood=False,
+        poolsize=10,
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        proposal.initialise()
+
+    assert 'No conditional parameters in the proposal!' in str(excinfo.value)
