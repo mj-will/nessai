@@ -7,7 +7,7 @@ from nessai.reparameterisations import (
     get_reparameterisation
 )
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 
 @pytest.fixture
@@ -386,3 +386,106 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
             proposal, x, compute_radius=compute_radius)
 
     np.testing.assert_array_equal(x_prime, x_prime_expected)
+
+
+@pytest.mark.parametrize('has_inversion', [False, True])
+def test_verify_rescaling(proposal, has_inversion):
+    """Test the method that tests the rescaling at runtime"""
+    x = np.array([[1], [2]], dtype=[('x', 'f8')])
+    x_prime = x['x'] / 2
+    log_j = np.array([-2, -2])
+    x_out = x.copy()
+    log_j_inv = np.array([2, 2])
+
+    if has_inversion:
+        x_prime = np.concatenate([x_prime, x_prime])
+        log_j = np.concatenate([log_j, log_j])
+        log_j_inv = np.concatenate([log_j_inv, log_j_inv])
+        x_out = np.concatenate([x_out, x_out])
+
+    proposal.model = MagicMock()
+    proposal.model.new_point = MagicMock(return_value=x)
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+    proposal.check_state = MagicMock()
+
+    FlowProposal.verify_rescaling(proposal)
+
+    proposal.check_state.assert_has_calls(4 * [call(x)])
+    # Should call 4 different test cases
+    calls = [
+        call(x, test='lower'),
+        call(x, test='upper'),
+        call(x, test=False),
+        call(x, test=None)
+    ]
+    proposal.rescale.assert_has_calls(calls)
+    proposal.inverse_rescale.assert_has_calls(4 * [call(x_prime)])
+
+
+@pytest.mark.parametrize('has_inversion', [False, True])
+def test_verify_rescaling_invertible_error(proposal, has_inversion):
+    """Assert an error is raised if the rescaling is not invertible"""
+    x = np.array([[1], [2]], dtype=[('x', 'f8')])
+    x_prime = x['x'] / 2
+    log_j = np.array([-2, -2])
+    x_out = x.copy()[::-1]
+    log_j_inv = np.array([2, 2])
+
+    if has_inversion:
+        x_prime = np.concatenate([x_prime, x_prime])
+        log_j = np.concatenate([log_j, log_j])
+        log_j_inv = np.concatenate([log_j_inv, log_j_inv])
+        x_out = np.concatenate([x_out, x_out])
+
+    proposal.model = MagicMock()
+    proposal.model.new_point = MagicMock(return_value=x)
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.verify_rescaling(proposal)
+    assert 'Rescaling is not invertible for x' in str(excinfo.value)
+
+
+def test_verify_rescaling_duplicate_error(proposal):
+    """Assert an error is raised if the duplication is missing samples"""
+    x = np.array([[1], [2]], dtype=[('x', 'f8')])
+    x_prime = x['x'] / 2
+    log_j = np.array([-2, -2, -2, -2])
+    x_out = np.array([[1], [3], [4], [5]], dtype=[('x', 'f8')])
+    log_j_inv = np.array([2, 2, 2, 2])
+
+    proposal.model = MagicMock()
+    proposal.model.new_point = MagicMock(return_value=x)
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.verify_rescaling(proposal)
+    assert 'Duplicate samples must map to same input' in str(excinfo.value)
+
+
+@pytest.mark.parametrize('has_inversion', [False, True])
+def test_verify_rescaling_jacobian_error(proposal, has_inversion):
+    """Assert an error is raised if the Jacobian is not invertible"""
+    x = np.array([[1], [2]], dtype=[('x', 'f8')])
+    x_prime = x['x'] / 2
+    log_j = np.array([-2, -2])
+    x_out = x.copy()
+    log_j_inv = np.array([2, 1])
+
+    if has_inversion:
+        x_prime = np.concatenate([x_prime, x_prime])
+        log_j = np.concatenate([log_j, log_j])
+        log_j_inv = np.concatenate([log_j_inv, log_j_inv])
+        x_out = np.concatenate([x_out, x_out])
+
+    proposal.model = MagicMock()
+    proposal.model.new_point = MagicMock(return_value=x)
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.verify_rescaling(proposal)
+    assert 'Rescaling Jacobian is not invertible' in str(excinfo.value)
