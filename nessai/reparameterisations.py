@@ -397,7 +397,7 @@ class Rescale(Reparameterisation):
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
             x_prime[pp] = x[p] / self.scale[p]
-            log_j -= np.log(self.scale[p])
+            log_j -= np.log(np.abs(self.scale[p]))
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -415,7 +415,7 @@ class Rescale(Reparameterisation):
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
             x[p] = x_prime[pp] * self.scale[p]
-            log_j += np.log(self.scale[p])
+            log_j += np.log(np.abs(self.scale[p]))
         return x, x_prime, log_j
 
 

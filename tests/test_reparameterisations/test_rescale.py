@@ -33,7 +33,7 @@ def test_reparameterise(reparam, n):
     """Test the reparameterise method"""
     reparam.parameters = ['x', 'y']
     reparam.prime_parameters = ['x_prime', 'y_prime']
-    reparam.scale = {'x': 2.0, 'y': 4.0}
+    reparam.scale = {'x': -2.0, 'y': 4.0}
     x = numpy_array_to_live_points(np.ones((n, 2)), reparam.parameters)
     x_prime = numpy_array_to_live_points(
         np.zeros((n, 2)), reparam.prime_parameters)
@@ -44,7 +44,7 @@ def test_reparameterise(reparam, n):
 
     assert np.array_equal(x, x_out)
     assert np.array_equal(log_j_out, -np.log(8 * np.ones(n)))
-    assert (x_prime_out['x_prime'] == 0.5).all()
+    assert (x_prime_out['x_prime'] == -0.5).all()
     assert (x_prime_out['y_prime'] == 0.25).all()
 
 
@@ -74,13 +74,14 @@ def test_reparameterise_overflow(reparam, scale):
 
 @pytest.mark.parametrize('n', [1, 2])
 def test_inverse_reparameterise(reparam, n):
-    """Test the reparameterise method"""
+    """Test the inverse reparameterise method"""
     reparam.parameters = ['x', 'y']
     reparam.prime_parameters = ['x_prime', 'y_prime']
-    reparam.scale = {'x': 2.0, 'y': 4.0}
+    reparam.scale = {'x': -2.0, 'y': 4.0}
     x = numpy_array_to_live_points(np.zeros((n, 2)), reparam.parameters)
     x_prime = numpy_array_to_live_points(
         np.ones((n, 2)), reparam.prime_parameters)
+    x_prime['x_prime'] *= -1
     log_j = np.zeros(n)
 
     x_out, x_prime_out, log_j_out = \
