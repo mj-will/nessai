@@ -27,6 +27,7 @@ from ..reparameterisations import (
 from ..plot import plot_live_points, plot_1d_comparison
 from .rejection import RejectionProposal
 from ..utils import (
+    get_subset_arrays,
     get_uniform_distribution,
     get_multivariate_normal,
     detect_edge,
@@ -275,6 +276,11 @@ class FlowProposal(RejectionProposal):
     def rescaled_dims(self):
         """Return the number of rescaled dimensions"""
         return len(self.rescaled_names)
+
+    @property
+    def flow_names(self):
+        """Parameters used as inputs to the flow"""
+        return self.rescaled_names
 
     @property
     def flow_dims(self):
@@ -887,7 +893,7 @@ class FlowProposal(RejectionProposal):
         Function that takes live points converts to numpy array and calls
         the train function. Live points should be in the X' (x prime) space.
         """
-        x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
+        x_prime_array = live_points_to_array(x_prime, self.flow_names)
         self.flow.train(x_prime_array,
                         output=output, plot=self._plot_training)
 
@@ -1011,8 +1017,7 @@ class FlowProposal(RejectionProposal):
         idx = np.array(list(((x[n] >= self.model.bounds[n][0])
                              & (x[n] <= self.model.bounds[n][1]))
                        for n in self.model.names)).T.all(1)
-        out = (a[idx] for a in (x,) + args)
-        return out
+        return get_subset_arrays(idx, x, *args)
 
     def forward_pass(self, x, rescale=True, compute_radius=True,
                      conditional=None):
@@ -1044,7 +1049,7 @@ class FlowProposal(RejectionProposal):
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
             log_J += log_J_rescale
 
-        x = live_points_to_array(x, names=self.rescaled_names)
+        x = live_points_to_array(x, names=self.flow_names)
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
@@ -1053,7 +1058,19 @@ class FlowProposal(RejectionProposal):
 
         return z, log_prob + log_J
 
-    def backward_pass(self, z, rescale=True, conditional=None):
+    def _backward_pass(self, z, **kwargs):
+        """Call to the flow.
+
+        Can be replaces in child classes that require chaging outputs before
+        passing them to the rescale functions.
+        """
+        try:
+            return self.flow.sample_and_log_prob(
+                z=z, alt_dist=self.alt_dist, **kwargs)
+        except AssertionError:
+            return np.array([]), np.array([])
+
+    def backward_pass(self, z, rescale=True, **kwargs):
         """
         A backwards pass from the model (latent -> real)
 
@@ -1075,14 +1092,8 @@ class FlowProposal(RejectionProposal):
             Jacobian)
         """
         # Compute the log probability
-        try:
-            x, log_prob = self.flow.sample_and_log_prob(
-                z=z, alt_dist=self.alt_dist, conditional=conditional)
-        except AssertionError:
-            return np.array([]), np.array([])
-
-        valid = np.isfinite(log_prob)
-        x, log_prob = x[valid], log_prob[valid]
+        x, log_prob = self._backward_pass(z, **kwargs)
+        x, log_prob = get_subset_arrays(np.isfinite(log_prob), x, log_prob)
         x = numpy_array_to_live_points(x.astype(DEFAULT_FLOAT_DTYPE),
                                        self.rescaled_names)
         # Apply rescaling in rescale=True
