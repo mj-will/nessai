@@ -44,6 +44,7 @@ class Model(ABC):
     bounds = {}
     reparameterisations = None
     likelihood_evaluations = 0
+    categorical_parameters = None
     _lower = None
     _upper = None
 
@@ -203,8 +204,11 @@ class Model(ABC):
             if n not in self.bounds.keys():
                 raise RuntimeError(f'Missing bounds for {n}')
 
-        if (np.isfinite(self.lower_bounds).all() and
-                np.isfinite(self.upper_bounds).all()):
+        if (
+            (np.isfinite(self.lower_bounds).all() and
+             np.isfinite(self.upper_bounds).all()) and
+            self.categorical_parameters is None
+        ):
             logP = -np.inf
             counter = 0
             while (logP == -np.inf) or (logP == np.inf):
