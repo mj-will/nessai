@@ -1070,7 +1070,7 @@ class FlowProposal(RejectionProposal):
         except AssertionError:
             return np.array([]), np.array([])
 
-    def backward_pass(self, z, rescale=True, **kwargs):
+    def backward_pass(self, z, rescale=True, log_prob=None, **kwargs):
         """
         A backwards pass from the model (latent -> real)
 
@@ -1080,8 +1080,10 @@ class FlowProposal(RejectionProposal):
             Structured array of points in the latent space
         rescale : bool, optional (True)
             Apply inverse rescaling function
-        conditional : array_like, optional
-            Context array passed to the flow.
+        log_prob : :obj:`numpy.ndarray`
+            Array of probabilities for the input samples. This is needed for
+            conditional sampling when the conditional inputs also have
+            a corresponding distribution.
 
         Returns
         -------
@@ -1091,8 +1093,11 @@ class FlowProposal(RejectionProposal):
             Log probabilties corresponding to each sample (including the
             Jacobian)
         """
+        if log_prob is None:
+            log_prob = np.zeros(z.shape[0])
         # Compute the log probability
-        x, log_prob = self._backward_pass(z, **kwargs)
+        x, lp = self._backward_pass(z, **kwargs)
+        log_prob += lp
         x, log_prob = get_subset_arrays(np.isfinite(log_prob), x, log_prob)
         x = numpy_array_to_live_points(x.astype(DEFAULT_FLOAT_DTYPE),
                                        self.rescaled_names)
