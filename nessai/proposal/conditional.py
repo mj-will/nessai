@@ -206,16 +206,18 @@ class ConditionalFlowProposal(FlowProposal):
             Number of samples to draw.
         """
         conditional = np.empty([n, self.conditional_dims])
+        log_prob = np.zeros(n)
         if self.conditional_likelihood:
             conditional[:, self.likelihood_index] = \
                 self.likelihood_distribution.sample(
                     n, min_logL=self.rescaled_worst_logL)
 
         if self.categorical_parameters:
-            conditional[:, self.categorical_indices] = \
+            conditional[:, self.categorical_indices], lp = \
                 self.categorical_distribution.sample(n)
+            log_prob += lp
 
-        return conditional
+        return conditional, log_prob
 
     def get_conditional(self, x):
         """
@@ -284,7 +286,7 @@ class ConditionalFlowProposal(FlowProposal):
         except AssertionError:
             return np.array([]), np.array([])
 
-    def backward_pass(self, z, conditional=None, **kwargs):
+    def backward_pass(self, z, conditional=None, log_prob=None, **kwargs):
         """
         A backwards pass from the model (latent -> real)
 
@@ -294,6 +296,10 @@ class ConditionalFlowProposal(FlowProposal):
             Structured array of points in the latent space
         conditional : array_like, optional
             Context array passed to the flow.
+        log_prob : :obj:`numpy.ndarray`
+            Array of probabilities for the input samples. Useful when
+            conditional samples are included in the model and should therefore
+            be included in the flow probability.
         kwargs :
             Keyword arguments passed to the parent method
 
@@ -305,8 +311,16 @@ class ConditionalFlowProposal(FlowProposal):
             Log probabilties corresponding to each sample (including the
             Jacobian)
         """
+        if log_prob is None:
+            log_prob = np.zeros(z.shape[0])
         if conditional is None and self.conditional:
-            conditional = self.sample_conditional_parameters(z.shape[0])
+            conditional, conditional_log_prob = \
+                self.sample_conditional_parameters(z.shape[0])
+            log_prob += conditional_log_prob
         x, log_prob = super().backward_pass(
-            z, conditional=conditional, **kwargs)
+            z,
+            conditional=conditional,
+            log_prob=log_prob,
+            **kwargs
+        )
         return x, log_prob
