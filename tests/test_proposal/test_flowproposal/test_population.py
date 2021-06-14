@@ -2,7 +2,7 @@
 """Test methods related to popluation of the proposal after training"""
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, Mock, patch, call
 
 from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
@@ -196,6 +196,55 @@ def test_convert_to_samples_with_prime(mock_plot, proposal):
         filename='.//pool_prime_1.png')
     proposal.inverse_rescale.assert_called_once()
     assert out_samples.dtype.names == ('x', 'logP', 'logL')
+
+
+def test_get_alt_distribution_truncated_gaussian(proposal):
+    """
+    Test getting the alternative distribution for the default latent prior, the
+    truncated Gaussian with var=1. This should return None.
+    """
+    proposal.draw_latent_kwargs = {}
+    proposal.latent_prior = 'truncated_gaussian'
+    dist = FlowProposal.get_alt_distribution(proposal)
+    assert dist is None
+
+
+def test_get_alt_distribution_truncated_gaussian_w_var(proposal):
+    """
+    Test getting the alternative distribution for the default latent prior, the
+    truncated Gaussian but with a specified variance.
+    """
+    proposal.draw_latent_kwargs = {'var': 2.0}
+    proposal.latent_prior = 'truncated_gaussian'
+    proposal.dims = 2
+    proposal.flow = Mock()
+    proposal.flow.device = 'cpu'
+
+    with patch('nessai.proposal.flowproposal.get_multivariate_normal') as mock:
+        dist = FlowProposal.get_alt_distribution(proposal)
+
+    assert dist is not None
+    mock.assert_called_once_with(2, var=2.0, device='cpu')
+
+
+@pytest.mark.parametrize('prior', ['uniform_nsphere', 'uniform_nball'])
+def test_get_alt_distribution_uniform(proposal, prior):
+    """
+    Test getting the alternative distribution for priors that are uniform in
+    the n-ball.
+    """
+    proposal.latent_prior = prior
+    proposal.dims = 2
+    proposal.r = 2.0
+    proposal.fuzz = 1.2
+    proposal.flow = Mock()
+    proposal.flow.device = 'cpu'
+    with patch('nessai.proposal.flowproposal.get_uniform_distribution') \
+            as mock:
+        dist = FlowProposal.get_alt_distribution(proposal)
+
+    assert dist is not None
+    mock.assert_called_once_with(2, 2.4, device='cpu')
 
 
 def test_populate(proposal):
