@@ -177,13 +177,15 @@ def test_sample_conditional_parameters_likelihood(proposal):
     proposal.likelihood_distribution.sample = MagicMock(return_value=c)
     proposal.rescaled_worst_logL = -0.5
 
-    out = ConditionalFlowProposal.sample_conditional_parameters(proposal, 10)
+    samples, log_prob = \
+        ConditionalFlowProposal.sample_conditional_parameters(proposal, 10)
 
     proposal.likelihood_distribution.sample.assert_called_once_with(
         10, min_logL=-0.5
     )
 
-    np.testing.assert_array_equal(out[:, 1], c)
+    np.testing.assert_array_equal(samples[:, 1], c)
+    assert (log_prob == 0).all()
 
 
 def test_get_conditional_likelihood(proposal):
@@ -242,17 +244,22 @@ def test_forward_pass(proposal):
 def test_backward_pass(proposal):
     """Test the backward pass method"""
     proposal.conditional = True
-    c = np.array([3, 4])
-    proposal.sample_conditional_parameters = MagicMock(return_value=c)
-    x = np.array([1, 2])
+    z = np.array([[1.0, 2.0], [3.0, 4.0]])
+    c = np.array([5.0, 6.0])
+    log_prob = np.array([7.0, 8.0])
+    proposal.sample_conditional_parameters = \
+        MagicMock(return_value=(c, log_prob))
     with patch('nessai.proposal.conditional.FlowProposal.backward_pass',
                return_value=(1, 2)) \
             as mock:
         out = ConditionalFlowProposal.backward_pass(
-            proposal, x, conditional=None, compute_radius=True)
-
-    mock.assert_called_once_with(x, conditional=c, compute_radius=True)
-    proposal.sample_conditional_parameters.assert_called_once_with(x.size)
+            proposal, z, conditional=None, compute_radius=True)
+    mock.assert_called_once()
+    np.testing.assert_array_equal(mock.call_args.args[0], z)
+    np.testing.assert_array_equal(mock.call_args.kwargs['conditional'], c)
+    np.testing.assert_array_equal(mock.call_args.kwargs['log_prob'], log_prob)
+    assert mock.call_args.kwargs['compute_radius'] is True
+    proposal.sample_conditional_parameters.assert_called_once_with(2)
     assert out == (1, 2)
 
 
