@@ -189,6 +189,24 @@ class CategoricalDistribution:
 
         logger.info(f'New probabilities ({self.classes}): {self.p}')
 
+    def log_prob(self, samples):
+        """Compute the log-probablity of the samples.
+
+        Parameters
+        ----------
+        samples : :obj:`numpy.ndarray`
+            Array of samples.
+
+        Returns
+        -------
+        :obj:`numpy.ndarray`
+            Array of probabilties.
+        """
+        log_prob = np.zeros(samples.size)
+        for c, p in zip(self.classes, self.p):
+            log_prob[(samples == c).flatten()] = np.log(p)
+        return log_prob
+
     def sample(self, n=1):
         """Draw a new sample(s) from the categorical distribution.
 
@@ -197,4 +215,6 @@ class CategoricalDistribution:
         n :  int, optional
             Number of samples to draw.
         """
-        return np.random.choice(self.classes, size=(n, 1), p=self.p)
+        samples = np.random.choice(self.classes, size=(n, 1), p=self.p)
+        log_prob = self.log_prob(samples)
+        return samples, log_prob
