@@ -103,6 +103,8 @@ class ConditionalFlowProposal(FlowProposal):
         self.flow_names = [n for n in self.rescaled_names
                            if n not in self.conditional_parameters]
         # Make sure the parameters are in the correct order
+        logger.debug(f'Flow parameters: {self.flow_names}')
+        logger.debug(f'Conditional parameters: {self.conditional_parameters}')
         if not (self.flow_names + self.categorical_parameters ==
                 self.rescaled_names):
             raise RuntimeError('Parameters do not match')
@@ -128,7 +130,10 @@ class ConditionalFlowProposal(FlowProposal):
 
     def configure_likelihood_parameter(self):
         """Configure the likelihood parameter"""
-        if self.conditional_likelihood:
+        if (
+            self.conditional_likelihood and
+            'logL' not in self.conditional_parameters
+        ):
             self.likelihood_index = len(self.conditional_parameters)
             self.conditional_parameters += ['logL']
             self.likelihood_distribution = \
@@ -142,6 +147,16 @@ class ConditionalFlowProposal(FlowProposal):
             self.categorical_parameters = self.model.categorical_parameters
 
         if self.categorical_parameters is not None:
+            if all(cp in self.conditional_parameters
+                   for cp in self.categorical_parameters):
+                logger.debug('Categorical parameters already added')
+                return
+            elif any(cp in self.conditional_parameters
+                     for cp in self.categorical_parameters):
+                raise RuntimeError(
+                    'Some but not all the categorical parameters have already '
+                    'been added. Have the inputs changed?'
+                )
             logger.debug(
                 f'Adding categorial parameters: {self.categorical_parameters}'
             )
