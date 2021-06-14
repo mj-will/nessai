@@ -1337,12 +1337,11 @@ class FlowProposal(RejectionProposal):
             if not x.size:
                 continue
 
-            if warn:
-                if x.size / self.drawsize < 0.01:
-                    logger.warning(
-                        'Rejection sampling accepted less than 1 percent of '
-                        f'samples! ({x.size / self.drawsize})')
-                    warn = False
+            if warn and (x.size / self.drawsize < 0.01):
+                logger.warning(
+                    'Rejection sampling accepted less than 1 percent of '
+                    f'samples! ({x.size / self.drawsize})')
+                warn = False
 
             n = min(x.size, N - accepted)
             self.x[accepted:(accepted+n)] = x[:n]
