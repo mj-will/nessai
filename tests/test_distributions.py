@@ -138,14 +138,37 @@ def test_categorical_update_samples_too_many_class(categorical):
         str(excinfo.value)
 
 
+@pytest.mark.parametrize('p', [[0.2, 0.8], [1.0, 0.0]])
+def test_categorical_log_prob(categorical, p):
+    """Test the log probability.
+
+    For each class it should be log(p), where p is the fraction of the total
+    samples.
+    """
+    c = [1, 2]
+    samples = np.array([1, 2])
+    categorical.classes = c
+    categorical.p = p
+
+    log_prob = CategoricalDistribution.log_prob(categorical, samples)
+
+    assert log_prob[0] == np.log(p[0])
+    assert log_prob[1] == np.log(p[1])
+
+
 def test_categorical_sample(categorical):
     """Test sampling from the categorical distribution"""
     categorical.p = [0.2, 0.8]
     categorical.classes = [1, 2]
-    n = 1000
-    samples = CategoricalDistribution.sample(categorical, n=n)
+    n = 100
+    expected_log_prob = 0.5 * np.ones(n)
+    categorical.log_prob = MagicMock(return_value=expected_log_prob)
+    samples, log_prob = CategoricalDistribution.sample(categorical, n=n)
     classes, counts = np.unique(samples, return_counts=True)
 
+    categorical.log_prob.assert_called_once_with(samples)
+
     np.testing.assert_equal(classes, [1, 2])
+    np.testing.assert_array_equal(log_prob, expected_log_prob)
     assert np.abs(0.2 - counts[0] / n) < np.sqrt(counts[0])
     assert np.abs(0.8 - counts[1] / n) < np.sqrt(counts[1])
