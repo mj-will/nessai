@@ -359,7 +359,10 @@ def test_inverse_rescale_w_reparameterisation(proposal, n):
 @pytest.mark.parametrize('n', [1, 10])
 @pytest.mark.parametrize('compute_radius', [False, True])
 def test_rescale_to_bounds(proposal, model, n, compute_radius):
-    """Test the default rescaling to bounds"""
+    """Test the default rescaling to bounds.
+
+    Also tests the log Jacobian determinant.
+    """
     x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y']).squeeze()
     x_prime_expected = numpy_array_to_live_points(
         np.zeros([n, 2]), ['x_prime', 'y_prime'])
@@ -385,7 +388,45 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
         FlowProposal._rescale_to_bounds(
             proposal, x, compute_radius=compute_radius)
 
+    np.testing.assert_equal(log_j, -np.log(20))
     np.testing.assert_array_equal(x_prime, x_prime_expected)
+
+
+@pytest.mark.parametrize('n', [1, 10])
+def test_inverse_rescale_to_bounds(proposal, model, n):
+    """Test the default method for the inverse rescaling.
+
+    Also tests the log Jacobian determinant.
+    """
+    x_prime = numpy_array_to_live_points(
+        np.random.randn(n, 2),
+        ['x_prime', 'y_prime']
+    ).squeeze()
+    x_expected = \
+        numpy_array_to_live_points(np.zeros([n, 2]), ['x', 'y'])
+
+    x_expected['x'] = 10.0 * (x_prime['x_prime'] + 1.0) / 2.0 - 5.0
+    x_expected['y'] = 8.0 * (x_prime['y_prime'] + 1.0) / 2.0 - 4.0
+
+    proposal.x_dtype = \
+        [('x', 'f8'), ('y', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+
+    proposal.names = ['x', 'y']
+    proposal.rescale_parameters = ['x', 'y']
+    proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal.model = model
+    proposal.boundary_inversion = []
+
+    proposal._rescale_factor = 2.0
+    proposal._rescale_shift = -1.0
+    proposal._min = {'x': -5, 'y': -4}
+    proposal._max = {'x': 5, 'y': 4}
+
+    x, log_j = \
+        FlowProposal._inverse_rescale_to_bounds(proposal, x_prime)
+
+    np.testing.assert_equal(log_j, np.log(20))
+    np.testing.assert_array_equal(x, x_expected)
 
 
 @pytest.mark.parametrize('has_inversion', [False, True])
