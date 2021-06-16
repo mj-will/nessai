@@ -1207,5 +1207,6 @@ default_reparameterisations = {
     'angle-pair': (AnglePair, None),
     'to-cartesian': (ToCartesian, None),
     'none': (NullReparameterisation, None),
+    'null': (NullReparameterisation, None),
     None: (NullReparameterisation, None),
 }
