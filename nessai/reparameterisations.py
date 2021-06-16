@@ -1019,7 +1019,6 @@ class AnglePair(Reparameterisation):
         self.parameters = parameters
         self.prime_parameters = [f'{m}_{x}' for x in ['x', 'y', 'z']]
 
-        print(prior)
         if prior == 'isotropic' and self.chi:
             self.has_prime_prior = True
             logger.info(f'Prime prior enabled for {self.name}')
