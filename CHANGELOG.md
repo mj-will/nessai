@@ -49,6 +49,7 @@ tests for this reparameterisation.
 - Fixed a bug with `plot_live_points` when the hue parameter (`c`) was constant.
 - Fix `prior_sampling`
 - Fixed a bug with the reparmeterisation `Rescale` when `scale` was set to a negative number.
+- Fixed a bug where `scale` could not be changed in `ToCartesian`.
 
 
 ## [0.2.4] - 2021-03-08
