@@ -942,8 +942,8 @@ class Angle(Reparameterisation):
 
 class ToCartesian(Angle):
     """Convert a paraemter to Cartesian coordinates"""
-    def __init__(self, mode='split', scale=np.pi, **kwargs):
-        super().__init__(scale=np.pi, **kwargs)
+    def __init__(self, mode='split', scale=np.pi, prior_bounds=None, **kwargs):
+        super().__init__(scale=np.pi, prior_bounds=prior_bounds, **kwargs)
 
         self.mode = mode
         if self.mode not in ['duplicate', 'split', 'half']:

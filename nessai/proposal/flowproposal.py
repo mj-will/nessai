@@ -4,6 +4,7 @@ Main proposal object that includes normalising flows.
 """
 import copy
 import datetime
+from inspect import signature
 import logging
 import os
 
@@ -507,6 +508,8 @@ class FlowProposal(RejectionProposal):
         return get_reparameterisation(name)
 
     def configure_reparameterisations(self, reparameterisations):
+        if not self.names:
+            raise RuntimeError('Proposal has not been initialised!')
         _reparameterisations = copy.deepcopy(reparameterisations)
         logger.info(f'Adding reparameterisations from: {_reparameterisations}')
         self._reparameterisation = CombinedReparameterisation()
@@ -570,7 +573,10 @@ class FlowProposal(RejectionProposal):
                      self.model.bounds[default_config['parameters']]}
 
             logger.debug(f'Adding {rc.__name__} with config {default_config}')
-            r = rc(prior_bounds=prior_bounds, **default_config)
+            if 'prior_bounds' in signature(rc).parameters.keys():
+                logger.debug(f'Including prior bounds for {rc.__name__}')
+                default_config['prior_bounds'] = prior_bounds
+            r = rc(**default_config)
             self._reparameterisation.add_reparameterisations(r)
 
         self.add_default_reparameterisations()
