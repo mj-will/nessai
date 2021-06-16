@@ -45,7 +45,8 @@ def get_reparameterisation(reparameterisation):
     Returns
     -------
     :obj:`nessai.reparameteristaions.Reparmeterisation`
-        T
+        The class to use for the reparameterisation. The class is NOT
+        initialised.
     dict
         Keyword arguments for the specific reparameterisations.
     """
@@ -65,9 +66,11 @@ def get_reparameterisation(reparameterisation):
     elif (isinstance(reparameterisation, type) and
             issubclass(reparameterisation, Reparameterisation)):
         return reparameterisation, {}
+    elif reparameterisation is None:
+        return NullReparameterisation, {}
     else:
-        raise RuntimeError('Reparmeterisation must a str or class that '
-                           'inherits from `Reparameterisation`')
+        raise RuntimeError('Reparameterisation must be a str, None, or '
+                           'a class that inherits from `Reparameterisation`')
 
 
 class Reparameterisation:
