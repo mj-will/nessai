@@ -324,9 +324,17 @@ class CombinedReparameterisation(dict):
 
 
 class NullReparameterisation(Reparameterisation):
-    """Reparameteristion that does not modify the parameters"""
-    def __init__(self, parameters=None):
-        super().__init__(parameters=parameters)
+    """Reparameteristion that does not modify the parameters.
+
+    Parameters
+    ----------
+    parameters : list or str
+        Parameters for which the reparameterisation will be used.
+    prior_bounds : list, dict or None
+        Prior bounds for parameters. Ununsed for this reparameterisation.
+    """
+    def __init__(self, parameters=None, prior_bounds=None):
+        super().__init__(parameters=parameters, prior_bounds=prior_bounds)
         self.prime_parameters = self.parameters
         logger.debug(f'Initialised reparameterisation: {self.name}')
 
