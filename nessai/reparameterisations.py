@@ -54,20 +54,24 @@ def get_reparameterisation(reparameterisation):
             reparameterisation, (None, None))
         if rc is None:
             raise ValueError(
-                f'Unknown reparameterisation: {reparameterisation}')
+                f'Unknown reparameterisation: {reparameterisation}'
+            )
         else:
             if kwargs is None:
                 kwargs = {}
             else:
                 kwargs = kwargs.copy()
             return rc, kwargs
-
+    elif reparameterisation is None:
+        return NullReparameterisation, {}
     elif (isinstance(reparameterisation, type) and
             issubclass(reparameterisation, Reparameterisation)):
         return reparameterisation, {}
     else:
-        raise RuntimeError('Reparmeterisation must a str or class that '
-                           'inherits from `Reparameterisation`')
+        raise RuntimeError(
+            'Reparmeterisation must a str None, or class that '
+            'inherits from `Reparameterisation`'
+        )
 
 
 class Reparameterisation:
@@ -78,11 +82,14 @@ class Reparameterisation:
     ----------
     parameters : str or list
         Name of parameters to reparameterise.
+    prior_bounds : list, dict or None
+        Prior bounds for the parameter(s).
     """
     _update_bounds = False
     has_prior = False
     has_prime_prior = False
     requires_prime_prior = False
+    requires_bounded_prior = False
 
     def __init__(self, parameters=None, prior_bounds=None):
         if not isinstance(parameters, (str, list)):
@@ -96,15 +103,36 @@ class Reparameterisation:
                 prior_bounds = {self.parameters[0]: np.asarray(prior_bounds)}
             else:
                 raise RuntimeError('Prior bounds got a list of len > 2')
+        elif prior_bounds is None:
+            if self.requires_bounded_prior:
+                raise RuntimeError(
+                    f'Reparameterisation {self.name} requires prior bounds!'
+                )
         elif not isinstance(prior_bounds, dict):
-            raise TypeError('Prior bounds must be dict or tuple of len 2')
+            raise TypeError(
+                'Prior bounds must be dict, tuple of len 2 or None'
+            )
 
-        if set(self.parameters) - set(prior_bounds.keys()):
-            raise RuntimeError(
-                'Mismatch between parameters and prior bounds: '
-                f'{set(self.parameters)}, {set(prior_bounds.keys())}')
+        if prior_bounds is not None:
+            if set(self.parameters) - set(prior_bounds.keys()):
+                raise RuntimeError(
+                    'Mismatch between parameters and prior bounds: '
+                    f'{set(self.parameters)}, {set(prior_bounds.keys())}'
+                )
+            self.prior_bounds = \
+                {p: np.asarray(b) for p, b in prior_bounds.items()}
+        else:
+            logger.debug(f'No prior bounds for {self.name}')
 
-        self.prior_bounds = {p: np.asarray(b) for p, b in prior_bounds.items()}
+        if self.requires_bounded_prior:
+            is_finite = \
+                np.isfinite([pb for pb in self.prior_bounds.values()]).all()
+            if not is_finite:
+                raise RuntimeError(
+                    f'Reparameterisation {self.name} requires finite prior '
+                    f'bounds. Received: {self.prior_bounds}'
+                )
+
         self.prime_parameters = [p + '_prime' for p in self.parameters]
         self.requires = []
         logger.debug(f'Initialised reparameterisation: {self.name}')
@@ -298,14 +326,8 @@ class CombinedReparameterisation(dict):
 class NullReparameterisation(Reparameterisation):
     """Reparameteristion that does not modify the parameters"""
     def __init__(self, parameters=None):
-        if not isinstance(parameters, (str, list)):
-            raise TypeError('Parameters must be a str or list.')
-
-        self.parameters = \
-            [parameters] if isinstance(parameters, str) else parameters
-
+        super().__init__(parameters=parameters)
         self.prime_parameters = self.parameters
-        self.requires = []
         logger.debug(f'Initialised reparameterisation: {self.name}')
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -350,6 +372,8 @@ class Rescale(Reparameterisation):
     scale : float
         Scaling constant.
     """
+    requires_bounded_prior = False
+
     def __init__(self, parameters=None, scale=None, prior_bounds=None):
         if scale is None:
             raise RuntimeError('Must specify a scale!')
@@ -443,6 +467,8 @@ class RescaleToBounds(Reparameterisation):
         of the prior is subtract of the parameter before the rescaling is
         applied.
     """
+    requires_bounded_prior = True
+
     def __init__(self, parameters=None, prior_bounds=None, prior=None,
                  rescale_bounds=None, boundary_inversion=None,
                  detect_edges=False, inversion_type='split',
@@ -813,6 +839,8 @@ class Angle(Reparameterisation):
         Type of prior being used for sampling this angle. If specified, the
         prime prior is enabled. If None then it is disabled.
     """
+    requires_bounded_prior = True
+
     def __init__(self, parameters=None, prior_bounds=None, scale=1.0,
                  prior=None):
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
@@ -977,6 +1005,8 @@ class ToCartesian(Angle):
 
 class AnglePair(Reparameterisation):
     """Reparameterisation for a pair of angles and a radial component"""
+    requires_bounded_prior = True
+
     def __init__(self, parameters=None, prior_bounds=None,
                  prior=None, convention=None):
 
