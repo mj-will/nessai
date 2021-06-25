@@ -22,6 +22,7 @@ tests for this reparameterisation.
 - Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
 - Add options to train with different optimisers: Adam, AdamW, SGD
 - Add tests for `NestedSampler`
+- Explicity check prior bounds when using reparameterisations. This catches cases where infinite bounds are used and break some reparameterisations. (!82)
 
 ### Changed
 
@@ -50,6 +51,7 @@ tests for this reparameterisation.
 - Fix `prior_sampling`
 - Fixed a bug with the reparmeterisation `Rescale` when `scale` was set to a negative number.
 - Fixed a bug where `scale` could not be changed in `ToCartesian`.
+- Fixed a error when specifying `NullReparameterisation` (!82)
 
 
 ## [0.2.4] - 2021-03-08
