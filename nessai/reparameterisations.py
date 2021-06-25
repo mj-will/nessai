@@ -68,8 +68,8 @@ def get_reparameterisation(reparameterisation):
             issubclass(reparameterisation, Reparameterisation)):
         return reparameterisation, {}
     else:
-        raise RuntimeError(
-            'Reparmeterisation must a str None, or class that '
+        raise TypeError(
+            'Reparameterisation must be a str, None, or class that '
             'inherits from `Reparameterisation`'
         )
 
