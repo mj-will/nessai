@@ -232,8 +232,6 @@ class FlowProposal(RejectionProposal):
 
         self.configure_plotting(plot)
 
-        self.clip = self.flow_config.get('clip', False)
-
         if draw_latent_kwargs is None:
             self.draw_latent_kwargs = {}
         else:
@@ -1063,9 +1061,6 @@ class FlowProposal(RejectionProposal):
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
-        if x.shape[0] == 1:
-            if self.clip:
-                x = np.clip(x, *self.clip)
         z, log_prob = self.flow.forward_and_log_prob(x)
 
         return z, log_prob + log_J
