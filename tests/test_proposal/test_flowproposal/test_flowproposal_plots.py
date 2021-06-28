@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Tests related to general aspects of the proposal"""
+"""Tests related to plots in FlowProposal"""
 import os
 import numpy as np
 import pytest
@@ -8,60 +8,6 @@ from unittest.mock import MagicMock, patch
 
 from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
-
-
-def test_draw_populated(proposal):
-    """Test the draw method if the proposal is already populated"""
-    proposal.populated = True
-    proposal.samples = np.arange(3)
-    proposal.indices = list(range(3))
-    out = FlowProposal.draw(proposal, None)
-    assert out == proposal.samples[2]
-    assert proposal.indices == [0, 1]
-
-
-def test_draw_populated_last_sample(proposal):
-    """Test the draw method if the proposal is already populated but there
-    is only one sample left.
-    """
-    proposal.populated = True
-    proposal.samples = np.arange(3)
-    proposal.indices = [0]
-    out = FlowProposal.draw(proposal, None)
-    assert out == proposal.samples[0]
-    assert proposal.indices == []
-    assert proposal.populated is False
-
-
-@pytest.mark.parametrize('update', [False, True])
-def test_draw_not_popluated(proposal, update):
-    """Test the draw method when the proposal is not populated"""
-    import datetime
-    proposal.populated = False
-    proposal.poolsize = 100
-    proposal.population_time = datetime.timedelta()
-    proposal.samples = None
-    proposal.indices = []
-    proposal.update_poolsize = update
-    proposal.update_poolsize_scale = MagicMock()
-    proposal.ns_acceptance = 0.5
-
-    def mock_populate(*args, **kwargs):
-        proposal.populated = True
-        proposal.samples = np.arange(3)
-        proposal.indices = list(range(3))
-
-    proposal.populate = MagicMock(side_effect=mock_populate)
-
-    out = FlowProposal.draw(proposal, 1.)
-
-    assert out == 2
-    assert proposal.populated is True
-    assert proposal.population_time.total_seconds() > 0.
-
-    proposal.populate.assert_called_once_with(1., N=100)
-
-    assert proposal.update_poolsize_scale.called == update
 
 
 @pytest.mark.parametrize('plot', [False, 'all'])
