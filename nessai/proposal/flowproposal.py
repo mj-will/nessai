@@ -1285,6 +1285,11 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a fwe MB in size so
             proceed with caution!
         """
+        if not self.initialised:
+            raise RuntimeError(
+                'Proposal has not been initialised. '
+                'Try calling `initialise()` first.'
+            )
         if r is not None:
             logger.info(f'Using user inputs for radius {r}')
             worst_q = None
