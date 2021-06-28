@@ -51,6 +51,13 @@ def test_log_prior_w_reparameterisation(proposal, x):
     proposal.model.log_prior.assert_called_once_with(x)
 
 
+def test_prime_log_prior(proposal):
+    """Make sure the prime prior raises an error by default."""
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.x_prime_log_prior(proposal, 1.0)
+    assert 'Prime prior is not implemented' in str(excinfo.value)
+
+
 @pytest.mark.parametrize('acceptance, scale',
                          [(0.0, 10.0), (0.5, 2.0), (0.01, 10.0), (2.0, 1.0)])
 def test_update_poolsize_scale(proposal, acceptance, scale):
@@ -245,6 +252,24 @@ def test_get_alt_distribution_uniform(proposal, prior):
 
     assert dist is not None
     mock.assert_called_once_with(2, 2.4, device='cpu')
+
+
+def test_radius(proposal):
+    """Test computing the radius"""
+    z = np.array([[1, 2, 3], [0, 1, 2]])
+    expected_r = np.sqrt(14)
+    r = FlowProposal.radius(proposal, z)
+    assert r == expected_r
+
+
+def test_radius_w_log_q(proposal):
+    """Test computing the radius with log_q"""
+    z = np.array([[1, 2, 3], [0, 1, 2]])
+    log_q = np.array([1, 2])
+    expected_r = np.sqrt(14)
+    r, log_q_r = FlowProposal.radius(proposal, z, log_q=log_q)
+    assert r == expected_r
+    assert log_q_r == log_q[0]
 
 
 def test_populate(proposal):
