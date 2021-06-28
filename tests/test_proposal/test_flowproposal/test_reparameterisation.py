@@ -307,6 +307,22 @@ def test_set_rescaling_parameters_list(proposal, model, update_bounds,
         assert proposal._max == {'x': 5, 'y': 5}
 
 
+def test_default_rescale(proposal):
+    """Test the default rescaling method."""
+    x = np.array([[1, 2], [3, 4]])
+    x_prime, log_j = FlowProposal.rescale(proposal, x)
+    np.testing.assert_array_equal(x, x_prime)
+    assert (log_j == 0.).all()
+
+
+def test_default_inverse_rescale(proposal):
+    """Test the default inverse rescaling method."""
+    x_prime = np.array([[1, 2], [3, 4]])
+    x, log_j = FlowProposal.inverse_rescale(proposal, x_prime)
+    np.testing.assert_array_equal(x, x_prime)
+    assert (log_j == 0.).all()
+
+
 @pytest.mark.parametrize('n', [1, 10])
 def test_rescale_w_reparameterisation(proposal, n):
     """Test rescaling when using reparameterisation dict"""
