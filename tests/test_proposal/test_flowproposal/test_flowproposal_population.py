@@ -305,6 +305,7 @@ def test_populate(proposal):
         numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
     ]
 
+    proposal.initialised = True
     proposal.max_radius = 50
     proposal.dims = n_dims
     proposal.poolsize = poolsize
@@ -354,10 +355,23 @@ def test_populate(proposal):
     ]
     proposal.rejection_sampling.assert_has_calls(rejection_calls)
 
-    # TODO: call with
     proposal.plot_pool.assert_called_once()
     proposal.convert_to_samples.assert_called_once()
+    np.testing.assert_array_equal(
+        proposal.convert_to_samples.call_args[0][0],
+        proposal.x
+    )
+    assert proposal.convert_to_samples.call_args[1]['plot'] is True
 
     assert proposal.population_acceptance == (10 / 15)
     assert proposal.populated_count == 2
     assert proposal.populated is True
+    assert proposal.x.size == 10
+
+
+def test_populate_not_initialised(proposal):
+    """Assert popluate fails if the proposal is not initialised"""
+    proposal.initialised = False
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.populate(proposal, 1.0)
+    assert 'Proposal has not been initialised. ' in str(excinfo.value)
