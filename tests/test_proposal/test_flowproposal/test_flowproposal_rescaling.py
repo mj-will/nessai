@@ -7,7 +7,7 @@ from nessai.reparameterisations import (
     get_reparameterisation
 )
 import pytest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 
 @pytest.fixture
@@ -118,6 +118,40 @@ def test_configure_reparameterisations_dict_w_params(mocked_class, proposal,
         assert_called_once_with('r')
 
     assert proposal.names == ['x', 'y']
+
+
+def test_configure_reparameterisations_requires_prime_prior(
+        proposal,
+        dummy_rc,
+        dummy_cmb_rc
+):
+    """
+    Test configuration that requires a prime prior but the prime prior is
+    missing.
+    """
+    dummy_rc.return_value = 'r'
+    # Need to add the parameters before hand to prevent a
+    # NullReparameterisation from being added
+    dummy_cmb_rc.parameters = ['x', 'y']
+    dummy_cmb_rc.has_prime_prior = False
+    dummy_cmb_rc.requires_prime_prior = True
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = MagicMock(return_value=(
+        dummy_rc, {},
+    ))
+    proposal.model = MagicMock()
+    proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    proposal.names = ['x', 'y']
+
+    with patch('nessai.proposal.flowproposal.CombinedReparameterisation',
+               return_value=dummy_cmb_rc), \
+         pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.configure_reparameterisations(
+            proposal,
+            {'x': {'reparameterisation': 'default', 'parameters': ['y']}}
+        )
+
+    assert 'One or more reparameterisations require ' in str(excinfo.value)
 
 
 @patch('nessai.reparameterisations.CombinedReparameterisation')
@@ -285,7 +319,7 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
 )
 def test_set_rescaling_parameters_list(proposal, model, update_bounds,
                                        rescale_parameters):
-    """Test setting rescaling without reparameterisations"""
+    """Test setting rescaling without reparameterisations."""
     proposal.model = model
     proposal.model.reparameterisations = None
     proposal.reparameterisations = None
@@ -379,19 +413,25 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
 
     Also tests the log Jacobian determinant.
     """
-    x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y']).squeeze()
+    model.names.append('z')
+    model.bounds['z'] = [-10, 10]
+    x = numpy_array_to_live_points(
+        np.random.randn(n, 3), ['x', 'y', 'z']
+    ).squeeze()
     x_prime_expected = numpy_array_to_live_points(
-        np.zeros([n, 2]), ['x_prime', 'y_prime'])
+        np.zeros([n, 3]), ['x_prime', 'y_prime', 'z'])
 
     x_prime_expected['x_prime'] = 2 * (x['x'] + 5) / 10 - 1
     x_prime_expected['y_prime'] = 2 * (x['y'] + 4) / 8 - 1
+    x_prime_expected['z'] = x['z']
 
     proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x_prime', 'f8'), ('y_prime', 'f8'), ('z', 'f8'), ('logP', 'f8'),
+         ('logL', 'f8')]
 
-    proposal.names = ['x', 'y']
+    proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
-    proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal.rescaled_names = ['x_prime', 'y_prime', 'z']
     proposal.model = model
     proposal.boundary_inversion = []
 
@@ -409,27 +449,196 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
 
 
 @pytest.mark.parametrize('n', [1, 10])
+@pytest.mark.parametrize('inputs', [('split', True), ('duplicate', False)])
+@pytest.mark.parametrize('bound', ['lower', 'upper'])
+def test_rescale_to_bounds_w_inversion_duplicate(
+    proposal,
+    model,
+    n,
+    inputs,
+    bound
+):
+    """Test the default rescaling with inversion using duplication."""
+    x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y']).squeeze()
+    x_prime_expected = numpy_array_to_live_points(
+        np.zeros([n, 2]), ['x_prime', 'y_prime'])
+
+    x_prime_expected['x_prime'] = (x['x'] + 5) / 10
+    x_prime_expected['y_prime'] = (x['y'] + 4) / 8
+
+    if bound == 'lower':
+        x_prime_expected = np.concatenate([x_prime_expected, x_prime_expected])
+        x_prime_expected['x_prime'][n:] *= -1
+    elif bound == 'upper':
+        x_prime_expected['x_prime'] = 1 - x_prime_expected['x_prime']
+        x_prime_expected = np.concatenate([x_prime_expected, x_prime_expected])
+        x_prime_expected['x_prime'][n:] *= -1
+
+    proposal.x_prime_dtype = \
+        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+
+    proposal.names = ['x', 'y']
+    proposal.rescale_parameters = ['x', 'y']
+    proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal.model = model
+    proposal.boundary_inversion = ['x']
+
+    proposal._rescale_factor = 1.0
+    proposal._rescale_shift = 0.0
+    proposal._min = {'x': -5, 'y': -4}
+    proposal._max = {'x': 5, 'y': 4}
+    proposal._edges = {'x': None}
+    proposal.detect_edges_kwargs = {'k': 2}
+    proposal.inversion_type = inputs[0]
+
+    with patch('nessai.proposal.flowproposal.detect_edge',
+               return_value=bound) as mock_detect_edge:
+        x_prime, log_j = \
+            FlowProposal._rescale_to_bounds(
+                proposal, x, compute_radius=inputs[1], test=True)
+
+    np.testing.assert_array_equal(
+        mock_detect_edge.call_args.args[0],
+        x_prime_expected['x_prime'][:n]
+    )
+    assert mock_detect_edge.call_args.kwargs['test'] is True
+    assert mock_detect_edge.call_args.kwargs['k'] == 2
+
+    np.testing.assert_equal(log_j, -np.log(80))
+    np.testing.assert_array_equal(x_prime, x_prime_expected)
+
+
+@pytest.mark.parametrize('n', [1, 10])
+@pytest.mark.parametrize('bound', ['lower', 'upper'])
+def test_rescale_to_bounds_w_inversion_split(
+    proposal,
+    model,
+    n,
+    bound
+):
+    """Test the default rescaling with inversion using splitting."""
+    x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y']).squeeze()
+    x_prime_expected = numpy_array_to_live_points(
+        np.zeros([n, 2]), ['x_prime', 'y_prime'])
+
+    x_prime_expected['x_prime'] = (x['x'] + 5) / 10
+    x_prime_expected['y_prime'] = (x['y'] + 4) / 8
+
+    inv = np.random.choice(n, n // 2, replace=False)
+
+    if bound == 'lower':
+        x_prime_expected['x_prime'][inv] *= -1
+    elif bound == 'upper':
+        x_prime_expected['x_prime'] = 1 - x_prime_expected['x_prime']
+        x_prime_expected['x_prime'][inv] *= -1
+
+    proposal.x_prime_dtype = \
+        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+
+    proposal.names = ['x', 'y']
+    proposal.rescale_parameters = ['x', 'y']
+    proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal.model = model
+    proposal.boundary_inversion = ['x']
+
+    proposal._rescale_factor = 1.0
+    proposal._rescale_shift = 0.0
+    proposal._min = {'x': -5, 'y': -4}
+    proposal._max = {'x': 5, 'y': 4}
+    proposal._edges = {'x': None}
+    proposal.detect_edges_kwargs = {'k': 2}
+    proposal.inversion_type = 'split'
+
+    with patch('nessai.proposal.flowproposal.detect_edge',
+               return_value=bound) as mock_detect_edge, \
+         patch('numpy.random.choice', return_value=inv):
+        x_prime, log_j = \
+            FlowProposal._rescale_to_bounds(
+                proposal, x, compute_radius=False, test=True)
+
+    np.testing.assert_array_equal(
+        mock_detect_edge.call_args.args[0],
+        x_prime_expected['x_prime'][:n]
+    )
+    assert mock_detect_edge.call_args.kwargs['test'] is True
+    assert mock_detect_edge.call_args.kwargs['k'] == 2
+
+    np.testing.assert_equal(log_j, -np.log(80))
+    np.testing.assert_array_equal(x_prime, x_prime_expected)
+
+
+@pytest.mark.parametrize('n', [1, 10])
+@pytest.mark.parametrize('bound', ['lower', 'upper'])
+def test_rescale_to_bounds_w_inversion_false(
+    proposal,
+    model,
+    n,
+    bound
+):
+    """
+    Test the default rescaling without inversion and with edges already set.
+    """
+    x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y']).squeeze()
+    x_prime_expected = numpy_array_to_live_points(
+        np.zeros([n, 2]), ['x_prime', 'y_prime'])
+
+    x_prime_expected['x_prime'] = (x['x'] + 5) / 10
+    x_prime_expected['y_prime'] = (x['y'] + 4) / 8
+
+    proposal.x_prime_dtype = \
+        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+
+    proposal.names = ['x', 'y']
+    proposal.rescale_parameters = ['x', 'y']
+    proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal.model = model
+    proposal.boundary_inversion = ['x']
+
+    proposal._rescale_factor = 1.0
+    proposal._rescale_shift = 0.0
+    proposal._min = {'x': -5, 'y': -4}
+    proposal._max = {'x': 5, 'y': 4}
+    proposal._edges = {'x': False}
+    proposal.detect_edges_kwargs = {'k': 2}
+    proposal.inversion_type = 'split'
+
+    with patch('nessai.proposal.flowproposal.detect_edge',
+               return_value=bound) as mock_detect_edge:
+        x_prime, log_j = \
+            FlowProposal._rescale_to_bounds(
+                proposal, x, compute_radius=False, test=True)
+
+    mock_detect_edge.assert_not_called()
+
+    np.testing.assert_equal(log_j, -np.log(80))
+    np.testing.assert_array_equal(x_prime, x_prime_expected)
+
+
+@pytest.mark.parametrize('n', [1, 10])
 def test_inverse_rescale_to_bounds(proposal, model, n):
     """Test the default method for the inverse rescaling.
 
     Also tests the log Jacobian determinant.
     """
+    model.names.append('z')
+    model.bounds['z'] = [-10, 10]
     x_prime = numpy_array_to_live_points(
-        np.random.randn(n, 2),
-        ['x_prime', 'y_prime']
+        np.random.randn(n, 3),
+        ['x_prime', 'y_prime', 'z']
     ).squeeze()
     x_expected = \
-        numpy_array_to_live_points(np.zeros([n, 2]), ['x', 'y'])
+        numpy_array_to_live_points(np.zeros([n, 3]), ['x', 'y', 'z'])
 
     x_expected['x'] = 10.0 * (x_prime['x_prime'] + 1.0) / 2.0 - 5.0
     x_expected['y'] = 8.0 * (x_prime['y_prime'] + 1.0) / 2.0 - 4.0
+    x_expected['z'] = x_prime['z']
 
     proposal.x_dtype = \
-        [('x', 'f8'), ('y', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
 
-    proposal.names = ['x', 'y']
+    proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
-    proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal.rescaled_names = ['x_prime', 'y_prime', 'z']
     proposal.model = model
     proposal.boundary_inversion = []
 
@@ -546,3 +755,63 @@ def test_verify_rescaling_jacobian_error(proposal, has_inversion):
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
     assert 'Rescaling Jacobian is not invertible' in str(excinfo.value)
+
+
+def test_check_state_boundary_inversion_default(proposal):
+    """Test the check state method for boundary inversion"""
+    x = numpy_array_to_live_points(np.random.randn(10, 2), ['x', 'y'])
+    proposal._reparameterisation = None
+    proposal._edges = {'x': 'lower', 'y': 'upper'}
+    proposal.boundary_inversion = ['x', 'y']
+    proposal.update_bounds = False
+    FlowProposal.check_state(proposal, x)
+    assert all(v is None for v in proposal._edges.values())
+
+
+def test_check_state_boundary_inversion_reparameterisations(proposal):
+    """
+    Test the check state method for boundary inversion with
+    reparameterisations.
+    """
+    x = numpy_array_to_live_points(np.random.randn(10, 2), ['x', 'y'])
+    proposal._reparameterisation = Mock()
+    proposal._reparameterisation.reset_inversion = MagicMock()
+    proposal.boundary_inversion = ['x', 'y']
+    proposal.update_bounds = False
+    FlowProposal.check_state(proposal, x)
+    proposal._reparameterisation.reset_inversion.assert_called_once()
+
+
+def test_check_state_update_bounds_default(proposal, model):
+    """
+    Test the check state method for updating bounds.
+    """
+    x = numpy_array_to_live_points(np.random.randn(10, 2), ['x', 'y'])
+    proposal.model = model
+    excepted_min = (np.min(x['x']), np.min(x['y']))
+    excepted_max = (np.max(x['x']), np.max(x['y']))
+    proposal._reparameterisation = None
+    proposal.boundary_inversion = False
+    proposal.update_bounds = True
+    proposal._min = {'x': -np.inf, 'y': -np.inf}
+    proposal._max = {'x': np.inf, 'y': np.inf}
+    FlowProposal.check_state(proposal, x)
+
+    assert proposal._min['x'] == excepted_min[0]
+    assert proposal._min['y'] == excepted_min[1]
+    assert proposal._max['x'] == excepted_max[0]
+    assert proposal._max['y'] == excepted_max[1]
+
+
+def test_check_state_update_bounds_reparameterisations(proposal):
+    """
+    Test the check state method for updating bounds.
+    """
+    x = numpy_array_to_live_points(np.random.randn(10, 2), ['x', 'y'])
+    proposal._reparameterisation = Mock()
+    proposal._reparameterisation.update_bounds = MagicMock()
+    proposal.boundary_inversion = False
+    proposal.update_bounds = True
+
+    FlowProposal.check_state(proposal, x)
+    proposal._reparameterisation.update_bounds.assert_called_once()

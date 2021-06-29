@@ -272,6 +272,19 @@ def test_radius_w_log_q(proposal):
     assert log_q_r == log_q[0]
 
 
+def test_check_prior_bounds(proposal):
+    """Test the check prior bounds method."""
+    x = numpy_array_to_live_points(np.arange(10)[:, np.newaxis], ['x'])
+    proposal.model = Mock()
+    proposal.model.names = ['x']
+    proposal.model.bounds = {'x': [0, 5]}
+    y = np.arange(10)
+    x_out, y_out = FlowProposal.check_prior_bounds(proposal, x, y)
+
+    np.testing.assert_array_equal(x_out, x[:6])
+    np.testing.assert_array_equal(y_out, y[:6])
+
+
 def test_populate(proposal):
     """Test the main populate method"""
     n_dims = 2
