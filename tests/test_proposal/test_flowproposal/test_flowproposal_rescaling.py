@@ -654,6 +654,54 @@ def test_inverse_rescale_to_bounds(proposal, model, n):
     np.testing.assert_array_equal(x, x_expected)
 
 
+@pytest.mark.parametrize('n', [1, 10])
+@pytest.mark.parametrize('itype', ['lower', 'upper'])
+def test_inverse_rescale_to_bounds_w_inversion(proposal, model, n, itype):
+    """Test the default method for the inverse rescaling with inversion.
+
+    Also tests the log Jacobian determinant.
+    """
+    model.names.append('z')
+    model.bounds['z'] = [-10, 10]
+    x_prime = numpy_array_to_live_points(
+        np.random.uniform(-1, 1, (n, 3)),
+        ['x_prime', 'y_prime', 'z']
+    ).squeeze()
+
+    x_expected = \
+        numpy_array_to_live_points(np.zeros([n, 3]), ['x', 'y', 'z'])
+
+    if itype == 'lower':
+        x_expected['x'] = 10.0 * np.abs(x_prime['x_prime']) - 5.0
+    elif itype == 'upper':
+        x_expected['x'] = 10.0 * (1 - np.abs(x_prime['x_prime'])) - 5.0
+
+    x_expected['y'] = 8.0 * x_prime['y_prime'] - 4.0
+    x_expected['z'] = x_prime['z']
+
+    proposal.x_dtype = \
+        [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+
+    proposal.names = ['x', 'y', 'z']
+    proposal.rescale_parameters = ['x', 'y']
+    proposal.rescaled_names = ['x_prime', 'y_prime', 'z']
+    proposal.model = model
+    proposal.boundary_inversion = ['x']
+    proposal.inversion_type = 'split'
+    proposal._edges = {'x': itype}
+
+    proposal._rescale_factor = 1.0
+    proposal._rescale_shift = 0.0
+    proposal._min = {'x': -5, 'y': -4}
+    proposal._max = {'x': 5, 'y': 4}
+
+    x, log_j = \
+        FlowProposal._inverse_rescale_to_bounds(proposal, x_prime)
+
+    np.testing.assert_equal(log_j, np.log(80))
+    np.testing.assert_array_equal(x, x_expected)
+
+
 @pytest.mark.parametrize('has_inversion', [False, True])
 def test_verify_rescaling(proposal, has_inversion):
     """Test the method that tests the rescaling at runtime"""
