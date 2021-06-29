@@ -1217,7 +1217,7 @@ class FlowProposal(RejectionProposal):
         x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
 
         if not x.size:
-            return log_q, x
+            return np.array([]), x
 
         if self.truncate:
             if worst_q is None:
