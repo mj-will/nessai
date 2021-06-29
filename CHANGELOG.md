@@ -23,6 +23,7 @@ tests for this reparameterisation.
 - Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
 - Add options to train with different optimisers: Adam, AdamW, SGD
 - Add tests for `NestedSampler`
+- Add error when calling `FlowProposal.populate` without initialising the proposal.
 
 ### Changed
 
@@ -38,6 +39,9 @@ tests for this reparameterisation.
 - Moved all legacy gw functions to `nessai/gw/legacy.py` and removed them from the coverage report.
 - Minor improvements to `NestedSampler`
 - Better handling on NaNs in `NestedSampler.populate_live_points`
+- Minor improvements to plotting in `FlowProposal` and moved plotting to separate methods in `FlowProposal`.
+- Switch to using `os.path.join` when joins paths.
+- Improved `FlowProposal.reset`
 
 
 ### Fixed
@@ -53,6 +57,12 @@ tests for this reparameterisation.
 - Fixed unintended behaviour when `rescale_parameters` is a list and `boundary_inversion=True`, where the code would try apply inversion to all parameters in `Model.names`.
 - Fixed bug where `z` returned by `FlowProposal.rejection_sampling` was incorrect when using truncation (which is not recommended).
 - Fix `prior_sampling`
+- Fixed minor typos in `nessai.proposal.flowproposal.py`
+
+
+### Removed
+
+- Remove "clip" option in `FlowProposal`, this was unused and untested.
 
 
 ## [0.2.4] - 2021-03-08
