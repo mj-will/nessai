@@ -84,8 +84,10 @@ def test_test_draw(proposal):
 
 
 @pytest.mark.integration_test
-def test_test_draw_integration(model):
+def test_test_draw_integration(model, tmpdir):
     """Integration test for the test draw method"""
-    proposal = FlowProposal(model, poolsize=10)
+    proposal = FlowProposal(
+        model, poolsize=10, output=tmpdir.mkdir('test_draw')
+    )
     proposal.initialise()
     proposal.test_draw()
