@@ -53,6 +53,8 @@ tests for this reparameterisation.
 - Fix inversion-split with `RescaleToBounds`
 - Fixed `AugmentedGWFlowProposal`.
 - Fixed a bug with `plot_live_points` when the hue parameter (`c`) was constant.
+- Fixed a bug with the reparmeterisation `Rescale` when `scale` was set to a negative number.
+- Fixed a bug where `scale` could not be changed in `ToCartesian`.
 - Fix typo in `FlowProposal.set_poolsize_scale` when `acceptance=0`
 - Fixed unintended behaviour when `rescale_parameters` is a list and `boundary_inversion=True`, where the code would try apply inversion to all parameters in `Model.names`.
 - Fixed bug where `z` returned by `FlowProposal.rejection_sampling` was incorrect when using truncation (which is not recommended).
