@@ -498,11 +498,11 @@ def test_rescale_to_bounds_w_inversion_duplicate(
                 proposal, x, compute_radius=inputs[1], test=True)
 
     np.testing.assert_array_equal(
-        mock_detect_edge.call_args.args[0],
+        mock_detect_edge.call_args[0][0],
         x_prime_expected['x_prime'][:n]
     )
-    assert mock_detect_edge.call_args.kwargs['test'] is True
-    assert mock_detect_edge.call_args.kwargs['k'] == 2
+    assert mock_detect_edge.call_args[1]['test'] is True
+    assert mock_detect_edge.call_args[1]['k'] == 2
 
     np.testing.assert_equal(log_j, -np.log(80))
     np.testing.assert_array_equal(x_prime, x_prime_expected)
@@ -557,11 +557,11 @@ def test_rescale_to_bounds_w_inversion_split(
                 proposal, x, compute_radius=False, test=True)
 
     np.testing.assert_array_equal(
-        mock_detect_edge.call_args.args[0],
+        mock_detect_edge.call_args[0][0],
         x_prime_expected['x_prime'][:n]
     )
-    assert mock_detect_edge.call_args.kwargs['test'] is True
-    assert mock_detect_edge.call_args.kwargs['k'] == 2
+    assert mock_detect_edge.call_args[1]['test'] is True
+    assert mock_detect_edge.call_args[1]['k'] == 2
 
     np.testing.assert_equal(log_j, -np.log(80))
     np.testing.assert_array_equal(x_prime, x_prime_expected)
