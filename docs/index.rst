@@ -7,17 +7,40 @@ Welcome to nessai's documentation!
 ========================================
 
 .. note::
-    This page is still under construction. Some links may not work and some sections are missing.
+    This page is still under construction. Some links may not work and some sections are missing. We also welcome contributions to the documentation. For details how to contribute, see: https://github.com/mj-will/nessai
 
 Nessai
 ======
 
-``nessai`` (/ˈnɛsi/): Nested Sampling with Aritificial Intelligence
+``nessai`` (/ˈnɛsi/): Nested Sampling with Artificial Intelligence
 
-``nessai`` is a nested sampling algorithm for Bayesian Inference that incorporates normalisings flows. It is designed for applications where the Bayesian likelihood is computationally expensive.
+``nessai`` is a nested sampling algorithm for Bayesian Inference that incorporates normalising flows. It is designed for applications where the Bayesian likelihood is computationally expensive.
 
 The code is available at: https://github.com/mj-will/nessai.
 
+.. automodule:: nessai
+   :members:
+   :undoc-members:
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Contents:
+
+   installation
+   running-the-sampler
+   sampler-configuration
+   reparameterisations
+   normalising-flows-configuration
+   parallelisation
+   further-details
+   API reference </autoapi/nessai/index>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Examples:
+
+   gaussian-example
+   bilby-example
 
 Citing nessai
 =============
@@ -45,27 +68,3 @@ If you find ``nessai`` useful in your work please cite the DOI for this code and
       archivePrefix={arXiv},
       primaryClass={gr-qc}
     }
-
-
-.. automodule:: nessai
-   :members:
-   :undoc-members:
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Contents:
-
-   installation
-   running-the-sampler
-   sampler-configuration
-   reparameterisations
-   normalising-flows-configuration
-   further-details
-   API reference </autoapi/nessai/index>
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Examples:
-
-   gaussian-example
-   bilby-example
