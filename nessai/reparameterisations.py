@@ -108,6 +108,8 @@ class Reparameterisation:
                 raise RuntimeError(
                     f'Reparameterisation {self.name} requires prior bounds!'
                 )
+            else:
+                self.prior_bounds = None
         elif not isinstance(prior_bounds, dict):
             raise TypeError(
                 'Prior bounds must be dict, tuple of len 2 or None'
