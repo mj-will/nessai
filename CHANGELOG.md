@@ -19,10 +19,12 @@ tests for this reparameterisation.
 - Added tests for `AugmentedFlowProposal`.
 - Added an example using `AugmentedFlowProposal`.
 - Added eggbox example.
+- Added an error if calling `FlowProposal.rejection_sampling` with `FlowProposal.truncate=True` but `worst_q=None`.
 - Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
 - Add options to train with different optimisers: Adam, AdamW, SGD
 - Add tests for `NestedSampler`
-- Explicity check prior bounds when using reparameterisations. This catches cases where infinite bounds are used and break some reparameterisations. (!82)
+- Explicitly check prior bounds when using reparameterisations. This catches cases where infinite bounds are used and break some reparameterisations. (!82)
+- Add error when calling `FlowProposal.populate` without initialising the proposal.
 
 ### Changed
 
@@ -32,11 +34,15 @@ tests for this reparameterisation.
 - `nessai.model.Model` now inherits from `abc.ABC` and `log_prior` and `log_likelihood` are now `abstractmethods`. This prevents the class from being used without redefining those methods.
 - Updated `AumgentedFlowProposal` to work with current version of `FlowProposal`
 - Fix random seed unit tests.
+- Improved `FlowProposal.reset` so that all attributes that are changed by calling `draw` are reset.
 - Move `_NSIntegralState` and some functions from `posterior.py` to `evidence.py`
 - `NestedSampler.check_flow_model_reset` will now NOT reset the flow it has never been trained (i.e `proposal.training_count==0`)
 - Moved all legacy gw functions to `nessai/gw/legacy.py` and removed them from the coverage report.
 - Minor improvements to `NestedSampler`
 - Better handling on NaNs in `NestedSampler.populate_live_points`
+- Minor improvements to plotting in `FlowProposal` and moved plotting to separate methods in `FlowProposal`.
+- Switch to using `os.path.join` when joins paths.
+- Improved `FlowProposal.reset`
 
 
 ### Fixed
@@ -48,10 +54,19 @@ tests for this reparameterisation.
 - Fix inversion-split with `RescaleToBounds`
 - Fixed `AugmentedGWFlowProposal`.
 - Fixed a bug with `plot_live_points` when the hue parameter (`c`) was constant.
-- Fix `prior_sampling`
 - Fixed a bug with the reparmeterisation `Rescale` when `scale` was set to a negative number.
 - Fixed a bug where `scale` could not be changed in `ToCartesian`.
 - Fixed a error when specifying `NullReparameterisation` (!82)
+- Fix typo in `FlowProposal.set_poolsize_scale` when `acceptance=0`
+- Fixed unintended behaviour when `rescale_parameters` is a list and `boundary_inversion=True`, where the code would try apply inversion to all parameters in `Model.names`.
+- Fixed bug where `z` returned by `FlowProposal.rejection_sampling` was incorrect when using truncation (which is not recommended).
+- Fix `prior_sampling`
+- Fixed minor typos in `nessai.proposal.flowproposal.py`
+
+
+### Removed
+
+- Remove "clip" option in `FlowProposal`, this was unused and untested.
 
 
 ## [0.2.4] - 2021-03-08
