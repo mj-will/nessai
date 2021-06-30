@@ -3,10 +3,12 @@
 Integration tests for running the sampler with different configurations.
 """
 import os
-
-from nessai.flowsampler import FlowSampler
 import torch
 import pytest
+import numpy as np
+
+from nessai.flowsampler import FlowSampler
+
 
 torch.set_num_threads(1)
 
@@ -22,6 +24,23 @@ def test_sampling_with_rescale(model, flow_config, tmpdir):
                      maximum_uninformed=9, rescale_parameters=True,
                      seed=1234, max_iteration=11, poolsize=10, max_threads=1)
     fp.run()
+    assert fp.ns.proposal.flow.weights_file is not None
+    assert fp.ns.proposal.training_count == 1
+
+
+@pytest.mark.slow_integration_test
+def test_sampling_with_inversion(model, flow_config, tmpdir):
+    """
+    Test sampling with inversion. Checks that flow is trained.
+    """
+    output = str(tmpdir.mkdir('w_rescale'))
+    fp = FlowSampler(model, output=output, resume=False, nlive=100, plot=False,
+                     flow_config=flow_config, training_frequency=10,
+                     maximum_uninformed=9, rescale_parameters=True,
+                     seed=1234, max_iteration=11, poolsize=10, max_threads=1,
+                     boundary_inversion=True, update_bounds=True)
+    fp.run()
+    assert fp.ns.proposal.boundary_inversion == ['x', 'y']
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
 
@@ -106,6 +125,36 @@ def test_sampling_resume(model, flow_config, tmpdir):
     fp = FlowSampler(model, output=output, resume=True,
                      flow_config=flow_config)
     assert fp.ns.iteration == 11
+    fp.ns.max_iteration = 21
+    fp.run()
+    assert fp.ns.iteration == 21
+    assert os.path.exists(
+        os.path.join(output, 'nested_sampler_resume.pkl.old'))
+
+
+@pytest.mark.slow_integration_test
+def test_sampling_resume_no_max_uninformed(model, flow_config, tmpdir):
+    """
+    Test resuming the sampler when there is no maximum iteration for
+    the uinformed sampling.
+
+    This test makes sure the correct proposal is loaded after resuming
+    and re-initialising the sampler.
+    """
+    output = str(tmpdir.mkdir('resume'))
+    fp = FlowSampler(model, output=output, resume=True, nlive=100, plot=False,
+                     flow_config=flow_config, training_frequency=10,
+                     maximum_uninformed=9, rescale_parameters=True,
+                     seed=1234, max_iteration=11, poolsize=10)
+    fp.run()
+    assert os.path.exists(os.path.join(output, 'nested_sampler_resume.pkl'))
+
+    fp = FlowSampler(model, output=output, resume=True,
+                     flow_config=flow_config)
+    assert fp.ns.iteration == 11
+    fp.ns.maximum_uninformed = np.inf
+    fp.ns.initialise()
+    assert fp.ns.proposal is fp.ns._flow_proposal
     fp.ns.max_iteration = 21
     fp.run()
     assert fp.ns.iteration == 21
