@@ -232,8 +232,6 @@ class FlowProposal(RejectionProposal):
 
         self.configure_plotting(plot)
 
-        self.clip = self.flow_config.get('clip', False)
-
         if draw_latent_kwargs is None:
             self.draw_latent_kwargs = {}
         else:
@@ -323,7 +321,19 @@ class FlowProposal(RejectionProposal):
         self.latent_prior = latent_prior
 
     def configure_plotting(self, plot):
-        """Configure plotting"""
+        """Configure plotting.
+
+        Plotting is split into training and pool. Training referes to plots
+        produced during training and pool refers to plots produces during
+        the population stage.
+
+        Parameters
+        ----------
+        plot : {True, False, 'all', 'train', 'pool', 'min', 'minimal'}
+            Level of plotting. `all`, `train` and `pool` enable corner style
+            plots. All other values that evaluate to True enable 1d histogram
+            plots. False disables all plotting.
+        """
         if plot:
             if isinstance(plot, str):
                 if plot == 'all':
@@ -333,15 +343,14 @@ class FlowProposal(RejectionProposal):
                     self._plot_pool = False
                     self._plot_training = 'all'
                 elif plot == 'pool':
-                    self._plot_pool = True
+                    self._plot_pool = 'all'
                     self._plot_training = False
                 elif plot == 'minimal' or plot == 'min':
                     self._plot_pool = True
                     self._plot_training = True
                 else:
                     logger.warning(
-                        f'Unknown plot argument: {plot}, setting all false'
-                        )
+                        f'Unknown plot argument: {plot}, setting all false')
                     self._plot_pool = False
                     self._plot_training = False
             else:
@@ -452,7 +461,7 @@ class FlowProposal(RejectionProposal):
         logger.debug(f'Updating poolsize with acceptance: {acceptance:.3f}')
         if not acceptance:
             logger.warning('Acceptance is zero, using maximum scale')
-            self._poolsize_scale = self.max_poolize_scale
+            self._poolsize_scale = self.max_poolsize_scale
         else:
             self._poolsize_scale = 1.0 / acceptance
             if self._poolsize_scale > self.max_poolsize_scale:
@@ -479,10 +488,13 @@ class FlowProposal(RejectionProposal):
                         not set(self.boundary_inversion).issubset(
                             self.rescale_parameters)):
                     raise RuntimeError(
-                                'Boundaries are not in known parameters')
+                                'Boundaries are not in rescaled parameters')
 
             if not isinstance(self.boundary_inversion, list):
-                self.boundary_inversion = self.names.copy()
+                if isinstance(self.rescale_parameters, list):
+                    self.boundary_inversion = self.rescale_parameters.copy()
+                else:
+                    self.boundary_inversion = self.names.copy()
 
             logger.info('Appyling boundary inversion to: '
                         f'{self.boundary_inversion}')
@@ -673,7 +685,7 @@ class FlowProposal(RejectionProposal):
             else:
                 # ratio = x_out.size // x.size
                 for f in x.dtype.names:
-                    if not any([np.any(np.isclose(x[f], xo))
+                    if not all([np.any(np.isclose(x[f], xo))
                                 for xo in x_out[f]]):
                         raise RuntimeError(
                             'Duplicate samples must map to same input values. '
@@ -865,6 +877,75 @@ class FlowProposal(RejectionProposal):
                 self._min = {n: np.min(x[n]) for n in self.model.names}
                 self._max = {n: np.max(x[n]) for n in self.model.names}
 
+    def _plot_training_data(self, output):
+        """Plot the training data and compare to the results"""
+        z_training_data, _ = self.forward_pass(self.training_data,
+                                               rescale=True)
+        z_gen = np.random.randn(self.training_data.size, self.dims)
+
+        fig = plt.figure()
+        plt.hist(np.sqrt(np.sum(z_training_data ** 2, axis=1)), 'auto')
+        plt.xlabel('Radius')
+        fig.savefig(os.path.join(output, 'radial_dist.png'))
+        plt.close(fig)
+
+        plot_1d_comparison(
+            z_training_data,
+            z_gen,
+            labels=['z_live_points', 'z_generated'],
+            convert_to_live_points=True,
+            filename=os.path.join(output, 'z_comparison.png')
+        )
+
+        x_prime_gen, log_prob = self.backward_pass(z_gen, rescale=False)
+        x_prime_gen['logL'] = log_prob
+        x_gen, log_J = self.inverse_rescale(x_prime_gen)
+        x_gen, log_J, x_prime_gen = \
+            self.check_prior_bounds(x_gen, log_J, x_prime_gen)
+        x_gen['logL'] += log_J
+
+        plot_1d_comparison(
+            self.training_data,
+            x_gen,
+            parameters=self.model.names,
+            labels=['live points', 'generated'],
+            filename=os.path.join(output, 'x_comparison.png')
+        )
+
+        if self._plot_training == 'all':
+            plot_live_points(
+                self.training_data,
+                c='logL',
+                filename=os.path.join(output, 'x_samples.png')
+            )
+
+            plot_live_points(
+                x_gen,
+                c='logL',
+                filename=os.path.join(output, 'x_generated.png')
+                )
+
+        if self.rescale_parameters:
+            if self._plot_training == 'all':
+                plot_live_points(
+                    self.training_data_prime,
+                    c='logL',
+                    filename=os.path.join(output, 'x_prime_samples.png')
+                )
+                plot_live_points(
+                    x_prime_gen,
+                    c='logL',
+                    filename=os.path.join(output, 'x_prime_generated.png')
+                )
+
+            plot_1d_comparison(
+                self.training_data_prime,
+                x_prime_gen,
+                parameters=self.rescaled_names,
+                labels=['live points', 'generated'],
+                filename=os.path.join(output, 'x_prime_comparison.png')
+            )
+
     def train(self, x, plot=True):
         """
         Train the normalising flow given some of the live points.
@@ -880,8 +961,8 @@ class FlowProposal(RejectionProposal):
             proceed with caution!
         """
         if (plot and self._plot_training) or self.save_training_data:
-            block_output = \
-                self.output + f'/training/block_{self.training_count}/'
+            block_output = os.path.join(
+                self.output, 'training', f'block_{self.training_count}', '')
         else:
             block_output = self.output
 
@@ -889,67 +970,25 @@ class FlowProposal(RejectionProposal):
             os.makedirs(block_output, exist_ok=True)
 
         if self.save_training_data:
-            save_live_points(x, f'{block_output}/training_data.json')
+            save_live_points(
+                x, os.path.join(block_output, 'training_data.json'))
 
         self.training_data = x.copy()
         self.check_state(self.training_data)
 
-        if self._plot_training == 'all' and plot:
-            plot_live_points(x, c='logL',
-                             filename=block_output + 'x_samples.png')
-
-        x_prime, log_J = self.rescale(x)
+        x_prime, _ = self.rescale(x)
 
         self.training_data_prime = x_prime.copy()
 
-        if self.rescale_parameters and self._plot_training == 'all' and plot:
-            plot_live_points(x_prime, c='logL',
-                             filename=block_output + 'x_prime_samples.png')
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
         x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
+
         self.flow.train(x_prime_array,
-                        output=block_output, plot=self._plot_training)
+                        output=block_output, plot=self._plot_training and plot)
 
         if self._plot_training and plot:
-            z_training_data, _ = self.forward_pass(self.training_data,
-                                                   rescale=True)
-            z_gen = np.random.randn(x.size, self.dims)
-
-            fig = plt.figure()
-            plt.hist(np.sqrt(np.sum(z_training_data ** 2, axis=1)), 'auto')
-            plt.xlabel('Radius')
-            fig.savefig(block_output + 'radial_dist.png')
-            plt.close(fig)
-
-            plot_1d_comparison(z_training_data, z_gen,
-                               labels=['z_live_points', 'z_generated'],
-                               convert_to_live_points=True,
-                               filename=block_output + 'z_comparison.png')
-            x_prime_gen, log_prob = self.backward_pass(z_gen, rescale=False)
-            x_prime_gen['logL'] = log_prob
-            x_gen, log_J = self.inverse_rescale(x_prime_gen)
-            x_gen, log_J, x_prime_gen = \
-                self.check_prior_bounds(x_gen, log_J, x_prime_gen)
-            x_gen['logL'] += log_J
-            if self._plot_training == 'all':
-                plot_live_points(
-                    x_prime_gen,
-                    c='logL',
-                    filename=block_output + 'x_prime_generated.png'
-                    )
-            if self.rescale_parameters:
-                if self._plot_training == 'all':
-                    plot_live_points(x_gen, c='logL',
-                                     filename=block_output + 'x_generated.png')
-                plot_1d_comparison(
-                    x_prime, x_prime_gen, parameters=self.rescaled_names,
-                    labels=['live points', 'generated'],
-                    filename=block_output + 'x_prime_comparison.png')
-
-            plot_1d_comparison(x, x_gen, parameters=self.model.names,
-                               labels=['live points', 'generated'],
-                               filename=block_output + 'x_comparison.png')
+            self._plot_training_data(block_output)
 
         self.populated = False
         self.training_count += 1
@@ -1022,9 +1061,6 @@ class FlowProposal(RejectionProposal):
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
-        if x.shape[0] == 1:
-            if self.clip:
-                x = np.clip(x, *self.clip)
         z, log_prob = self.flow.forward_and_log_prob(x)
 
         return z, log_prob + log_J
@@ -1181,11 +1217,14 @@ class FlowProposal(RejectionProposal):
         x, log_q = self.backward_pass(z, rescale=not self.use_x_prime_prior)
 
         if not x.size:
-            return x, log_q
+            return np.array([]), x
 
         if self.truncate:
+            if worst_q is None:
+                raise RuntimeError('Cannot use truncation with worst_q')
             cut = log_q >= worst_q
             x = x[cut]
+            z = z[cut]
             log_q = log_q[cut]
 
         # rescale given priors used initially, need for priors
@@ -1246,6 +1285,11 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a fwe MB in size so
             proceed with caution!
         """
+        if not self.initialised:
+            raise RuntimeError(
+                'Proposal has not been initialised. '
+                'Try calling `initialise()` first.'
+            )
         if r is not None:
             logger.info(f'Using user inputs for radius {r}')
             worst_q = None
@@ -1293,12 +1337,11 @@ class FlowProposal(RejectionProposal):
             if not x.size:
                 continue
 
-            if warn:
-                if x.size / self.drawsize < 0.01:
-                    logger.warning(
-                        'Rejection sampling accepted less than 1 percent of '
-                        f'samples! ({x.size / self.drawsize})')
-                    warn = False
+            if warn and (x.size / self.drawsize < 0.01):
+                logger.warning(
+                    'Rejection sampling accepted less than 1 percent of '
+                    f'samples! ({x.size / self.drawsize})')
+                warn = False
 
             n = min(x.size, N - accepted)
             self.x[accepted:(accepted+n)] = x[:n]
@@ -1414,12 +1457,19 @@ class FlowProposal(RejectionProposal):
         """
         if self._plot_pool == 'all':
             plot_live_points(
-                x, c='logL',
-                filename=f'{self.output}/pool_{self.populated_count}.png')
+                x,
+                c='logL',
+                filename=os.path.join(self.output,
+                                      f'pool_{self.populated_count}.png')
+            )
         else:
             plot_1d_comparison(
-                self.training_data, x, labels=['live points', 'pool'],
-                filename=f'{self.output}/pool_{self.populated_count}.png')
+                self.training_data,
+                x,
+                labels=['live points', 'pool'],
+                filename=os.path.join(self.output,
+                                      f'pool_{self.populated_count}.png')
+            )
 
             z_tensor = torch.from_numpy(z).to(self.flow.device)
             with torch.no_grad():
@@ -1441,7 +1491,9 @@ class FlowProposal(RejectionProposal):
             axs[2].set_xlabel('r')
             plt.tight_layout()
             fig.savefig(
-                f'{self.output}/pool_{self.populated_count}_log_q.png')
+                os.path.join(self.output,
+                             f'pool_{self.populated_count}_log_q.png')
+            )
             plt.close(fig)
 
     def resume(self, model, flow_config, weights_file=None):
@@ -1492,13 +1544,15 @@ class FlowProposal(RejectionProposal):
         """
         Test the draw method to ensure it returns a sample in the correct
         format and the the log prior is computed.
+
+        This method is not used since there are cases where the untrained
+        flow is very slow to draw a new point.
         """
         logger.debug(f'Testing {self.__class__.__name__} draw method')
 
         test_point = self.model.new_point()
         self.populate(test_point, N=1, plot=False, r=1.0)
         new_point = self.draw(test_point)
-
         if new_point['logP'] != self.model.log_prior(new_point):
             raise RuntimeError('Log prior of new point is incorrect!')
 
@@ -1508,26 +1562,37 @@ class FlowProposal(RejectionProposal):
 
     def reset(self):
         """Reset the proposal"""
+        self.indices = []
         self.samples = None
         self.x = None
         self.populated = False
         self.populated_count = 0
+        self.population_acceptance = None
+        self._poolsize_scale = 1.0
+        self.r = None
+        self.alt_dist = None
+        self._checked_population = True
+        self.acceptance = []
+        self.approx_acceptance = []
+        self._edges = {k: None for k in self._edges.keys()}
 
     def __getstate__(self):
         state = self.__dict__.copy()
         state['initialised'] = False
-        state['weights_file'] = state['flow'].weights_file
+        state['weights_file'] = \
+            getattr(state.get('flow'), 'weights_file', None)
 
         # Mask may be generate via permutation, so must be saved
-        if 'mask' in state['flow'].model_config['kwargs']:
+        if 'mask' in getattr(state.get('flow'), 'model_config', {}).get(
+                'kwargs', []):
             state['mask'] = state['flow'].model_config['kwargs']['mask']
         else:
             state['mask'] = None
         state['pool'] = None
-        if state['populated'] and self.indices:
+        if state['populated'] and state['indices']:
             state['resume_populated'] = True
         else:
-            state['resumed_populated'] = False
+            state['resume_populated'] = False
 
         # user provides model and config for resume
         # flow can be reconstructed from resume
