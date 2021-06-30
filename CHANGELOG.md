@@ -23,6 +23,7 @@ tests for this reparameterisation.
 - Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
 - Add options to train with different optimisers: Adam, AdamW, SGD
 - Add tests for `NestedSampler`
+- Explicitly check prior bounds when using reparameterisations. This catches cases where infinite bounds are used and break some reparameterisations. (!82)
 - Add error when calling `FlowProposal.populate` without initialising the proposal.
 
 ### Changed
@@ -55,6 +56,7 @@ tests for this reparameterisation.
 - Fixed a bug with `plot_live_points` when the hue parameter (`c`) was constant.
 - Fixed a bug with the reparmeterisation `Rescale` when `scale` was set to a negative number.
 - Fixed a bug where `scale` could not be changed in `ToCartesian`.
+- Fixed a error when specifying `NullReparameterisation` (!82)
 - Fix typo in `FlowProposal.set_poolsize_scale` when `acceptance=0`
 - Fixed unintended behaviour when `rescale_parameters` is a list and `boundary_inversion=True`, where the code would try apply inversion to all parameters in `Model.names`.
 - Fixed bug where `z` returned by `FlowProposal.rejection_sampling` was incorrect when using truncation (which is not recommended).
