@@ -19,6 +19,34 @@ def test_init(name, prior_bounds):
     assert_equal(reparam.prior_bounds, {'x1': np.array([0, 1])})
 
 
+def test_init_infinite_bounds():
+    """Test the init method with infinite prior bounds"""
+    reparam = Reparameterisation(
+        parameters=['x', 'y'],
+        prior_bounds={'x': [0, 1], 'y': [0, np.inf]}
+    )
+    assert reparam.parameters == ['x', 'y']
+    assert reparam.prime_parameters == ['x_prime', 'y_prime']
+    assert_equal(reparam.prior_bounds['x'], [0, 1])
+    assert_equal(reparam.prior_bounds['y'], [0, np.inf])
+
+
+def test_infinite_bounds_error():
+    """Test to ensure infinite prior bounds raise an error.
+
+    Only applies if `requires_bounded_prior` is True.
+    """
+    class TestReparam(Reparameterisation):
+        requires_bounded_prior = True
+
+    with pytest.raises(RuntimeError) as excinfo:
+        TestReparam(
+            parameters=['x', 'y'],
+            prior_bounds={'x': [0, 1], 'y': [0, np.inf]}
+        )
+    assert 'requires finite prior' in str(excinfo.value)
+
+
 def test_parameters_error():
     with pytest.raises(TypeError) as excinfo:
         Reparameterisation(parameters={'x': [0, 1]})
