@@ -951,15 +951,41 @@ class NestedSampler:
         else:
             return fig
 
-    def plot_trace(self):
+    def plot_trace(self, filename=None):
         """
-        Make trace plots for the nested samples
+        Make trace plots for the nested samples.
+
+        Parameters
+        ----------
+        filename : str, optional
+            If filename is None, the figure is returned. Else the figure
+            is saved with that file name.
         """
         if self.nested_samples:
-            plot_trace(self.state.log_vols[1:], self.nested_samples,
-                       filename=f'{self.output}/trace.png')
+            fig = plot_trace(self.state.log_vols[1:], self.nested_samples,
+                             filename=filename)
+            return fig
         else:
             logger.warning('Could not produce trace plot. No nested samples!')
+
+    def plot_insertion_indices(self, filename=None, **kwargs):
+        """
+        Make a plot of all the insertion indices.
+
+        Parameters
+        ----------
+        filename : str, optional
+            If filename is None, the figure is returned. Else the figure
+            is saved with that file name.
+        kwargs :
+            Keyword arguments passed to `nessai.plot.plot_indices`.
+        """
+        return plot_indices(
+            self.insertion_indices,
+            self.nlive,
+            filename=filename,
+            **kwargs
+        )
 
     def update_state(self, force=False):
         """
@@ -1004,7 +1030,7 @@ class NestedSampler:
 
             if self.plot:
                 self.plot_state(filename=f'{self.output}/state.png')
-                self.plot_trace()
+                self.plot_trace(filename=f'{self.output}/trace.png')
 
             if self.uninformed_sampling:
                 self.block_acceptance = 0.
