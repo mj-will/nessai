@@ -991,7 +991,7 @@ class NestedSampler:
                 f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
                 f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
                 f"logLmax: {self.logLmax:.2f}")
-            self.checkpoint(periodic=not force)
+            self.checkpoint(periodic=True)
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
@@ -1020,7 +1020,8 @@ class NestedSampler:
         ----------
         periodic : bool
             Indicates if the checkpoint is regular periodic checkpointing
-            or forced by a signal
+            or forced by a signal. If forces by a signal, it will show up on
+            the state plot.
         """
         if not periodic:
             self.checkpoint_iterations += [self.iteration]
