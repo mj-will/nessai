@@ -114,7 +114,8 @@ class NeuralSplineFlow(NFlow):
 
         transforms_list = []
         for i in range(num_layers):
-            transforms_list.append(create_linear_transform())
+            if linear_transform is not None:
+                transforms_list.append(create_linear_transform())
             transforms_list.append(spline_constructor(i))
 
         distribution = StandardNormal([features])
