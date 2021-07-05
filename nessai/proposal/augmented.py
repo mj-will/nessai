@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+"""
+Aumgented version of FlowProposal.
+"""
 import logging
 import os
 
