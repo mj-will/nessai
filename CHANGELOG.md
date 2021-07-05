@@ -46,6 +46,7 @@ tests for this reparameterisation.
 - Minor improvements to plotting in `FlowProposal` and moved plotting to separate methods in `FlowProposal`.
 - Switch to using `os.path.join` when joins paths.
 - Improved `FlowProposal.reset`
+- Renamed `FlexibleRealNVP` to `RealNVP`, shouldn't affect most uses since the default way to specify a flow is via strings in `configure_model`.
 - Renamed `nessai.flows.utils.setup_model` to `configure_model`.
 - Renamed `nessai.flows.utils.CustomMLP` to `MLP`
 - Changed default value for `tail_bound` in `NeuralSplineFlow` to 5.
