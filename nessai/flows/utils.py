@@ -56,7 +56,7 @@ def configure_model(config):
             try:
                 k['activation'] = activations[k['activation']]
             except KeyError as e:
-                raise RuntimeError(f'Unknown activation function {e}')
+                raise RuntimeError(f'Unknown activation function: {e}')
 
         if 'var' in k and 'distribution' not in k:
             k['distribution'] = MultivariateNormal([config['n_inputs']],
@@ -89,17 +89,17 @@ def configure_model(config):
     else:
         raise RuntimeError("Must specify either 'flow' or 'ftype'.")
 
-    if 'device_tag' in config:
-        if isinstance(config['device_tag'], str):
-            device = torch.device(config['device_tag'])
-
+    device = torch.device(config.get('device_tag', 'cpu'))
+    if device != 'cpu':
         try:
             model.to(device)
         except RuntimeError as e:
             device = torch.device('cpu')
-            logger.warning("Could not send the normailising flow to the "
-                           f"specified device {config['device']} send to CPU "
-                           f"instead. Error raised: {e}")
+            logger.warning(
+                "Could not send the normailising flow to the "
+                f"specified device {config['device']} send to CPU "
+                f"instead. Error raised: {e}"
+            )
     logger.debug('Flow model:')
     logger.debug(model)
 
