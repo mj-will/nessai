@@ -25,6 +25,8 @@ tests for this reparameterisation.
 - Add tests for `NestedSampler`
 - Explicitly check prior bounds when using reparameterisations. This catches cases where infinite bounds are used and break some reparameterisations. (!82)
 - Add error when calling `FlowProposal.populate` without initialising the proposal.
+- Add `NestedSampler.plot_insertion_indices` to allow for easier plotting of insertion indices.
+- Add `filename` keyword argument to `NestedSampler.plot_trace`.
 - Added `batch_norm_within_layers` to `NeuralSplineFlow`
 
 ### Changed

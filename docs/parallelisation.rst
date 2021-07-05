@@ -13,7 +13,7 @@ There are two keyword arguments that must be set to enable parallelisation:
 - :code:`n_pool`: The number of threads to use for evaluating the likelihood
 - :code:`max_threads`: The maximum number of threads to use, this should be at least 1 larger than :code:`n_pool`. Extra threads are allocated to PyTorch's CPU parallelisation.
 
-.. Note::
+.. note::
     If running ``nessai`` via a job scheduler such as HTCondor, remember to set the number of requested threads accordingly. This should match :code:`max_threads`.
 
 
