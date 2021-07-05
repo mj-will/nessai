@@ -39,12 +39,12 @@ State
 The *state* plot shows all the statistics which are tracked during sampling as a function of iteration. From top to bottom these are
 
 * The minimum and maximum log-likelihood of the current set of live points
-* The cumulative number of liklelihood evaluations
+* The cumulative number of likelihood evaluations
 * The current log-evidence :math:`\log Z` and fraction change in evidence :math:`\text{d}Z`
 * The acceptance of the population and proposal stages alongside the radius use for each population stage.
 * The :math:`p`-value of the insertion indices every ``nlive`` live points
 
-The iterations at which the normalising flow has been trained are indicated with vertial lines and total sampling-time is shown at the top of the plot.
+The iterations at which the normalising flow has been trained are indicated with vertical lines and total sampling-time is shown at the top of the plot.
 
 .. image:: assets/state.png
     :alt: state.png
@@ -53,7 +53,7 @@ The iterations at which the normalising flow has been trained are indicated with
 Insertion indices
 -----------------
 
-The distribution of the insertion indices for all of the nested samples is shown on hte left along with the expect uniform distribution and the 1-sigma bounds determined by the total number of live points. The cumulative mass function is shown on the right where the uniform function is shown with a dashed line, the overall distribution shown in blue and the distribution every ``nlive`` live point shown in light gray.
+The distribution of the insertion indices for all of the nested samples is shown on the left along with the expect uniform distribution and the 1-sigma bounds determined by the total number of live points. The cumulative mass function is shown on the right where the uniform function is shown with a dashed line, the overall distribution shown in blue and the distribution every ``nlive`` live point shown in light grey.
 
 
 .. image:: assets/insertion_indices.png
