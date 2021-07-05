@@ -27,6 +27,7 @@ tests for this reparameterisation.
 - Add error when calling `FlowProposal.populate` without initialising the proposal.
 - Add `NestedSampler.plot_insertion_indices` to allow for easier plotting of insertion indices.
 - Add `filename` keyword argument to `NestedSampler.plot_trace`.
+- Added `batch_norm_within_layers` to `NeuralSplineFlow`
 
 ### Changed
 
@@ -45,6 +46,10 @@ tests for this reparameterisation.
 - Minor improvements to plotting in `FlowProposal` and moved plotting to separate methods in `FlowProposal`.
 - Switch to using `os.path.join` when joins paths.
 - Improved `FlowProposal.reset`
+- Renamed `FlexibleRealNVP` to `RealNVP`, shouldn't affect most uses since the default way to specify a flow is via strings in `configure_model`.
+- Renamed `nessai.flows.utils.setup_model` to `configure_model`.
+- Renamed `nessai.flows.utils.CustomMLP` to `MLP`
+- Changed default value for `tail_bound` in `NeuralSplineFlow` to 5.
 
 
 ### Fixed
@@ -56,7 +61,7 @@ tests for this reparameterisation.
 - Fix inversion-split with `RescaleToBounds`
 - Fixed `AugmentedGWFlowProposal`.
 - Fixed a bug with `plot_live_points` when the hue parameter (`c`) was constant.
-- Fixed a bug with the reparmeterisation `Rescale` when `scale` was set to a negative number.
+- Fixed a bug with the reparameterisation `Rescale` when `scale` was set to a negative number.
 - Fixed a bug where `scale` could not be changed in `ToCartesian`.
 - Fixed a error when specifying `NullReparameterisation` (!82)
 - Fix typo in `FlowProposal.set_poolsize_scale` when `acceptance=0`

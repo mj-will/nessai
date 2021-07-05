@@ -65,12 +65,9 @@ class NeuralSplineFlow(NFlow):
         apply_unconditional_transform=False,
         linear_transform='permutation',
         tails='linear',
-        tail_bound=1.0,
+        tail_bound=5.0,
         **kwargs
     ):
-        if batch_norm_between_layers:
-            logger.warning('BatchNorm cannot be used with splines')
-            batch_norm_between_layers = False
 
         def create_linear_transform():
             if linear_transform == 'permutation':
@@ -114,8 +111,11 @@ class NeuralSplineFlow(NFlow):
 
         transforms_list = []
         for i in range(num_layers):
-            transforms_list.append(create_linear_transform())
+            if linear_transform is not None:
+                transforms_list.append(create_linear_transform())
             transforms_list.append(spline_constructor(i))
+            if batch_norm_between_layers:
+                transforms_list.append(transforms.BatchNorm(features=features))
 
         distribution = StandardNormal([features])
 
