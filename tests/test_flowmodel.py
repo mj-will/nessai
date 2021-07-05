@@ -68,7 +68,7 @@ def test_initialise(model):
     model.inference_device = None
     model.optimiser = 'adam'
     model.optimiser_kwargs = {'weights': 0.1}
-    with patch('nessai.flowmodel.setup_model',
+    with patch('nessai.flowmodel.configure_model',
                return_value=('model', 'cpu')) as mock:
         FlowModel.initialise(model)
     mock.assert_called_once_with(model.model_config)
