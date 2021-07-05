@@ -1,5 +1,8 @@
+# -*- coding: utf-8 -*-
+"""Basic tests for all of the included flows"""
 import pytest
 import torch
+import torch.nn.functional as F
 import numpy as np
 
 from nessai.flows import (
@@ -8,12 +11,16 @@ from nessai.flows import (
     NeuralSplineFlow
     )
 
-flows = [FlexibleRealNVP, MaskedAutoregressiveFlow, NeuralSplineFlow]
+flows = [
+    FlexibleRealNVP,
+    MaskedAutoregressiveFlow,
+    NeuralSplineFlow
+]
 
 
-@pytest.fixture()
-def data_dim():
-    return 2
+@pytest.fixture(params=[2, 4])
+def data_dim(request):
+    return request.param
 
 
 @pytest.fixture()
@@ -34,6 +41,28 @@ def z(n, data_dim):
 @pytest.fixture(params=flows)
 def flow(request, data_dim):
     return request.param(data_dim, 8, 2, 2).eval()
+
+
+@pytest.fixture(params=flows)
+def flow_class(request):
+    return request.param
+
+
+@pytest.mark.parametrize(
+    'kwargs',
+    [
+        dict(batch_norm_between_layers=True),
+        dict(batch_norm_within_layers=True),
+        dict(activation=F.relu),
+        dict(dropout_probability=0.5)
+    ]
+)
+def test_init(flow_class, kwargs):
+    """Test init method with common kwargs"""
+    flow = flow_class(2, 2, 2, 2, **kwargs)
+    x = torch.randn(10, 2)
+    z, _ = flow.forward(x)
+    assert z.shape == (10, 2)
 
 
 def test_forward(flow, x, n, data_dim):
