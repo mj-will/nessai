@@ -35,7 +35,7 @@ jobs:
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=79 --statistics
     - name: Test with pytest
       run: |
-        pytest --cov-report=xml --cov=nessai tests/ --without-integration
+        pytest --cov-report=xml --without-integration --without-slow-integration
     - name: Upload coverage
       uses: codecov/codecov-action@v1
       with:

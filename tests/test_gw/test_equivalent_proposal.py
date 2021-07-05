@@ -10,7 +10,8 @@ import numpy as np
 import pytest
 
 from nessai.model import Model as BaseModel
-from nessai.gw.proposal import GWFlowProposal, LegacyGWFlowProposal
+from nessai.gw.proposal import GWFlowProposal
+from nessai.gw.legacy import LegacyGWFlowProposal
 from nessai.flowsampler import FlowSampler
 from nessai.livepoint import dict_to_live_points
 
