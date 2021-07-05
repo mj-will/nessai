@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.3.0] Testing, testing and more testing - 2021-07-05
+
+This release contains a large number of changes related to bugs and issues that were discovered when writing more tests for `nessai`.
+
+It also adds a number of feature and examples.
+
+**Note:** Runs produced with previous releases are incompatible with this release and cannot be resumed with out manual intervention.
+
 ### Added
 
 - Added code to catch errors when calling `plot_live_points` when `gwpy` is installed.
@@ -179,7 +188,9 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.2.4...HEAD
+
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mj-will/nessai/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/mj-will/nessai/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/mj-will/nessai/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/mj-will/nessai/compare/v0.2.1...v0.2.2
