@@ -108,7 +108,7 @@ def test_mlp_forward_context():
 def test_configure_model_basic(config):
     """Test configure model with the most basic config."""
     config['kwargs'] = dict(num_bins=2)
-    with patch('nessai.flows.utils.FlexibleRealNVP') as mock_flow:
+    with patch('nessai.flows.utils.RealNVP') as mock_flow:
         configure_model(config)
 
     mock_flow.assert_called_with(
@@ -123,8 +123,8 @@ def test_configure_model_basic(config):
 @pytest.mark.parametrize(
     'flow_inputs',
     [
-        {'ftype': 'realnvp', 'expected': 'FlexibleRealNVP'},
-        {'ftype': 'frealnvp', 'expected': 'FlexibleRealNVP'},
+        {'ftype': 'realnvp', 'expected': 'RealNVP'},
+        {'ftype': 'frealnvp', 'expected': 'RealNVP'},
         {'ftype': 'spline', 'expected': 'NeuralSplineFlow'},
         {'ftype': 'nsf', 'expected': 'NeuralSplineFlow'},
         {'ftype': 'maf', 'expected': 'MaskedAutoregressiveFlow'}
@@ -168,7 +168,7 @@ def test_configure_model_device_cuda(config):
     config['device_tag'] = 'cuda'
     expected_device = torch.device('cuda')
     mock_model = MagicMock()
-    with patch('nessai.flows.utils.FlexibleRealNVP',
+    with patch('nessai.flows.utils.RealNVP',
                return_value=mock_model) as mock_flow:
         model, device = configure_model(config)
 
@@ -197,7 +197,7 @@ def test_configure_model_activation_functions(config, act):
     """Test the different activation functions."""
     config['kwargs'] = dict(activation=act['act'])
 
-    with patch('nessai.flows.utils.FlexibleRealNVP') as mock_flow:
+    with patch('nessai.flows.utils.RealNVP') as mock_flow:
         configure_model(config)
 
     mock_flow.assert_called_with(

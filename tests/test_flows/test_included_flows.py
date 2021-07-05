@@ -6,13 +6,13 @@ import torch.nn.functional as F
 import numpy as np
 
 from nessai.flows import (
-    FlexibleRealNVP,
+    RealNVP,
     MaskedAutoregressiveFlow,
     NeuralSplineFlow
     )
 
 flows = [
-    FlexibleRealNVP,
+    RealNVP,
     MaskedAutoregressiveFlow,
     NeuralSplineFlow
 ]

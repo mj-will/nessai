@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from nessai.flows import (
-    FlexibleRealNVP,
+    RealNVP,
     NeuralSplineFlow
 )
 
@@ -25,7 +25,7 @@ from nessai.flows import (
 )
 def test_with_realnvp_kwargs(kwargs):
     """Test RealNVP with specific kwargs"""
-    flow = FlexibleRealNVP(2, 2, 2, 2, **kwargs)
+    flow = RealNVP(2, 2, 2, 2, **kwargs)
     x = torch.randn(10, 2)
     z, _ = flow.forward(x)
     assert z.shape == (10, 2)

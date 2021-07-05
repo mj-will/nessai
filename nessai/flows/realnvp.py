@@ -15,7 +15,7 @@ from .base import NFlow
 logger = logging.getLogger(__name__)
 
 
-class FlexibleRealNVP(NFlow):
+class RealNVP(NFlow):
     """
     Implementation of RealNVP.
 

@@ -12,7 +12,7 @@ from nflows.transforms.lu import LULinear
 from nflows.transforms.permutations import RandomPermutation
 from nflows.nn.nets import MLP as NFlowsMLP
 
-from .realnvp import FlexibleRealNVP
+from .realnvp import RealNVP
 from .maf import MaskedAutoregressiveFlow
 from .nsf import NeuralSplineFlow
 from .distributions import MultivariateNormal
@@ -37,9 +37,9 @@ def configure_model(config):
     """
     kwargs = {}
     flows = {
-        'realnvp': FlexibleRealNVP,
+        'realnvp': RealNVP,
         'maf': MaskedAutoregressiveFlow,
-        'frealnvp': FlexibleRealNVP,
+        'frealnvp': RealNVP,
         'spline': NeuralSplineFlow,
         'nsf': NeuralSplineFlow,
     }

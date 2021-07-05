@@ -53,12 +53,12 @@ def test_init_no_config(tmpdir):
 
 def test_init_config_class(tmpdir):
     """Test the init and save methods when specifying `flow` as a class"""
-    from nessai.flows import FlexibleRealNVP
+    from nessai.flows import RealNVP
     output = str(tmpdir.mkdir('no_config'))
-    config = dict(model_config=dict(flow=FlexibleRealNVP))
+    config = dict(model_config=dict(flow=RealNVP))
     fm = FlowModel(config=config, output=output)
 
-    assert fm.model_config['flow'].__name__ == 'FlexibleRealNVP'
+    assert fm.model_config['flow'].__name__ == 'RealNVP'
 
 
 def test_initialise(model):
