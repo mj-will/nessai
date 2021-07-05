@@ -31,14 +31,24 @@ def silu(x):
     return torch.mul(x, torch.sigmoid(x))
 
 
-def setup_model(config):
+def configure_model(config):
     """
     Setup the flow form a configuration dictionary.
     """
     kwargs = {}
-    flows = {'realnvp': FlexibleRealNVP, 'maf': MaskedAutoregressiveFlow,
-             'frealnvp': FlexibleRealNVP, 'spline': NeuralSplineFlow}
-    activations = {'relu': F.relu, 'tanh': F.tanh, 'swish': silu, 'silu': silu}
+    flows = {
+        'realnvp': FlexibleRealNVP,
+        'maf': MaskedAutoregressiveFlow,
+        'frealnvp': FlexibleRealNVP,
+        'spline': NeuralSplineFlow,
+        'nsf': NeuralSplineFlow,
+    }
+    activations = {
+        'relu': F.relu,
+        'tanh': F.tanh,
+        'swish': silu,
+        'silu': silu
+    }
 
     k = config.get('kwargs', None)
     if k is not None:
