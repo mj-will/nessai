@@ -1,6 +1,11 @@
+# -*- coding: utf-8 -*-
+"""
+Tests for `nessai.model`
+"""
 import numpy as np
 import pytest
 from scipy.stats import norm
+from unittest.mock import MagicMock, create_autospec
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.model import Model
@@ -15,57 +20,162 @@ class EmptyModel(Model):
         return None
 
 
-@pytest.fixture(scope='function')
-def empty_model():
-    return EmptyModel()
+@pytest.fixture()
+def integration_model():
+    class TestModel(Model):
+
+        def __init__(self):
+            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
+            self.names = ['x', 'y']
+
+        def log_prior(self, x):
+            log_p = np.log(self.in_bounds(x))
+            for n in self.names:
+                log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
+            return log_p
+
+        def log_likelihood(self, x):
+            log_l = 0
+            for pn in self.names:
+                log_l += norm.logpdf(x[pn])
+            return log_l
+
+    return TestModel()
 
 
-def test_dims_no_names(empty_model):
+@pytest.fixture
+def model():
+    return create_autospec(Model)
+
+
+def test_dims_no_names(model):
     """Test the behaviour dims when names is empty"""
-    assert empty_model.dims is None
+    assert Model.dims.__get__(model) is None
 
 
-def test_dims(empty_model):
+def test_dims(model):
     """Ensure dims are correct"""
-    empty_model.names = ['x', 'y']
-    assert empty_model.dims == 2
+    model.names = ['x', 'y']
+    assert Model.dims.__get__(model) == 2
 
 
-def test_lower_bounds(empty_model):
+def test_lower_bounds(model):
     """Check the lower bounds are correctly set"""
-    empty_model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
-    assert (empty_model.lower_bounds == [-1, -1]).all()
+    model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    model._lower = None
+    assert (Model.lower_bounds.__get__(model) == [-1, -1]).all()
 
 
-def test_upper_bounds(empty_model):
+def test_upper_bounds(model):
     """Check the upper bounds are correctly set"""
-    empty_model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
-    assert (empty_model.upper_bounds == [1, 1]).all()
+    model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    model._upper = None
+    assert (Model.upper_bounds.__get__(model) == [1, 1]).all()
 
 
-def test_new_point(model):
+def test_in_bounds(model):
+    """Test the `in_bounds` method."""
+    x = numpy_array_to_live_points(np.array([[0.5, 1], [2, 1]]), ['x', 'y'])
+    model.names = ['x', 'y']
+    model.bounds = {'x': [0, 1], 'y': [0, 1]}
+    val = Model.in_bounds(model, x)
+    np.testing.assert_array_equal(val, np.array([True, False]))
+
+
+def test_parameter_in_bounds(model):
+    """Test parameter in bounds method."""
+    x = np.array([0, 0.5, 1, 3])
+    model.names = ['x', 'y']
+    model.bounds = {'x': [0, 1], 'y': [0, 4]}
+    val = Model.parameter_in_bounds(model, x, 'x')
+    np.testing.assert_array_equal(val, np.array([True, True, True, False]))
+
+
+def test_sample_parameter(model):
+    """Assert an error is raised."""
+    with pytest.raises(NotImplementedError) as excinfo:
+        Model.sample_parameter(model, 'x', n=2)
+    assert 'User must implement this method!' in str(excinfo.value)
+
+
+def test_new_point_single(model):
+    """Test the new point when asking for 1 point"""
+    model._single_new_point = MagicMock()
+    Model.new_point(model, N=1)
+    model._single_new_point.assert_called_once()
+
+
+def test_single_new_point(model):
+    """Test the method that draw one point within the prior bounds"""
+    model.names = ['x', 'y']
+    model.bounds = {'x': [-1, 1], 'y': [-2, 2]}
+    model.lower_bounds = np.array([-1, -2])
+    model.upper_bounds = np.array([1, 2])
+    model.log_prior = MagicMock(return_value=0)
+    model.dims = 2
+    x = Model._single_new_point(model)
+    assert ((x['x'] >= -1) & (x['x'] <= 1))
+    assert ((x['y'] >= -2) & (x['y'] <= 2))
+
+
+def test_new_point_multiple(model):
+    """Test the new point when asking for multiple points"""
+    model._multiple_new_points = MagicMock()
+    Model.new_point(model, N=10)
+    model._multiple_new_points.assert_called_once_with(10)
+
+
+def test_multiple_new_points(model):
+    """Test the method that draws multiple points within the prior bounds"""
+    n = 10
+    model.names = ['x', 'y']
+    model.bounds = {'x': [-1, 1], 'y': [-2, 2]}
+    model.lower_bounds = np.array([-1, -2])
+    model.upper_bounds = np.array([1, 2])
+    model.log_prior = MagicMock(return_value=np.zeros(10))
+    model.dims = 2
+    x = Model._multiple_new_points(model, N=n)
+    assert x.size == n
+    assert ((x['x'] >= -1) & (x['x'] <= 1)).all()
+    assert ((x['y'] >= -2) & (x['y'] <= 2)).all()
+
+
+def test_new_point_log_prob(model):
+    """Test the log prob for new points.
+
+    Should be zero.
+    """
+    x = numpy_array_to_live_points(np.random.randn(2, 1), ['x'])
+    log_prob = Model.new_point_log_prob(model, x)
+    assert log_prob.size == 2
+    assert (log_prob == 0).all()
+
+
+@pytest.mark.integration_test
+def test_new_point_integration(integration_model):
     """
     Test the default method for generating a new point with the bounds.
 
     Uses the model defined in `conftest.py` with bounds [-5, 5] for
     x and y.
     """
-    new_point = model.new_point()
-    log_q = model.new_point_log_prob(new_point)
+    new_point = integration_model.new_point()
+    log_q = integration_model.new_point_log_prob(new_point)
     assert (new_point['x'] < 5) & (new_point['y'] > -5)
     assert (new_point['y'] < 5) & (new_point['y'] > -5)
     assert log_q == 0
 
 
-def test_new_point_multiple(model):
+@pytest.mark.integration_test
+def test_new_point_multiple_integration(integration_model):
     """
     Test drawing multiple new points from the model
 
     Uses the model defined in `conftest.py` with bounds [-5, 5] for
     x and y.
     """
-    new_points = model.new_point(N=100)
-    log_q = model.new_point_log_prob(new_points)
+    new_points = integration_model.new_point(N=100)
+    log_q = integration_model.new_point_log_prob(new_points)
     assert new_points.size == 100
     assert all(np.isfinite(new_points['logP']))
     assert all(new_points['x'] < 5) & all(new_points['x'] > -5)
@@ -77,11 +187,24 @@ def test_likelihood_evaluations(model):
     """
     Test `evaluate_log_likelihood` and ensure the counter increases.
     """
-    new_points = model.new_point(N=1)
-    log_l = model.evaluate_log_likelihood(new_points)
+    x = 1
+    model.likelihood_evaluations = 0
+    model.log_likelihood = MagicMock(return_value=2)
+    log_l = Model.evaluate_log_likelihood(model, x)
 
-    assert log_l.size == 1
+    model.log_likelihood.assert_called_once_with(x)
+    assert log_l == 2
     assert model.likelihood_evaluations == 1
+
+
+def test_log_prior(model):
+    """Verify the log prior does nothing by defauly"""
+    assert Model.log_prior(model, 1) is None
+
+
+def test_log_likelihood(model):
+    """Verify the log likelihood does nothing by defauly"""
+    assert Model.log_likelihood(model, 1) is None
 
 
 def test_missing_log_prior():
@@ -97,8 +220,9 @@ def test_missing_log_prior():
         def log_likelihood(self, x):
             return x
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError) as excinfo:
         TestModel()
+    assert "Can't instantiate abstract class TestModel" in str(excinfo.value)
 
 
 def test_missing_log_likelihood():
@@ -115,8 +239,9 @@ def test_missing_log_likelihood():
         def log_prior(self, x):
             return 0.
 
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError) as excinfo:
         TestModel()
+    assert "Can't instantiate abstract class TestModel" in str(excinfo.value)
 
 
 def test_verify_new_point():
