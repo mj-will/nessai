@@ -99,6 +99,7 @@ def test_rejection_sampling(proposal, z, x, log_q):
     """Test rejection sampling method."""
     proposal.use_x_prime_prior = False
     proposal.truncate = False
+    proposal._draw_flow = False
     proposal.backward_pass = MagicMock(return_value=(x, log_q))
     log_w = np.log(np.array([0.5, 0.5]))
     proposal.compute_weights = MagicMock(return_value=log_w)
@@ -119,6 +120,7 @@ def test_rejection_sampling_empty(proposal, z):
     """
     proposal.use_x_prime_prior = False
     proposal.truncate = False
+    proposal._draw_flow = False
     proposal.backward_pass = \
         MagicMock(return_value=(np.array([]), np.array([])))
 
@@ -133,6 +135,7 @@ def test_rejection_sampling_truncate(proposal, z, x):
     """Test rejection sampling method with truncation"""
     proposal.use_x_prime_prior = False
     proposal.truncate = True
+    proposal._draw_flow = False
     log_q = np.array([0.0, 1.0])
     proposal.backward_pass = MagicMock(return_value=(x, log_q))
     worst_q = 0.5
@@ -152,6 +155,7 @@ def test_rejection_sampling_truncate(proposal, z, x):
 
 def test_rejection_sampling_truncate_missing_q(proposal, z, x, log_q):
     """Test rejection sampling method with truncation without without q"""
+    proposal._draw_flow = False
     proposal.use_x_prime_prior = False
     proposal.truncate = True
     log_q = np.array([0.0, 1.0])
@@ -223,7 +227,7 @@ def test_get_alt_distribution_truncated_gaussian_w_var(proposal):
     """
     proposal.draw_latent_kwargs = {'var': 2.0}
     proposal.latent_prior = 'truncated_gaussian'
-    proposal.dims = 2
+    proposal.flow_dims = 2
     proposal.flow = Mock()
     proposal.flow.device = 'cpu'
 
@@ -241,7 +245,7 @@ def test_get_alt_distribution_uniform(proposal, prior):
     the n-ball.
     """
     proposal.latent_prior = prior
-    proposal.dims = 2
+    proposal.flow_dims = 2
     proposal.r = 2.0
     proposal.fuzz = 1.2
     proposal.flow = Mock()
@@ -291,7 +295,8 @@ def test_populate(proposal):
     poolsize = 10
     drawsize = 5
     names = ['x', 'y']
-    worst_point = np.array([1, 2])
+    worst_point = numpy_array_to_live_points(np.array([[1, 2]]), names)
+    print(worst_point)
     worst_z = np.random.randn(1, n_dims)
     worst_q = np.random.randn(1)
     z = [
@@ -308,6 +313,7 @@ def test_populate(proposal):
     proposal.initialised = True
     proposal.max_radius = 50
     proposal.dims = n_dims
+    proposal.flow_dims = n_dims
     proposal.poolsize = poolsize
     proposal.drawsize = drawsize
     proposal.min_radius = 0.1

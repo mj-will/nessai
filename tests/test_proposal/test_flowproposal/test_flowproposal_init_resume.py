@@ -3,7 +3,7 @@
 import os
 import pytest
 from unittest import TestCase
-from unittest.mock import patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock
 
 from nessai.proposal import FlowProposal
 
@@ -21,20 +21,27 @@ def test_init(model, kwargs):
 
 
 @pytest.mark.parametrize('ef, fuzz', [(2.0, 3.0**0.5), (False, 2.0)])
-@patch('nessai.flowmodel.FlowModel', new=MagicMock())
 def test_initialise(tmpdir, proposal, ef, fuzz):
     """Test the initialise method"""
     p = tmpdir.mkdir('test')
     proposal.output = f'{p}/output/'
-    proposal.rescaled_dims = 2
+    proposal.flow_dims = 2
     proposal.expansion_fraction = ef
     proposal.fuzz = 2.0
     proposal.flow_config = {'model_config': {}}
     proposal.set_rescaling = MagicMock()
     proposal.verify_rescaling = MagicMock()
 
-    FlowProposal.initialise(proposal)
+    flow = MagicMock()
+    flow.initialise = MagicMock()
+    with patch('nessai.proposal.flowproposal.FlowModel', new=flow):
+        FlowProposal.initialise(proposal)
 
+    flow.assert_called_once_with(
+        config=proposal.flow_config,
+        output=proposal.output
+    )
+    proposal.flow.initialise.assert_called_once()
     proposal.set_rescaling.assert_called_once()
     proposal.verify_rescaling.assert_called_once()
     assert proposal.populated is False
@@ -165,7 +172,9 @@ def test_reset(proposal):
     proposal.populated = True
     proposal.populated_count = 10
     proposal._edges = {'x': 2}
+    proposal.reset_reparameterisation = Mock()
     FlowProposal.reset(proposal)
+    proposal.reset_reparameterisation.assert_called_once()
     assert proposal.x is None
     assert proposal.samples is None
     assert proposal.populated is False

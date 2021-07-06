@@ -4,7 +4,7 @@ import os
 import numpy as np
 import pytest
 import torch
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
@@ -19,6 +19,7 @@ def test_training_plots(proposal, tmpdir, plot):
     names = ['x', 'y']
     prime_names = ['x_prime', 'y_prime']
     z = np.random.randn(10, 2)
+    z_gen = np.random.randn(10, 2)
     x = np.random.randn(10, 2)
     x_prime = x / 2
     proposal.training_data = numpy_array_to_live_points(x, names)
@@ -34,10 +35,15 @@ def test_training_plots(proposal, tmpdir, plot):
     proposal.backward_pass = MagicMock(return_value=(x_prime_gen, np.ones(10)))
     proposal.inverse_rescale = MagicMock(return_value=(x_gen, np.ones(10)))
     proposal.check_prior_bounds = lambda *args: args
-    proposal.model = MagicMock()
+    proposal.model = Mock()
     proposal.model.names = names
+    proposal.flow = Mock()
+    proposal.flow.sample_latent_space = MagicMock(return_value=(z_gen, None))
 
     FlowProposal._plot_training_data(proposal, output)
+
+    proposal.flow.sample_latent_space.assert_called_once_with(10)
+    proposal.backward_pass.assert_called_once_with(z_gen, rescale=False)
 
     assert os.path.exists(f'{output}/x_samples.png') is bool(plot)
     assert os.path.exists(f'{output}/x_generated.png') is bool(plot)
