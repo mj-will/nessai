@@ -971,7 +971,7 @@ class FlowProposal(RejectionProposal):
                 filename=os.path.join(output, 'x_prime_comparison.png')
             )
 
-    def train_on_data(self, x_prime, output, plot):
+    def train_on_data(self, x_prime, output=None, plot=True):
         """
         Function that takes live points converts to numpy array and calls
         the train function. Live points should be in the X' (x prime) space.
@@ -1640,7 +1640,8 @@ class FlowProposal(RejectionProposal):
         self.acceptance = []
         self.approx_acceptance = []
         self._edges = {k: None for k in self._edges.keys()}
-        self.reset_reparmeterisation()
+        self.worst_logL = None
+        self.reset_reparameterisation()
 
     def __getstate__(self):
         state = self.__dict__.copy()
