@@ -42,6 +42,7 @@ class ConditionalFlowProposal(FlowProposal):
         model,
         conditional_likelihood=False,
         categorical_parameters=None,
+        prior_parameters=None,
         **kwargs
     ):
 
@@ -51,6 +52,10 @@ class ConditionalFlowProposal(FlowProposal):
         self.conditional_likelihood = conditional_likelihood
         self.conditional = False
         self.categorical_parameters = categorical_parameters
+        self.prior_parameters = prior_parameters
+        # List of conditional parameters which are also in the model
+        self._parameters_in_model = []
+        self._parameters_in_model_indices = []
 
         self._min_logL = None
         self._max_logL = None
@@ -100,14 +105,19 @@ class ConditionalFlowProposal(FlowProposal):
         super().set_rescaling()
         self.configure_likelihood_parameter()
         self.configure_categorical_parameters()
+        self.configure_prior_parameters()
         self.flow_names = [n for n in self.rescaled_names
                            if n not in self.conditional_parameters]
         # Make sure the parameters are in the correct order
         logger.debug(f'Flow parameters: {self.flow_names}')
         logger.debug(f'Conditional parameters: {self.conditional_parameters}')
-        if not (self.flow_names + self.categorical_parameters ==
-                self.rescaled_names):
-            raise RuntimeError('Parameters do not match')
+        expected_names = self.flow_names + self._parameters_in_model
+        if not expected_names == self.rescaled_names:
+            raise RuntimeError(
+                'Parameters do not match. '
+                f'Rescaled names: {self.rescaled_names}, '
+                f'expected names: {expected_names}.'
+            )
 
         if not self.conditional:
             raise RuntimeError('No conditional parameters in the proposal!')
@@ -166,9 +176,57 @@ class ConditionalFlowProposal(FlowProposal):
                 (np.arange(n) + len(self.conditional_parameters)).tolist()
             self.conditional_parameters += self.categorical_parameters
             self.conditional = True
+            self._parameters_in_model += self.categorical_parameters
+            self._parameters_in_model_indices += self.categorical_indices
         else:
             logger.debug('No categorial parameters')
             self.categorical_parameters = []
+
+    def configure_prior_parameters(self):
+        """Configure parameters which are sampled directly from the prior"""
+        if self.prior_parameters:
+            if all(pp in self.conditional_parameters
+                   for pp in self.prior_parameters):
+                logger.debug('Prior parameters already added')
+                return
+            elif any(pp in self.conditional_parameters
+                     for pp in self.prior_parameters):
+                raise RuntimeError(
+                    'Some but not all the prior parameters have already '
+                    'been added. Have the inputs changed?'
+                )
+            indices = []
+            for pp in self.prior_parameters:
+                if pp not in self.model.names:
+                    raise RuntimeError(
+                        f'Prior parameter {pp} is not a parameter in the '
+                        f'model! Model parameters: {self.model.names}'
+                    )
+                indices.append(len(self.conditional_parameters))
+                self.conditional_parameters.append(pp)
+            self.prior_parameters_indices = indices
+            self._parameters_in_model += \
+                self.prior_parameters
+            self._parameters_in_model_indices += indices
+            logger.debug('Testing functions for prior parameters.')
+            try:
+                x = self.model.sample_parameter(self.prior_parameters[0])
+                log_prior = self.model.parameter_log_prior(
+                    x, self.prior_parameters[0])
+                if log_prior is None:
+                    raise RuntimeError(
+                        '`Model.parameter_log_prior` returned None'
+                    )
+            except NotImplementedError:
+                raise RuntimeError(
+                    '`Model.parameter_log_prior` and `Model.sample_parameter` '
+                    'must be implemented to use prior parameters in '
+                    'ConditionalFlowProposal.'
+                )
+            self.conditional = True
+        else:
+            logger.debug('No parameters to exclude from the flow')
+            self.prior_parameters = []
 
     def update_flow_config(self):
         """Update the flow configuration dictionary.
@@ -189,7 +247,7 @@ class ConditionalFlowProposal(FlowProposal):
         self._min_logL = None
         self._max_logL = None
 
-    def train_on_data(self, x_prime, output):
+    def train_on_data(self, x_prime, output=None, plot=True):
         """
         Function that takes live points converts to numpy array and calls
         the train function. Live points should be in the X' (x prime) space.
@@ -197,8 +255,12 @@ class ConditionalFlowProposal(FlowProposal):
         x_prime_array = live_points_to_array(x_prime, self.flow_names)
         conditional = self.get_conditional(x_prime)
         self.train_conditional(conditional)
-        self.flow.train(x_prime_array, conditional=conditional, output=output,
-                        plot=self._plot_training)
+        self.flow.train(
+            x_prime_array,
+            conditional=conditional,
+            output=output,
+            plot=plot
+        )
 
     def train_conditional(self, conditional):
         """Update the methods for sampling the conditional"""
@@ -232,6 +294,13 @@ class ConditionalFlowProposal(FlowProposal):
                 self.categorical_distribution.sample(n)
             log_prob += lp
 
+        if self.prior_parameters:
+            for i, pp in zip(self.prior_parameters_indices,
+                             self.prior_parameters):
+                conditional[:, i] = self.model.sample_parameter(pp, n)
+                log_prob += \
+                    self.model.parameter_log_prior(conditional[:, i], pp)
+
         return conditional, log_prob
 
     def get_conditional(self, x):
@@ -252,6 +321,11 @@ class ConditionalFlowProposal(FlowProposal):
             logger.debug('Getting categorical parameters')
             conditional[:, self.categorical_indices] = \
                 live_points_to_array(x, names=self.categorical_parameters)
+
+        if self.prior_parameters:
+            logger.debug('Getting prior parameters')
+            conditional[:, self.prior_parameters_indices] = \
+                live_points_to_array(x, names=self.prior_parameters)
 
         return conditional
 
@@ -295,8 +369,10 @@ class ConditionalFlowProposal(FlowProposal):
         try:
             x, log_prob = self.flow.sample_and_log_prob(
                 z=z, alt_dist=self.alt_dist, conditional=conditional, **kwargs)
-            x = np.concatenate([x, conditional[:, self.categorical_indices]],
-                               axis=1)
+            x = np.concatenate(
+                [x, conditional[:, self._parameters_in_model_indices]],
+                axis=1
+            )
             return x, log_prob
         except AssertionError:
             return np.array([]), np.array([])

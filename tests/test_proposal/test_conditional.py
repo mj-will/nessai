@@ -55,9 +55,11 @@ def test_set_rescaling(proposal):
     proposal.conditional = True
     proposal.configure_likelihood_parameter = MagicMock()
     proposal.configure_categorical_parameters = MagicMock()
-    proposal.rescaled_names = ['x', 'y']
-    proposal.conditional_parameters = ['y', 'logL']
+    proposal.rescaled_names = ['x', 'y', 'z']
+    proposal.conditional_parameters = ['y', 'z', 'logL']
     proposal.categorical_parameters = ['y']
+    proposal.prior_parameters = ['z']
+    proposal._parameters_in_model = ['y', 'z']
     with patch('nessai.proposal.conditional.FlowProposal.set_rescaling') as m:
         ConditionalFlowProposal.set_rescaling(proposal)
     m.assert_called_once()
@@ -136,7 +138,10 @@ def test_train_on_data(proposal):
     proposal.flow.train = MagicMock()
     with patch('nessai.proposal.conditional.live_points_to_array',
                return_value=a):
-        ConditionalFlowProposal.train_on_data(proposal, x_prime, output)
+        ConditionalFlowProposal.train_on_data(
+            proposal, x_prime, output=output, plot=False
+
+        )
 
     proposal.get_conditional.assert_called_once_with(x_prime)
     proposal.train_conditional.assert_called_once_with(conditional)
@@ -149,6 +154,7 @@ def test_train_conditional_likelihood(proposal, update):
     """Test training on the conditional parameters when using the likelihood"""
     proposal.conditional_likelihood = True
     proposal.categorical_parameters = None
+    proposal.prior_parameters = None
     conditional = np.array([[1, 2], [3, 4]])
     proposal.update_bounds = update
     proposal.likelihood_index = 1
@@ -171,6 +177,7 @@ def test_sample_conditional_parameters_likelihood(proposal):
     c = np.arange(10)
     proposal.conditional_likelihood = True
     proposal.categorical_parameters = None
+    proposal.prior_parameters = None
     proposal.conditional_dims = 2
     proposal.likelihood_index = 1
     proposal.likelihood_distribution = MagicMock()
@@ -194,6 +201,7 @@ def test_get_conditional_likelihood(proposal):
     proposal.conditional_dims = 1
     proposal.conditional_likelihood = True
     proposal.categorical_parameters = None
+    proposal.prior_parameters = None
     proposal.likelihood_index = 0
     proposal._min_logL = 0.0
     proposal._max_logL = 10.0
@@ -212,6 +220,7 @@ def test_get_conditional_no_conditionals(proposal):
     proposal.conditional = True
     proposal.conditional_likelihood = False
     proposal.categorical_parameters = None
+    proposal.prior_parameters = None
     proposal.conditional_dims = 0
     x = np.array([1, 2])
     c = ConditionalFlowProposal.get_conditional(proposal, x)
