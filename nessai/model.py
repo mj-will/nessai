@@ -180,6 +180,41 @@ class Model(ABC):
         return ~np.any([(x[n] < self.bounds[n][0]) | (x[n] > self.bounds[n][1])
                         for n in self.names], axis=0)
 
+    def sample_parameter(self, name, n=1):
+        """Draw samples for a specific parameter from the prior.
+
+        Should be implemented by the user and return a numpy array of length
+        n. The array should NOT be a structured array. This method is not
+        required for standard sampling with nessai. It is intended for use
+        with :py:class:`nessai.conditional.ConditionalFlowProposal`.
+
+        Parameters
+        ----------
+        name : str
+            Name for the parameter to sample
+        n : int, optional
+            Number of samples to draw.
+        """
+        raise NotImplementedError('User must implement this method!')
+
+    def parameter_in_bounds(self, x, name):
+        """
+        Check if an array of values for specific parameter are in the prior \
+            bounds.
+
+        Parameters
+        ----------
+        x : :obj:`numpy:ndarray`
+            Array of values. Not a structured array.
+
+        Returns
+        -------
+        Array of bool
+            Array with the same length as x where True indicates the value
+            is within the prior bounds.
+        """
+        return (x >= self.bounds[name][0]) & (x <= self.bounds[name][1])
+
     @abstractmethod
     def log_prior(self, x):
         """
