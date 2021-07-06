@@ -207,6 +207,8 @@ class Model(ABC):
         ----------
         x : :obj:`numpy:ndarray`
             Array of values. Not a structured array.
+        name : str
+            Name of the parameter.
 
         Returns
         -------
@@ -215,6 +217,19 @@ class Model(ABC):
             is within the prior bounds.
         """
         return (x >= self.bounds[name][0]) & (x <= self.bounds[name][1])
+
+    def parameter_log_prior(self, x, name):
+        """
+        Compute the log prior for a specific parameter.
+
+        Parameters
+        ----------
+        x : :obj:`numpy:ndarray`
+            Array of values. Not a structured array.
+        name : str
+            Name of the parameter.
+        """
+        raise NotImplementedError('User must implement this method!')
 
     @abstractmethod
     def log_prior(self, x):

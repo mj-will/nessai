@@ -101,6 +101,13 @@ def test_sample_parameter(model):
     assert 'User must implement this method!' in str(excinfo.value)
 
 
+def test_parameter_log_prior(model):
+    """Assert an error is raised."""
+    with pytest.raises(NotImplementedError) as excinfo:
+        Model.parameter_log_prior(model, 1, 'x')
+    assert 'User must implement this method!' in str(excinfo.value)
+
+
 def test_new_point_single(model):
     """Test the new point when asking for 1 point"""
     model._single_new_point = MagicMock()
