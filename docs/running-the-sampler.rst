@@ -6,7 +6,7 @@ Running the sampler
 Defining the model
 ==================
 
-The user must define a model that inherits from :class:`nessai.model.Model` that defines two parameters and two methods. This object cotains the Bayesian prior and likelihood which will be used for sampling.
+The user must define a model that inherits from :py:class:`nessai.model.Model` that defines two parameters and two methods. This object contains the Bayesian prior and likelihood which will be used for sampling.
 
 **Parameters:**
 
@@ -37,14 +37,14 @@ Here's an example of a simple model taken from one of the examples:
 Initialising and running the sampler
 ====================================
 
-Once a modelled is defined, create an instance of :class:`nessai.flowsampler.FlowSampler`. This is when the sampler and the proposal methods are configured, for example setting the number of live points (``nlive``) or setting the class of normalising flow to use. ``nessai`` includes a large variety of settings that control different aspects of the sampler, these can be essential to efficient sampling. See :doc:`sampler configuration<sampler-configuration>` for an in-depth explanation of all the settings.
+Once a modelled is defined, create an instance of :py:class:`nessai.flowsampler.FlowSampler`. This is when the sampler and the proposal methods are configured, for example setting the number of live points (``nlive``) or setting the class of normalising flow to use. ``nessai`` includes a large variety of settings that control different aspects of the sampler, these can be essential to efficient sampling. See :doc:`sampler configuration<sampler-configuration>` for an in-depth explanation of all the settings.
 
 .. code-block:: python
 
     from nessai.flowsampler import FlowSampler
 
     # Initialise sampler with the model
-    sampler = FlowSampler(Gaussian(), output='./' nlive=1000)
+    sampler = FlowSampler(Gaussian(), output='./', nlive=1000)
     # Run the sampler
     sampler.run()
 

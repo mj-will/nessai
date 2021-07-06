@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `in_bounds`, `parameter_in_bounds` and `sample_parameter` methods to `nessai.model.Model`.
+
+
+## [0.3.0] Testing, testing and more testing - 2021-07-05
+
+This release contains a large number of changes related to bugs and issues that were discovered when writing more tests for `nessai`.
+
+It also adds a number of feature and examples.
+
+**Note:** Runs produced with previous releases are incompatible with this release and cannot be resumed with out manual intervention.
+
+### Added
+
 - Added code to catch errors when calling `plot_live_points` when `gwpy` is installed.
 - Added tests for `_NSIntegralState`.
 - Add code coverage upload
@@ -19,9 +32,15 @@ tests for this reparameterisation.
 - Added tests for `AugmentedFlowProposal`.
 - Added an example using `AugmentedFlowProposal`.
 - Added eggbox example.
+- Added an error if calling `FlowProposal.rejection_sampling` with `FlowProposal.truncate=True` but `worst_q=None`.
 - Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
 - Add options to train with different optimisers: Adam, AdamW, SGD
 - Add tests for `NestedSampler`
+- Explicitly check prior bounds when using reparameterisations. This catches cases where infinite bounds are used and break some reparameterisations. (!82)
+- Add error when calling `FlowProposal.populate` without initialising the proposal.
+- Add `NestedSampler.plot_insertion_indices` to allow for easier plotting of insertion indices.
+- Add `filename` keyword argument to `NestedSampler.plot_trace`.
+- Added `batch_norm_within_layers` to `NeuralSplineFlow`
 
 ### Changed
 
@@ -31,11 +50,19 @@ tests for this reparameterisation.
 - `nessai.model.Model` now inherits from `abc.ABC` and `log_prior` and `log_likelihood` are now `abstractmethods`. This prevents the class from being used without redefining those methods.
 - Updated `AumgentedFlowProposal` to work with current version of `FlowProposal`
 - Fix random seed unit tests.
+- Improved `FlowProposal.reset` so that all attributes that are changed by calling `draw` are reset.
 - Move `_NSIntegralState` and some functions from `posterior.py` to `evidence.py`
 - `NestedSampler.check_flow_model_reset` will now NOT reset the flow it has never been trained (i.e `proposal.training_count==0`)
 - Moved all legacy gw functions to `nessai/gw/legacy.py` and removed them from the coverage report.
 - Minor improvements to `NestedSampler`
 - Better handling on NaNs in `NestedSampler.populate_live_points`
+- Minor improvements to plotting in `FlowProposal` and moved plotting to separate methods in `FlowProposal`.
+- Switch to using `os.path.join` when joins paths.
+- Improved `FlowProposal.reset`
+- Renamed `FlexibleRealNVP` to `RealNVP`, shouldn't affect most uses since the default way to specify a flow is via strings in `configure_model`.
+- Renamed `nessai.flows.utils.setup_model` to `configure_model`.
+- Renamed `nessai.flows.utils.CustomMLP` to `MLP`
+- Changed default value for `tail_bound` in `NeuralSplineFlow` to 5.
 
 
 ### Fixed
@@ -47,8 +74,19 @@ tests for this reparameterisation.
 - Fix inversion-split with `RescaleToBounds`
 - Fixed `AugmentedGWFlowProposal`.
 - Fixed a bug with `plot_live_points` when the hue parameter (`c`) was constant.
+- Fixed a bug with the reparameterisation `Rescale` when `scale` was set to a negative number.
+- Fixed a bug where `scale` could not be changed in `ToCartesian`.
+- Fixed a error when specifying `NullReparameterisation` (!82)
+- Fix typo in `FlowProposal.set_poolsize_scale` when `acceptance=0`
+- Fixed unintended behaviour when `rescale_parameters` is a list and `boundary_inversion=True`, where the code would try apply inversion to all parameters in `Model.names`.
+- Fixed bug where `z` returned by `FlowProposal.rejection_sampling` was incorrect when using truncation (which is not recommended).
 - Fix `prior_sampling`
-- Fixed a bug with the reparmeterisation `Rescale` when `scale` was set to a negative number.
+- Fixed minor typos in `nessai.proposal.flowproposal.py`
+
+
+### Removed
+
+- Remove "clip" option in `FlowProposal`, this was unused and untested.
 
 
 ## [0.2.4] - 2021-03-08
@@ -154,7 +192,9 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.2.4...HEAD
+
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/mj-will/nessai/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/mj-will/nessai/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/mj-will/nessai/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/mj-will/nessai/compare/v0.2.1...v0.2.2

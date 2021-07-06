@@ -69,7 +69,7 @@ class NeuralSplineFlow(NFlow):
         apply_unconditional_transform=False,
         linear_transform='permutation',
         tails='linear',
-        tail_bound=1.0,
+        tail_bound=5.0,
         base_distribution=None,
         **kwargs
     ):

@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from nflows.transforms.normalization import BatchNorm
 from nflows.transforms.lu import LULinear
 from nflows.transforms.permutations import RandomPermutation
-from nflows.nn.nets import MLP
+from nflows.nn.nets import MLP as NFlowsMLP
 
 
 logger = logging.getLogger(__name__)
@@ -27,18 +27,28 @@ def silu(x):
     return torch.mul(x, torch.sigmoid(x))
 
 
-def setup_model(config):
+def configure_model(config):
     """
     Setup the flow form a configuration dictionary.
     """
-    from .realnvp import FlexibleRealNVP
+    from .realnvp import RealNVP
     from .maf import MaskedAutoregressiveFlow
     from .nsf import NeuralSplineFlow
     from .distributions import MultivariateNormal
     kwargs = {}
-    flows = {'realnvp': FlexibleRealNVP, 'maf': MaskedAutoregressiveFlow,
-             'frealnvp': FlexibleRealNVP, 'spline': NeuralSplineFlow}
-    activations = {'relu': F.relu, 'tanh': F.tanh, 'swish': silu, 'silu': silu}
+    flows = {
+        'realnvp': RealNVP,
+        'maf': MaskedAutoregressiveFlow,
+        'frealnvp': RealNVP,
+        'spline': NeuralSplineFlow,
+        'nsf': NeuralSplineFlow,
+    }
+    activations = {
+        'relu': F.relu,
+        'tanh': F.tanh,
+        'swish': silu,
+        'silu': silu
+    }
 
     k = config.get('kwargs', None)
     if k is not None:
@@ -46,7 +56,7 @@ def setup_model(config):
             try:
                 k['activation'] = activations[k['activation']]
             except KeyError as e:
-                raise RuntimeError(f'Unknown activation function {e}')
+                raise RuntimeError(f'Unknown activation function: {e}')
 
         if 'var' in k and 'distribution' not in k:
             k['distribution'] = MultivariateNormal([config['n_inputs']],
@@ -79,17 +89,17 @@ def setup_model(config):
     else:
         raise RuntimeError("Must specify either 'flow' or 'ftype'.")
 
-    if 'device_tag' in config:
-        if isinstance(config['device_tag'], str):
-            device = torch.device(config['device_tag'])
-
+    device = torch.device(config.get('device_tag', 'cpu'))
+    if device != 'cpu':
         try:
             model.to(device)
         except RuntimeError as e:
             device = torch.device('cpu')
-            logger.warning("Could not send the normailising flow to the "
-                           f"specified device {config['device']} send to CPU "
-                           f"instead. Error raised: {e}")
+            logger.warning(
+                "Could not send the normailising flow to the "
+                f"specified device {config['device']} send to CPU "
+                f"instead. Error raised: {e}"
+            )
     logger.debug('Flow model:')
     logger.debug(model)
 
@@ -122,6 +132,8 @@ def reset_weights(module):
         module.bias.data.zero_()
         module.running_mean.zero_()
         module.running_var.fill_(1)
+    else:
+        logger.warning(f'Could not reset: {module}')
 
 
 def reset_permutations(module):
@@ -142,34 +154,28 @@ def reset_permutations(module):
         module._permutation = torch.randperm(len(module._permutation))
 
 
-class CustomMLP(MLP):
+class MLP(NFlowsMLP):
     """
-    MLP which handles additional kwargs that are supplied by some
-    flow models
+    MLP which can be called with context.
     """
-    def __init__(self, *args, **kwargs):
-        super(CustomMLP, self).__init__(*args, **kwargs)
+    def forward(self, inputs, context=None):
+        """Forward method that allows for kwargs such as context.
 
-    def forward(self, inputs, *args, **kwargs):
-        """Forward method that allows for kwargs such as context"""
-        if inputs.shape[1:] != self._in_shape:
-            raise ValueError(
-                "Expected inputs of shape {}, got {}.".format(
-                    self._in_shape, inputs.shape[1:]
-                )
+        Parameters
+        ----------
+        inputs : :obj:`torch.tensor`
+            Inputs to the MLP
+        context : None
+            Conditional inputs, must be None. Only implemeted to the
+            function is compatible with other methods.
+
+        Raises
+        ------
+        RuntimeError
+            If te context is not None.
+        """
+        if context is not None:
+            raise NotImplementedError(
+                'MLP with conditional inputs is not implemented.'
             )
-
-        inputs = inputs.reshape(-1, np.prod(self._in_shape))
-        outputs = self._input_layer(inputs)
-        outputs = self._activation(outputs)
-
-        for hidden_layer in self._hidden_layers:
-            outputs = hidden_layer(outputs)
-            outputs = self._activation(outputs)
-
-        outputs = self._output_layer(outputs)
-        if self._activate_output:
-            outputs = self._activation(outputs)
-        outputs = outputs.reshape(-1, *self._out_shape)
-
-        return outputs
+        return super().forward(inputs)

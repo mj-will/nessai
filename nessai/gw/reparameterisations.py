@@ -74,6 +74,8 @@ class DistanceReparameterisation(RescaleToBounds):
     kwargs :
         Additional kwargs are parsed to the parent class.
     """
+    requires_bounded_prior = True
+
     def __init__(self, parameters=None, allowed_bounds=['upper'],
                  allow_both=False, converter_kwargs=None, prior=None,
                  prior_bounds=None, **kwargs):

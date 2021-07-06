@@ -11,7 +11,7 @@ import shutil
 import torch
 from torch.nn.utils import clip_grad_norm_
 
-from .flows import setup_model, reset_weights, reset_permutations
+from .flows import configure_model, reset_weights, reset_permutations
 from .plot import plot_loss
 from .utils import FPJSONEncoder, compute_minimum_distances
 
@@ -220,7 +220,7 @@ class FlowModel:
             - Configuring the inference device
         """
         self.update_mask()
-        self.model, self.device = setup_model(self.model_config)
+        self.model, self.device = configure_model(self.model_config)
         logger.debug(f'Training device: {self.device}')
         self.inference_device = torch.device(
             self.model_config.get('inference_device_tag', self.device)

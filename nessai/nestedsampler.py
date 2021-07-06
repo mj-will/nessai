@@ -957,15 +957,41 @@ class NestedSampler:
         else:
             return fig
 
-    def plot_trace(self):
+    def plot_trace(self, filename=None):
         """
-        Make trace plots for the nested samples
+        Make trace plots for the nested samples.
+
+        Parameters
+        ----------
+        filename : str, optional
+            If filename is None, the figure is returned. Else the figure
+            is saved with that file name.
         """
         if self.nested_samples:
-            plot_trace(self.state.log_vols[1:], self.nested_samples,
-                       filename=f'{self.output}/trace.png')
+            fig = plot_trace(self.state.log_vols[1:], self.nested_samples,
+                             filename=filename)
+            return fig
         else:
             logger.warning('Could not produce trace plot. No nested samples!')
+
+    def plot_insertion_indices(self, filename=None, **kwargs):
+        """
+        Make a plot of all the insertion indices.
+
+        Parameters
+        ----------
+        filename : str, optional
+            If filename is None, the figure is returned. Else the figure
+            is saved with that file name.
+        kwargs :
+            Keyword arguments passed to `nessai.plot.plot_indices`.
+        """
+        return plot_indices(
+            self.insertion_indices,
+            self.nlive,
+            filename=filename,
+            **kwargs
+        )
 
     def update_state(self, force=False):
         """
@@ -997,7 +1023,7 @@ class NestedSampler:
                 f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
                 f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
                 f"logLmax: {self.logLmax:.2f}")
-            self.checkpoint(periodic=not force)
+            self.checkpoint(periodic=True)
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
@@ -1010,7 +1036,7 @@ class NestedSampler:
 
             if self.plot:
                 self.plot_state(filename=f'{self.output}/state.png')
-                self.plot_trace()
+                self.plot_trace(filename=f'{self.output}/trace.png')
 
             if self.uninformed_sampling:
                 self.block_acceptance = 0.
@@ -1026,7 +1052,8 @@ class NestedSampler:
         ----------
         periodic : bool
             Indicates if the checkpoint is regular periodic checkpointing
-            or forced by a signal
+            or forced by a signal. If forces by a signal, it will show up on
+            the state plot.
         """
         if not periodic:
             self.checkpoint_iterations += [self.iteration]

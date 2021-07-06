@@ -192,7 +192,7 @@ def test_update_state_force(mock_plot, sampler):
 
     NestedSampler.update_state(sampler, force=True)
 
-    sampler.checkpoint.assert_called_once_with(periodic=False)
+    sampler.checkpoint.assert_called_once_with(periodic=True)
     assert not mock_plot.called
     assert not sampler.called
     sampler.plot_trace.assert_called_once()
