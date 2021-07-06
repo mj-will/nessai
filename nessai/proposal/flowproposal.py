@@ -906,7 +906,7 @@ class FlowProposal(RejectionProposal):
         """Plot the training data and compare to the results"""
         z_training_data, _ = self.forward_pass(self.training_data,
                                                rescale=True)
-        z_gen = np.random.randn(self.training_data.size, self.dims)
+        z_gen, _ = self.flow.sample_latent_space(self.training_data.size)
 
         fig = plt.figure()
         plt.hist(np.sqrt(np.sum(z_training_data ** 2, axis=1)), 'auto')
@@ -1061,8 +1061,7 @@ class FlowProposal(RejectionProposal):
                        for n in self.model.names)).T.all(1)
         return get_subset_arrays(idx, x, *args)
 
-    def forward_pass(self, x, rescale=True, compute_radius=True,
-                     conditional=None):
+    def forward_pass(self, x, rescale=True, compute_radius=True, **kwargs):
         """
         Pass a vector of points through the model
 
@@ -1075,8 +1074,8 @@ class FlowProposal(RejectionProposal):
         compute_radius : bool, optional (True)
             Flag parsed to rescaling for rescaling specific to radius
             computation
-        conditional: array_like, optional
-            Conditional array passed to the flow.
+        kwargs :
+            Keyword arguments passed to `forward_and_log_prob`
 
         Returns
         -------
@@ -1095,8 +1094,7 @@ class FlowProposal(RejectionProposal):
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
-        z, log_prob = self.flow.forward_and_log_prob(
-            x, conditional=conditional)
+        z, log_prob = self.flow.forward_and_log_prob(x, **kwargs)
 
         return z, log_prob + log_J
 
