@@ -162,6 +162,24 @@ class Model(ABC):
             new_points = np.concatenate([new_points, p[np.isfinite(logP)]])
         return new_points
 
+    def in_bounds(self, x):
+        """Check if a set of live point are within the prior bounds.
+
+        Parameters
+        ----------
+        x : :obj:`numpy.ndarray`
+            Structured array of live points. Must contain all of the parameters
+            in the model.
+
+        Returns
+        -------
+        Array of bool
+            Array with the same length as x where True indicates the point
+            is within the prior bounds.
+        """
+        return ~np.any([(x[n] < self.bounds[n][0]) | (x[n] > self.bounds[n][1])
+                        for n in self.names], axis=0)
+
     @abstractmethod
     def log_prior(self, x):
         """
