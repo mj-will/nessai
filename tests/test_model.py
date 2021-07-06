@@ -74,10 +74,13 @@ def test_upper_bounds(model):
 
 
 def test_in_bounds(model):
-    """Test the `in_bounds` method."""
+    """Test the `in_bounds` method.
+
+    Tests both finite and infinite prior bounds.
+    """
     x = numpy_array_to_live_points(np.array([[0.5, 1], [2, 1]]), ['x', 'y'])
     model.names = ['x', 'y']
-    model.bounds = {'x': [0, 1], 'y': [0, 1]}
+    model.bounds = {'x': [0, 1], 'y': [-np.inf, np.inf]}
     val = Model.in_bounds(model, x)
     np.testing.assert_array_equal(val, np.array([True, False]))
 
