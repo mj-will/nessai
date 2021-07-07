@@ -22,6 +22,24 @@ def test_rescaled_dims(proposal):
     assert FlowProposal.rescaled_dims.__get__(proposal) == 2
 
 
+def test_flow_names(proposal):
+    """Test flow_names property.
+
+    Should be the same as rescaled_names by default
+    """
+    proposal.rescaled_names = ['x', 'y']
+    assert FlowProposal.flow_names.__get__(proposal) == ['x', 'y']
+
+
+def test_flow_dims(proposal):
+    """Test the flow_dims propoety.
+
+    Should be the same as rescaled dims by default
+    """
+    proposal.rescaled_dims = 2
+    assert FlowProposal.flow_dims.__get__(proposal) == 2
+
+
 def test_dtype(proposal):
     """Test dims property"""
     proposal.names = ['x', 'y']

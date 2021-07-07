@@ -83,6 +83,22 @@ def test_test_draw(proposal):
     proposal.draw.assert_called_once_with(test_point)
 
 
+def test_test_draw_error(proposal):
+    """
+    Assert an error is raised if the prior values do not match
+    """
+    test_point = {'x': 1, 'y': 2, 'logP': -0.5}
+    new_point = {'x': 3, 'y': 4, 'logP': -1.0}
+    proposal.model = Mock()
+    proposal.model.new_point = MagicMock(return_value=test_point)
+    proposal.model.log_prior = MagicMock(return_value=-0.5)
+    proposal.populate = MagicMock()
+    proposal.draw = MagicMock(return_value=new_point)
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.test_draw(proposal)
+    assert 'Log prior of new point is incorrect!' in str(excinfo.value)
+
+
 @pytest.mark.integration_test
 def test_test_draw_integration(model, tmpdir):
     """Integration test for the test draw method"""

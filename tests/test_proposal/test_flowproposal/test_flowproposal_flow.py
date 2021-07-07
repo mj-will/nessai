@@ -10,6 +10,14 @@ from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import FlowProposal
 
 
+def test_update_flow_config(proposal):
+    """Make sure the number of inputs is correctly updated."""
+    proposal.flow_config = {'model_config': {'n_inputs': 2}}
+    proposal.flow_dims = 1
+    FlowProposal.update_flow_config(proposal)
+    assert proposal.flow_config['model_config']['n_inputs'] == 1
+
+
 def test_reset_model_weights(proposal):
     """Test reseting model weights"""
     proposal.flow = MagicMock()

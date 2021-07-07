@@ -171,7 +171,6 @@ def test_reset(proposal):
     proposal.samples = 2
     proposal.populated = True
     proposal.populated_count = 10
-    proposal._edges = {'x': 2}
     proposal.reset_reparameterisation = Mock()
     FlowProposal.reset(proposal)
     proposal.reset_reparameterisation.assert_called_once()
@@ -182,7 +181,6 @@ def test_reset(proposal):
     assert proposal.r is None
     assert proposal.alt_dist is None
     assert proposal._checked_population
-    assert proposal._edges['x'] is None
 
 
 @pytest.mark.integration_test

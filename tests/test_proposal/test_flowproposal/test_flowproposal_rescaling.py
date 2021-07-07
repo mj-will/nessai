@@ -863,3 +863,26 @@ def test_check_state_update_bounds_reparameterisations(proposal):
 
     FlowProposal.check_state(proposal, x)
     proposal._reparameterisation.update_bounds.assert_called_once()
+
+
+def test_reset_reparameterisation_default_rescaling(proposal):
+    """Assert the min and max are correctly reset"""
+    proposal._reparameterisation = None
+    proposal._min = dict(x=0.1, y=0.2)
+    proposal._max = dict(x=0.9, y=0.8)
+    proposal._edges = dict(x='lower')
+    bounds = dict(x=[-1, 1], y=[-1, 1])
+    proposal.model = Mock()
+    proposal.model.names = ['x', 'y']
+    proposal.model.bounds = bounds
+    FlowProposal.reset_reparameterisation(proposal)
+    assert proposal._min == dict(x=-1, y=-1)
+    assert proposal._max == dict(x=1, y=1)
+    assert proposal._edges == dict(x=None)
+
+
+def test_reset_reparameterisation(proposal):
+    """Assert the reset method is called"""
+    proposal._reparameterisation = MagicMock()
+    FlowProposal.reset_reparameterisation(proposal)
+    proposal._reparameterisation.reset.assert_called_once()

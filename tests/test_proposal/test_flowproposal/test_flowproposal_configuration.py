@@ -78,19 +78,33 @@ def test_configure_plotting(proposal, plot, plot_pool, plot_train):
     assert proposal._plot_training == plot_train
 
 
-@pytest.mark.parametrize('latent_prior, prior_func',
-                         [('gaussian', 'draw_gaussian'),
-                          ('truncated_gaussian', 'draw_truncated_gaussian'),
-                          ('uniform', 'draw_uniform'),
-                          ('uniform_nsphere', 'draw_nsphere'),
-                          ('uniform_nball', 'draw_nsphere')
-                          ])
+@pytest.mark.parametrize(
+    'latent_prior, prior_func',
+    [
+        ('gaussian', 'draw_gaussian'),
+        ('truncated_gaussian', 'draw_truncated_gaussian'),
+        ('uniform', 'draw_uniform'),
+        ('uniform_nsphere', 'draw_nsphere'),
+        ('uniform_nball', 'draw_nsphere')
+    ]
+)
 def test_configure_latent_prior(proposal, latent_prior, prior_func):
     """Test to make sure the correct latent priors are used."""
     proposal.latent_prior = latent_prior
     proposal.flow_config = {'model_config': {}}
     FlowProposal.configure_latent_prior(proposal)
     assert proposal.draw_latent_prior == getattr(utils, prior_func)
+
+
+def test_configure_latent_prior_flow(proposal):
+    """Test to make sure the correct latent priors are used."""
+    proposal._draw_flow = False
+    proposal.latent_prior = 'flow'
+    proposal.flow_config = {'model_config': {}}
+    proposal._draw_flow_latent_prior
+    FlowProposal.configure_latent_prior(proposal)
+    assert proposal.draw_latent_prior == proposal._draw_flow_latent_prior
+    assert proposal._draw_flow is True
 
 
 def test_configure_latent_prior_var(proposal):

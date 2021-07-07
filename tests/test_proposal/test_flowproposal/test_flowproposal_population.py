@@ -258,6 +258,14 @@ def test_get_alt_distribution_uniform(proposal, prior):
     mock.assert_called_once_with(2, 2.4, device='cpu')
 
 
+def test_draw_flow_latent_prior(proposal):
+    """test sampling the flow base distribution"""
+    proposal.flow = Mock()
+    proposal.flow.model.sample_base_distribution = MagicMock()
+    FlowProposal._draw_flow_latent_prior(proposal, 10, N=100, fuzz=1.0)
+    proposal.flow.model.sample_base_distribution.assert_called_once_with(100)
+
+
 def test_radius(proposal):
     """Test computing the radius"""
     z = np.array([[1, 2, 3], [0, 1, 2]])
