@@ -366,16 +366,13 @@ class ConditionalFlowProposal(FlowProposal):
         Specifically this method adds the conditional parameters that are
         also defined in the model back to the output vector.
         """
-        try:
-            x, log_prob = self.flow.sample_and_log_prob(
-                z=z, alt_dist=self.alt_dist, conditional=conditional, **kwargs)
-            x = np.concatenate(
-                [x, conditional[:, self._parameters_in_model_indices]],
-                axis=1
-            )
-            return x, log_prob
-        except AssertionError:
-            return np.array([]), np.array([])
+        x, log_prob = self.flow.sample_and_log_prob(
+            z=z, alt_dist=self.alt_dist, conditional=conditional, **kwargs)
+        x = np.concatenate(
+            [x, conditional[:, self._parameters_in_model_indices]],
+            axis=1
+        )
+        return x, log_prob
 
     def backward_pass(self, z, conditional=None, log_prob=None, **kwargs):
         """

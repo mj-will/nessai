@@ -1104,11 +1104,8 @@ class FlowProposal(RejectionProposal):
         Can be replaces in child classes that require chaging outputs before
         passing them to the rescale functions.
         """
-        try:
-            return self.flow.sample_and_log_prob(
-                z=z, alt_dist=self.alt_dist, **kwargs)
-        except AssertionError:
-            return np.array([]), np.array([])
+        return self.flow.sample_and_log_prob(
+            z=z, alt_dist=self.alt_dist, **kwargs)
 
     def backward_pass(self, z, rescale=True, log_prob=None, **kwargs):
         """
