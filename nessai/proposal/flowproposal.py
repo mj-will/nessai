@@ -1621,6 +1621,8 @@ class FlowProposal(RejectionProposal):
         else:
             self._min = {n: self.model.bounds[n][0] for n in self.model.names}
             self._max = {n: self.model.bounds[n][1] for n in self.model.names}
+            if self._edges:
+                self._edges = {k: None for k in self._edges.keys()}
 
     def reset(self):
         """Reset the proposal"""
@@ -1636,7 +1638,6 @@ class FlowProposal(RejectionProposal):
         self._checked_population = True
         self.acceptance = []
         self.approx_acceptance = []
-        self._edges = {k: None for k in self._edges.keys()}
         self.worst_logL = None
         self.reset_reparameterisation()
 
