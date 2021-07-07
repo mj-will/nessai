@@ -291,7 +291,9 @@ class Model(ABC):
                         'Could not draw valid point from within the prior '
                         'after 10000 tries, check the log prior function.')
         else:
-            logger.warning('Model has infinite bounds(s)')
+            logger.warning(
+                'Model has infinite bounds(s) or categorical parameters'
+            )
             logger.warning('Testing with `new_point`')
             try:
                 x = self.new_point(1)

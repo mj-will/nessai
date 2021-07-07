@@ -150,6 +150,11 @@ class NestedSampler:
 
         self.info_enabled = logger.isEnabledFor(logging.INFO)
 
+        categorical_parameters = kwargs.get('categorical_parameters', None)
+        if categorical_parameters is not None:
+            if model.categorical_parameters is not None:
+                logger.warning('Categorical parameters already set in model')
+            model.categorical_parameters = categorical_parameters
         model.verify_model()
 
         self.model = model
