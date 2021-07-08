@@ -31,10 +31,10 @@ class DistanceConverter:
 
 
 class NullDistanceConverter(DistanceConverter):
-
+    """Converter that applies the identity transformation."""
     has_Jacobian = True
 
-    def __init__(self, d_min=None, d_max=None, **kwargs):
+    def __init__(self, **kwargs):
         if kwargs:
             logger.warning(f'Kwargs {kwargs} will be ignored for distance')
 
@@ -42,7 +42,7 @@ class NullDistanceConverter(DistanceConverter):
         return d, np.zeros_like(d)
 
     def from_uniform_parameter(self, d):
-        return d. np.zeros_like(d)
+        return d, np.zeros_like(d)
 
 
 class PowerLawConverter(DistanceConverter):
