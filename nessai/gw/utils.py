@@ -112,6 +112,7 @@ class ComovingDistanceConverter(DistanceConverter):
         Units used for the distance, must be compatible with astropy units.
     cosomology : str, optional
         Cosmology used for conversion, must be compatible with astropy.
+        Default is Planck15.
     scale : float, optional
         Rescaling applied to distance after converting to comoving distance.
     pad : float, optional
@@ -126,8 +127,16 @@ class ComovingDistanceConverter(DistanceConverter):
     def __init__(self, d_min=None, d_max=None, units='Mpc',
                  cosmology='Planck15', scale=1000.0, pad=0.05, n_interp=500):
         self.units = u.Unit(units)
-        # TODO: this needs to update with bilby
-        self.cosmology = cosmo.Planck15
+        try:
+            self.cosmology = getattr(cosmo, cosmology)
+            logger.info(f'Using cosmology: {cosmology}')
+        except AttributeError:
+            raise RuntimeError(
+                f'Could not get specified cosmology ({cosmology}) from '
+                '`astropy.cosmology`. Avaiable cosmologies are: '
+                f'{cosmo.parameters.available}. See astropy documentation '
+                'for more details.'
+            )
         self.scale = np.float64(scale)
         self.pad = pad
         self.n_interp = n_interp
@@ -139,10 +148,10 @@ class ComovingDistanceConverter(DistanceConverter):
 
         self.dc_min = self.cosmology.comoving_distance(cosmo.z_at_value(
             self.cosmology.luminosity_distance, self.dl_min * self.units)
-            ).value
+        ).value
         self.dc_max = self.cosmology.comoving_distance(cosmo.z_at_value(
             self.cosmology.luminosity_distance, self.dl_max * self.units)
-            ).value
+        ).value
 
         logger.debug('Making distance look up table')
 
@@ -161,7 +170,10 @@ class ComovingDistanceConverter(DistanceConverter):
                 np.zeros_like(dl))
 
     def from_uniform_parameter(self, dc):
-        """Convert comoving distance to a parameter with a uniform prior"""
+        """Convert from a uniform parameter to luminosity distance.
+
+        The uniform parameter is a scaled version of the comoving distance.
+        """
         return (interpolate.splev(self.scale * np.cbrt(dc),
                                   self.interp_dc2dl, ext=3),
                 np.zeros_like(dc))
