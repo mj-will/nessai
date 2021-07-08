@@ -4,10 +4,41 @@ Test the distance converter classes.
 import numpy as np
 import pytest
 from scipy import stats
+from unittest.mock import create_autospec
 
 from nessai.gw.utils import (
-    PowerLawConverter,
-    )
+    NullDistanceConverter,
+    PowerLawConverter
+)
+
+
+@pytest.fixture
+def null_converter():
+    create_autospec(NullDistanceConverter)
+
+
+def test_null_converter_init(null_converter, caplog):
+    """Test the null distance converter init"""
+    NullDistanceConverter.__init__(null_converter, d_min=10)
+    assert "Kwargs {'d_min': 10} will be ignored" in caplog.text
+
+
+def test_null_converter_to_uniform(null_converter):
+    """Test the null distance converter to uniform"""
+    d = np.arange(10)
+    d_out, log_j = \
+        NullDistanceConverter.to_uniform_parameter(null_converter, d)
+    np.testing.assert_array_equal(d_out, d)
+    np.testing.assert_equal(log_j, 0)
+
+
+def test_null_converter_from_uniform(null_converter):
+    """Test the null distance converter from uniform"""
+    d = np.arange(10)
+    d_out, log_j = \
+        NullDistanceConverter.from_uniform_parameter(null_converter, d)
+    np.testing.assert_array_equal(d_out, d)
+    np.testing.assert_equal(log_j, 0)
 
 
 @pytest.mark.parametrize('power', [1, 2, 3, 4])
