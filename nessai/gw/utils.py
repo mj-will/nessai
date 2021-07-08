@@ -52,14 +52,15 @@ class PowerLawConverter(DistanceConverter):
     """Convert from a distance parameter sample from a power law to a uniform
     parameter
 
-    Assumes d proportional d^power.
+    Assumes d proportional to :math:`d^{(\\text{power} + 1)}` following the \
+        convention in Bilby.
 
     Parameters
     ----------
     power : float
         Power to use for the power-law.
     scale : float
-        Factor used to rescale distance prior to convetering to the uniform
+        Factor used to rescale distance prior to converting to the uniform
         parameter.
     """
     has_conversion = True
@@ -68,7 +69,8 @@ class PowerLawConverter(DistanceConverter):
     def __init__(self, power=None, scale=1000.0, **kwargs):
         if power is None:
             raise RuntimeError(
-                'Must specify the power to use in the power-law')
+                'Must specify the power to use in the power-law'
+            )
         self.power = power
         self.scale = scale
         self._power = self.power + 1
