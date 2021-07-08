@@ -2,6 +2,7 @@
 """
 Utilities specific to the gw subpackage.
 """
+from abc import ABC, abstractmethod
 import logging
 import numpy as np
 from scipy import interpolate
@@ -16,16 +17,18 @@ except ImportError:
         'Could not import astropy, running with reduced functionality')
 
 
-class DistanceConverter:
+class DistanceConverter(ABC):
     """Base object for converting from a distance parameter to a uniform
     parameter.
     """
     has_conversion = False
     has_Jacobian = False
 
+    @abstractmethod
     def to_uniform_parameter(self, d):
         raise NotImplementedError
 
+    @abstractmethod
     def from_uniform_parameter(self, d):
         raise NotImplementedError
 
