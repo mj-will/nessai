@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `in_bounds`, `parameter_in_bounds` and `sample_parameter` methods to `nessai.model.Model`.
+- Implemented the option to specify the cosmology in `nessai.gw.utils.ComovingDistanceConverter` using `astropy`. Previously changing the value had no effect of the transformation.
+
+
+### Changed
+
+- `nessai.gw.utils.DistanceConverter` now inherits from `abc.ABC` and `to_uniform_parameter` and `from_uniform_parameter` are both abstract methods.
+
+
+### Fixed
+
+- Fixed a typo in `nessai.gw.utils.NullDistanceConverter.from_uniform_parameter` that broke the method.
 
 
 ## [0.3.0] Testing, testing and more testing - 2021-07-05
