@@ -1061,7 +1061,8 @@ class FlowProposal(RejectionProposal):
                        for n in self.model.names)).T.all(1)
         return get_subset_arrays(idx, x, *args)
 
-    def forward_pass(self, x, rescale=True, compute_radius=True, **kwargs):
+    def forward_pass(self, x, rescale=True, compute_radius=True, log_prob=None,
+                     **kwargs):
         """
         Pass a vector of points through the model
 
@@ -1074,6 +1075,9 @@ class FlowProposal(RejectionProposal):
         compute_radius : bool, optional (True)
             Flag parsed to rescaling for rescaling specific to radius
             computation
+        log_prob : array_like, optional
+            Log probabilites of the points. The log Jacobian determinant and
+            latent log probability will be added to this value.
         kwargs :
             Keyword arguments passed to `forward_and_log_prob`
 
@@ -1085,18 +1089,21 @@ class FlowProposal(RejectionProposal):
             Log probabilties corresponding to each sample (including the
             jacobian)
         """
-        log_J = 0
+        if log_prob is None:
+            log_prob = np.zeros(x.size)
         if rescale:
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
-            log_J += log_J_rescale
+            if not log_prob.size == log_J_rescale.size:
+                log_prob = np.concatenate([log_prob, log_prob])
+            log_prob += log_J_rescale
 
         x = live_points_to_array(x, names=self.flow_names)
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
-        z, log_prob = self.flow.forward_and_log_prob(x, **kwargs)
-
-        return z, log_prob + log_J
+        z, log_prob_flow = self.flow.forward_and_log_prob(x, **kwargs)
+        log_prob += log_prob_flow
+        return z, log_prob
 
     def _backward_pass(self, z, **kwargs):
         """Call to the flow.
