@@ -236,25 +236,6 @@ def test_comoving_vol_from_uniform(comoving_vol_converter):
     assert lj == 0
 
 
-@pytest.mark.parametrize('cosmology', ['Planck15', 'WMAP7'])
-@pytest.mark.integration_test
-def test_comoving_distance_converter_integration(cosmology):
-    """Integration test for the comoving distance prior converter."""
-    cdc = ComovingDistanceConverter(
-        d_min=10,
-        d_max=1000,
-        cosmology=cosmology,
-        scale=100,
-        n_interp=10
-    )
-    u, lju = cdc.to_uniform_parameter(500)
-    dl, ljd = cdc.to_uniform_parameter(500)
-    assert u is not None
-    assert dl is not None
-    assert lju == 0
-    assert ljd == 0
-
-
 @pytest.mark.parametrize(
     'prior, cls',
     [
@@ -296,3 +277,41 @@ def test_power_law_converter_inversion(power):
     y, _ = c.to_uniform_parameter(x)
     x_out, _ = c.from_uniform_parameter(y)
     np.testing.assert_array_almost_equal(x, x_out)
+
+
+@pytest.mark.parametrize('cosmology', ['Planck15', 'WMAP7'])
+@pytest.mark.integration_test
+def test_comoving_distance_converter_integration(cosmology):
+    """Integration test for the comoving distance prior converter."""
+    cdc = ComovingDistanceConverter(
+        d_min=10,
+        d_max=1000,
+        cosmology=cosmology,
+        scale=100,
+        n_interp=10
+    )
+    u, lju = cdc.to_uniform_parameter(500)
+    dl, ljd = cdc.from_uniform_parameter(500)
+    assert u is not None
+    assert dl is not None
+    assert lju == 0
+    assert ljd == 0
+
+
+@pytest.mark.parametrize('cosmology', ['Planck15', 'WMAP7'])
+@pytest.mark.parametrize('scale', [1, 1000])
+@pytest.mark.parametrize('n_interp', [200, 500])
+@pytest.mark.integration_test
+def test_comoving_distance_converter_inversion(cosmology, scale, n_interp):
+    """Integration test to verify the conversion is invertible."""
+    cdc = ComovingDistanceConverter(
+        d_min=100,
+        d_max=5000,
+        cosmology=cosmology,
+        scale=scale,
+        n_interp=n_interp
+    )
+    dl = np.random.uniform(100, 5000, 100)
+    u, _ = cdc.to_uniform_parameter(dl)
+    dl_out, _ = cdc.from_uniform_parameter(u)
+    np.testing.assert_array_almost_equal(dl, dl_out)
