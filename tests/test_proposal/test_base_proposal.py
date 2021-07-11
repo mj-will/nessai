@@ -39,6 +39,14 @@ def test_init(proposal):
     assert proposal.logl_eval_time.total_seconds() == 0
 
 
+def test_init_with_draw():
+    """Assert an error is raised if `draw` is not implemented."""
+    model = Mock()
+    with pytest.raises(TypeError) as excinfo:
+        Proposal(model)
+    assert "class Proposal with abstract methods draw" in str(excinfo.value)
+
+
 def test_initialised(proposal):
     """Test the initalised property"""
     proposal._initialised = True
