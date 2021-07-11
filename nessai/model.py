@@ -234,6 +234,12 @@ class Model:
         """
         return self.evaluate_log_likelihood(x)
 
+    async def async_log_likelihood(self, x):
+        """
+        Co-routine for evaluating log likelihood
+        """
+        return self.log_likelihood(x)
+
     def evaluate_log_likelihood(self, x):
         """
         Evaluate the log-likelihood and track the number of calls.
