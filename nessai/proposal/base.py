@@ -2,6 +2,7 @@
 """
 Base object for all proposal classes.
 """
+from abc import ABC, abstractmethod
 import datetime
 import logging
 
@@ -23,7 +24,7 @@ def _log_likelihood_wrapper(x):
     return _model.evaluate_log_likelihood(x)
 
 
-class Proposal:
+class Proposal(ABC):
     """
     Base proposal object
 
@@ -121,6 +122,7 @@ class Proposal:
 
         self.logl_eval_time += (datetime.datetime.now() - st)
 
+    @abstractmethod
     def draw(self, old_param):
         """
         New a new point given the old point
