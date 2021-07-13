@@ -101,7 +101,9 @@ def test_uninformed_proposal_class(sampler):
     from nessai.proposal.base import Proposal
 
     class TestProposal(Proposal):
-        pass
+
+        def draw(self, point):
+            pass
 
     NestedSampler.configure_uninformed_proposal(
         sampler, TestProposal, False, None, None)
