@@ -35,7 +35,7 @@ def test_poolsize(proposal):
 @pytest.mark.parametrize('pool', [None, True])
 @pytest.mark.parametrize('N', [None, 5])
 def test_populate(proposal, pool, N):
-    """Test the population process"""
+    """Test the populate process"""
     poolsize = 10
     if N is None:
         samples = numpy_array_to_live_points(
@@ -120,7 +120,7 @@ def test_draw_intergration(model):
 
 @pytest.mark.integration_test
 def test_populate_integration(model):
-    """Integration test for the populate methdo"""
+    """Integration test for the populate method"""
     proposal = AnalyticProposal(model)
     N = 500
     proposal.populate(N=N)
