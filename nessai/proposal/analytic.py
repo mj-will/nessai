@@ -10,11 +10,20 @@ from .base import Proposal
 
 
 class AnalyticProposal(Proposal):
-    """
-    Class for drawing samples from analytic priors.
+    """Class for drawing samples from analytic priors.
 
-    This assumes the `new_point` method of the model draws points
-    from the prior
+    Will be used when ``nessai`` is called with ``analytic_priors=True`` and
+    assumes the :py:meth:`nessai.model.Model.new_point` samples directly
+    from the prior. This method must be implemented by the user.
+
+    Parameters
+    ----------
+    args :
+        Arguments passed to the parent class.
+    poolsize : int, optional
+        Number of points drawn at once.
+    kwargs :
+        Keyword arguments passed to the parent class.
     """
     def __init__(self, *args, poolsize=1000, **kwargs):
         super(AnalyticProposal, self).__init__(*args, **kwargs)
@@ -28,7 +37,16 @@ class AnalyticProposal(Proposal):
 
     def populate(self, N=None):
         """
-        Populate the pool by drawing from the priors
+        Populate the pool by drawing from the priors.
+
+        Will also evaluate the likelihoods if the proposal contains a
+        multiprocessing pool.
+
+        Parameters
+        ----------
+        N : int, optional
+            Number of samples to draw. If not specified ``poolsize`` will be
+            used.
         """
         if N is None:
             N = self.poolsize
@@ -49,7 +67,8 @@ class AnalyticProposal(Proposal):
         old_sample : structured_array
             Old sample, this is not used in the proposal method
         kwargs :
-            Keyword arguments passed to ``populate``.
+            Keyword arguments passed to \
+                :py:meth:`~nessai.proposal.analytic.AnalyticProposal.populate`
         """
         if not self.populated:
             st = datetime.datetime.now()
