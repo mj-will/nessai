@@ -146,6 +146,7 @@ def test_power_law_from_uniform_parameter(power_law_converter):
     assert lj == -2
 
 
+@pytest.mark.requires('astropy')
 def test_comoving_vol_init(comoving_vol_converter):
     """Test the init method"""
     d_min = 100
@@ -194,6 +195,7 @@ def test_comoving_vol_init(comoving_vol_converter):
     assert comoving_vol_converter.interp_dl2dc == 'dl2dc'
 
 
+@pytest.mark.requires('astropy')
 def test_comoving_vol_init_invalid_cosmology(comoving_vol_converter):
     """Test the init method when an invalid cosmology is given"""
     with pytest.raises(RuntimeError) as excinfo:
@@ -279,6 +281,7 @@ def test_power_law_converter_inversion(power):
     np.testing.assert_array_almost_equal(x, x_out)
 
 
+@pytest.mark.requires('astropy')
 @pytest.mark.parametrize('cosmology', ['Planck15', 'WMAP7'])
 @pytest.mark.integration_test
 def test_comoving_distance_converter_integration(cosmology):
@@ -298,6 +301,7 @@ def test_comoving_distance_converter_integration(cosmology):
     assert ljd == 0
 
 
+@pytest.mark.requires('astropy')
 @pytest.mark.parametrize('cosmology', ['Planck15', 'WMAP7'])
 @pytest.mark.parametrize('scale', [1, 1000])
 @pytest.mark.parametrize('n_interp', [200, 500])
