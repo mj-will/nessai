@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `nessai.gw.utils.DistanceConverter` now inherits from `abc.ABC` and `to_uniform_parameter` and `from_uniform_parameter` are both abstract methods.
 - `nessai.proposal.rejection.RejectionProposal` now inherits from `nessai.proposal.analytic.AnalyticProposal`. Functionality is the same but the code will be easier to maintain since this removes several methods that were identical.
 - `nessai.proposal.base.Proposal` now inherits from `abc.ABC` and `draw` is an abstract method.
+- Refactor `nessai.utils` into a submodule.
 
 
 ### Fixed
