@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Utilities related to managing threads used by nessai.
 """
@@ -9,13 +10,16 @@ logger = logging.getLogger(__name__)
 
 
 def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
-    """
-    Configure the number of threads available. This is necessary when using
-    PyTorch on the CPU as by default it will use all available threads.
+    """Configure the number of threads available.
+
+    This is necessary when using PyTorch on the CPU as by default it will use
+    all available threads.
+
     Notes
     -----
     Uses ``torch.set_num_threads``. If pytorch threads is None but other
-    arguments are specified them the value is inferred from them.
+    arguments are specified then the value is inferred from them.
+
     Parameters
     ----------
     max_threads: int, optional
@@ -30,16 +34,19 @@ def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
         if pytorch_threads is not None and pytorch_threads > max_threads:
             raise RuntimeError(
                 f'More threads assigned to PyTorch ({pytorch_threads}) '
-                f'than are available ({max_threads})')
+                f'than are available ({max_threads})'
+            )
         if n_pool is not None and n_pool >= max_threads:
             raise RuntimeError(
                 f'More threads assigned to pool ({n_pool}) than are '
-                f'available ({max_threads})')
+                f'available ({max_threads})'
+            )
         if (n_pool is not None and pytorch_threads is not None and
                 (pytorch_threads + n_pool) > max_threads):
             raise RuntimeError(
                 f'More threads assigned to PyTorch ({pytorch_threads}) '
-                f'and pool ({n_pool})than are available ({max_threads})')
+                f'and pool ({n_pool}) than are available ({max_threads})'
+            )
 
     if pytorch_threads is None:
         if max_threads is not None:
