@@ -12,8 +12,7 @@ from ..livepoint import live_points_to_dict
 
 
 def is_jsonable(x):
-    """
-    Check if an object is JSON serialisable.
+    """Check if an object is JSON serialisable.
 
     Based on: https://stackoverflow.com/a/53112659
 
@@ -35,8 +34,7 @@ def is_jsonable(x):
 
 
 class NessaiJSONEncoder(json.JSONEncoder):
-    """
-    Class to encode numpy arrays and other non-serialisable objects.
+    """Class to encode numpy arrays and other non-serialisable objects.
 
     Based on: https://stackoverflow.com/a/57915246.
 
@@ -63,7 +61,7 @@ class NessaiJSONEncoder(json.JSONEncoder):
 
 
 def safe_file_dump(data, filename, module, save_existing=False):
-    """Safely dump data to a .pickle file
+    """Safely dump data to a .pickle file.
 
     See Bilby for the original impletmentation:
     https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
@@ -91,8 +89,7 @@ def safe_file_dump(data, filename, module, save_existing=False):
 
 
 def save_live_points(live_points, filename):
-    """
-    Save live points to a file using JSON.
+    """Save live points to a file using JSON.
 
     Live points are converted to a dictionary and then saved.
 
