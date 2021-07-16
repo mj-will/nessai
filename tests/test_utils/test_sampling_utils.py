@@ -5,11 +5,14 @@ Test utilities for sampling in the latent space.
 import numpy as np
 import pytest
 from scipy import stats
+from unittest.mock import patch
 
 from nessai.utils.sampling import (
+    draw_gaussian,
     draw_nsphere,
     draw_surface_nsphere,
     draw_truncated_gaussian,
+    draw_uniform,
 )
 
 
@@ -37,6 +40,24 @@ def test_draw_nball(ndims, radius):
     assert out.shape[0] == 1000
     assert out.shape[1] == ndims
     np.testing.assert_array_less(np.sqrt(np.sum(out ** 2, axis=-1)), radius)
+
+
+def test_draw_uniform():
+    """Assert the underlying numpy function is called correctly."""
+    expected = np.array([0.5, 1])
+    with patch('numpy.random.uniform', return_value=expected) as mock:
+        out = draw_uniform(2, r=1, N=100, fuzz=2)
+    mock.assert_called_once_with(0, 1, (100, 2))
+    np.testing.assert_array_equal(out, expected)
+
+
+def test_draw_gaussian():
+    """Assert the underlying numpy function is called correctly."""
+    expected = np.array([1, 2])
+    with patch('numpy.random.randn', return_value=expected) as mock:
+        out = draw_gaussian(2, r=1, N=100, fuzz=2)
+    mock.assert_called_once_with(100, 2)
+    np.testing.assert_array_equal(out, expected)
 
 
 @pytest.mark.parametrize(
