@@ -34,7 +34,7 @@ from .sampling import (
     draw_truncated_gaussian,
     draw_uniform
 )
-from .spatial import compute_minimum_distances
+from .distance import compute_minimum_distances
 from .structures import replace_in_list
 from .threading import configure_threads
 
