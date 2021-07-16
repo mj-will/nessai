@@ -6,7 +6,7 @@ Utilities for manipulating python structures such as lists and dictionaries.
 
 def replace_in_list(target_list, targets, replacements):
     """
-    Replace (in place) an entry in a list with a given element
+    Replace (in place) an entry in a list with a given element.
 
     Parameters
     ----------
@@ -18,15 +18,12 @@ def replace_in_list(target_list, targets, replacements):
         List of replacement items
     """
     if not isinstance(targets, list):
-        if isinstance(targets, int):
-            targets = [targets]
-        else:
-            targets = list(targets)
+        targets = [targets]
     if not isinstance(replacements, list):
-        if isinstance(replacements, int):
-            replacements = [replacements]
-        else:
-            replacements = list(replacements)
+        replacements = [replacements]
+
+    if not len(targets) == len(replacements):
+        raise RuntimeError('Targets and replacements are different lengths!')
 
     if not all([t in target_list for t in targets]):
         raise ValueError(f'Targets {targets} not in list: {target_list}')
