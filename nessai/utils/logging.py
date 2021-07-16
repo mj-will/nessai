@@ -27,7 +27,7 @@ def setup_logger(output=None, label='nessai', log_level='INFO'):
     :obj:`logging.Logger`
         Instance of the Logger class.
     """
-    from . import __version__ as version
+    from .. import __version__ as version
     if type(log_level) is str:
         try:
             level = getattr(logging, log_level.upper())
