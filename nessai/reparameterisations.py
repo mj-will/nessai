@@ -805,11 +805,18 @@ class RescaleToBounds(Reparameterisation):
         """Update the prior bounds used for the prime prior"""
         if self.has_prime_prior:
             self.prime_prior_bounds = \
-                {pp: self.post_rescaling(np.asarray(determine_rescaled_bounds(
-                    self.prior_bounds[p][0], self.prior_bounds[p][1],
-                    self.bounds[p][0], self.bounds[p][1], self._edges[p],
-                    self.offsets[p], rescale_bounds=self.rescale_bounds[p],
-                    inversion=p in self.boundary_inversion)))[0]
+                {pp: self.post_rescaling(np.asarray(
+                        determine_rescaled_bounds(
+                            self.prior_bounds[p][0],
+                            self.prior_bounds[p][1],
+                            self.bounds[p][0],
+                            self.bounds[p][1],
+                            invert=self._edges[p],
+                            inversion=p in self.boundary_inversion,
+                            offset=self.offsets[p],
+                            rescale_bounds=self.rescale_bounds[p]
+                        )
+                    ))[0]
                  for p, pp in zip(self.parameters, self.prime_parameters)}
             logger.debug(f'New prime bounds: {self.prime_prior_bounds}')
 
