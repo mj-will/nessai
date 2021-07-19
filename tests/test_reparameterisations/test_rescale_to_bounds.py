@@ -4,9 +4,15 @@ Test the RescaleToBound class.
 """
 import numpy as np
 import pytest
+from unittest.mock import create_autospec
 
 from nessai.reparameterisations import RescaleToBounds
-from nessai.livepoint import get_dtype
+from nessai.livepoint import get_dtype, numpy_array_to_live_points
+
+
+@pytest.fixture
+def reparam():
+    return create_autospec(RescaleToBounds)
 
 
 @pytest.fixture()
@@ -69,3 +75,41 @@ def test_boundary_inversion(reparameterisation, assert_invertibility,
     reparam = reparameterisation({'boundary_inversion': boundary_inversion})
 
     assert assert_invertibility(reparam)
+
+
+def test_set_bounds(reparam):
+    """Test the set bounds method."""
+    reparam.parameters = ['x']
+    reparam.rescale_bounds = {'x': np.array([-1, 1])}
+    reparam.pre_rescaling = lambda x: (x / 2, np.zeros_like(x))
+    reparam.offsets = {'x': 1}
+    RescaleToBounds.set_bounds(reparam, {'x': np.array([-10, 10])})
+    np.testing.assert_array_equal(reparam.pre_prior_bounds['x'], [-5, 5])
+    np.testing.assert_array_equal(reparam.bounds['x'], [-6, 4])
+
+
+@pytest.mark.integration_test
+def test_update_prime_prior_bounds_integration():
+    """Assert the prime prior bounds are correctly computed"""
+    rescaling = (
+        lambda x: (x / 2, np.zeros_like(x)),
+        lambda x: (2 * x, np.zeros_like(x)),
+    )
+    reparam = RescaleToBounds(
+        parameters=['x'], prior_bounds=[1000, 1001], prior='uniform',
+        pre_rescaling=rescaling, offset=True,
+    )
+    np.testing.assert_equal(reparam.offsets['x'], 500.25)
+    np.testing.assert_array_equal(reparam.prior_bounds['x'], [1000, 1001])
+    np.testing.assert_array_equal(reparam.pre_prior_bounds['x'], [500, 500.5])
+    np.testing.assert_array_equal(reparam.bounds['x'], [-0.25, 0.25])
+    np.testing.assert_array_equal(
+        reparam.prime_prior_bounds['x_prime'], [-1, 1]
+    )
+
+    x_prime = numpy_array_to_live_points(
+        np.array([[-2], [-1], [0.5], [1], [10]]), ['x_prime']
+    )
+    log_prior = reparam.x_prime_log_prior(x_prime)
+    expected = np.array([-np.inf, 0, 0, 0, -np.inf])
+    np.testing.assert_equal(log_prior, expected)
