@@ -14,6 +14,10 @@ def teardown_function():
     logger = logging.getLogger('nessai')
     logger.handlers = []
     logger.addHandler(logging.NullHandler())
+    try:
+        os.remove('test.log')
+    except OSError:
+        pass
 
 
 def test_setup_logger_no_label():
