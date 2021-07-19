@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed a typo in `nessai.gw.utils.NullDistanceConverter.from_uniform_parameter` that broke the method.
+- Fixed a bug in `nessai.reparameterisations.RescaleToBounds` when using `offset=True` and `pre_rescaling` where the prime prior bounds were incorrectly set.
 
 
 ## [0.3.0] Testing, testing and more testing - 2021-07-05
