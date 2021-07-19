@@ -204,9 +204,16 @@ def configure_edge_detection(d, detect_edges):
     return default
 
 
-def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
-                              offset=0, rescale_bounds=[-1, 1],
-                              inversion=False):
+def determine_rescaled_bounds(
+    prior_min,
+    prior_max,
+    x_min,
+    x_max,
+    invert=None,
+    inversion=False,
+    offset=0,
+    rescale_bounds=[-1, 1]
+):
     """
     Determine the values of the prior min and max in the rescaled
     space.
@@ -221,16 +228,34 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
         New minimum.
     x_max : float
         New maximum.
-    invert : False or {'upper', 'lower', 'both'}
-        Type of inversion.
+    invert : False or {'upper', 'lower', 'both'}, optional
+        Type of inversion. `inversion` must also be set to True.
+    inversion : bool, optional
+        Indicate if the rescaling bounds have been set for inversion. If True
+        and invert is None or False, then the rescale bounds are assumed to
+        be [-1, 1] rather than [0, 1] (the default for inverted parameters.)
+    offset : float, optional
+        Offset to subtract from the values prior to rescaling.
+    rescaled_bounds : list or tuple
+        Lower and upper bound which x has been rescaled to. In inversion=True,
+        these values are ignored to match behaviour in the \
+            :py:class:`~nessai.reparameterisations.RescaleToBounds`.
     """
     if x_min == x_max:
-        raise RuntimeError('New minimum and maximum are equal')
-    scale = rescale_bounds[1] - rescale_bounds[0]
-    shift = rescale_bounds[0]
+        raise ValueError('New minimum and maximum are equal')
+    if not inversion:
+        scale = rescale_bounds[1] - rescale_bounds[0]
+        shift = rescale_bounds[0]
+    else:
+        scale = 1.0
+        shift = 0.0
     lower = scale * (prior_min - offset - x_min) / (x_max - x_min) + shift
     upper = scale * (prior_max - offset - x_min) / (x_max - x_min) + shift
     if not inversion:
+        if invert:
+            logger.warning(
+                '`invert` is not False or None, but `inversion=False`'
+            )
         return lower, upper
     elif (not invert or invert is None):
         return 2 * lower - 1, 2 * upper - 1
@@ -241,7 +266,7 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert,
     elif invert == 'both':
         return -0.5, 1.5
     else:
-        raise RuntimeError
+        raise ValueError(f'Invalid value for `invert`: {invert}')
 
 
 def logit(x, fuzz=1e-2):
