@@ -158,7 +158,12 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
         if b not in allowed_bounds:
             bounds.pop(i)
             bounds_fraction = np.delete(bounds_fraction, i)
-    if max_idx <= n and 'lower' in bounds:
+
+    if (np.all(bounds_fraction > cutoff * max_density) and allow_both and
+            len(bounds) > 1):
+        logger.debug('Both bounds above cutoff')
+        return 'both'
+    elif max_idx < n and 'lower' in bounds:
         return bounds[0]
     elif max_idx >= (len(bins) - n) and 'upper' in bounds:
         return bounds[-1]
@@ -166,12 +171,8 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
         logger.debug('Density too low at both bounds')
         return False
     else:
-        if (np.all(bounds_fraction > cutoff * max_density) and allow_both and
-                len(bounds) > 1):
-            logger.debug('Both bounds above cutoff')
-            return 'both'
-        else:
-            return bounds[np.argmax(bounds_fraction)]
+        logger.debug('No bound prefered, returning bound with higher density')
+        return bounds[np.argmax(bounds_fraction)]
 
 
 def configure_edge_detection(d, detect_edges):
