@@ -14,7 +14,7 @@ from . import __version__ as version
 from .livepoint import live_points_to_dict
 from .nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
-from .utils import FPJSONEncoder, configure_threads
+from .utils import NessaiJSONEncoder, configure_threads
 
 
 logger = logging.getLogger(__name__)
@@ -148,11 +148,11 @@ class FlowSampler:
         d = kwargs.copy()
         with open(f'{self.output}/config.json', 'w') as wf:
             try:
-                json.dump(d, wf, indent=4, cls=FPJSONEncoder)
+                json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
             except TypeError:
                 if 'flow_class' in d:
                     d['flow_class'] = str(d['flow_class'])
-                    json.dump(d, wf, indent=4, cls=FPJSONEncoder)
+                    json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
             except Exception as e:
                 raise e
 
@@ -199,7 +199,7 @@ class FlowSampler:
                 self.ns.likelihood_evaluation_time.total_seconds()
 
         with open(filename, 'w') as wf:
-            json.dump(d, wf, indent=4, cls=FPJSONEncoder)
+            json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
 
     def safe_exit(self, signum=None, frame=None):
         """

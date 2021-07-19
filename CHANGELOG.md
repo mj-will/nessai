@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `nessai.proposal.rejection.RejectionProposal` now inherits from `nessai.proposal.analytic.AnalyticProposal`. Functionality is the same but the code will be easier to maintain since this removes several methods that were identical.
 - `nessai.proposal.base.Proposal` now inherits from `abc.ABC` and `draw` is an abstract method.
 - `noise_scale='adaptive'` option in `FlowModel` now correctly uses a standard deviation of 0.2 times the mean nearest neighbour separation as described in [Moss 2019](https://arxiv.org/abs/1903.10860). Note that this feature is disabled by default, so this does not change the default behaviour.
+- Refactor `nessai.utils` into a submodule.
+- Change behaviour of `determine_rescaled_bounds` so that `rescale_bounds` is ignored when `inversion=True`. This matches the behaviour in `RescaledToBounds` where when boundary inversion is enabled, values are rescaled to $[0, 1]$ and then if no inversion if applied, changed to $[-1, 1]$.
+- Tweaked `detect_edges` so that `both` is returned in cases where the lower and upper regions contain zero probability.
 
 
 ### Fixed
