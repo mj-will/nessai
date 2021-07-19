@@ -444,7 +444,7 @@ class FlowModel:
             val_size = self.val_size
 
         if self.noise_scale == 'adaptive':
-            noise_scale = 0.1 * np.std(compute_minimum_distances(samples))
+            noise_scale = 0.2 * np.mean(compute_minimum_distances(samples))
             logger.debug(f'Using adaptive scale: {noise_scale:.3f}')
         else:
             noise_scale = self.noise_scale
