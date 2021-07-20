@@ -39,6 +39,8 @@ class PyroFlow(BaseFlow):
         z = x
         for transform in reversed(self._flow_dist.transforms):
             x = transform.inv(z)
+            event_dim += transform.domain.event_dim - \
+                transform.codomain.event_dim
             log_jacobian = log_jacobian - \
                 _sum_rightmost(transform.log_abs_det_jacobian(x, z),
                                event_dim - transform.event_dim)
@@ -65,8 +67,10 @@ class PyroFlow(BaseFlow):
         log_jacobian = 0.0
         for transform in reversed(self._flow_dist.transforms):
             x = transform(z)
+            event_dim += transform.domain.event_dim - \
+                transform.codomain.event_dim
             log_jacobian = log_jacobian + \
-                _sum_rightmost(transform.log_abs_det_jacobian(x, z),
+                _sum_rightmost(transform.log_abs_det_jacobian(z, x),
                                event_dim - transform.event_dim)
             z = x
 
@@ -110,7 +114,7 @@ class PyroFlow(BaseFlow):
         """
         if context is not None:
             raise ValueError
-        self._flow_dist.base_dist.log_prob(z)
+        return self._flow_dist.base_dist.log_prob(z)
 
     def forward_and_log_prob(self, x, context=None):
         """
