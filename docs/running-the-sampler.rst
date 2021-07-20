@@ -6,23 +6,23 @@ Running the sampler
 Defining the model
 ==================
 
-The user must define a model that inherits from :py:class:`nessai.model.Model` that defines two parameters and two methods.
+The user must define a model that inherits from :py:class:`nessai.model.Model` that defines two parameters and two methods. This object contains the Bayesian prior and likelihood which will be used for sampling.
 
 **Parameters:**
 
 - ``names``: a ``list`` of ``str`` with names for the parameters to be sampled
-- ``bounds``: a ``dict`` with a tuple for each parameter in ``names`` with defines the lower and upper bounds
+- ``bounds``: a ``dict`` with a tuple for each parameter in ``names`` with defines the lower and upper bounds of the priors.
 
 **Methods:**
 
-The user MUST define these two methods, the inputs to both is a structured numpy array with fields defined by ``names``.
+The user MUST define these two methods, the input to both is a structured numpy array with fields defined by ``names``.
 
 - ``log_prior``: return the log-prior probability of a live point (and enforce the bounds)
 - ``log_likelihood``: return the log-likelihood probability of a live point (must be finite)
 
-The input to both methods are a live point ``x`` which is an instance of a structured numpy array with one field for each parameters in ``names`` and two additional fields ``logP`` and ``logL``. Each parameter can be accessed using the name of each field like you would a dictionary.
+The input to both methods is a live point ``x`` which is an instance of a structured numpy array with one field for each parameters in ``names`` and two additional fields ``logP`` and ``logL``. Each parameter can be accessed using the name of each field like you would a dictionary.
 
-For examples of using live points see: :doc:`using-livepoints`
+For examples of using live points see: :ref:`using live points<Using live points>`
 
 Example model
 -------------
@@ -37,14 +37,15 @@ Here's an example of a simple model taken from one of the examples:
 Initialising and running the sampler
 ====================================
 
-Once a modelled is defined, create an instance of :py:class:`nessai.flowsampler.FlowSampler`. This when te sampler and the proposal methods are configured, for example setting the number of live points or setting the class of normalising flow to use. See :doc:`sampler-configuration` for an in-depth explanation of all the settings.
+Once a modelled is defined, create an instance of :py:class:`nessai.flowsampler.FlowSampler`. This is when the sampler and the proposal methods are configured, for example setting the number of live points (``nlive``) or setting the class of normalising flow to use. ``nessai`` includes a large variety of settings that control different aspects of the sampler, these can be essential to efficient sampling. See :doc:`sampler configuration<sampler-configuration>` for an in-depth explanation of all the settings.
 
 .. code-block:: python
 
     from nessai.flowsampler import FlowSampler
 
     # Initialise sampler with the model
-    sampler = FlowSampler(Gaussian(), output='./')
+    sampler = FlowSampler(Gaussian(), output='./', nlive=1000)
+    # Run the sampler
     sampler.run()
 
 
@@ -61,6 +62,8 @@ Once the sampler has converged the results and other automatically generated plo
 * ``logXlogL.png``: the evolution of the maximum log-likelihood versus the log prior volume.
 * two resume files (``.pkl``) used for resuming the sampler.
 * ``config.json``: the exact configuration used for the sampler.
+
+For a more detail explanation of outputs and examples, see :ref:`here<Detailed explanation of outputs>`
 
 
 Complete examples

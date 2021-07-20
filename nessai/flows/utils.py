@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Various utilies for implementeding normalising flows.
+"""
 import logging
 import numpy as np
 import torch
@@ -6,9 +10,9 @@ import torch.nn.functional as F
 from nflows.transforms.normalization import BatchNorm
 from nflows.transforms.lu import LULinear
 from nflows.transforms.permutations import RandomPermutation
-from nflows.nn.nets import MLP
+from nflows.nn.nets import MLP as NFlowsMLP
 
-from .realnvp import FlexibleRealNVP
+from .realnvp import RealNVP
 from .maf import MaskedAutoregressiveFlow
 from .nsf import NeuralSplineFlow
 from .distributions import MultivariateNormal
@@ -27,21 +31,32 @@ def silu(x):
     return torch.mul(x, torch.sigmoid(x))
 
 
-def setup_model(config):
+def configure_model(config):
     """
     Setup the flow form a configuration dictionary.
     """
     kwargs = {}
-    flows = {'realnvp': FlexibleRealNVP, 'maf': MaskedAutoregressiveFlow,
-             'frealnvp': FlexibleRealNVP, 'spline': NeuralSplineFlow}
-    activations = {'relu': F.relu, 'tanh': F.tanh, 'swish': silu, 'silu': silu}
+    flows = {
+        'realnvp': RealNVP,
+        'maf': MaskedAutoregressiveFlow,
+        'frealnvp': RealNVP,
+        'spline': NeuralSplineFlow,
+        'nsf': NeuralSplineFlow,
+    }
+    activations = {
+        'relu': F.relu,
+        'tanh': F.tanh,
+        'swish': silu,
+        'silu': silu
+    }
 
-    if 'kwargs' in config and (k := config['kwargs']) is not None:
+    k = config.get('kwargs', None)
+    if k is not None:
         if 'activation' in k and isinstance(k['activation'], str):
             try:
                 k['activation'] = activations[k['activation']]
             except KeyError as e:
-                raise RuntimeError(f'Unknown activation function {e}')
+                raise RuntimeError(f'Unknown activation function: {e}')
 
         if 'var' in k and 'distribution' not in k:
             k['distribution'] = MultivariateNormal([config['n_inputs']],
@@ -53,34 +68,38 @@ def setup_model(config):
     if not isinstance(config['n_inputs'], int):
         raise TypeError('Number of inputs (n_inputs) must be an int')
 
-    if 'flow' in config and (c := config['flow']) is not None:
-        model = c(config['n_inputs'], config['n_neurons'], config['n_blocks'],
-                  config['n_layers'], **kwargs)
-    elif 'ftype' in config and (f := config['ftype']) is not None:
-        if f.lower() not in flows:
-            raise RuntimeError(f'Unknown flow type: {f}. Choose from:'
+    fc = config.get('flow', None)
+    ftype = config.get('ftype', None)
+    if fc is not None:
+        model = fc(config['n_inputs'], config['n_neurons'], config['n_blocks'],
+                   config['n_layers'], **kwargs)
+    elif ftype is not None:
+        if ftype.lower() not in flows:
+            raise RuntimeError(f'Unknown flow type: {ftype}. Choose from:'
                                f'{flows.keys()}')
-        if ('mask' in kwargs and kwargs['mask'] is not None) or \
-                ('net' in kwargs and kwargs['net'] is not None):
-            if f not in ['realnvp', 'frealnvp']:
-                raise RuntimeError('Custom masks and networks are only '
-                                   'supported for RealNVP')
+        if ((('mask' in kwargs and kwargs['mask'] is not None) or
+                ('net' in kwargs and kwargs['net'] is not None)) and
+                ftype.lower() not in ['realnvp', 'frealnvp']):
+            raise RuntimeError('Custom masks and networks are only '
+                               'supported for RealNVP')
 
-        model = flows[f.lower()](config['n_inputs'], config['n_neurons'],
-                                 config['n_blocks'], config['n_layers'],
-                                 **kwargs)
+        model = flows[ftype.lower()](config['n_inputs'], config['n_neurons'],
+                                     config['n_blocks'], config['n_layers'],
+                                     **kwargs)
+    else:
+        raise RuntimeError("Must specify either 'flow' or 'ftype'.")
 
-    if 'device_tag' in config:
-        if isinstance(config['device_tag'], str):
-            device = torch.device(config['device_tag'])
-
+    device = torch.device(config.get('device_tag', 'cpu'))
+    if device != 'cpu':
         try:
             model.to(device)
         except RuntimeError as e:
             device = torch.device('cpu')
-            logger.warning("Could not send the normailising flow to the "
-                           f"specified device {config['device']} send to CPU "
-                           f"instead. Error raised: {e}")
+            logger.warning(
+                "Could not send the normailising flow to the "
+                f"specified device {config['device']} send to CPU "
+                f"instead. Error raised: {e}"
+            )
     logger.debug('Flow model:')
     logger.debug(model)
 
@@ -90,12 +109,13 @@ def setup_model(config):
 
 
 def reset_weights(module):
-    """
-    Reset parameters of a given module in place using `reset_parameters`
-    method.
+    """Reset parameters of a given module in place.
+
+    Uses the ``reset_parameters`` method from ``torch.nn.Module``
 
     Also checks the following modules from nflows
-    * nflows.transforms.normalization.BatchNorm
+
+    - nflows.transforms.normalization.BatchNorm
 
     Parameters
     ----------
@@ -112,12 +132,20 @@ def reset_weights(module):
         module.bias.data.zero_()
         module.running_mean.zero_()
         module.running_var.fill_(1)
+    else:
+        logger.warning(f'Could not reset: {module}')
 
 
 def reset_permutations(module):
-    """
-    Resets permutations and linear transforms to their original initialisation
-    since these do not have a `reset_parameters` method
+    """Resets permutations and linear transforms for a given module in place.
+
+    Resets using theor original initialisation method. This needed since they
+    do not have a ``reset_parameters`` method.
+
+    Parameters
+    ----------
+    module : :obj:`torch.nn.Module`
+        Module to reset
     """
     if isinstance(module, LULinear):
         module.cache.invalidate()
@@ -126,34 +154,28 @@ def reset_permutations(module):
         module._permutation = torch.randperm(len(module._permutation))
 
 
-class CustomMLP(MLP):
+class MLP(NFlowsMLP):
     """
-    MLP which handles additional kwargs that are supplied by some
-    flow models
+    MLP which can be called with context.
     """
-    def __init__(self, *args, **kwargs):
-        super(CustomMLP, self).__init__(*args, **kwargs)
+    def forward(self, inputs, context=None):
+        """Forward method that allows for kwargs such as context.
 
-    def forward(self, inputs, *args, **kwargs):
-        """Forward method that allows for kwargs such as context"""
-        if inputs.shape[1:] != self._in_shape:
-            raise ValueError(
-                "Expected inputs of shape {}, got {}.".format(
-                    self._in_shape, inputs.shape[1:]
-                )
+        Parameters
+        ----------
+        inputs : :obj:`torch.tensor`
+            Inputs to the MLP
+        context : None
+            Conditional inputs, must be None. Only implemeted to the
+            function is compatible with other methods.
+
+        Raises
+        ------
+        RuntimeError
+            If te context is not None.
+        """
+        if context is not None:
+            raise NotImplementedError(
+                'MLP with conditional inputs is not implemented.'
             )
-
-        inputs = inputs.reshape(-1, np.prod(self._in_shape))
-        outputs = self._input_layer(inputs)
-        outputs = self._activation(outputs)
-
-        for hidden_layer in self._hidden_layers:
-            outputs = hidden_layer(outputs)
-            outputs = self._activation(outputs)
-
-        outputs = self._output_layer(outputs)
-        if self._activate_output:
-            outputs = self._activation(outputs)
-        outputs = outputs.reshape(-1, *self._out_shape)
-
-        return outputs
+        return super().forward(inputs)

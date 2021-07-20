@@ -1,4 +1,9 @@
-
+# -*- coding: utf-8 -*-
+"""
+Object for defining the use-defined model.
+"""
+from abc import ABC, abstractmethod
+import logging
 import numpy as np
 
 from .livepoint import (
@@ -9,17 +14,42 @@ from .livepoint import (
         )
 
 
-class Model:
+logger = logging.getLogger(__name__)
 
-    likelihood_evaluations = 0
-    names = []    # Names of parameters, e.g. ['p1','p2']
+
+class Model(ABC):
+    """Base class for the user-defined model being sampled.
+
+    The user must define the attributes ``names`` ``bounds`` and the metods
+    ``log_likelihood`` and ``log_prior``.
+
+    The user can also define the reparemeterisations here instead of in
+    the keyword arguments passed to the sampler.
+
+
+    Attributes
+    ----------
+    names : list of str
+        List of names of parameters, e.g. ['x', 'y']
+    bounds : dict
+        Dictionary of prior bounds, e.g. {'x': [-1, 1], 'y': [-1, 1]}
+    reparameterisations : dict
+        Dictionary of reparameterisations that overrides the values specified
+        with keyword arguments.
+    likelihood_evaluations : int
+        Number of likelihood evaluations
+    """
+
+    names = []
     bounds = {}
+    reparameterisations = None
+    likelihood_evaluations = 0
     _lower = None
     _upper = None
-    reparameterisations = None
 
     @property
     def dims(self):
+        """Number of dimensions in the model"""
         if self.names:
             return len(self.names)
         else:
@@ -27,6 +57,7 @@ class Model:
 
     @property
     def lower_bounds(self):
+        """Lower bounds on the priors"""
         if self._lower is None:
             bounds_array = np.array(list(self.bounds.values()))
             self._lower = bounds_array[:, 0]
@@ -35,6 +66,7 @@ class Model:
 
     @property
     def upper_bounds(self):
+        """Upper bounds on the priors"""
         if self._upper is None:
             bounds_array = np.array(list(self.bounds.values()))
             self._lower = bounds_array[:, 0]
@@ -45,17 +77,17 @@ class Model:
         """
         Create a new LivePoint, drawn from within bounds.
 
-        Note: See `new_point_log_prob` if changing this method.
+        See `new_point_log_prob` if changing this method.
 
         Parameters
         ----------
-        N: int, optional
+        N : int, optional
             Number of points to draw. By default draws one point. If N > 1
             points are drawn using a faster method.
 
         Returns
         -------
-        np.ndarray
+        ndarray
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
@@ -74,12 +106,12 @@ class Model:
 
         Parameters
         ----------
-        x: array_like
+        x : ndarray
             Points in a structured array
 
         Returns
         -------
-        array_like
+        ndarray
             Log proposal probability for each point
         """
         return np.zeros(x.size)
@@ -90,7 +122,7 @@ class Model:
 
         Returns
         -------
-        np.ndarray
+        ndarray
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
@@ -110,7 +142,7 @@ class Model:
 
         Parameters
         ----------
-        N: int
+        N : int
             Number of points to draw
 
         Returns
@@ -130,26 +162,82 @@ class Model:
             new_points = np.concatenate([new_points, p[np.isfinite(logP)]])
         return new_points
 
-    def log_prior(self, x):
-        """
-        Returns log of prior.
+    def in_bounds(self, x):
+        """Check if a set of live point are within the prior bounds.
+
+        Parameters
+        ----------
+        x : :obj:`numpy.ndarray`
+            Structured array of live points. Must contain all of the parameters
+            in the model.
 
         Returns
         -------
-            0 if param is in bounds
-            -np.inf otherwise
+        Array of bool
+            Array with the same length as x where True indicates the point
+            is within the prior bounds.
+        """
+        return ~np.any([(x[n] < self.bounds[n][0]) | (x[n] > self.bounds[n][1])
+                        for n in self.names], axis=0)
+
+    def sample_parameter(self, name, n=1):
+        """Draw samples for a specific parameter from the prior.
+
+        Should be implemented by the user and return a numpy array of length
+        n. The array should NOT be a structured array. This method is not
+        required for standard sampling with nessai. It is intended for use
+        with :py:class:`nessai.conditional.ConditionalFlowProposal`.
+
+        Parameters
+        ----------
+        name : str
+            Name for the parameter to sample
+        n : int, optional
+            Number of samples to draw.
+        """
+        raise NotImplementedError('User must implement this method!')
+
+    def parameter_in_bounds(self, x, name):
+        """
+        Check if an array of values for specific parameter are in the prior \
+            bounds.
+
+        Parameters
+        ----------
+        x : :obj:`numpy:ndarray`
+            Array of values. Not a structured array.
+
+        Returns
+        -------
+        Array of bool
+            Array with the same length as x where True indicates the value
+            is within the prior bounds.
+        """
+        return (x >= self.bounds[name][0]) & (x <= self.bounds[name][1])
+
+    @abstractmethod
+    def log_prior(self, x):
+        """
+        Returns log-prior, must be defined by the user.
         """
         pass
 
+    @abstractmethod
     def log_likelihood(self, x):
         """
-        returns log likelihood of given parameter
+        Returns the log-likelihood, must be defined by the user.
         """
         pass
 
     def evaluate_log_likelihood(self, x):
         """
-        Evaluate the log-likelihood and track the number of calls
+        Evaluate the log-likelihood and track the number of calls.
+
+        Returns
+        -------
+        float
+            Log-likelihood value
+
         """
         self.likelihood_evaluations += 1
         return self.log_likelihood(x)
@@ -168,23 +256,35 @@ class Model:
             if n not in self.bounds.keys():
                 raise RuntimeError(f'Missing bounds for {n}')
 
-        logP = -np.inf
-        counter = 0
-        while (logP == -np.inf) or (logP == np.inf):
-            x = numpy_array_to_live_points(
-                    np.random.uniform(self.lower_bounds, self.upper_bounds,
-                                      [1, self.dims]),
-                    self.names)
-            logP = self.log_prior(x)
-            counter += 1
-            if counter == 1000:
-                raise RuntimeError('Could not draw valid point from within '
-                                   'the prior after 10000 tries, check the '
-                                   'log prior function.')
+        if (np.isfinite(self.lower_bounds).all() and
+                np.isfinite(self.upper_bounds).all()):
+            logP = -np.inf
+            counter = 0
+            while (logP == -np.inf) or (logP == np.inf):
+                x = numpy_array_to_live_points(
+                        np.random.uniform(self.lower_bounds, self.upper_bounds,
+                                          [1, self.dims]),
+                        self.names)
+                logP = self.log_prior(x)
+                counter += 1
+                if counter == 1000:
+                    raise RuntimeError(
+                        'Could not draw valid point from within the prior '
+                        'after 10000 tries, check the log prior function.')
+        else:
+            logger.warning('Model has infinite bounds(s)')
+            logger.warning('Testing with `new_point`')
+            try:
+                x = self.new_point(1)
+                logP = self.log_prior(x)
+            except Exception as e:
+                raise RuntimeError(
+                    'Could not draw a new point and compute the log prior '
+                    f'with error: {e}. \n Check the prior bounds.')
 
         if self.log_prior(x) is None:
-            raise RuntimeError('Log-prior function did not return'
+            raise RuntimeError('Log-prior function did not return '
                                'a prior value')
         if self.log_likelihood(x) is None:
-            raise RuntimeError('Log-likehood function did not return'
+            raise RuntimeError('Log-likelihood function did not return '
                                'a likelihood value')

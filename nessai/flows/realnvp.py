@@ -1,3 +1,7 @@
+# -*- coding: utf-8 -*-
+"""
+Implementation of Real Non Volume Preserving flows.
+"""
 import logging
 
 import torch
@@ -11,9 +15,11 @@ from . import NFlow
 logger = logging.getLogger(__name__)
 
 
-class FlexibleRealNVP(NFlow):
+class RealNVP(NFlow):
     """
-    Modified version of SimpleRealNVP from nflows that allows for a custom
+    Implementation of RealNVP.
+
+    This class modifies ``SimpleRealNVP`` from nflows to allows for a custom
     mask to be parsed as a numpy array and allows for MLP to be used
     instead of a ResNet
 
@@ -124,7 +130,7 @@ class FlexibleRealNVP(NFlow):
                     use_batch_norm=batch_norm_within_layers
                     )
         elif net.lower() == 'mlp':
-            from .utils import CustomMLP
+            from .utils import MLP
             if batch_norm_within_layers:
                 logger.warning('Batch norm within layers not supported for '
                                'MLP, will be ignored')
@@ -134,7 +140,7 @@ class FlexibleRealNVP(NFlow):
             hidden_features = num_blocks_per_layer * [hidden_features]
 
             def create_net(in_features, out_features):
-                return CustomMLP(
+                return MLP(
                         (in_features,),
                         (out_features,),
                         hidden_features,

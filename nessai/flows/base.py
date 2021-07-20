@@ -1,4 +1,7 @@
-
+# -*- coding: utf-8 -*-
+"""
+Base objects for implementing normalising flows.
+"""
 from torch.nn import Module
 
 
@@ -8,10 +11,17 @@ class BaseFlow(Module):
 
     If implementing flows using distributions and transforms see NFlow.
     """
+    device = None
+
+    def to(self, device):
+        """Wrapper that stores the device before moving the flow"""
+        self.device = device
+        super().to(device)
+
     def forward(self, x, context=None):
         """
         Apply the forward transformation and return samples in the
-        latent space and log |J|
+        latent space and the log-Jacobian determinant.
 
         Returns
         -------
@@ -26,7 +36,7 @@ class BaseFlow(Module):
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
-        data space and log |J|
+        data space and the log-Jacobian determinant.
 
         Returns
         -------
@@ -89,10 +99,10 @@ class BaseFlow(Module):
     def sample_and_log_prob(self, n, context=None):
         """
         Generates samples from the flow, together with their log probabilities
-        in the data space log p(x) = log p(z) + log|J|.
+        in the data space ``log p(x) = log p(z) + log|J|``.
 
-        For flows, this is more efficient that calling `sample` and `log_prob`
-        separately.
+        For flows, this is more efficient that calling ``sample`` and
+        ``log_prob`` separately.
 
         Returns
         -------

@@ -1,54 +1,44 @@
+# -*- coding: utf-8 -*-
+"""
+Functions realted to computing the posterior samples.
+"""
 import numpy as np
 
+from .evidence import logsubexp, log_integrate_log_trap
 
-def logsubexp(x, y):
+
+def compute_weights(samples, nlive):
     """
-    Helper function to compute the exponential
-    of a difference between two numbers
+    Returns the log-evidence and log-weights for the log-likelihood samples
+    assumed to the result of nested sampling with nlive live points
 
+    Parameters
     ----------
-    Parameter:
-        x: :float:
-        y: :float:
-    ----------
-    Return
-        z: :float: x + np.log1p(-np.exp(y-x))
+    samples : array_like
+        Log-likelihood samples.
+    nlive : int
+        Number of live points used in nested sampling.
+
+    Returns
+    -------
+    float
+        The computed log-evidence.
+    array_like
+        Array of computed weigths (already normalised by the log-evidence).
     """
-    if np.any(x < y):
-        raise RuntimeError('cannot take log of negative number '
-                           f'{str(x)!s} - {str(y)!s}')
+    samples = np.asarray(samples)
+    start_data = np.concatenate(([float('-inf')], samples[:-nlive]))
+    end_data = samples[-nlive:]
 
-    return x + np.log1p(-np.exp(y - x))
-
-
-def log_integrate_log_trap(log_func, log_support):
-    """
-    Trapezoidal integration of given log(func)
-    Returns log of the integral
-    """
-
-    log_func_sum = np.logaddexp(log_func[:-1], log_func[1:]) - np.log(2)
-    log_dxs = logsubexp(log_support[:-1], log_support[1:])
-
-    return np.logaddexp.reduce(log_func_sum + log_dxs)
-
-
-def compute_weights(data, Nlive):
-    """Returns log_ev, log_wts for the log-likelihood samples in data,
-    assumed to be a result of nested sampling with Nlive live points."""
-
-    start_data = np.concatenate(([float('-inf')], data[:-Nlive]))
-    end_data = data[-Nlive:]
-
-    log_wts = np.zeros(data.shape[0])
+    log_wts = np.zeros(samples.shape[0])
 
     log_vols_start = np.cumsum(np.ones(len(start_data) + 1)
-                               * np.log1p(-1. / Nlive)) - np.log1p(-1 / Nlive)
+                               * np.log1p(-1. / nlive)) - np.log1p(-1 / nlive)
     log_vols_end = np.zeros(len(end_data))
     log_vols_end[-1] = np.NINF
-    log_vols_end[0] = log_vols_start[-1] + np.log1p(-1.0 / Nlive)
+    log_vols_end[0] = log_vols_start[-1] + np.log1p(-1.0 / nlive)
     for i in range(len(end_data) - 1):
-        log_vols_end[i+1] = log_vols_end[i] + np.log1p(-1.0 / (Nlive - i))
+        log_vols_end[i+1] = log_vols_end[i] + np.log1p(-1.0 / (nlive - i))
 
     log_likes = np.concatenate((start_data, end_data, [end_data[-1]]))
 
@@ -65,8 +55,19 @@ def compute_weights(data, Nlive):
 
 def draw_posterior_samples(nested_samples, nlive):
     """
-    Draw posterior samples given the nested samples and number
-    of live points
+    Draw posterior samples given the nested samples and number of live points.
+
+    Parameters
+    ----------
+    nested_samples : structured array
+        Array of nested samples.
+    nlive : int
+        Number of live points used during nested sampling.
+
+    Returns
+    -------
+    array_like
+        Samples from the posterior distribution.
     """
     log_Z, log_w = compute_weights(nested_samples['logL'], nlive)
     log_w -= np.max(log_w)
