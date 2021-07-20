@@ -1,11 +1,14 @@
 
+
 import torch
+from torch.distributions import TransformedDistribution
 from torch.distributions.utils import _sum_rightmost
+import torch.nn as nn
 
-from .base import BaseFlow
+from ..base import BaseFlow
 
 
-class PyroFlow(BaseFlow):
+class PyroFlow(TransformedDistribution, BaseFlow):
     """
     Base class for normalising flows implemented in Pyro
 
@@ -15,9 +18,11 @@ class PyroFlow(BaseFlow):
         Normalising flow implemented in Pyro using the
         `TransformedDistribution` object.
     """
-    def __init__(self, flow_dist):
-        super().__init__()
-        self._flow_dist = flow_dist
+
+    def __init__(self, base_dist, transforms, **kwargs):
+        super().__init__(base_dist, transforms, **kwargs)
+        m = [t for t in transforms if isinstance(t, nn.Module)]
+        self._transforms = nn.ModuleList(m)
 
     def forward(self, x, context=None):
         """
@@ -34,10 +39,10 @@ class PyroFlow(BaseFlow):
         """
         if context is not None:
             raise ValueError
-        event_dim = len(self._flow_dist.event_shape)
+        event_dim = len(self.event_shape)
         log_jacobian = 0.0
         z = x
-        for transform in reversed(self._flow_dist.transforms):
+        for transform in reversed(self.transforms):
             x = transform.inv(z)
             event_dim += transform.domain.event_dim - \
                 transform.codomain.event_dim
@@ -63,9 +68,9 @@ class PyroFlow(BaseFlow):
         """
         if context is not None:
             raise ValueError
-        event_dim = len(self._flow_dist.event_shape)
+        event_dim = len(self.event_shape)
         log_jacobian = 0.0
-        for transform in reversed(self._flow_dist.transforms):
+        for transform in reversed(self.transforms):
             x = transform(z)
             event_dim += transform.domain.event_dim - \
                 transform.codomain.event_dim
@@ -87,7 +92,7 @@ class PyroFlow(BaseFlow):
         """
         if context is not None:
             raise ValueError
-        return self._flow_dist.sample((n,))
+        return super().sample((n,))
 
     def log_prob(self, x, context=None):
         """
@@ -100,7 +105,7 @@ class PyroFlow(BaseFlow):
         """
         if context is not None:
             raise ValueError
-        return self._flow_dist.log_prob(x)
+        return super().log_prob(x)
 
     def base_distribution_log_prob(self, z, context=None):
         """
@@ -114,7 +119,7 @@ class PyroFlow(BaseFlow):
         """
         if context is not None:
             raise ValueError
-        return self._flow_dist.base_dist.log_prob(z)
+        return self.base_dist.log_prob(z)
 
     def forward_and_log_prob(self, x, context=None):
         """
@@ -130,10 +135,10 @@ class PyroFlow(BaseFlow):
         """
         if context is not None:
             raise ValueError
-        event_dim = len(self._flow_dist.event_shape)
+        event_dim = len(self.event_shape)
         log_prob = 0.0
         z = x
-        for transform in reversed(self._flow_dist.transforms):
+        for transform in reversed(self.transforms):
             x = transform.inv(z)
             log_prob = log_prob - \
                 _sum_rightmost(transform.log_abs_det_jacobian(x, z),
@@ -141,7 +146,7 @@ class PyroFlow(BaseFlow):
             z = x
 
         log_prob = log_prob + \
-            _sum_rightmost(self._flow_dist.base_dist.log_prob(z),
+            _sum_rightmost(self.base_dist.log_prob(z),
                            event_dim - len(self.base_dist.event_shape))
         return z, log_prob
 
@@ -162,9 +167,9 @@ class PyroFlow(BaseFlow):
         """
         if context is not None:
             raise ValueError
-        event_dim = len(self._flow_dist.event_shape)
+        event_dim = len(self.event_shape)
         with torch.no_grad():
-            z = self._flow_dist.base_dist.sample((n,))
+            z = self.base_dist.sample((n,))
             log_prob = _sum_rightmost(
                 self._flow_dist.base_dist.log_prob(z),
                 event_dim - len(self.base_dist.event_shape))

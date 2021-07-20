@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import torch
 
-from nessai.flows.base.pyro import PyroFlow
+from nessai.flows.pyro import PyroFlow
 
 
 @pytest.mark.requires('pyro')
@@ -17,8 +17,7 @@ def test_flow_integration():
     import pyro.distributions.transforms as T
     base_dist = dist.Normal(torch.zeros(2), torch.ones(2))
     spline_transform = T.spline_coupling(2, count_bins=16)
-    flow_dist = dist.TransformedDistribution(base_dist, [spline_transform])
-    flow = PyroFlow(flow_dist)
+    flow = PyroFlow(base_dist, [spline_transform])
 
     x = flow.sample(10)
     z, log_j = flow.forward(x)

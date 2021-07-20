@@ -1,5 +1,5 @@
 
-from .base import BaseFlow
+from ..base import BaseFlow
 
 
 class NFlow(BaseFlow):
