@@ -31,6 +31,11 @@ known_reparameteristions = [
         {'detect_edges': True, 'boundary_inversion': True,
          'inversion_type': 'duplicate'}
     ),
+    (
+        'logit', RescaleToBounds,
+        {'update_bounds': False, 'rescale_bounds': [0.0, 1.0],
+         'post_rescaling': 'logit'}
+    ),
     ('scale', Rescale, {}),
     ('rescale', Rescale, {}),
     ('angle', Angle, {}),
