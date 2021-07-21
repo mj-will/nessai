@@ -385,7 +385,7 @@ class NestedSampler:
 
         Parameters
         ----------
-        flow_class : None or obj
+        flow_class : None or obj or str
             Class to use for proposal. If None FlowProposal is used.
         flow_config : dict
             Configuration dictionary passed to the class.
@@ -401,20 +401,21 @@ class NestedSampler:
 
         if flow_class is not None:
             if isinstance(flow_class, str):
-                if flow_class == 'GWFlowProposal':
+                flow_class = flow_class.lower()
+                if flow_class == 'gwflowproposal':
                     from .gw.proposal import GWFlowProposal as flow_class
-                elif flow_class == 'AugmentedGWFlowProposal':
+                elif flow_class == 'augmentedgwflowproposal':
                     from .gw.proposal import (
                         AugmentedGWFlowProposal as flow_class)
-                elif flow_class == 'LegacyGWFlowProposal':
+                elif flow_class == 'legacygwflowproposal':
                     from .gw.legacy import LegacyGWFlowProposal as flow_class
-                elif flow_class == 'FlowProposal':
+                elif flow_class == 'flowproposal':
                     flow_class = FlowProposal
-                elif flow_class == 'AugmentedFlowProposal':
+                elif flow_class == 'augmentedflowproposal':
                     from .proposal import AugmentedFlowProposal
                     flow_class = AugmentedFlowProposal
                 else:
-                    raise RuntimeError(f'Unknown flow class: {flow_class}')
+                    raise ValueError(f'Unknown flow class: {flow_class}')
             elif not issubclass(flow_class, FlowProposal):
                 raise RuntimeError('Flow class must be string or class that '
                                    'inherits from FlowProposal')
