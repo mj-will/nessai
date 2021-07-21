@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `in_bounds`, `parameter_in_bounds` and `sample_parameter` methods to `nessai.model.Model`.
 - Implemented the option to specify the cosmology in `nessai.gw.utils.ComovingDistanceConverter` using `astropy`. Previously changing the value had no effect of the transformation.
 - Add `'logit'` to the default reparameterisations ([!98](https://github.com/mj-will/nessai/pull/98))
+- Add example using the Rosenbrock likelihood in two dimensions ([!99](https://github.com/mj-will/nessai/pull/99))
+
 
 
 ### Changed
