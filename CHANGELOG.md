@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactor `nessai.utils` into a submodule.
 - Change behaviour of `determine_rescaled_bounds` so that `rescale_bounds` is ignored when `inversion=True`. This matches the behaviour in `RescaledToBounds` where when boundary inversion is enabled, values are rescaled to $[0, 1]$ and then if no inversion if applied, changed to $[-1, 1]$.
 - Tweaked `detect_edges` so that `both` is returned in cases where the lower and upper regions contain zero probability.
+- `NestedSampler` no longer checks capitalisation of `flow_class` when determining which proposal class to use. E.g. `'FlowProposal'` and `'flowproposal'` are now both valid values.
+- `NestedSampler.configure_flow_proposal` now raises `ValueError` instead of `RuntimeError` if `flow_class` is an invalid string.
 
 
 ### Fixed
