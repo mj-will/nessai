@@ -136,9 +136,10 @@ def test_update_state_history(sampler):
     assert sampler.proposal.ns_acceptance == 0.5
 
 
+@pytest.mark.parametrize('checkpointing', [False, True])
 @pytest.mark.parametrize('plot', [False, True])
 @patch('nessai.nestedsampler.plot_indices')
-def test_update_state_every_nlive(mock_plot, plot, sampler):
+def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
     """Test the update that happens every nlive iterations.
 
     Tests both with plot=True and plot=False
@@ -153,10 +154,14 @@ def test_update_state_every_nlive(mock_plot, plot, sampler):
     sampler.plot_trace = MagicMock()
     sampler.output = './'
     sampler.insertion_indices = range(2 * sampler.nlive)
+    sampler.checkpointing = checkpointing
 
     NestedSampler.update_state(sampler)
 
-    sampler.checkpoint.assert_called_once_with(periodic=True)
+    if checkpointing:
+        sampler.checkpoint.assert_called_once_with(periodic=True)
+    else:
+        sampler.checkpoint.assert_not_called()
     sampler.check_insertion_indices.assert_called_once()
     assert sampler.block_iteration == 0
     assert sampler.block_acceptance == 0.
@@ -175,8 +180,9 @@ def test_update_state_every_nlive(mock_plot, plot, sampler):
         assert not mock_plot.called
 
 
+@pytest.mark.parametrize('checkpointing', [False, True])
 @patch('nessai.nestedsampler.plot_indices')
-def test_update_state_force(mock_plot, sampler):
+def test_update_state_force(mock_plot, checkpointing, sampler):
     """Test the update that happens if force=True.
 
     Checks that plot_indices is not called even if plotting is enabled.
@@ -189,10 +195,14 @@ def test_update_state_force(mock_plot, sampler):
     sampler.plot_trace = MagicMock()
     sampler.output = './'
     sampler.uninformed_sampling = False
+    sampler.checkpointing = checkpointing
 
     NestedSampler.update_state(sampler, force=True)
 
-    sampler.checkpoint.assert_called_once_with(periodic=True)
+    if checkpointing:
+        sampler.checkpoint.assert_called_once_with(periodic=True)
+    else:
+        sampler.checkpoint.assert_not_called()
     assert not mock_plot.called
     assert not sampler.called
     sampler.plot_trace.assert_called_once()
