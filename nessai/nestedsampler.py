@@ -47,8 +47,9 @@ class NestedSampler:
     max_iteration : int, optional
         Maximum number of iterations to run before force sampler to stop.
         If stopping criteria is met before max. is reached sampler will stop.
-    checkpoint : bool, optional
-        Boolean to toggle checkpointing, must be enable to resume sampler
+    checkpointing : bool, optional
+        Boolean to toggle checkpointing, must be enabled to resume the sampler.
+        If false the sampler is still saved at the end of sampling.
     resume_file : str, optional
         If specified sampler will be resumed from this file. Still requieres
         correct model.
@@ -1018,7 +1019,8 @@ class NestedSampler:
                 f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
                 f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
                 f"logLmax: {self.logLmax:.2f}")
-            self.checkpoint(periodic=True)
+            if self.checkpointing:
+                self.checkpoint(periodic=True)
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
@@ -1047,7 +1049,7 @@ class NestedSampler:
         ----------
         periodic : bool
             Indicates if the checkpoint is regular periodic checkpointing
-            or forced by a signal. If forces by a signal, it will show up on
+            or forced by a signal. If forced by a signal, it will show up on
             the state plot.
         """
         if not periodic:
