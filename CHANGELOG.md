@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implemented the option to specify the cosmology in `nessai.gw.utils.ComovingDistanceConverter` using `astropy`. Previously changing the value had no effect of the transformation.
 - Add `'logit'` to the default reparameterisations ([!98](https://github.com/mj-will/nessai/pull/98))
 - Add example using the Rosenbrock likelihood in two dimensions ([!99](https://github.com/mj-will/nessai/pull/99))
+- Add a `colours` argument to `nessai.plot.plot_1d_comparison`
 
 
 
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tweaked `detect_edges` so that `both` is returned in cases where the lower and upper regions contain zero probability.
 - `NestedSampler` no longer checks capitalisation of `flow_class` when determining which proposal class to use. E.g. `'FlowProposal'` and `'flowproposal'` are now both valid values.
 - `NestedSampler.configure_flow_proposal` now raises `ValueError` instead of `RuntimeError` if `flow_class` is an invalid string.
+- Raise a `ValueError` if `nessai.plot.plot_1d_comparison` is called with a labels list and the length does not match the number of sets of live points being compared.
 
 
 ### Fixed
@@ -34,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed a typo in `nessai.gw.utils.NullDistanceConverter.from_uniform_parameter` that broke the method.
 - Fixed a bug in `nessai.reparameterisations.RescaleToBounds` when using `offset=True` and `pre_rescaling` where the prime prior bounds were incorrectly set. ([!97](https://github.com/mj-will/nessai/pull/97))
 - Fixed a bug that prevented disabling periodic checkpointing.
+- Fixed a bug when calling `nessai.plot.plot_1d_comparison` with live points that contain a field with only infinite values.
 
 
 ## [0.3.0] Testing, testing and more testing - 2021-07-05

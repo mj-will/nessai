@@ -15,7 +15,13 @@ from nessai.livepoint import numpy_array_to_live_points
 @pytest.fixture()
 def live_points(model):
     """Set of live points"""
-    return model.new_point(N=10)
+    return model.new_point(N=100)
+
+
+@pytest.fixture()
+def live_points_1(model):
+    """Second set of live points"""
+    return model.new_point(N=200)
 
 
 @pytest.fixture()
@@ -81,7 +87,7 @@ def test_plot_live_points_error(live_points):
 @pytest.mark.parametrize('parameters', [None, ['x', 'y']])
 def test_plot_1d_comparison_unstructured(parameters):
     """Test plotting live points in arrays are not structured."""
-    live_points = np.random.randn(100, 2)
+    live_points = np.random.randn(10, 2)
     plot.plot_1d_comparison(live_points, convert_to_live_points=True,
                             parameters=parameters)
     plt.close()
@@ -89,7 +95,7 @@ def test_plot_1d_comparison_unstructured(parameters):
 
 def test_plot_1d_comparison_unstructured_missing_flag():
     """Test plotting live points in arrays are not structured."""
-    live_points = np.random.randn(100, 2)
+    live_points = np.random.randn(10, 2)
     with pytest.raises(RuntimeError) as excinfo:
         plot.plot_1d_comparison(live_points, convert_to_live_points=False)
 
@@ -97,46 +103,47 @@ def test_plot_1d_comparison_unstructured_missing_flag():
 
 
 @pytest.mark.parametrize('parameters', [None, ['x', 'y']])
-def test_plot_1d_comparison_parameters(parameters, model):
+def test_plot_1d_comparison_parameters(parameters, live_points, live_points_1):
     """Test generating a 1d comparison plot"""
-    l1 = model.new_point(N=100)
-    l2 = model.new_point(N=100)
-    plot.plot_1d_comparison(l1, l2, parameters=parameters)
+    plot.plot_1d_comparison(live_points, live_points_1, parameters=parameters)
     plt.close()
 
 
 @pytest.mark.parametrize('save', [False, True])
-def test_plot_1d_comparison_save(save, model, tmpdir):
+def test_plot_1d_comparison_save(save, live_points, live_points_1, tmpdir):
     """Test generating a 1d comparison plot"""
-    l1 = model.new_point(N=100)
-    l2 = model.new_point(N=100)
     if save:
         filename = tmpdir + 'comp.png'
     else:
         filename = None
-    plot.plot_1d_comparison(l1, l2, filename=filename)
+    plot.plot_1d_comparison(live_points, live_points_1, filename=filename)
     plt.close()
 
 
 @pytest.mark.parametrize('labels', [None, True])
-def test_plot_1d_comparison_labels(labels, model):
+def test_plot_1d_comparison_labels(labels, live_points, live_points_1, model):
     """Test generating a 1d comparison plot"""
-    l1 = model.new_point(N=100)
-    l2 = model.new_point(N=100)
     if labels:
         labels = model.names
-    plot.plot_1d_comparison(l1, l2, labels=labels)
+    plot.plot_1d_comparison(live_points, live_points_1, labels=labels)
     plt.close()
 
 
+def test_plot_1d_comparison_invalid_labels_list(live_points, live_points_1):
+    """Assert an error is raised if the colours list is a different length."""
+    with pytest.raises(ValueError) as excinfo:
+        plot.plot_1d_comparison(
+            live_points, live_points_1, labels=['r', 'g', 'b']
+        )
+    assert 'Length of labels list must match ' in str(excinfo.value)
+
+
 @pytest.mark.parametrize('bounds', [None, True])
-def test_plot_1d_comparison_bounds(bounds, model):
+def test_plot_1d_comparison_bounds(bounds, live_points, live_points_1, model):
     """Test generating a 1d comparison plot"""
-    l1 = model.new_point(N=100)
-    l2 = model.new_point(N=100)
     if bounds:
         bounds = model.bounds
-    plot.plot_1d_comparison(l1, l2, bounds=bounds)
+    plot.plot_1d_comparison(live_points, live_points_1, bounds=bounds)
     plt.close()
 
 
@@ -146,6 +153,52 @@ def test_plot_1d_comparison_1d():
     l2 = np.random.randn(100).view([('x', 'f8')])
     plot.plot_1d_comparison(l1, l2)
     plt.close()
+
+
+def test_plot_1d_comparison_infinite_var(live_points, caplog):
+    """Test generating a 1d comparirson with a variable that is not finite."""
+    live_points['y'] = np.inf * np.ones(live_points.size)
+    plot.plot_1d_comparison(live_points)
+    plt.close()
+    assert 'No finite points for y, skipping.' in str(caplog.text)
+
+
+def test_plot_1d_comparison_infinite_var_comp(live_points, live_points_1,
+                                              caplog):
+    """Test generating a 1d comparirson with a variable that is not finite but
+    the second set of points contains finite values.
+    """
+    live_points['y'] = np.inf * np.ones(live_points.size)
+    plot.plot_1d_comparison(live_points, live_points_1)
+    plt.close()
+    assert 'No finite points for y, skipping.' not in str(caplog.text)
+
+
+@pytest.mark.parametrize('colours', [None, ['r', 'g']])
+def test_plot_1d_comparison_colours(colours, live_points, live_points_1):
+    """Test generating a 1d comparison plot with only one parameter"""
+    plot.plot_1d_comparison(live_points, live_points_1, colours=colours)
+    plt.close()
+
+
+def test_plot_1d_comparison_more_colours(model):
+    """Test generating a 1d comparirson when comparing more than 10 sets
+    of live points.
+
+    The default colour palettes all use 10 colours.
+    """
+    points = [model.new_point(N=10) for _ in range(12)]
+    plot.plot_1d_comparison(*points)
+    plt.close()
+
+
+def test_plot_1d_comparison_invalid_colours_list(live_points, live_points_1):
+    """Assert an error is raised if the colours list is a different length."""
+    with pytest.raises(ValueError) as excinfo:
+        plot.plot_1d_comparison(
+            live_points, live_points_1, colours=['r', 'g', 'b']
+        )
+    assert 'Length of colours list must match ' in str(excinfo.value)
 
 
 @pytest.mark.parametrize('plot_breakdown', [False, True])
