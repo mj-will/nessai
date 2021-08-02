@@ -44,9 +44,46 @@ class Model(ABC):
     bounds = {}
     reparameterisations = None
     likelihood_evaluations = 0
-    categorical_parameters = None
+    _categorical = None
+    _categorical_parameters = None
+    _categorical_values = None
+    _has_categorical = False
     _lower = None
     _upper = None
+
+    @property
+    def categorical(self):
+        """Dictionary with categorical parameters and their values."""
+        return self._categorical
+
+    @categorical.setter
+    def categorical(self, categorical):
+        if not isinstance(categorical, dict):
+            raise TypeError('`categorical` must be a dictionary')
+        self._categorical = categorical
+        if len(categorical) > 1:
+            raise NotImplementedError(
+                'Support for mutiple categorical parameters is not implemented'
+            )
+        self._categorical = categorical
+        self._categorical_parameters = list(categorical.keys())
+        self._categorical_values = list(categorical.values())
+        self._has_categorical = True
+
+    @property
+    def categorical_parameters(self):
+        """Categorical parameters."""
+        return self._categorical_parameters
+
+    @property
+    def categorical_values(self):
+        """Value of categorical parameters."""
+        return self._categorical_values
+
+    @property
+    def has_categorical(self):
+        """Indicates if the model has categorical parameters."""
+        return self._has_categorical
 
     @property
     def dims(self):
