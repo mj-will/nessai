@@ -1094,7 +1094,8 @@ class FlowProposal(RejectionProposal):
         if rescale:
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
             if not log_prob.size == log_J_rescale.size:
-                log_prob = np.concatenate([log_prob, log_prob])
+                m = log_J_rescale.size // log_prob.size
+                log_prob = np.concatenate(m * [log_prob])
             log_prob += log_J_rescale
 
         x = live_points_to_array(x, names=self.flow_names)
