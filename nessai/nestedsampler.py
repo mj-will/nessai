@@ -179,7 +179,8 @@ class NestedSampler:
         self.retrain_acceptance = retrain_acceptance
         self.reset_acceptance = reset_acceptance
         self.categorical_history = \
-            {k: [] for k in self.model.categorical_parameters}
+            {k: [] for k in self.model.categorical_parameters} \
+            if self.model.has_categorical else {}
 
         self.insertion_indices = []
         self.rolling_p = []
