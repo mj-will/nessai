@@ -24,8 +24,9 @@ def interpolated():
     return create_autospec(InterpolatedDistribution)
 
 
-@pytest.mark.parametrize('n', [None, 1])
-@pytest.mark.parametrize('classes', [None, [1, 2]])
+@pytest.mark.parametrize(
+    'n, classes', [(None, None), (None, [1, 2]), (2, None), (2, [1, 2])]
+)
 @pytest.mark.parametrize('samples', [None, [1, 2]])
 def test_categorical_init(categorical, n, classes, samples):
     """Test the init method"""
@@ -36,7 +37,7 @@ def test_categorical_init(categorical, n, classes, samples):
     if samples is not None:
         categorical.update_samples.assert_called_once_with(samples)
 
-    assert categorical.n == n
+    assert categorical.n == (2 if (n or classes) else None)
     assert categorical.classes == (sorted(classes) if classes else None)
 
 

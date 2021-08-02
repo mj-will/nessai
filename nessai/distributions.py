@@ -137,7 +137,7 @@ class CategoricalDistribution:
     Parameters
     ----------
     n : int, optional
-        Number of discrete parameters.
+        Number of classes.
     classes : list, optional
         List of possible categorical values.
     p : list, optional
@@ -150,7 +150,7 @@ class CategoricalDistribution:
 
         if classes and n is None:
             n = len(classes)
-        elif not n == len(classes):
+        elif classes and not n == len(classes):
             raise ValueError('Number of classes does not match `n`')
 
         if classes and p is None:
