@@ -104,6 +104,8 @@ class _NSIntegralState:
             if np.isnan(info):
                 info = 0
             self.info.append(info)
+        else:
+            self.info.append(0)
 
         # Update history
         self.logw += logt
@@ -122,6 +124,19 @@ class _NSIntegralState:
         self.logZ = log_integrate_log_trap(np.array(self.logLs),
                                            np.array(self.log_vols))
         return self.logZ
+
+    def compute_uncertainty(self):
+        """Compute the uncertainty on ln Z.
+
+        This uses the method described in Speagle 2020 for dynamic nested
+        sampling that can account for a variable number of live points
+        or equivalently changes is dlnX.
+        """
+        log_vols = np.array(self.log_vols)
+        d_log_vols = log_vols[:-1] - log_vols[1:]
+        info = np.array(self.info)
+        d_info = info[1:] - info[:-1]
+        return np.sqrt(np.abs(np.sum(d_info * d_log_vols)))
 
     def plot(self, filename=None):
         """
@@ -149,3 +164,38 @@ class _NSIntegralState:
             logger.info(f'Saved nested sampling plot as {filename}')
         else:
             return fig
+
+
+def recompute_evidence(log_likelihoods, nlive):
+    """Recompute the evidence for a given set of log-likelihoods and nlive.
+
+    Parameters
+    ----------
+    log_likelihoods : array_like
+        Array of log-likelihood values.
+    nlive : int or array_like
+        Number of live points. Either a single value for all interations
+        or an array of specific values for each interation.
+
+    Returns
+    -------
+    float
+        The log-evidence.
+    float
+        The uncertainty of the log-evidence.
+    """
+    log_likelihoods = np.asarray(log_likelihoods)
+    state = _NSIntegralState(None, track_gradients=False)
+    if isinstance(nlive, (int, float)):
+        nlive = nlive * np.ones(log_likelihoods.size)
+    else:
+        nlive = np.asarray(nlive)
+        assert log_likelihoods.size == nlive.size
+
+    for n, ll in zip(nlive, log_likelihoods):
+        state.increment(ll, nlive=n)
+
+    logZ = state.finalise()
+    dlogZ = state.compute_uncertainty()
+    logger.info(f'Recomputed ln Z: {logZ:.3f} +/- {dlogZ:.3f}')
+    return logZ, dlogZ
