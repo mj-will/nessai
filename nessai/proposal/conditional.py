@@ -106,6 +106,17 @@ class ConditionalFlowProposal(FlowProposal):
         self.configure_likelihood_parameter()
         self.configure_categorical_parameters()
         self.configure_prior_parameters()
+        order = [self.rescaled_names.index(n) for n in self.rescaled_names
+                 if n not in self.conditional_parameters]
+        order += [self.rescaled_names.index(n) for n in self.rescaled_names
+                  if n in self.conditional_parameters]
+        self.rescaled_names[:] = [self.rescaled_names[i] for i in order]
+        logger.info(
+            f'Reordered x prime space parameters: {self.rescaled_names}'
+        )
+        # Reset dtype
+        self._x_dtype = None
+        self._x_prime_dtype = None
         self.flow_names = [n for n in self.rescaled_names
                            if n not in self.conditional_parameters]
         # Make sure the parameters are in the correct order
@@ -152,7 +163,7 @@ class ConditionalFlowProposal(FlowProposal):
 
     def configure_categorical_parameters(self):
         """Configure the categorical parameters"""
-        if self.model.categorical_parameters is not None:
+        if self.model.has_categorical:
             logger.debug('Using categorical parameters from model')
             self.categorical_parameters = self.model.categorical_parameters
 
@@ -171,7 +182,9 @@ class ConditionalFlowProposal(FlowProposal):
                 f'Adding categorial parameters: {self.categorical_parameters}'
             )
             n = len(self.categorical_parameters)
-            self.categorical_distribution = CategoricalDistribution()
+            self.categorical_distribution = CategoricalDistribution(
+                classes=self.model.categorical_values[0]
+            )
             self.categorical_indices = \
                 (np.arange(n) + len(self.conditional_parameters)).tolist()
             self.conditional_parameters += self.categorical_parameters
@@ -253,7 +266,7 @@ class ConditionalFlowProposal(FlowProposal):
         the train function. Live points should be in the X' (x prime) space.
         """
         x_prime_array = live_points_to_array(x_prime, self.flow_names)
-        conditional = self.get_conditional(x_prime)
+        conditional, _ = self.get_conditional(x_prime)
         self.train_conditional(conditional)
         self.flow.train(
             x_prime_array,
@@ -304,15 +317,16 @@ class ConditionalFlowProposal(FlowProposal):
         return conditional, log_prob
 
     def get_conditional(self, x):
-        """
-        Get the conditional parameters if empty return None
+        """Get the conditional parameters and corresponding log probabilities.
 
+        If not condititonal, returns None
 
         Includes likelihood rescaling to [0, 1].
         """
         if not self.conditional or not self.conditional_dims:
-            return
+            return None, None
         conditional = np.empty([x.size, self.conditional_dims])
+        log_prob = np.zeros(x.size)
         if self.conditional_likelihood:
             conditional[:, self.likelihood_index] = rescale_zero_to_one(
                 x['logL'].flatten(), self._min_logL, self._max_logL)[0]
@@ -321,15 +335,22 @@ class ConditionalFlowProposal(FlowProposal):
             logger.debug('Getting categorical parameters')
             conditional[:, self.categorical_indices] = \
                 live_points_to_array(x, names=self.categorical_parameters)
+            log_prob += self.categorical_distribution.log_prob(
+                conditional[:, self.categorical_indices]
+            )
 
         if self.prior_parameters:
             logger.debug('Getting prior parameters')
             conditional[:, self.prior_parameters_indices] = \
                 live_points_to_array(x, names=self.prior_parameters)
+            # Probability for these parameters is the prior.
+            for i, pp in enumerate(self.prior_parameters):
+                log_prob += \
+                    self.model.parameter_log_prior(conditional[:, i], pp)
+        return conditional, log_prob
 
-        return conditional
-
-    def forward_pass(self, x, conditional=None, **kwargs):
+    def forward_pass(self, x, rescale=True, compute_radius=True, log_prob=None,
+                     conditional=None, **kwargs):
         """
         Pass a vector of points through the flow model.
 
@@ -348,15 +369,27 @@ class ConditionalFlowProposal(FlowProposal):
         Returns
         -------
         x : array_like
-            Samples in the latent sapce
+            Samples in the latent space
         log_prob : array_like
             Log probabilties corresponding to each sample (including the
             jacobian)
         """
+        if log_prob is None:
+            log_prob = np.zeros(x.size)
+        if rescale:
+            x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
+            if not log_prob.size == log_J_rescale.size:
+                m = log_J_rescale.size // log_prob.size
+                log_prob = np.concatenate(m * [log_prob])
+            log_prob += log_J_rescale
         if conditional is None and self.conditional:
-            conditional = self.get_conditional(x)
+            conditional, conditional_log_prob = self.get_conditional(x)
+            log_prob += conditional_log_prob
+
         z, log_prob = super().forward_pass(
-            x, conditional=conditional, **kwargs)
+            x, conditional=conditional, rescale=False, compute_radius=False,
+            log_prob=log_prob, **kwargs)
+
         return z, log_prob
 
     def _backward_pass(self, z, conditional, **kwargs):
