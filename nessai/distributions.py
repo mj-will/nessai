@@ -128,23 +128,45 @@ class InterpolatedDistribution:
 class CategoricalDistribution:
     """Distribution for handling discrete conditional parameters.
 
+    If the classes and probabilities are not provided they will be infered
+    when samples are passed to the distribution via ``update_samples``.
+
+    Successive calls to ``update_samples`` will update the probabilities
+    of each class.
 
     Parameters
     ----------
-    n : int
-        Number of discrete parameters
+    n : int, optional
+        Number of discrete parameters.
+    classes : list, optional
+        List of possible categorical values.
+    p : list, optional
+        List of probabilities for each class
+    samples : array_like, optional
+        Array of samples from which properties will be inferred.
     """
-    def __init__(self, n=None, classes=None, samples=None):
-        self.n = n
+    def __init__(self, n=None, classes=None, p=None, samples=None):
         self.samples = None
-        self.p = None
+
+        if classes and n is None:
+            n = len(classes)
+        elif not n == len(classes):
+            raise ValueError('Number of classes does not match `n`')
+
+        if classes and p is None:
+            logger.debug('Assuming equal probabilities')
+            p = n * [1.0 / n]
+
+        self.n = n
         self.classes = sorted(classes) if classes is not None else None
+        self.p = p
 
         if samples is not None:
             self.update_samples(samples)
 
     def update_samples(self, samples, reset=False):
         """Update the samples used to determine the distribution
+
         Parameters
         ----------
         samples : array_like
@@ -176,8 +198,8 @@ class CategoricalDistribution:
             )
 
         if reset or self.samples is None:
-            self.samples = samples
             logger.debug('Replacing existing samples')
+            self.samples = samples
         else:
             logger.debug('Adding to existing samples')
             self.samples = np.concatenate([self.samples, samples], axis=-1)
