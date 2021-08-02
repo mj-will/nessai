@@ -48,9 +48,9 @@ def test_info(nlive):
     """Test to check the information increases as expected"""
     state = _NSIntegralState(nlive)
     state.increment(-10)
-    assert state.info == [0.]
+    assert state.info == [0., 0.]
     state.increment(-5)
-    assert state.info[1] > 0
+    assert state.info[-1] > 0
 
 
 def test_track_gradients(nlive):

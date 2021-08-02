@@ -102,10 +102,10 @@ class _NSIntegralState:
                   * (self.info[-1] + oldZ) \
                   - self.logZ
             if np.isnan(info):
-                info = 0
+                info = 0.0
             self.info.append(info)
         else:
-            self.info.append(0)
+            self.info.append(0.0)
 
         # Update history
         self.logw += logt
