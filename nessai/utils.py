@@ -882,3 +882,21 @@ def get_subset_arrays(indices, *args):
         Set of arrays to index.
     """
     return (a[indices] for a in args)
+
+
+def count_matches(x, v):
+    """Count how many values match in an array.
+
+    Parameters
+    ----------
+    x : array_like
+        Array of values
+    v : float, int
+        Value to match
+
+    Returns
+    -------
+    int :
+        Number of matches
+    """
+    return np.count_nonzero(x == v)
