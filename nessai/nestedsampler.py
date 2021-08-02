@@ -21,6 +21,7 @@ from .proposal import FlowProposal
 from .utils import (
     safe_file_dump,
     compute_indices_ks_test,
+    count_matches
     )
 
 sns.set()
@@ -177,6 +178,8 @@ class NestedSampler:
         self.block_iteration = 0
         self.retrain_acceptance = retrain_acceptance
         self.reset_acceptance = reset_acceptance
+        self.categorical_history = \
+            {k: [] for k in self.model.categorical_parameters}
 
         self.insertion_indices = []
         self.rolling_p = []
@@ -607,7 +610,7 @@ class NestedSampler:
                 # Only get here if the yield sample returns worse point
                 # which can only happen if the pool is empty
                 self.rejected += 1
-                self.check_state()
+                self.check_state(rejected=True)
                 # if retrained whilst proposing a sample then update the
                 # iteration count since will be zero otherwise
                 if not self.block_iteration:
@@ -840,12 +843,20 @@ class NestedSampler:
             if self.checkpoint_on_training:
                 self.checkpoint(periodic=True)
 
-    def check_state(self, force=False):
+    def check_state(self, force=False, rejected=False):
         """
         Check if state should be updated prior to drawing a new sample
 
-        Force will overide the cooldown mechanism.
+        Parameters
+        ----------
+        force : bool, optional
+            If True, override the cooldown mechanism.
+        rejected : bool, optional
+            Indicates if method is being called after a point has been rejected
+            rather than at the start of a new interation.
         """
+        if not rejected:
+            self.track_categorical_parameters()
 
         if self.uninformed_sampling:
             if self.check_proposal_switch():
@@ -998,6 +1009,25 @@ class NestedSampler:
             **kwargs
         )
 
+    def track_categorical_parameters(self, live_points=None):
+        """Track any categorical parameters in the model.
+
+        By default checks all the current live points and stores the values
+        in `categorical_history`.
+
+        Parameters
+        ----------
+        live_points : structured_array, optional
+            Array of live points to check.
+        """
+        if self.model.has_categorical:
+            if live_points is None:
+                live_points = self.live_points
+            for p, values in self.model.categorical.items():
+                self.categorical_history[p].append(
+                    [count_matches(live_points[p], v) for v in values]
+                )
+
     def update_state(self, force=False):
         """
         Update state after replacing a live point
@@ -1094,6 +1124,7 @@ class NestedSampler:
         for i, p in enumerate(self.live_points):
             self.state.increment(p['logL'], nlive=self.nlive-i)
             self.nested_samples.append(p)
+            self.track_categorical_parameters(self.live_points[i:])
 
         # Refine evidence estimate
         self.update_state(force=True)
