@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `'logit'` to the default reparameterisations ([!98](https://github.com/mj-will/nessai/pull/98))
 - Add example using the Rosenbrock likelihood in two dimensions ([!99](https://github.com/mj-will/nessai/pull/99))
 - Add a `colours` argument to `nessai.plot.plot_1d_comparison`
-
+- Explicitly support Python 3.9 (Added Python 3.9 to unit tests)
 
 
 ### Changed
