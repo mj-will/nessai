@@ -2,51 +2,108 @@
 """
 Implementation of MaskedAutoregressiveFlow.
 """
-from nflows.flows import MaskedAutoregressiveFlow as BaseMAF
+import logging
+
+from torch.nn import functional as F
+
+from nflows.distributions.normal import StandardNormal
+from nflows.transforms.autoregressive import (
+    MaskedAffineAutoregressiveTransform
+)
+from nflows.transforms.base import CompositeTransform
+from nflows.transforms.normalization import BatchNorm
+from nflows.transforms.permutations import (
+    RandomPermutation,
+    ReversePermutation
+)
+
+from .base import NFlow
+
+logger = logging.getLogger(__name__)
 
 
-class MaskedAutoregressiveFlow(BaseMAF):
+class MaskedAutoregressiveFlow(NFlow):
+    """Autoregressive flow with masked coupling transforms.
+
+    Based on the implementation from nflows: \
+        https://github.com/bayesiains/nflows/blob/master/nflows/flows/autoregressive.py
+        but also included context features.
+
+    Parameters
+    ----------
+    features : int
+        Number of features (dimensions) in the data space
+    hidden_features : int
+        Number of neurons per layer in each neural network
+    num_layers : int
+        Number of coupling tranformations
+    num_blocks_per_layer : int
+        Number of layers (or blocks for resnet) per nerual network for
+        each coupling transform
+    context_features : int, optional
+        Number of context (conditional) inputs to the neural network in each
+        transform.
+    use_residual_blocks : bool, optional
+        Use residual blocks in the MADE network.
+    use_random_masks : bool, optional
+        Use random masks in the MADE network.
+    use_random_permutation : bool, optional
+        Use a random permutation instead of the default reverse permutation.
+    activation : function, optional
+        Activation function implemented in torch.
+    dropout_probability : float, optional
+        Dropout probaiblity used in each layer of the neural network
+    batch_norm_within_layers : bool, optional
+       Enable or disable batch norm within the neural network for each coupling
+       transform
+    batch_norm_between_layers : bool, optional
+       Enable or disable batch norm between coupling transforms
     """
-    Wrapper for MaskedAutoregressiveFlow included in nflowsi
+    def __init__(
+        self,
+        features,
+        hidden_features,
+        num_layers,
+        num_blocks_per_layer,
+        context_features=None,
+        use_residual_blocks=True,
+        use_random_masks=False,
+        use_random_permutations=False,
+        activation=F.relu,
+        dropout_probability=0.0,
+        batch_norm_within_layers=False,
+        batch_norm_between_layers=False,
+        **kwargs
+    ):
 
-    Adds the additional methods that are used in FlowModel.
+        if kwargs:
+            logger.warning(f'Additional kwargs will be ignored: {kwargs}')
 
-    See: https://github.com/bayesiains/nflows/blob/master/nflows/flows/
-    """
+        if use_random_permutations:
+            permutation_constructor = RandomPermutation
+        else:
+            permutation_constructor = ReversePermutation
 
-    def forward(self, x, context=None):
-        """
-        Apply the forward transformation and return samples in the latent
-        space and log-Jacobian determinant.
-        """
-        return self._transform.forward(x)
+        layers = []
+        for _ in range(num_layers):
+            layers.append(permutation_constructor(features))
+            layers.append(
+                MaskedAffineAutoregressiveTransform(
+                    features=features,
+                    hidden_features=hidden_features,
+                    context_features=context_features,
+                    num_blocks=num_blocks_per_layer,
+                    use_residual_blocks=use_residual_blocks,
+                    random_mask=use_random_masks,
+                    activation=activation,
+                    dropout_probability=dropout_probability,
+                    use_batch_norm=batch_norm_within_layers,
+                )
+            )
+            if batch_norm_between_layers:
+                layers.append(BatchNorm(features))
 
-    def inverse(self, z, context=None):
-        """
-        Apply the inverse transformation and return samples in the
-        data space and log-Jacobian determinant.
-        """
-        return self._transform.inverse(z, context=context)
-
-    def base_distribution_log_prob(self, z, context=None):
-        """
-        Computes the log probability of samples in the latent for
-        the base distribution in the flow
-        """
-        return self._distribution.log_prob(z, context=context)
-
-    def forward_and_log_prob(self, x, context=None):
-        """
-        Apply the forward transformation and compute the log probability
-        of each sample
-
-        Returns
-        -------
-        :obj:`torch.Tensor`
-            Tensor of samples in the latent space
-        :obj:`torch.Tensor`
-            Tensor of log probabilities of the samples
-        """
-        z, log_J = self.forward(x)
-        log_prob = self.base_distribution_log_prob(z)
-        return z, log_prob + log_J
+        super().__init__(
+            transform=CompositeTransform(layers),
+            distribution=StandardNormal([features]),
+        )
