@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from nessai.utils.structures import (
+    count_matches,
     get_subset_arrays,
     replace_in_list
 )
@@ -60,6 +61,15 @@ def test_missing_targets():
     with pytest.raises(ValueError) as excinfo:
         replace_in_list([1, 2], 4, 3)
     assert 'Targets [4] not in list: [1, 2]' in str(excinfo.value)
+
+
+def test_count_matches():
+    """Assert the correct number of matches is returned"""
+    x = np.array([0, 1, 1, 2, 2, 2])
+    m = count_matches(x, 1)
+    n = count_matches(x, 2)
+    assert m == 2
+    assert n == 3
 
 
 def test_get_subset_arrays_indices():
