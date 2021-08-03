@@ -125,7 +125,7 @@ def test_get_uniform_distribution_cpu():
     when called on cpu
     """
     dist = utils.get_uniform_distribution(10, 1, 'cpu')
-    assert dist.sample().get_device() == -1
+    assert dist.sample(1).get_device() == -1
 
 
 @pytest.mark.cuda
@@ -135,7 +135,7 @@ def test_get_uniform_distribution_cuda():
     when called on CUDA
     """
     dist = utils.get_uniform_distribution(10, 1, device='cuda')
-    assert dist.sample().get_device() != -1
+    assert dist.sample(1).get_device() != -1
 
 
 @pytest.mark.parametrize("r, var, fuzz", [
