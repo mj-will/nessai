@@ -2,7 +2,6 @@
 """
 Base objects for implementing normalising flows.
 """
-from inspect import signature
 from torch.nn import Module
 
 
@@ -71,7 +70,7 @@ class BaseFlow(Module):
         """
         raise NotImplementedError()
 
-    def base_distribution_log_prob(self, z, context=None):
+    def base_distribution_log_prob(self, z):
         """
         Computes the log probability of samples in the latent for
         the base distribution in the flow.
@@ -80,6 +79,31 @@ class BaseFlow(Module):
         -------
         :obj:`torch.Tensor`
             Tensor of log probabilities of the latent samples
+        """
+        raise NotImplementedError()
+
+    def sample_base_distribution(self, n):
+        """
+        Sample from the base (latent) distribution.
+
+        Returns
+        -------
+        :obj:`torch.Tensor`
+            Tensor of latent samples.
+        """
+        raise NotImplementedError()
+
+    def sample_base_distribution_and_log_prob(self, n, context=None):
+        """
+        Sample from the base (latent) distribution and compute the log \
+            probability.
+
+        Returns
+        -------
+        :obj:`torch.Tensor`
+            Tensor of latent samples.
+        :obj:`torch.Tensor`
+            Tensor of log probabilities of the latent samples.
         """
         raise NotImplementedError()
 
@@ -151,9 +175,6 @@ class NFlow(BaseFlow):
 
         self._transform = transform
         self._distribution = distribution
-        distribution_signature = signature(self._distribution.log_prob)
-        distribution_arguments = distribution_signature.parameters.keys()
-        self._context_used_in_base = 'context' in distribution_arguments
 
     def forward(self, x, context=None):
         """
@@ -176,11 +197,7 @@ class NFlow(BaseFlow):
 
         Does NOT need to be specified by the user
         """
-        if self._context_used_in_base:
-            noise = self._distribution.sample(num_samples, context=context)
-        else:
-            noise = self._distribution.sample(num_samples)
-
+        noise = self._distribution.sample(num_samples)
         samples, _ = self._transform.inverse(noise, context=context)
 
         return samples
@@ -193,33 +210,40 @@ class NFlow(BaseFlow):
         Does NOT need to specified by the user
         """
         noise, logabsdet = self._transform(inputs, context=context)
-        log_prob = self.base_distribution_log_prob(noise, context=context)
+        log_prob = self.base_distribution_log_prob(noise)
         return log_prob + logabsdet
 
-    def base_distribution_log_prob(self, z, context=None):
+    def base_distribution_log_prob(self, z):
         """
         Computes the log probability of samples in the latent for
         the base distribution in the flow.
         """
-        if self._context_used_in_base:
-            return self._distribution.log_prob(z, context=context)
-        else:
-            return self._distribution.log_prob(z)
+        return self._distribution.log_prob(z)
 
-    def sample_base_distribution(self, n, context=None):
-        if self._context_used_in_base:
-            return self._distribution.sample(n, context=context)
-        else:
-            return self._distribution.sample(n)
+    def sample_base_distribution(self, n):
+        """
+        Sample from the base (latent) distribution.
 
-    def sample_base_distribution_and_log_prob(self, n, context=None):
+        Returns
+        -------
+        :obj:`torch.Tensor`
+            Tensor of latent samples.
         """
-        Draw samples from base distribution.
+        return self._distribution.sample(n)
+
+    def sample_base_distribution_and_log_prob(self, n):
         """
-        if self._context_used_in_base:
-            return self._distribution.sample_and_log_prob(n, context=context)
-        else:
-            return self._distribution.sample_and_log_prob(n)
+        Sample from the base (latent) distribution and compute the log \
+            probability.
+
+        Returns
+        -------
+        :obj:`torch.Tensor`
+            Tensor of latent samples.
+        :obj:`torch.Tensor`
+            Tensor of log probabilities of the latent samples.
+        """
+        return self._distribution.sample_and_log_prob(n)
 
     def forward_and_log_prob(self, x, context=None):
         """
@@ -234,7 +258,7 @@ class NFlow(BaseFlow):
             Tensor of log probabilities of the samples
         """
         z, log_J = self.forward(x, context=context)
-        log_prob = self.base_distribution_log_prob(z, context=context)
+        log_prob = self.base_distribution_log_prob(z)
         return z, log_prob + log_J
 
     def sample_and_log_prob(self, N, context=None):
@@ -245,8 +269,7 @@ class NFlow(BaseFlow):
         For flows, this is more efficient that calling ``sample`` and
         ``log_prob`` separately.
         """
-        z, log_prob = self.sample_base_distribution_and_log_prob(
-            N, context=context)
+        z, log_prob = self.sample_base_distribution_and_log_prob(N)
         samples, logabsdet = self._transform.inverse(z, context=context)
 
         return samples, log_prob - logabsdet
