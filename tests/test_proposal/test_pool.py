@@ -5,23 +5,30 @@ Test the multiprocessing pool for the different proposal methods.
 from numpy.testing import assert_array_equal
 import pytest
 
-from nessai.proposal import AnalyticProposal, RejectionProposal, FlowProposal
+from nessai.proposal import (
+    AnalyticProposal,
+    AugmentedFlowProposal,
+    FlowProposal,
+    RejectionProposal
+)
 
 
-@pytest.mark.parametrize('proposal', [AnalyticProposal, RejectionProposal,
-                                      FlowProposal])
+@pytest.mark.parametrize(
+    'proposal',
+    [AnalyticProposal, AugmentedFlowProposal, FlowProposal, RejectionProposal]
+)
 @pytest.mark.parametrize('n_pool', [None, 1])
+@pytest.mark.timeout(10)
+@pytest.mark.flaky(run=3)
+@pytest.mark.integration_test
 def test_analytic_pool(proposal, n_pool, model, tmpdir):
     try:
-        prop = proposal(model, n_pool=n_pool, poolsize=10, plot=False,
-                        max_radius=2, output=str(tmpdir.mkdir('test')))
+        prop = proposal(model, n_pool=n_pool, poolsize=2, plot=False,
+                        max_radius=1, output=str(tmpdir.mkdir('test')))
     except TypeError:
-        prop = proposal(model, n_pool=n_pool, poolsize=10)
+        prop = proposal(model, n_pool=n_pool, poolsize=2)
 
-    try:
-        prop.initialise()
-    except AttributeError:
-        pass
+    prop.initialise()
 
     prop.configure_pool()
     if n_pool:
@@ -37,3 +44,6 @@ def test_analytic_pool(proposal, n_pool, model, tmpdir):
         assert_array_equal(prop.samples['logL'], logL)
     else:
         assert all(ll == 0. for ll in prop.samples['logL'])
+
+    prop.close_pool()
+    assert prop.pool is None

@@ -13,7 +13,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from .flows import configure_model, reset_weights, reset_permutations
 from .plot import plot_loss
-from .utils import FPJSONEncoder, compute_minimum_distances
+from .utils import NessaiJSONEncoder, compute_minimum_distances
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ class FlowModel:
                 str(config['model_config']['flow'])
 
         with open(output_file, "w") as f:
-            json.dump(config, f, indent=4, cls=FPJSONEncoder)
+            json.dump(config, f, indent=4, cls=NessaiJSONEncoder)
 
     def setup_from_input_dict(self, config):
         """
@@ -480,7 +480,7 @@ class FlowModel:
             val_size = self.val_size
 
         if self.noise_scale == 'adaptive':
-            noise_scale = 0.1 * np.std(compute_minimum_distances(samples))
+            noise_scale = 0.2 * np.mean(compute_minimum_distances(samples))
             logger.debug(f'Using adaptive scale: {noise_scale:.3f}')
         else:
             noise_scale = self.noise_scale

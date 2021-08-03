@@ -30,9 +30,9 @@ These can be applied on parameter by parameter basis using keyword arguments. Th
 - :code:`detect_edges`: This setting is only relevant when using :code:`boundary_inversion` and it allows the sampler to detect hard bounds in the samples (or lack thereof)
 
 
-************************************
-Method 2: specific parameterisation
-************************************
+**************************************
+Method 2: specific reparameterisations
+**************************************
 
 This methods allows for use of the all the reparameterisations included in ``nessai``. However it requires parameters to be configured individually. All the reparameterisations are configure using the keyword argument `reparameterisations` which is an instance of :code:`dict`.
 
@@ -52,8 +52,8 @@ See the `examples directory <https://github.com/mj-will/nessai/tree/master/examp
     Missing section on use of x prime prior
 
 
-Available parameterisations
-===========================
+Available reparameterisations
+=============================
 
 There are a number of pre-configured reparameterisations included in ``nessai``:
 
@@ -61,7 +61,8 @@ There are a number of pre-configured reparameterisations included in ``nessai``:
 - ``rescaletobounds``: Alias for default
 - ``inversion``:  Default rescaling but with inversion and :code:`detect_edges` enabled for the parameter, uses :code:`split` inversion.
 - ``inversion-duplicate``: Same as :code:`inversion` but uses :code:`duplicate` inversion
-- ``offset`` Equivalent to :code:`default` but includes an offset before rescaling. This is usual when dealing with parameters which have small prior ranges but are offset from zero by some large constant. For example time, which is typically of order :math:`10^{9}`
+- ``offset``: Equivalent to :code:`default` but includes an offset before rescaling. This is usual when dealing with parameters which have small prior ranges but are offset from zero by some large constant. For example time, which is typically of order :math:`10^{9}`
+- ``logit``: Parameters are rescaled to [0, 1] and a logit is applied. A sigmoid is used for the inverse. **Note:** :code:`update_bounds` is disabled by default.
 - ``angle``: Reparameterisation for angles. This reparameterisation introduces an auxiliary radial parameter and converts the angle to Cartesian coordinates.
 - ``angle-pi``: Same as :code:`angle` but specifically for angles defined on [0, :math:`\pi`]
 - ``angle-sine``: Same as :code:`angle` but for angles with sine priors
