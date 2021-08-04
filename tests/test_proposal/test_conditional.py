@@ -276,7 +276,7 @@ def test_backward_pass(proposal):
     np.testing.assert_array_equal(mock.call_args[0][0], z)
     np.testing.assert_array_equal(mock.call_args[1]['conditional'], c)
     np.testing.assert_array_equal(mock.call_args[1]['log_prob'], log_prob)
-    assert mock.call_args.kwargs['compute_radius'] is True
+    assert mock.call_args[1]['compute_radius'] is True
     proposal.sample_conditional_parameters.assert_called_once_with(2)
     assert out == (1, 2)
 
