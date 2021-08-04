@@ -5,34 +5,37 @@ import pytest
 import nessai.livepoint as lp
 
 
+EXTRA_PARAMS_DTYPE = [
+    ('logP', lp.DEFAULT_FLOAT_DTYPE),
+    ('logL', lp.LOGL_DTYPE),
+    ('logQ', lp.DEFAULT_FLOAT_DTYPE),
+    ('logW', lp.DEFAULT_FLOAT_DTYPE),
+    ('it', lp.IT_DTYPE),
+]
+
+
 @pytest.fixture
 def live_point():
-    return np.array([(1., 2., 3., 0., 0.)],
-                    dtype=[('x', lp.DEFAULT_FLOAT_DTYPE),
-                           ('y', lp.DEFAULT_FLOAT_DTYPE),
-                           ('z', lp.DEFAULT_FLOAT_DTYPE),
-                           ('logP', lp.DEFAULT_FLOAT_DTYPE),
-                           ('logL', lp.LOGL_DTYPE)])
-
-
-@pytest.fixture
-def live_points():
-    return np.array([(1., 2., 3., 0., 0.),
-                     (4., 5., 6., 0., 0.)],
-                    dtype=[('x', lp.DEFAULT_FLOAT_DTYPE),
-                           ('y', lp.DEFAULT_FLOAT_DTYPE),
-                           ('z', lp.DEFAULT_FLOAT_DTYPE),
-                           ('logP', lp.DEFAULT_FLOAT_DTYPE),
-                           ('logL', lp.LOGL_DTYPE)])
+    return np.array(
+        [(1., 2., 3., *lp.DEFAULT_VALUES)],
+        dtype=[
+            ('x', lp.DEFAULT_FLOAT_DTYPE),
+            ('y', lp.DEFAULT_FLOAT_DTYPE),
+            ('z', lp.DEFAULT_FLOAT_DTYPE)
+        ] + EXTRA_PARAMS_DTYPE
+    )
 
 
 @pytest.fixture
 def empty_live_point():
-    return np.empty(0, dtype=[('x', lp.DEFAULT_FLOAT_DTYPE),
-                              ('y', lp.DEFAULT_FLOAT_DTYPE),
-                              ('z', lp.DEFAULT_FLOAT_DTYPE),
-                              ('logP', lp.DEFAULT_FLOAT_DTYPE),
-                              ('logL', lp.LOGL_DTYPE)])
+    return np.empty(
+        0,
+        dtype=[
+            ('x', lp.DEFAULT_FLOAT_DTYPE),
+            ('y', lp.DEFAULT_FLOAT_DTYPE),
+            ('z', lp.DEFAULT_FLOAT_DTYPE),
+        ] + EXTRA_PARAMS_DTYPE
+    )
 
 
 def test_parameters_to_live_point(live_point):
@@ -118,7 +121,7 @@ def test_live_point_to_numpy_array(live_point):
     Test coversion from a live point to an unstructured numpy array
     """
     np.testing.assert_array_equal(
-        np.array([[1, 2, 3, 0, 0]]),
+        np.array([[1, 2, 3, 0, 0, 0, 0, 0]]),
         lp.live_points_to_array(live_point))
 
 
@@ -136,7 +139,8 @@ def test_live_point_to_dict(live_point):
     """
     Test conversion of a live point to a dictionary
     """
-    d = {'x': 1., 'y': 2., 'z': 3., 'logP': 0., 'logL': 0.}
+    d = {'x': 1., 'y': 2., 'z': 3., 'logP': 0., 'logL': 0., 'logQ': 0.,
+         'logW': 0., 'it': 0}
     assert d == lp.live_points_to_dict(live_point)
 
 
@@ -152,7 +156,8 @@ def test_multiple_live_points_to_dict(live_points):
     """
     Test conversion of multiple_live points to a dictionary
     """
-    d = {'x': [1, 4], 'y': [2, 5], 'z': [3, 6], 'logP': [0, 0], 'logL': [0, 0]}
+    d = {'x': [1, 4], 'y': [2, 5], 'z': [3, 6], 'logP': [0, 0], 'logL': [0, 0],
+         'logQ': [0, 0], 'logW': [0, 0], 'it': [0, 0]}
     d_out = lp.live_points_to_dict(live_points)
     assert list(d.keys()) == list(d_out.keys())
     np.testing.assert_array_equal(list(d.values()), list(d_out.values()))
