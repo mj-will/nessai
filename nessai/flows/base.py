@@ -2,10 +2,11 @@
 """
 Base objects for implementing normalising flows.
 """
+from abc import ABC, abstractmethod
 from torch.nn import Module
 
 
-class BaseFlow(Module):
+class BaseFlow(Module, ABC):
     """
     Base class for all normalising flows.
 
@@ -18,6 +19,7 @@ class BaseFlow(Module):
         self.device = device
         super().to(device)
 
+    @abstractmethod
     def forward(self, x, context=None):
         """
         Apply the forward transformation and return samples in the
@@ -33,6 +35,7 @@ class BaseFlow(Module):
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
@@ -48,6 +51,7 @@ class BaseFlow(Module):
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def sample(self, n, context=None):
         """
         Generate n samples in the data space
@@ -59,6 +63,7 @@ class BaseFlow(Module):
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def log_prob(self, x, context=None):
         """
         Compute the log probability for a set of samples in the data space
@@ -70,6 +75,7 @@ class BaseFlow(Module):
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def base_distribution_log_prob(self, z, context=None):
         """
         Computes the log probability of samples in the latent for
@@ -82,6 +88,7 @@ class BaseFlow(Module):
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def forward_and_log_prob(self, x, context=None):
         """
         Apply the forward transformation and compute the log probability
@@ -96,6 +103,7 @@ class BaseFlow(Module):
         """
         raise NotImplementedError()
 
+    @abstractmethod
     def sample_and_log_prob(self, n, context=None):
         """
         Generates samples from the flow, together with their log probabilities
