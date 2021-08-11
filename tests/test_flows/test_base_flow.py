@@ -3,7 +3,7 @@
 Test the base flow class
 """
 import pytest
-from unittest.mock import create_autospec
+from unittest.mock import create_autospec, patch
 
 from nessai.flows import BaseFlow
 
@@ -30,3 +30,12 @@ def test_base_flow_methods(method, flow):
     """Test to make sure all of the method in the base class raise errors"""
     with pytest.raises(NotImplementedError):
         getattr(BaseFlow, method)(flow, None)
+
+
+def test_base_flow_to(flow):
+    """Assert the to method works as intended"""
+    flow.device = None
+    with patch('nessai.flows.base.Module.to') as super_init:
+        BaseFlow.to(flow, 'cpu')
+    super_init.assert_called_once_with('cpu')
+    assert flow.device == 'cpu'
