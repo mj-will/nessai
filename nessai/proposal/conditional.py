@@ -133,6 +133,15 @@ class ConditionalFlowProposal(FlowProposal):
         if not self.conditional:
             raise RuntimeError('No conditional parameters in the proposal!')
 
+    def initialise(self):
+        """Initialise the class.
+
+        Calls the parent method and resets the condititionals after verifying
+        the rescaling.
+        """
+        super().initialise()
+        self.reset_conditionals()
+
     def check_state(self, x):
         """
         Operations that need to checked before training. These include
@@ -251,12 +260,11 @@ class ConditionalFlowProposal(FlowProposal):
             self.flow_config['model_config']['kwargs']['context_features'] = \
                 self.conditional_dims
 
-    def reset_reparameterisation(self):
-        """Reset the model.
+    def reset_conditionals(self):
+        """Reset the conditional parameters.
 
-        This resets the stored min and max logL and calls the parent method.
+        Resets the minimum and maximum log-likelihood.
         """
-        super().reset_reparameterisation()
         self._min_logL = None
         self._max_logL = None
 
