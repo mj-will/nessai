@@ -1345,6 +1345,7 @@ class FlowProposal(RejectionProposal):
                 'Try calling `initialise()` first.'
             )
         self.worst_logL = worst_point['logL']
+        logger.info(f'Worst log-likelihood: {self.worst_logL}')
         if r is not None:
             logger.info(f'Using user inputs for radius {r}')
             worst_q = None
@@ -1365,7 +1366,8 @@ class FlowProposal(RejectionProposal):
             if self.min_radius and r < self.min_radius:
                 r = self.min_radius
 
-        logger.info(f'Populating proposal with lantent radius: {r:.5}')
+        if not self._draw_flow:
+            logger.info(f'Populating proposal with lantent radius: {r:.5}')
         self.r = r
 
         self.alt_dist = self.get_alt_distribution()
@@ -1526,7 +1528,8 @@ class FlowProposal(RejectionProposal):
             )
         else:
             plot_1d_comparison(
-                self.training_data,
+                (self.live_points if self.live_points is not None
+                 else self.training_data),
                 x,
                 labels=['live points', 'pool'],
                 filename=os.path.join(self.output,
