@@ -669,6 +669,7 @@ class NestedSampler:
             np.savetxt(self.live_points_dir + '/intial_live_points.dat',
                        self.live_points,
                        header='\t'.join(self.live_points.dtype.names))
+        self.check_proposal_switch()
 
     def initialise(self, live_points=True):
         """
@@ -693,7 +694,7 @@ class NestedSampler:
         if (
             self.iteration < self.maximum_uninformed
             and self.uninformed_sampling
-        ):
+        ) or self.live_points is None:
             self.proposal = self._uninformed_proposal
         else:
             self.proposal = self._flow_proposal
@@ -703,6 +704,8 @@ class NestedSampler:
         if live_points and self.live_points is None:
             self.populate_live_points()
             flags[2] = True
+
+        self.proposal.live_points = self.live_points
 
         if self.condition > self.tolerance:
             self.finalised = False
@@ -731,8 +734,8 @@ class NestedSampler:
             (self.mean_acceptance < self.uninformed_acceptance_threshold)
             or (self.iteration >= self.maximum_uninformed)
             or force
-        ):
-            if self.proposal is self._flow_proposal:
+        ) and self.live_points is not None:
+            if isinstance(self.proposal, FlowProposal):
                 logger.warning('Already using flowproposal')
                 return True
             logger.warning('Switching to FlowProposal')
@@ -740,8 +743,10 @@ class NestedSampler:
             if self.proposal.pool is not None:
                 self.proposal.close_pool()
             self.proposal = self._flow_proposal
+            self.proposal.live_points = self.live_points
             if self.proposal.n_pool is not None:
                 self.proposal.configure_pool()
+            self.proposal.live_points = self.live_points
             self.proposal.ns_acceptance = self.mean_block_acceptance
             self.uninformed_sampling = False
             return True
@@ -774,7 +779,7 @@ class NestedSampler:
             logger.debug('Training flow (resume)')
             return True, True
         elif (not self.proposal.populated and
-                self.train_on_empty and
+                (self.train_on_empty or not self.proposal.training_count) and
                 not self.proposal.populating):
             logger.debug('Training flow (proposal empty)')
             return True, True
@@ -1118,6 +1123,7 @@ class NestedSampler:
                     self._flow_proposal.populated = True
                     logger.info('Resumed with populated pool')
 
+            self.proposal.live_points = self.live_points
             self.resumed = False
 
     def finalise(self):
