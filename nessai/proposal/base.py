@@ -47,6 +47,7 @@ class Proposal(ABC):
         self.indices = []
         self.pool = None
         self._checked_population = True
+        self._live_points = None
 
     @property
     def initialised(self):
@@ -65,6 +66,19 @@ class Proposal(ABC):
             # self.test_draw()
         else:
             self._initialised = boolean
+
+    @property
+    def live_points(self):
+        """Pointer to current set of live points.
+
+        Must be set first.
+        """
+        return self._live_points
+
+    @live_points.setter
+    def live_points(self, live_points):
+        """Setter for the live points pointer"""
+        self._live_points = live_points
 
     def initialise(self):
         """
@@ -166,5 +180,6 @@ class Proposal(ABC):
     def __getstate__(self):
         state = self.__dict__.copy()
         state['pool'] = None
+        state['_live_points'] = None
         del state['model']
         return state
