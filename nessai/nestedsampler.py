@@ -427,7 +427,7 @@ class NestedSampler:
                 elif flow_class == 'augmentedflowproposal':
                     from .proposal import AugmentedFlowProposal
                     flow_class = AugmentedFlowProposal
-                elif flow_class == 'ConditionalFlowProposal':
+                elif flow_class == 'conditionalflowproposal':
                     from .proposal import ConditionalFlowProposal
                     flow_class = ConditionalFlowProposal
                 else:
