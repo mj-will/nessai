@@ -281,6 +281,12 @@ class FlowModel:
 
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
+        if conditional is not None:
+            if not self.has_conditional:
+                raise RuntimeError(
+                    'Conditional input provided but flow is not conditional!'
+                )
+            conditional = conditional[idx]
 
         logger.debug("N input samples: {}".format(len(samples)))
 
