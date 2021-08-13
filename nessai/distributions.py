@@ -7,6 +7,8 @@ import logging
 import numpy as np
 from scipy import interpolate
 
+from .utils.rescaling import rescale_zero_to_one, inverse_rescale_zero_to_one
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,7 +34,7 @@ class InterpolatedDistribution:
         self.max = None
         self.rescale = rescale
         if samples is not None:
-            self.update_dist(samples, reset=True)
+            self.update_samples(samples, reset=True)
 
     def update_samples(self, samples, reset=False, **kwargs):
         """
@@ -51,10 +53,17 @@ class InterpolatedDistribution:
         if samples.ndim > 1:
             raise RuntimeError('Samples must be a 1-dimensional array')
         if reset or self.samples is None:
+            self.min = np.min(samples)
+            self.max = np.max(samples)
             self.samples = np.unique(samples)
-            self.min = self.samples[0]
-            self.max = self.samples[-1]
+            if self.rescale:
+                self.samples = rescale_zero_to_one(
+                    self.samples, self.min, self.max
+                )[0]
+            logger.debug(f'New min. and max.: {self.min}, {self.max}')
         else:
+            if self.rescale:
+                samples = rescale_zero_to_one(samples, self.min, self.max)
             self.samples = \
                 np.unique(np.concatenate([self.samples, samples], axis=-1))
         cdf = np.arange(self.samples.size) / (self.samples.size - 1)
@@ -98,7 +107,7 @@ class InterpolatedDistribution:
         """
         return interpolate.splev(u, self._inv_cdf_interp, **kwargs)
 
-    def sample(self, n=1, min_logL=None, **kwargs):
+    def sample(self, n=1, min_logL=None, max_logL=None, **kwargs):
         """
         Draw a sample from the approximated distribution.
 
@@ -114,15 +123,27 @@ class InterpolatedDistribution:
         array_like
             Array of n samples drawn from the interpolate distribution
         """
+        logger.debug(f'Min. log-likelihood: {min_logL}')
         if min_logL is not None and min_logL > self.min:
-            u = np.random.uniform(max(0, self.cdf(min_logL)), 1, n)
+            if self.rescale:
+                min_logL = rescale_zero_to_one(min_logL, self.min, self.max)[0]
+            u_min = max(0.0, self.cdf(min_logL))
         else:
-            u = np.random.rand(n)
+            u_min = 0.0
+        if max_logL is not None and max_logL > self.max:
+            if self.rescale:
+                max_logL = rescale_zero_to_one(max_logL, self.min, self.max)[0]
+            u_max = min(1.0, self.cdf(max_logL))
+        else:
+            u_max = 1.0
+        u = np.random.uniform(u_min, u_max, n)
+
         if not self.rescale:
             return self.inverse_cdf(u, **kwargs)
         else:
-            return ((self.inverse_cdf(u, **kwargs) - self.min) /
-                    (self.max - self.min))
+            return inverse_rescale_zero_to_one(
+                self.inverse_cdf, self.min, self.max
+            )[0]
 
 
 class CategoricalDistribution:
