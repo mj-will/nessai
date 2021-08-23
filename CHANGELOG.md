@@ -7,38 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] Minor improvements and bug fixes - 2021-08-23
+
+This release has a few minor improvements and bug fixes. It also explicitly adds support for python 3.9, which worked previously but was not tested.
 ### Added
 
-- Add `in_bounds`, `parameter_in_bounds` and `sample_parameter` methods to `nessai.model.Model`.
-- Implemented the option to specify the cosmology in `nessai.gw.utils.ComovingDistanceConverter` using `astropy`. Previously changing the value had no effect of the transformation.
-- Add `'logit'` to the default reparameterisations ([!98](https://github.com/mj-will/nessai/pull/98))
-- Add example using the Rosenbrock likelihood in two dimensions ([!99](https://github.com/mj-will/nessai/pull/99))
-- Add a `colours` argument to `nessai.plot.plot_1d_comparison`
-- Explicitly support Python 3.9 (Added Python 3.9 to unit tests)
+- Add `in_bounds`, `parameter_in_bounds` and `sample_parameter` methods to `nessai.model.Model`. ([#90](https://github.com/mj-will/nessai/pull/90))
+- Implemented the option to specify the cosmology in `nessai.gw.utils.ComovingDistanceConverter` using `astropy`. Previously changing the value had no effect of the transformation. ([#91](https://github.com/mj-will/nessai/pull/91))
+- Improve test coverage for `nessai.proposal.base.Proposal` ([#92](https://github.com/mj-will/nessai/pull/92))
+- Add `'logit'` to the default reparameterisations ([#98](https://github.com/mj-will/nessai/pull/98))
+- Add example using the Rosenbrock likelihood in two dimensions ([#99](https://github.com/mj-will/nessai/pull/99))
+- Add a `colours` argument to `nessai.plot.plot_1d_comparison` ([#102](https://github.com/mj-will/nessai/pull/102))
+- Explicitly support Python 3.9 (Added Python 3.9 to unit tests) ([#103](https://github.com/mj-will/nessai/pull/103))
 
 
 ### Changed
 
-- `nessai.gw.utils.DistanceConverter` now inherits from `abc.ABC` and `to_uniform_parameter` and `from_uniform_parameter` are both abstract methods.
-- `nessai.proposal.rejection.RejectionProposal` now inherits from `nessai.proposal.analytic.AnalyticProposal`. Functionality is the same but the code will be easier to maintain since this removes several methods that were identical.
-- `nessai.proposal.base.Proposal` now inherits from `abc.ABC` and `draw` is an abstract method.
-- `noise_scale='adaptive'` option in `FlowModel` now correctly uses a standard deviation of 0.2 times the mean nearest neighbour separation as described in [Moss 2019](https://arxiv.org/abs/1903.10860). Note that this feature is disabled by default, so this does not change the default behaviour.
-- Refactor `nessai.utils` into a submodule.
-- Change behaviour of `determine_rescaled_bounds` so that `rescale_bounds` is ignored when `inversion=True`. This matches the behaviour in `RescaledToBounds` where when boundary inversion is enabled, values are rescaled to $[0, 1]$ and then if no inversion if applied, changed to $[-1, 1]$.
-- Tweaked `detect_edges` so that `both` is returned in cases where the lower and upper regions contain zero probability.
-- `NestedSampler` no longer checks capitalisation of `flow_class` when determining which proposal class to use. E.g. `'FlowProposal'` and `'flowproposal'` are now both valid values.
-- `NestedSampler.configure_flow_proposal` now raises `ValueError` instead of `RuntimeError` if `flow_class` is an invalid string.
-- Raise a `ValueError` if `nessai.plot.plot_1d_comparison` is called with a labels list and the length does not match the number of sets of live points being compared.
-- `nessai.flow.base.BaseFlow` now also inherits from `abc.ABC` and methods that should be defined by the user are abstract methods.
-- Changed default to `fuzz=1e-12` in `nessai.utils.rescaling.logit` and `nessai.utils.rescaling.sigmoid` and improved stability.
+- `nessai.gw.utils.DistanceConverter` now inherits from `abc.ABC` and `to_uniform_parameter` and `from_uniform_parameter` are both abstract methods. ([#91](https://github.com/mj-will/nessai/pull/91))
+- `nessai.proposal.base.Proposal` now inherits from `abc.ABC` and `draw` is an abstract method. ([#92](https://github.com/mj-will/nessai/pull/92))
+- `nessai.proposal.rejection.RejectionProposal` now inherits from `nessai.proposal.analytic.AnalyticProposal`. Functionality is the same but the code will be easier to maintain since this removes several methods that were identical. ([#93](https://github.com/mj-will/nessai/pull/93))
+- `noise_scale='adaptive'` option in `FlowModel` now correctly uses a standard deviation of 0.2 times the mean nearest neighbour separation as described in [Moss 2019](https://arxiv.org/abs/1903.10860). Note that this feature is disabled by default, so this does not change the default behaviour. ([#95](https://github.com/mj-will/nessai/pull/95))
+- Refactor `nessai.utils` into a submodule. ([#96](https://github.com/mj-will/nessai/pull/96))
+- Change behaviour of `determine_rescaled_bounds` so that `rescale_bounds` is ignored when `inversion=True`. This matches the behaviour in `RescaledToBounds` where when boundary inversion is enabled, values are rescaled to [0, 1] and then if no inversion if applied, changed to [-1, 1]. ([#96](https://github.com/mj-will/nessai/pull/96))
+- Tweaked `detect_edges` so that `both` is returned in cases where the lower and upper regions contain zero probability. ([#96](https://github.com/mj-will/nessai/pull/96))
+- `NestedSampler` no longer checks capitalisation of `flow_class` when determining which proposal class to use. E.g. `'FlowProposal'` and `'flowproposal'` are now both valid values. ([#100](https://github.com/mj-will/nessai/pull/100))
+- `NestedSampler.configure_flow_proposal` now raises `ValueError` instead of `RuntimeError` if `flow_class` is an invalid string. ([#100](https://github.com/mj-will/nessai/pull/100))
+- Raise a `ValueError` if `nessai.plot.plot_1d_comparison` is called with a labels list and the length does not match the number of sets of live points being compared. ([#102](https://github.com/mj-will/nessai/pull/102))
+- `nessai.flow.base.BaseFlow` now also inherits from `abc.ABC` and methods that should be defined by the user are abstract methods. ([#104](https://github.com/mj-will/nessai/pull/104))
+- Changed default to `fuzz=1e-12` in `nessai.utils.rescaling.logit` and `nessai.utils.rescaling.sigmoid` and improved stability. ([#105](https://github.com/mj-will/nessai/pull/105))
 
 ### Fixed
 
-- Fixed a typo in `nessai.gw.utils.NullDistanceConverter.from_uniform_parameter` that broke the method.
-- Fixed a bug in `nessai.reparameterisations.RescaleToBounds` when using `offset=True` and `pre_rescaling` where the prime prior bounds were incorrectly set. ([!97](https://github.com/mj-will/nessai/pull/97))
-- Fixed a bug that prevented disabling periodic checkpointing.
-- Fixed a bug when calling `nessai.plot.plot_1d_comparison` with live points that contain a field with only infinite values.
-- Fixed the log Jacobian determinant for `nessai.utils.rescaling.logit` and `nessai.utils.rescaling.sigmoid` which previously did not include the Jacobian for the fuzz when it was used.
+- Fixed a typo in `nessai.gw.utils.NullDistanceConverter.from_uniform_parameter` that broke the method. ([#91](https://github.com/mj-will/nessai/pull/91))
+- Fixed a bug in `nessai.reparameterisations.RescaleToBounds` when using `offset=True` and `pre_rescaling` where the prime prior bounds were incorrectly set. ([#97](https://github.com/mj-will/nessai/pull/97))
+- Fixed a bug that prevented disabling periodic checkpointing. ([#101](https://github.com/mj-will/nessai/pull/101))
+- Fixed a bug when calling `nessai.plot.plot_1d_comparison` with live points that contain a field with only infinite values. ([#102](https://github.com/mj-will/nessai/pull/102))
+- Fixed the log Jacobian determinant for `nessai.utils.rescaling.logit` and `nessai.utils.rescaling.sigmoid` which previously did not include the Jacobian for the fuzz when it was used. ([#105](https://github.com/mj-will/nessai/pull/105))
 
 
 ## [0.3.0] Testing, testing and more testing - 2021-07-05
@@ -65,7 +69,7 @@ tests for this reparameterisation.
 - Add option to train using dataloaders or directly with tensors. This is faster when using CUDA.
 - Add options to train with different optimisers: Adam, AdamW, SGD
 - Add tests for `NestedSampler`
-- Explicitly check prior bounds when using reparameterisations. This catches cases where infinite bounds are used and break some reparameterisations. (!82)
+- Explicitly check prior bounds when using reparameterisations. This catches cases where infinite bounds are used and break some reparameterisations. (#82)
 - Add error when calling `FlowProposal.populate` without initialising the proposal.
 - Add `NestedSampler.plot_insertion_indices` to allow for easier plotting of insertion indices.
 - Add `filename` keyword argument to `NestedSampler.plot_trace`.
@@ -160,7 +164,7 @@ Add support for Python >= 3.6 and other minor changes and bug fixes
 ### Changed
 
 - Remove `:=` operator to enable support for Python >= 3.6.
-- Plotting functions are now more constent and all return the figure if `filename=None`.
+- Plotting functions are now more consistent and all return the figure if `filename=None`.
 
 ### Fixed
 
@@ -171,7 +175,7 @@ Add support for Python >= 3.6 and other minor changes and bug fixes
 
 - Remove `plot_posterior` because functionality is include in `plot_live_points`.
 - Remove `plot_likelihood_evaluations` because information is already contained in the state plot.
-- Remove `plot_acceptance` as it is only by agumented proposel which is subject to change.
+- Remove `plot_acceptance` as it is only by augmented proposal which is subject to change.
 - Remove `plot_flow`.
 
 ## [0.2.2] - 2021-02-19
@@ -222,7 +226,8 @@ First public release.
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/mj-will/nessai/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mj-will/nessai/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/mj-will/nessai/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/mj-will/nessai/compare/v0.2.2...v0.2.3
