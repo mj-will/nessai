@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `NestedSampler.configure_flow_proposal` now raises `ValueError` instead of `RuntimeError` if `flow_class` is an invalid string.
 - Raise a `ValueError` if `nessai.plot.plot_1d_comparison` is called with a labels list and the length does not match the number of sets of live points being compared.
 - `nessai.flow.base.BaseFlow` now also inherits from `abc.ABC` and methods that should be defined by the user are abstract methods.
-
+- Changed default to `fuzz=1e-12` in `nessai.utils.rescaling.logit` and `nessai.utils.rescaling.sigmoid` and improved stability.
 
 ### Fixed
 
@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed a bug in `nessai.reparameterisations.RescaleToBounds` when using `offset=True` and `pre_rescaling` where the prime prior bounds were incorrectly set. ([!97](https://github.com/mj-will/nessai/pull/97))
 - Fixed a bug that prevented disabling periodic checkpointing.
 - Fixed a bug when calling `nessai.plot.plot_1d_comparison` with live points that contain a field with only infinite values.
+- Fixed the log Jacobian determinant for `nessai.utils.rescaling.logit` and `nessai.utils.rescaling.sigmoid` which previously did not include the Jacobian for the fuzz when it was used.
 
 
 ## [0.3.0] Testing, testing and more testing - 2021-07-05

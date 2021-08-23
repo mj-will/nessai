@@ -269,40 +269,61 @@ def determine_rescaled_bounds(
         raise ValueError(f'Invalid value for `invert`: {invert}')
 
 
-def logit(x, fuzz=1e-2):
-    """
-    Logit function that also returns log Jacobian
+def logit(x, fuzz=1e-12):
+    """Logit function that also returns log Jacobian determinant.
+
+    See :py:func:`nessai.utils.rescaling.sigmoid` for the inverse.
 
     Parameters
     ----------
-    x : ndarray
+    x : float or ndarray
         Array of values
     fuzz : float, optional
         Fuzz used to avoid nans in logit. Values are rescaled from [0, 1]
-        to [0-fuzz, 1+fuzz]. By default no fuzz is applied
+        to [0-fuzz, 1+fuzz].
+
+    Returns
+    -------
+    float or ndarray
+        Rescaled values.
+    float or ndarray
+        Log Jacobian determinant.
     """
-    x += fuzz
-    x /= (1 + 2 * fuzz)
-    return np.log(x) - np.log(1 - x), -np.log(np.abs(x - x ** 2))
+    if fuzz:
+        x += fuzz
+        x /= (1 + 2 * fuzz)
+    log_j = -np.log(x) - np.log1p(-x)
+    if fuzz:
+        log_j -= np.log(1 + 2 * fuzz)
+    return np.log(x) - np.log1p(-x), log_j
 
 
-def sigmoid(x, fuzz=1e-2):
-    """
-    Sigmoid function that also returns log Jacobian
+def sigmoid(x, fuzz=1e-12):
+    """Sigmoid function that also returns log Jacobian determinant.
+
+    See :py:func:`nessai.utils.rescaling.logit` for the inverse.
 
     Parameters
     ----------
-    x : ndarray
+    x : float or ndarray
         Array of values
     fuzz : float, optional
         Fuzz used to avoid nans in logit
+
+    Returns
+    -------
+    float or ndarray
+        Rescaled values.
+    float or ndarray
+        Log Jacobian determinant.
     """
-    x = np.asarray(x)
     x = np.divide(1, 1 + np.exp(-x))
-    log_J = np.log(np.abs(x - x ** 2))
-    x *= (1 + 2 * fuzz)
-    x -= fuzz
-    return x, log_J
+    log_j = np.log(x) + np.log1p(-x)
+    if fuzz:
+        x *= (1 + 2 * fuzz)
+        x -= fuzz
+        log_j += np.log(1 + 2 * fuzz)
+    return x, log_j
 
 
 rescaling_functions = {'logit': (logit, sigmoid)}
