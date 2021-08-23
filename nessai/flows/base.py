@@ -142,16 +142,19 @@ class NFlow(BaseFlow):
     """
     def __init__(self, transform, distribution):
         super().__init__()
+        from nflows.transforms import Transform
+        from nflows.distributions import Distribution
 
-        for method in ['forward', 'inverse']:
-            if not hasattr(transform, method):
-                raise RuntimeError(
-                    f'Transform does not have `{method}` method')
+        if not isinstance(transform, Transform):
+            raise TypeError(
+                'transform must inherit from `nflows.transforms.Transform'
+            )
 
-        for method in ['log_prob', 'sample']:
-            if not hasattr(distribution, method):
-                raise RuntimeError(
-                    f'Distribution does not have `{method}` method')
+        if not isinstance(distribution, Distribution):
+            raise TypeError(
+                'distribution must inherit from '
+                '`nflows.transforms.Distribution'
+            )
 
         self._transform = transform
         self._distribution = distribution

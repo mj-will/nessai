@@ -5,7 +5,8 @@ Test the base flow class
 import pytest
 from unittest.mock import create_autospec, patch
 
-from nessai.flows import BaseFlow
+from nessai.flows import BaseFlow, NFlow
+from nflows.transforms import Transform
 
 
 @pytest.fixture
@@ -39,3 +40,23 @@ def test_base_flow_to(flow):
         BaseFlow.to(flow, 'cpu')
     super_init.assert_called_once_with('cpu')
     assert flow.device == 'cpu'
+
+
+def test_nflow_base_transform():
+    """Assert an error is raised if the transform class is invalid."""
+    class Test:
+        pass
+
+    with pytest.raises(TypeError) as excinfo:
+        NFlow(Test(), Test())
+    assert 'transform must inherit' in str(excinfo.value)
+
+
+def test_nflow_base_distribution():
+    """Assert an error is raised if the distribution class is invalid."""
+    class Test:
+        pass
+
+    with pytest.raises(TypeError) as excinfo:
+        NFlow(Transform(), Test())
+    assert 'distribution must inherit' in str(excinfo.value)
