@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `NestedSampler` no longer checks capitalisation of `flow_class` when determining which proposal class to use. E.g. `'FlowProposal'` and `'flowproposal'` are now both valid values.
 - `NestedSampler.configure_flow_proposal` now raises `ValueError` instead of `RuntimeError` if `flow_class` is an invalid string.
 - Raise a `ValueError` if `nessai.plot.plot_1d_comparison` is called with a labels list and the length does not match the number of sets of live points being compared.
+- `nessai.flow.base.BaseFlow` now also inherits from `abc.ABC` and methods that should be defined by the user are abstract methods.
 
 
 ### Fixed
