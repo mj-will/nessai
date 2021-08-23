@@ -183,23 +183,25 @@ def test_sigmoid_bounds(x, y, log_J):
     assert sigmoid(x, fuzz=0) == (y, log_J)
 
 
-@pytest.mark.parametrize("p", [1e-5, 0.5, 1 - 1e-5])
-def test_logit_sigmoid(p):
+@pytest.mark.parametrize("p", [1e-5, 0.5, 1.0 - 1e-5])
+@pytest.mark.parametrize("fuzz", [False, 1e-12])
+def test_logit_sigmoid(p, fuzz):
     """
     Test invertibility of sigmoid(logit(x))
     """
-    x = logit(p, fuzz=0)
-    y = sigmoid(x[0], fuzz=0)
-    np.testing.assert_equal(p, y[0])
-    np.testing.assert_almost_equal(x[1] + y[1], 0)
+    x = logit(p, fuzz=fuzz)
+    y = sigmoid(x[0], fuzz=fuzz)
+    np.testing.assert_almost_equal(p, y[0], decimal=10)
+    np.testing.assert_almost_equal(x[1] + y[1], 0.0, decimal=10)
 
 
-@pytest.mark.parametrize("p", [-10, -1, 0, 1, 10])
-def test_sigmoid_logit(p):
+@pytest.mark.parametrize("p", [-10.0, -1.0, 0.0, 1.0, 10.0])
+@pytest.mark.parametrize("fuzz", [False, 1e-12])
+def test_sigmoid_logit(p, fuzz):
     """
     Test invertibility of logit(sigmoid(x))
     """
-    x = sigmoid(p, fuzz=0)
-    y = logit(x[0], fuzz=0)
-    np.testing.assert_almost_equal(p, y[0])
-    np.testing.assert_almost_equal(x[1] + y[1], 0)
+    x = sigmoid(p, fuzz=fuzz)
+    y = logit(x[0], fuzz=fuzz)
+    np.testing.assert_almost_equal(p, y[0], decimal=10)
+    np.testing.assert_almost_equal(x[1] + y[1], 0.0, decimal=10)
