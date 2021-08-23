@@ -81,7 +81,7 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
 
 
 def plot_1d_comparison(*live_points, parameters=None, labels=None,
-                       bounds=None, hist_kwargs={},
+                       colours=None, bounds=None, hist_kwargs={},
                        filename=None, convert_to_live_points=False):
     """
     Plot 1d histograms comparing different sets of live points
@@ -94,9 +94,11 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
     parameters : array_like, optional
         Array of parameters (field names) to plot. Default None implies all
         fields are plotted.
-    labels : array_like, optional
-        Array of labels for each structured array being plotted (default None).
+    labels : list, optional
+        List of labels for each structured array being plotted (default None).
         If None each set of live points is labelled numerically
+    colours : list, optional
+        List of colours to use for each set of live points.
     bounds : dict, optional
         Dictionary of upper and lowers bounds to plot. Each key must
         match a field and each value must be an interable of length 2 in order
@@ -125,6 +127,18 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
 
     if labels is None:
         labels = [str(i) for i in range(len(live_points))]
+    elif not len(labels) == len(live_points):
+        raise ValueError(
+            'Length of labels list must match number of arrays being plotted.'
+        )
+
+    if colours is None:
+        colours = sns.color_palette()
+        colours = int(np.ceil(len(live_points) / len(colours))) * colours
+    elif not len(colours) == len(live_points):
+        raise ValueError(
+            'Length of colours list must match number of arrays being plotted.'
+        )
 
     fig, axs = plt.subplots(len(parameters), 1, sharey=False,
                             figsize=(3, 3 * len(parameters)))
@@ -135,16 +149,33 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         axs = [axs]
 
     for i, f in enumerate(parameters):
-        xmin = np.min([np.min(lp[f][np.isfinite(lp[f])])
-                       for lp in live_points])
-        xmax = np.max([np.max(lp[f][np.isfinite(lp[f])])
-                      for lp in live_points])
+
+        finite_points = []
+        include = []
         for j, lp in enumerate(live_points):
-            axs[i].hist(lp[f][np.isfinite(lp[f])],
-                        bins=auto_bins(lp[f][np.isfinite(lp[f])]),
-                        histtype='step',
-                        range=(xmin, xmax), density=True, label=labels[j],
-                        **hist_kwargs)
+            idx = np.isfinite(lp[f])
+            if idx.any():
+                finite_points.append(lp[f][idx])
+                include.append(j)
+        if not include:
+            logger.warning(f'No finite points for {f}, skipping.')
+            continue
+
+        xmin = np.min([p.min() for p in finite_points])
+        xmax = np.max([p.max() for p in finite_points])
+
+        for j, p in enumerate(finite_points):
+            orig_idx = include[j]
+            axs[i].hist(
+                p,
+                bins=auto_bins(p),
+                histtype='step',
+                range=(xmin, xmax),
+                density=True,
+                label=labels[orig_idx],
+                color=colours[orig_idx],
+                **hist_kwargs
+            )
         axs[i].set_xlabel(f)
         if bounds is not None and f in bounds:
             axs[i].axvline(bounds[f][0], ls=':', alpha=0.5, color='k')

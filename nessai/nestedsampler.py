@@ -47,8 +47,9 @@ class NestedSampler:
     max_iteration : int, optional
         Maximum number of iterations to run before force sampler to stop.
         If stopping criteria is met before max. is reached sampler will stop.
-    checkpoint : bool, optional
-        Boolean to toggle checkpointing, must be enable to resume sampler
+    checkpointing : bool, optional
+        Boolean to toggle checkpointing, must be enabled to resume the sampler.
+        If false the sampler is still saved at the end of sampling.
     resume_file : str, optional
         If specified sampler will be resumed from this file. Still requieres
         correct model.
@@ -385,7 +386,7 @@ class NestedSampler:
 
         Parameters
         ----------
-        flow_class : None or obj
+        flow_class : None or obj or str
             Class to use for proposal. If None FlowProposal is used.
         flow_config : dict
             Configuration dictionary passed to the class.
@@ -401,20 +402,21 @@ class NestedSampler:
 
         if flow_class is not None:
             if isinstance(flow_class, str):
-                if flow_class == 'GWFlowProposal':
+                flow_class = flow_class.lower()
+                if flow_class == 'gwflowproposal':
                     from .gw.proposal import GWFlowProposal as flow_class
-                elif flow_class == 'AugmentedGWFlowProposal':
+                elif flow_class == 'augmentedgwflowproposal':
                     from .gw.proposal import (
                         AugmentedGWFlowProposal as flow_class)
-                elif flow_class == 'LegacyGWFlowProposal':
+                elif flow_class == 'legacygwflowproposal':
                     from .gw.legacy import LegacyGWFlowProposal as flow_class
-                elif flow_class == 'FlowProposal':
+                elif flow_class == 'flowproposal':
                     flow_class = FlowProposal
-                elif flow_class == 'AugmentedFlowProposal':
+                elif flow_class == 'augmentedflowproposal':
                     from .proposal import AugmentedFlowProposal
                     flow_class = AugmentedFlowProposal
                 else:
-                    raise RuntimeError(f'Unknown flow class: {flow_class}')
+                    raise ValueError(f'Unknown flow class: {flow_class}')
             elif not issubclass(flow_class, FlowProposal):
                 raise RuntimeError('Flow class must be string or class that '
                                    'inherits from FlowProposal')
@@ -1017,7 +1019,8 @@ class NestedSampler:
                 f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
                 f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
                 f"logLmax: {self.logLmax:.2f}")
-            self.checkpoint(periodic=True)
+            if self.checkpointing:
+                self.checkpoint(periodic=True)
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
@@ -1046,7 +1049,7 @@ class NestedSampler:
         ----------
         periodic : bool
             Indicates if the checkpoint is regular periodic checkpointing
-            or forced by a signal. If forces by a signal, it will show up on
+            or forced by a signal. If forced by a signal, it will show up on
             the state plot.
         """
         if not periodic:

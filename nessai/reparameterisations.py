@@ -475,7 +475,16 @@ class RescaleToBounds(Reparameterisation):
     offset : bool, optional
         Enable or disable offset subtraction. If `True` then the mean value
         of the prior is subtract of the parameter before the rescaling is
-        applied.
+        applied. This is computed and applied after the 'pre-rescaling' if it
+        has been specified.
+    pre_rescaling : tuple of functions
+        A function that applies a rescaling prior to the main rescaling and
+        its inverse. Each function should return a value and the log-Jacobian
+        determinant.
+    post_rescaling : tuple of functions or {'logit}
+        A function that applies a rescaling after to the main rescaling and
+        its inverse. Each function should return a value and the log-Jacobian
+        determinant. For example applying a logit after rescaling to [0, 1].
     """
     requires_bounded_prior = True
 
@@ -550,15 +559,18 @@ class RescaleToBounds(Reparameterisation):
             self.has_prime_prior = False
             logger.info(f'Prime prior disabled for {self.name}')
 
+        self.configure_pre_rescaling(pre_rescaling)
+        self.configure_post_rescaling(post_rescaling)
+
         if offset:
-            self.offsets = {p: b[0] + np.ptp(b) / 2
-                            for p, b in self.prior_bounds.items()}
+            self.offsets = {
+                p: self.pre_rescaling(b[0])[0] +
+                np.ptp(self.pre_rescaling(b)[0]) / 2
+                for p, b in self.prior_bounds.items()
+            }
             logger.debug(f'Offsets: {self.offsets}')
         else:
             self.offsets = {p: 0. for p in self.prior_bounds.keys()}
-
-        self.configure_pre_rescaling(pre_rescaling)
-        self.configure_post_rescaling(post_rescaling)
 
         self.set_bounds(self.prior_bounds)
 
@@ -780,10 +792,10 @@ class RescaleToBounds(Reparameterisation):
         self._rescale_shift = \
             {p: self.rescale_bounds[p][0] for p in self.parameters}
 
-        self.prior_bounds = \
+        self.pre_prior_bounds = \
             {p: self.pre_rescaling(prior_bounds[p])[0]
              for p in self.parameters}
-        self.bounds = {p: self.pre_rescaling(b - self.offsets[p])[0]
+        self.bounds = {p: self.pre_rescaling(b)[0] - self.offsets[p]
                        for p, b in prior_bounds.items()}
         logger.debug(f'Initial bounds: {self.bounds}')
         self.update_prime_prior_bounds()
@@ -805,11 +817,18 @@ class RescaleToBounds(Reparameterisation):
         """Update the prior bounds used for the prime prior"""
         if self.has_prime_prior:
             self.prime_prior_bounds = \
-                {pp: self.post_rescaling(np.asarray(determine_rescaled_bounds(
-                    self.prior_bounds[p][0], self.prior_bounds[p][1],
-                    self.bounds[p][0], self.bounds[p][1], self._edges[p],
-                    self.offsets[p], rescale_bounds=self.rescale_bounds[p],
-                    inversion=p in self.boundary_inversion)))[0]
+                {pp: self.post_rescaling(np.asarray(
+                        determine_rescaled_bounds(
+                            self.pre_prior_bounds[p][0],
+                            self.pre_prior_bounds[p][1],
+                            self.bounds[p][0],
+                            self.bounds[p][1],
+                            invert=self._edges[p],
+                            inversion=p in self.boundary_inversion,
+                            offset=self.offsets[p],
+                            rescale_bounds=self.rescale_bounds[p]
+                        )
+                    ))[0]
                  for p, pp in zip(self.parameters, self.prime_parameters)}
             logger.debug(f'New prime bounds: {self.prime_prior_bounds}')
 
@@ -1208,6 +1227,9 @@ default_reparameterisations = {
     'inversion-duplicate': (RescaleToBounds, {'detect_edges': True,
                                               'boundary_inversion': True,
                                               'inversion_type': 'duplicate'}),
+    'logit': (RescaleToBounds, {'rescale_bounds': [0.0, 1.0],
+                                'update_bounds': False,
+                                'post_rescaling': 'logit'}),
     'scale': (Rescale, None),
     'rescale': (Rescale, None),
     'angle': (Angle, {}),

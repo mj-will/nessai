@@ -101,7 +101,9 @@ def test_uninformed_proposal_class(sampler):
     from nessai.proposal.base import Proposal
 
     class TestProposal(Proposal):
-        pass
+
+        def draw(self, point):
+            pass
 
     NestedSampler.configure_uninformed_proposal(
         sampler, TestProposal, False, None, None)
@@ -114,12 +116,21 @@ def test_no_flow_proposal_class(sampler):
     assert isinstance(sampler._flow_proposal, FlowProposal)
 
 
-@pytest.mark.parametrize('flow_class, result_class',
-                         [['FlowProposal', FlowProposal],
-                          ['AugmentedFlowProposal', AugmentedFlowProposal],
-                          ['GWFlowProposal', GWFlowProposal],
-                          ['AugmentedGWFlowProposal', AugmentedGWFlowProposal],
-                          ['LegacyGWFlowProposal', LegacyGWFlowProposal]])
+@pytest.mark.parametrize(
+    'flow_class, result_class',
+    [
+        ['FlowProposal', FlowProposal],
+        ['AugmentedFlowProposal', AugmentedFlowProposal],
+        ['GWFlowProposal', GWFlowProposal],
+        ['AugmentedGWFlowProposal', AugmentedGWFlowProposal],
+        ['LegacyGWFlowProposal', LegacyGWFlowProposal],
+        ['flowproposal', FlowProposal],
+        ['augmentedflowproposal', AugmentedFlowProposal],
+        ['gwflowproposal', GWFlowProposal],
+        ['augmentedgwflowproposal', AugmentedGWFlowProposal],
+        ['legacygwflowproposal', LegacyGWFlowProposal]
+    ]
+)
 def test_flow__class(flow_class, result_class, sampler):
     """Test the correct class is imported and used"""
     NestedSampler.configure_flow_proposal(sampler, flow_class, {}, False)
@@ -128,9 +139,9 @@ def test_flow__class(flow_class, result_class, sampler):
 
 def test_unknown_flow_class(sampler):
     """Test to check the error raised if an unknown class is used"""
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(ValueError) as excinfo:
         NestedSampler.configure_flow_proposal(sampler, 'GWProposal', {}, False)
-    assert 'Unknown' in str(excinfo.value)
+    assert 'Unknown flow class' in str(excinfo.value)
 
 
 def test_flow_class_not_subclass(sampler):
