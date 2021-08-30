@@ -289,24 +289,24 @@ class FlowModel:
                 raise RuntimeError(f'Unknown batch size: {batch_size}')
         else:
             self.batch_size = batch_size
-
+        dtype = torch.get_default_dtype()
         if use_dataloader:
             logger.debug('Using dataloaders')
-            train_tensor = torch.from_numpy(x_train.astype(np.float32))
+            train_tensor = torch.from_numpy(x_train).type(dtype)
             train_dataset = torch.utils.data.TensorDataset(train_tensor)
             train_data = torch.utils.data.DataLoader(
                 train_dataset, batch_size=self.batch_size, shuffle=True)
 
-            val_tensor = torch.from_numpy(x_val.astype(np.float32))
+            val_tensor = torch.from_numpy(x_val).type(dtype)
             val_dataset = torch.utils.data.TensorDataset(val_tensor)
             val_data = torch.utils.data.DataLoader(
                 val_dataset, batch_size=x_val.shape[0], shuffle=False)
         else:
             logger.debug('Using tensors')
             train_data = \
-                torch.from_numpy(x_train.astype(np.float32)).to(self.device)
+                torch.from_numpy(x_train).type(dtype).to(self.device)
             val_data = \
-                torch.from_numpy(x_val.astype(np.float32)).to(self.device)
+                torch.from_numpy(x_val).type(dtype).to(self.device)
 
         return train_data, val_data
 
@@ -605,7 +605,10 @@ class FlowModel:
         log_prob : ndarray
             Log probabilties for each samples
         """
-        x = torch.Tensor(x.astype(np.float32)).to(self.model.device)
+        x = (
+            torch.from_numpy(x).type(torch.get_default_dtype())
+            .to(self.model.device)
+        )
         self.model.eval()
         with torch.no_grad():
             z, log_prob = self.model.forward_and_log_prob(x)
@@ -655,8 +658,10 @@ class FlowModel:
 
             with torch.no_grad():
                 if isinstance(z, np.ndarray):
-                    z = torch.Tensor(z.astype(np.float32)).to(
-                        self.model.device)
+                    z = (
+                        torch.from_numpy(z).type(torch.get_default_dtype())
+                        .to(self.model.device)
+                    )
                 log_prob = log_prob_fn(z)
                 x, log_J = self.model.inverse(z, context=None)
                 log_prob -= log_J
