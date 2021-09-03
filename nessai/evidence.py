@@ -141,7 +141,6 @@ class _NSIntegralState:
         plt.xlabel('log prior-volume')
         plt.ylabel('log-likelihood')
         plt.xlim([self.log_vols[-1], self.log_vols[0]])
-        plt.yscale('symlog')
 
         if filename is not None:
             fig.savefig(filename, bbox_inches='tight')
