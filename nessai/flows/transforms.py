@@ -46,7 +46,11 @@ class NLSqCouplingTransform(CouplingTransform):
             transform_net_create_fn,
             unconditional_transform=unconditional_transform,
         )
-        self.log_c_const = math.log(8.0 * math.sqrt(3.0) / 9.0 * alpha)
+        self.alpha = alpha
+        self.register_buffer(
+            'log_c_const',
+            torch.Tensor([(math.log(8.0 * math.sqrt(3.0) / 9.0) * self.alpha)])
+        )
 
     def _transform_dim_multiplier(self) -> int:
         return 5
@@ -66,8 +70,8 @@ class NLSqCouplingTransform(CouplingTransform):
         c = torch.tanh(c_p) * torch.exp(self.log_c_const + logb - logd)
         return a, b, c, d, g
 
+    @staticmethod
     def _get_derivative(
-        self,
         arg: torch.Tensor,
         denom: torch.Tensor,
         b: torch.Tensor,
@@ -78,19 +82,16 @@ class NLSqCouplingTransform(CouplingTransform):
             torch.log(b - 2 * c * d * arg / denom.pow(2)), num_batch_dims=1
         )
 
-    def _coupling_transform_forward(
-        self,
+    @staticmethod
+    @torch.jit.script
+    def _solve_cubic_polynomial(
         inputs: torch.Tensor,
-        transform_params: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        a, b, c, d, g = self._get_params(transform_params)
-        a = a.double()
-        b = b.double()
-        c = c.double()
-        d = d.double()
-        g = g.double()
-        inputs = inputs.double()
-
+        a: torch.Tensor,
+        b: torch.Tensor,
+        c: torch.Tensor,
+        d: torch.Tensor,
+        g: torch.Tensor,
+    ) -> torch.Tensor:
         # Four components of the cubic equation (Appendix C)
         # Follows G. C. Holmes 2002 for solving polynomials
         # a=aa etc
@@ -119,6 +120,24 @@ class NLSqCouplingTransform(CouplingTransform):
 
         t[p > 0] = tpos[p > 0]
         outputs = t - bb / (3 * aa)
+        return outputs
+
+    def _coupling_transform_forward(
+        self,
+        inputs: torch.Tensor,
+        transform_params: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        dtype = inputs.dtype
+
+        a, b, c, d, g = self._get_params(transform_params)
+        a = a.double()
+        b = b.double()
+        c = c.double()
+        d = d.double()
+        g = g.double()
+        inputs = inputs.double()
+
+        outputs = self._solve_cubic_polynomial(inputs, a, b, c, d, g)
 
         # Compute log-Jacobian determinant
         arg = d * outputs + g
@@ -126,7 +145,7 @@ class NLSqCouplingTransform(CouplingTransform):
         # Original version is missing the minus sign.
         logabsdet = -self._get_derivative(arg, denom, b, c, d)
         # Map back to ploats
-        return outputs.float(), logabsdet.float()
+        return outputs.type(dtype), logabsdet.type(dtype)
 
     def _coupling_transform_inverse(
         self,
@@ -137,6 +156,6 @@ class NLSqCouplingTransform(CouplingTransform):
         arg = d * inputs + g
         denom = 1 + arg.pow(2)
         outputs = a + b * inputs + c / denom
-        # Compute log-Jaxobian determinant
+        # Compute log-Jacobian determinant
         logabsdet = self._get_derivative(arg, denom, b, c, d)
         return outputs, logabsdet
