@@ -8,13 +8,15 @@ import numpy as np
 from nessai.flows import (
     RealNVP,
     MaskedAutoregressiveFlow,
-    NeuralSplineFlow
+    NeuralSplineFlow,
+    NonLinearSquaredFlow,
     )
 
 flows = [
     RealNVP,
     MaskedAutoregressiveFlow,
-    NeuralSplineFlow
+    NeuralSplineFlow,
+    NonLinearSquaredFlow,
 ]
 
 
