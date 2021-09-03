@@ -14,6 +14,7 @@ from nflows.nn.nets import MLP as NFlowsMLP
 
 from .realnvp import RealNVP
 from .maf import MaskedAutoregressiveFlow
+from .nlsq import NonLinearSquaredFlow
 from .nsf import NeuralSplineFlow
 from .distributions import MultivariateNormal
 
@@ -40,6 +41,8 @@ def configure_model(config):
         'realnvp': RealNVP,
         'maf': MaskedAutoregressiveFlow,
         'frealnvp': RealNVP,
+        'nlsq': NonLinearSquaredFlow,
+        'nlsqf': NonLinearSquaredFlow,
         'spline': NeuralSplineFlow,
         'nsf': NeuralSplineFlow,
     }
