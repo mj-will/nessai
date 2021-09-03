@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The dtype for tensors passed to the flow is now set using `torch.get_default_dtype()` rather than always using `float32`.
+- Incorrect values for `mask` in `nessai.flows.realnvp.RealNVP` now raise `ValueError` and improved the error messages returned by all the exceptions in the class.
+
 
 ## [0.3.1] Minor improvements and bug fixes - 2021-08-23
 
