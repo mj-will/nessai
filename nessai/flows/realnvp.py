@@ -4,6 +4,7 @@ Implementation of Real Non Volume Preserving flows.
 """
 import logging
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -54,7 +55,7 @@ class RealNVP(NFlow):
        transform
     batch_norm_between_layers : bool, optional (False)
        Enable or disable batch norm between coupling transforms
-    linear_transform : {'permutaiton', 'lu', 'svd'}
+    linear_transform : {'permutaiton', 'lu', 'svd', None}
         Linear transform to use between coupling layers. Not recommended when
         using a custom mask.
     """
@@ -84,10 +85,11 @@ class RealNVP(NFlow):
             mask = torch.ones(features)
             mask[::2] = -1
         else:
+            mask = np.array(mask)
             if not mask.shape[-1] == features:
-                raise RuntimeError('Mask does not match number of features')
+                raise ValueError('Mask does not match number of features')
             if mask.ndim == 2 and not mask.shape[0] == num_layers:
-                raise RuntimeError('Mask does not match number of layers')
+                raise ValueError('Mask does not match number of layers')
 
             mask = torch.from_numpy(mask).type(torch.get_default_dtype())
 
@@ -114,7 +116,10 @@ class RealNVP(NFlow):
                                          identity_init=True)
                 ])
             else:
-                raise ValueError
+                raise ValueError(
+                    f'Unknown linear transform: {linear_transform}. '
+                    'Choose from: {permutation, lu, svd, None}.'
+                )
 
         if net.lower() == 'resnet':
             from nflows.nn.nets import ResidualNet
@@ -147,7 +152,10 @@ class RealNVP(NFlow):
                         activation=activation)
 
         else:
-            raise RuntimeError(f'Unknown nn type: {net}')
+            raise ValueError(
+                f'Unknown nn type: {net}. '
+                'Choose from: {resnet, mlp}.'
+            )
 
         layers = []
         for i in range(num_layers):
