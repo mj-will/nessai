@@ -89,7 +89,7 @@ class RealNVP(NFlow):
             if mask.ndim == 2 and not mask.shape[0] == num_layers:
                 raise RuntimeError('Mask does not match number of layers')
 
-            mask = torch.from_numpy(mask.astype('float32'))
+            mask = torch.from_numpy(mask).type(torch.get_default_dtype())
 
         if mask.dim() == 1:
             mask_array = torch.empty([num_layers, features])
