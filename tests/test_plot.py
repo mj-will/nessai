@@ -9,7 +9,6 @@ import pytest
 from unittest.mock import patch
 
 from nessai import plot
-from nessai.livepoint import numpy_array_to_live_points
 
 
 @pytest.fixture()
@@ -270,9 +269,7 @@ def test_trace_plot_save(nested_samples, save, tmpdir):
 def test_trace_plot_1d(nested_samples):
     """Test trace plot with only one parameter"""
     log_x = np.linspace(-10, 0, nested_samples.size)
-    nested_samples = numpy_array_to_live_points(
-        np.random.randn(log_x.size, 1), ['x'])
-    plot.plot_trace(log_x, nested_samples)
+    plot.plot_trace(log_x, nested_samples[['x']])
     plt.close()
 
 
