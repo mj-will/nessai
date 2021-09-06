@@ -44,6 +44,7 @@ class Model(ABC):
     bounds = {}
     reparameterisations = None
     likelihood_evaluations = 0
+    has_vectorised_likelihood = True
     _lower = None
     _upper = None
 
@@ -197,6 +198,20 @@ class Model(ABC):
         """
         raise NotImplementedError('User must implement this method!')
 
+    def from_unit_hypercube(self, x):
+        """Map from the unit hypercube to the priors.
+
+        Not implemented by default.
+        """
+        raise NotImplementedError()
+
+    def to_unit_hypercube(self, x):
+        """Map from the prior space to the unit hypercube.
+
+        Not implemented by default.
+        """
+        raise NotImplementedError()
+
     def parameter_in_bounds(self, x, name):
         """
         Check if an array of values for specific parameter are in the prior \
@@ -239,7 +254,7 @@ class Model(ABC):
             Log-likelihood value
 
         """
-        self.likelihood_evaluations += 1
+        self.likelihood_evaluations += x.size
         return self.log_likelihood(x)
 
     def verify_model(self):
