@@ -7,11 +7,37 @@ import numpy as np
 from numpy.lib import recfunctions as rfn
 
 
-LOGL_DTYPE = 'f16'
+LOGL_DTYPE = 'f8'
 IT_DTYPE = 'i4'
 DEFAULT_FLOAT_DTYPE = 'f8'
-EXTRA_PARAMETERS = ['logP', 'logL', 'logQ', 'logW', 'it']
-DEFAULT_VALUES = [0.0, 0.0, 0.0, 0.0, 0]
+CORE_PARAMETERS = ['logP', 'logL', 'it']
+DEFAULT_VALUES_CORE = [0.0, 0.0, 0]
+EXTRA_PARAMETERS = []
+DEFAULT_VALUES_EXTRA = []
+NON_SAMPLING_PARAMETERS = CORE_PARAMETERS + EXTRA_PARAMETERS
+DEFAULT_VALUES = DEFAULT_VALUES_CORE + DEFAULT_VALUES_EXTRA
+
+
+def add_extra_parameters(parameters, default_values=None):
+    """Add extra parameters to the live points dtype.
+
+    Extra parameters will be included in the live points dtype that is used
+    for constructing/converting to/from live points.
+
+    Parameters
+    ----------
+    parameters: list
+        List of parameters to add.
+    default_values: list
+        List of default values for each parameters. If not specfied, default
+        values will be set to zero.
+    """
+    if default_values is None:
+        default_values = len(parameters) * [0.0]
+    for p, dv in zip(parameters, default_values):
+        if p not in EXTRA_PARAMETERS:
+            EXTRA_PARAMETERS.append(p)
+            DEFAULT_VALUES_EXTRA.append(dv)
 
 
 def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
@@ -30,9 +56,11 @@ def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
     list of tuple
         Dtypes as tuples with (field, dtype)
     """
-    return [(n, array_dtype) for n in names] \
-        + [('logP', array_dtype), ('logL', LOGL_DTYPE), ('logQ', array_dtype),
-           ('logW', array_dtype), ('it', IT_DTYPE)]
+    return (
+        [(n, array_dtype) for n in names]
+        + [('logP', array_dtype), ('logL', LOGL_DTYPE), ('it', IT_DTYPE)]
+        + [(ep, array_dtype) for ep in EXTRA_PARAMETERS]
+    )
 
 
 def live_points_to_array(live_points, names=None):
@@ -50,7 +78,7 @@ def live_points_to_array(live_points, names=None):
     Returns
     -------
     np.ndarray
-        Unstructed numpy array
+        Unstructured numpy array
     """
     if names is None:
         names = list(live_points.dtype.names)
@@ -74,7 +102,7 @@ def parameters_to_live_point(parameters, names):
     Returns
     -------
     structed_array
-        Numpy structed array with fields given by names plus logP and logL
+        Numpy structured array with fields given by names plus logP and logL
     """
     if not len(parameters):
         return np.empty(0, dtype=get_dtype(names, DEFAULT_FLOAT_DTYPE))
@@ -97,7 +125,7 @@ def numpy_array_to_live_points(array, names):
     Returns
     -------
     structed_array
-        Numpy structed array with fields given by names plus logP and logL
+        Numpy structured array with fields given by names plus logP and logL
     """
     if array.size == 0:
         return np.empty(0, dtype=get_dtype(names))
@@ -122,7 +150,7 @@ def dict_to_live_points(d):
     Returns
     -------
     structured_array
-        Numpy structed array with fields given by names plus logP and logL
+        Numpy structured array with fields given by names plus logP and logL
     """
     if isinstance(list(d.values())[0], int):
         N = 1
