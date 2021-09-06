@@ -289,8 +289,8 @@ def test_trace_plot_unstructured():
     assert 'structured array' in str(excinfo.value)
 
 
-@pytest.mark.parametrize('labels', [None, ['x', 'y']])
-def test_trace_plot_labels(nested_samples, labels, tmpdir):
+@pytest.mark.parametrize('labels', [None, ['x', 'y', 'logL', 'logP']])
+def test_trace_plot_labels(nested_samples, labels):
     """Test trace plot generation with labels."""
     log_x = np.linspace(-10, 0, nested_samples.size)
     plot.plot_trace(log_x, nested_samples, labels=labels)
