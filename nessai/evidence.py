@@ -4,8 +4,9 @@ Functions realted to computing the evidence.
 """
 import logging
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.special import logsumexp
 
 logger = logging.getLogger(__name__)
 
@@ -148,3 +149,64 @@ class _NSIntegralState:
             logger.info(f'Saved nested sampling plot as {filename}')
         else:
             return fig
+
+
+class _INSIntegralState:
+
+    def __init__(self, **kwargs):
+        self._n = 0
+        self._logZ = -np.inf
+        self.info = [np.nan]
+        self.log_vols = [0.]
+        self.logX = 0.
+        self.effective_sample_size = 0
+        self._logZ_history = np.empty(0)
+
+    def update_evidence(self, x: np.ndarray):
+        """Update the evidence estimate."""
+        log_Z_k = x['logL'] + x['logW']
+        self._logZ_history = np.concatenate([self._logZ_history, log_Z_k])
+        self._logZ = logsumexp(self._logZ_history)
+        self._n += x.size
+
+    def update_evidence_from_nested_samples(self, x):
+        log_Z_k = x['logL'] + x['logW']
+        self._logZ_history = log_Z_k
+        self._logZ = logsumexp(log_Z_k)
+        self._n = x.size
+
+    @property
+    def logZ(self):
+        return self._logZ
+
+    def finalise(self):
+        logger.debug('Calling finalise. Nothing happened!')
+        pass
+
+    def compute_condition(self, logL, logW) -> float:
+        logZ = np.logaddexp(self._logZ, logL + logW)
+        dZ = logZ - self.logZ
+        return dZ
+
+    def compute_uncertainty(self) -> float:
+        n = self._n
+        Z_hat = np.exp(self.logZ, dtype=np.float128)
+        # Include n since g does not include it
+        Z = n * np.exp(self._logZ_history.astype(np.float128))
+        # Var[Z]
+        u = np.sqrt(np.sum((Z - Z_hat) ** 2) / (n * (n - 1)))
+        # sigma[ln Z] = |sigma[Z] / Z|
+        return float(np.abs(u / Z_hat))
+
+    @property
+    def log_posterior_weights(self):
+        """Compute the weights for all of the dead points."""
+        return np.asarray(self._logZ_history).copy() - self.logZ
+
+    @property
+    def effective_n_posterior_samples(self) -> float:
+        """Kish's effectice sample size"""
+        log_p = self.log_posterior_weights
+        log_p -= logsumexp(log_p)
+        n = np.exp(-logsumexp(2 * log_p))
+        return n
