@@ -98,7 +98,7 @@ class Reparameterisation:
         self.parameters = \
             [parameters] if isinstance(parameters, str) else parameters
 
-        if isinstance(prior_bounds, (list, tuple)):
+        if isinstance(prior_bounds, (list, tuple, np.ndarray)):
             if len(prior_bounds) == 2:
                 prior_bounds = {self.parameters[0]: np.asarray(prior_bounds)}
             else:
@@ -112,7 +112,8 @@ class Reparameterisation:
                 self.prior_bounds = None
         elif not isinstance(prior_bounds, dict):
             raise TypeError(
-                'Prior bounds must be dict, tuple of len 2 or None'
+                'Prior bounds must be a dict, tuple, list or numpy array'
+                ' of len 2 or None.'
             )
 
         if prior_bounds is not None:

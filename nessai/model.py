@@ -17,6 +17,11 @@ from .livepoint import (
 logger = logging.getLogger(__name__)
 
 
+class OneDimensionalModelError(Exception):
+    """Exception raised when the model is one-dimensional"""
+    pass
+
+
 class Model(ABC):
     """Base class for the user-defined model being sampled.
 
@@ -40,20 +45,68 @@ class Model(ABC):
         Number of likelihood evaluations
     """
 
-    names = []
-    bounds = {}
+    _names = None
+    _bounds = None
     reparameterisations = None
     likelihood_evaluations = 0
     _lower = None
     _upper = None
 
     @property
+    def names(self):
+        """List of the names of each parameter in the model."""
+        if self._names is None:
+            raise RuntimeError('`names` is not set!')
+        return self._names
+
+    @names.setter
+    def names(self, names):
+        if not isinstance(names, list):
+            raise TypeError('`names` must be a list')
+        elif not names:
+            raise ValueError('`names` list is empty!')
+        elif len(names) == 1:
+            raise OneDimensionalModelError(
+                'names list has length 1. '
+                'nessai is not designed to handle one-dimensional models due '
+                'to limitations imposed by the normalising flow-based '
+                'proposals it uses. Consider using other methods instead of '
+                'nessai.'
+            )
+        else:
+            self._names = names
+
+    @property
+    def bounds(self):
+        """Dictionary with the lower and upper bounds for each parameter."""
+        if self._bounds is None:
+            raise RuntimeError('`bounds` is not set!')
+        return self._bounds
+
+    @bounds.setter
+    def bounds(self, bounds):
+        if not isinstance(bounds, dict):
+            raise TypeError('`bounds` must be a dictionary.')
+        elif len(bounds) == 1:
+            raise OneDimensionalModelError(
+                'bounds dictionary has length 1. '
+                'nessai is not designed to handle one-dimensional models due '
+                'to limitations imposed by the normalising flow-based '
+                'proposals it uses. Consider using other methods instead of '
+                'nessai.'
+            )
+        elif not all([len(b) == 2 for b in bounds.values()]):
+            raise ValueError('Each entry in `bounds` must have length 2.')
+        else:
+            self._bounds = {p: np.asarray(b) for p, b in bounds.items()}
+
+    @property
     def dims(self):
         """Number of dimensions in the model"""
-        if self.names:
-            return len(self.names)
-        else:
-            return None
+        d = len(self.names)
+        if d == 0:
+            d = None
+        return d
 
     @property
     def lower_bounds(self):
@@ -220,14 +273,14 @@ class Model(ABC):
         """
         Returns log-prior, must be defined by the user.
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def log_likelihood(self, x):
         """
         Returns the log-likelihood, must be defined by the user.
         """
-        pass
+        raise NotImplementedError
 
     def evaluate_log_likelihood(self, x):
         """
@@ -247,10 +300,29 @@ class Model(ABC):
         Verify that the model is correctly setup. This includes checking
         the names, bounds and log-likelihood.
         """
+        if not isinstance(self.names, list):
+            raise TypeError('`names` must be a list')
+
+        if not isinstance(self.bounds, dict):
+            raise TypeError('`bounds` must be a dictionary')
+
         if not self.names:
-            raise ValueError('Names for model parameters are not set')
-        if not self.bounds:
-            raise ValueError('Bounds are not set for model')
+            raise ValueError(
+                f'`names` is not set to a valid value: {self.names}'
+            )
+        if not self.bounds or not isinstance(self.bounds, dict):
+            raise ValueError(
+                f'`bounds` is not set to a valid value: {self.bounds}'
+            )
+
+        if self.dims == 1:
+            raise OneDimensionalModelError(
+                'model is one-dimensional. '
+                'nessai is not designed to handle one-dimensional models due '
+                'to limitations imposed by the normalising flow-based '
+                'proposals it uses. Consider using other methods instead of '
+                'nessai.'
+            )
 
         for n in self.names:
             if n not in self.bounds.keys():
