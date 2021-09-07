@@ -69,3 +69,11 @@ def test_with_nsf_kwargs(kwargs):
     x = torch.randn(10, 2)
     z, _ = flow.forward(x)
     assert z.shape == (10, 2)
+
+
+@pytest.mark.parametrize('FlowClass', [RealNVP, NeuralSplineFlow])
+def test_1d_inputs(FlowClass):
+    """Assert an error is raised if 1-d inputs are specified."""
+    with pytest.raises(ValueError) as excinfo:
+        FlowClass(1, 2, 2, 2)
+    assert 'requires at least 2 dimensions' in str(excinfo.value)

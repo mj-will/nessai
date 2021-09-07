@@ -69,6 +69,12 @@ class NeuralSplineFlow(NFlow):
         **kwargs
     ):
 
+        if features <= 1:
+            raise ValueError(
+                'Coupling based Neural Spline flow requires at least 2 '
+                f'dimensions. Specified dimensions: {features}.'
+            )
+
         def create_linear_transform():
             if linear_transform == 'permutation':
                 return transforms.RandomPermutation(features=features)

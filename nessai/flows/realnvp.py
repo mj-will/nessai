@@ -76,6 +76,12 @@ class RealNVP(NFlow):
         distribution=None,
     ):
 
+        if features <= 1:
+            raise ValueError(
+                'RealNVP requires at least 2 dimensions. '
+                f'Specified dimensions: {features}.'
+            )
+
         if use_volume_preserving:
             coupling_constructor = transforms.AdditiveCouplingTransform
         else:
