@@ -9,6 +9,7 @@ from nflows.transforms import Transform
 from nflows.transforms.coupling import CouplingTransform
 from nflows.utils import torchutils
 import torch
+import torch.nn.functional as F
 
 
 class NLSqCouplingTransform(CouplingTransform):
@@ -38,7 +39,7 @@ class NLSqCouplingTransform(CouplingTransform):
         mask: Union[torch.Tensor, list, tuple],
         transform_net_create_fn: Callable,
         unconditional_transform: Transform = None,
-        alpha: float = 0.95,
+        alpha: float = 0.9,
     ) -> None:
 
         super().__init__(
@@ -48,8 +49,8 @@ class NLSqCouplingTransform(CouplingTransform):
         )
         self.alpha = alpha
         self.register_buffer(
-            'log_c_const',
-            torch.Tensor([(math.log(8.0 * math.sqrt(3.0) / 9.0) * self.alpha)])
+            'c_const',
+            torch.Tensor([self.alpha * 8.0 * math.sqrt(3.0) / 9.0])
         )
 
     def _transform_dim_multiplier(self) -> int:
@@ -65,9 +66,11 @@ class NLSqCouplingTransform(CouplingTransform):
         a, logb, c_p, logd, g = torch.split(
             transform_params, self.num_transform_features, dim=1
         )
-        b = torch.exp(logb)
-        d = torch.exp(logd)
-        c = torch.tanh(c_p) * torch.exp(self.log_c_const + logb - logd)
+        # Find using softplus more stable than using exp because it is linear
+        # above 20 by default.
+        b = F.softplus(logb) + 1e-3
+        d = F.softplus(logd) + 1e-3
+        c = torch.tanh(c_p) * self.c_const * b / d
         return a, b, c, d, g
 
     @staticmethod
@@ -127,6 +130,7 @@ class NLSqCouplingTransform(CouplingTransform):
         inputs: torch.Tensor,
         transform_params: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+
         dtype = inputs.dtype
 
         a, b, c, d, g = self._get_params(transform_params)
@@ -144,7 +148,7 @@ class NLSqCouplingTransform(CouplingTransform):
         denom = 1 + arg.pow(2)
         # Original version is missing the minus sign.
         logabsdet = -self._get_derivative(arg, denom, b, c, d)
-        # Map back to ploats
+        # Map back to same dtype as the original inputs
         return outputs.type(dtype), logabsdet.type(dtype)
 
     def _coupling_transform_inverse(
@@ -152,6 +156,7 @@ class NLSqCouplingTransform(CouplingTransform):
         inputs: torch.Tensor,
         transform_params: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+
         a, b, c, d, g = self._get_params(transform_params)
         arg = d * inputs + g
         denom = 1 + arg.pow(2)
