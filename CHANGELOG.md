@@ -7,12 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added more checks to the init method for `nessai.reparameterisations.AnglePair` to catch invalid combinations of priors and/or angle conventions. Now supports RA or azimuth defined on [-pi, pi] in addition to [0, 2pi].
+
+
 ### Changed
 
 - The dtype for tensors passed to the flow is now set using `torch.get_default_dtype()` rather than always using `float32`.
 - Incorrect values for `mask` in `nessai.flows.realnvp.RealNVP` now raise `ValueError` and improved the error messages returned by all the exceptions in the class.
 - Change scale of y-axis of the log-prior volume vs. log-likelihood plot from `symlog` to the default linear axis.
 `nessai.plot.plot_trace` now includes additional parameters such as `logL` and `logP` default, previously the last two parameters (assumed to be `logL` and `logP` were always excluded).
+
+
+### Fixed
+
+- Fixed an issue where `nessai.reparameterisations.AnglePair` would silently break when the prior range for RA or azimuth was set to a range that wasn't [0, 2pi]. It now correctly handles both [0, 2pi] and [-pi, pi] and raises an error for any other ranges.
 
 
 ## [0.3.1] Minor improvements and bug fixes - 2021-08-23
