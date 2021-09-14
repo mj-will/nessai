@@ -1128,11 +1128,13 @@ class AnglePair(Reparameterisation):
 
         if convention is None:
             logger.debug('Trying to determine convention')
-            if (self.prior_bounds[self.parameters[1]][0] == 0 and
-                    self.prior_bounds[self.parameters[1]][1] == np.pi):
+            if np.array_equal(
+                self.prior_bounds[self.parameters[1]], [0, np.pi]
+            ):
                 self.convention = 'az-zen'
-            elif (self.prior_bounds[self.parameters[1]][0] == -np.pi / 2 and
-                    self.prior_bounds[self.parameters[1]][1] == np.pi / 2):
+            elif np.array_equal(
+                self.prior_bounds[self.parameters[1]], [-np.pi / 2, np.pi / 2]
+            ):
                 self.convention = 'ra-dec'
             else:
                 raise RuntimeError(
