@@ -1040,6 +1040,12 @@ class AnglePair(Reparameterisation):
     If the radial component is not specified, it is sampled from a chi-
     distribution with three degrees of freedom.
 
+    Notes
+    -----
+    The parameters will be reordered such that the first parameter is the angle
+    along the horizon, the second parameter is the vertical angle and the last
+    parameter is the radial parameter.
+
     Parameters
     -----------
     parameters : list
@@ -1164,22 +1170,30 @@ class AnglePair(Reparameterisation):
 
     @property
     def angles(self):
+        """Names of the two angles.
+
+        Order is: angle along the horizon, vertical angle.
+        """
         return self.parameters[:2]
 
     @property
     def radial(self):
+        """Name of the radial parameter"""
         return self.parameters[-1]
 
     @property
     def x(self):
+        """Name of the first Cartesian coordinate"""
         return self.prime_parameters[0]
 
     @property
     def y(self):
+        """Name of the second Cartesian coordinate"""
         return self.prime_parameters[1]
 
     @property
     def z(self):
+        """Name of the third Cartesian coordinate"""
         return self.prime_parameters[2]
 
     def _az_zen(self, x, x_prime, log_j, r):
