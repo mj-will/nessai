@@ -613,9 +613,29 @@ class FlowModel:
         with torch.no_grad():
             z, log_prob = self.model.forward_and_log_prob(x)
 
-        z = z.detach().cpu().numpy()
-        log_prob = log_prob.detach().cpu().numpy()
+        z = z.detach().cpu().numpy().astype(np.float64)
+        log_prob = log_prob.detach().cpu().numpy().astype(np.float64)
         return z, log_prob
+
+    def log_prob(self, x):
+        """Compute the log-probability of a sample.
+
+        Parameters
+        ----------
+        x : ndarray
+            Array of samples in the X-prime space.
+
+        Returns
+        -------
+        ndarray
+            Array of log-probabilities.
+        """
+        x = torch.from_numpy(x.astype(np.float32)).to(self.model.device)
+        self.model.eval()
+        with torch.no_grad():
+            log_prob = self.model.log_prob(x)
+        log_prob = log_prob.cpu().numpy().astype(np.float64)
+        return log_prob
 
     def sample_and_log_prob(self, N=1, z=None, alt_dist=None):
         """
@@ -649,7 +669,7 @@ class FlowModel:
             self.model.eval()
         if z is None:
             with torch.no_grad():
-                x, log_prob = self.model.sample_and_log_prob(N)
+                x, log_prob = self.model.sample_and_log_prob(int(N))
         else:
             if alt_dist is not None:
                 log_prob_fn = alt_dist.log_prob
@@ -666,8 +686,8 @@ class FlowModel:
                 x, log_J = self.model.inverse(z, context=None)
                 log_prob -= log_J
 
-        x = x.detach().cpu().numpy()
-        log_prob = log_prob.detach().cpu().numpy()
+        x = x.detach().cpu().numpy().astype(np.float64)
+        log_prob = log_prob.detach().cpu().numpy().astype(np.float64)
         return x, log_prob
 
     def __getstate__(self):
