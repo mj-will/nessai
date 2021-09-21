@@ -100,7 +100,7 @@ def draw_posterior_samples(
     if log_w is None:
         _, log_w = \
             compute_weights(nested_samples['logL'], nlive, log_vols=log_vols)
-    log_w -= np.max(log_w)
+    log_w = log_w - np.max(log_w)
     if method == 'rejection_sampling':
         logger.info('Producing posterior samplies using rejection sampling')
         if n is not None:
