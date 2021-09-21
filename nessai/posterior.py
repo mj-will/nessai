@@ -2,12 +2,16 @@
 """
 Functions realted to computing the posterior samples.
 """
+import logging
 import numpy as np
+from scipy.special import logsumexp
 
 from .evidence import logsubexp, log_integrate_log_trap
 
+logger = logging.getLogger(__name__)
 
-def compute_weights(samples, nlive):
+
+def compute_weights(samples, nlive=None, log_vols=None):
     """
     Returns the log-evidence and log-weights for the log-likelihood samples
     assumed to the result of nested sampling with nlive live points
@@ -27,22 +31,25 @@ def compute_weights(samples, nlive):
         Array of computed weigths (already normalised by the log-evidence).
     """
     samples = np.asarray(samples)
-    start_data = np.concatenate(([float('-inf')], samples[:-nlive]))
-    end_data = samples[-nlive:]
 
-    log_wts = np.zeros(samples.shape[0])
+    if log_vols is None:
+        start_data = np.concatenate(([float('-inf')], samples[:-nlive]))
+        end_data = samples[-nlive:]
+        logger.warning('Computing posterior weights assuming equal weights')
+        log_vols_start = np.cumsum(
+            np.ones(len(start_data) + 1) * np.log1p(-1. / nlive)) \
+            - np.log1p(-1 / nlive)
+        log_vols_end = np.zeros(len(end_data))
+        log_vols_end[-1] = np.NINF
+        log_vols_end[0] = log_vols_start[-1] + np.log1p(-1.0 / nlive)
+        for i in range(len(end_data) - 1):
+            log_vols_end[i+1] = log_vols_end[i] + np.log1p(-1.0 / (nlive - i))
+        log_vols = np.concatenate((log_vols_start, log_vols_end))
+        log_likes = np.concatenate((start_data, end_data, [end_data[-1]]))
+    else:
+        log_vols = np.concatenate([log_vols, [-np.inf]])
+        log_likes = np.concatenate([[-np.inf], samples, [samples[-1]]])
 
-    log_vols_start = np.cumsum(np.ones(len(start_data) + 1)
-                               * np.log1p(-1. / nlive)) - np.log1p(-1 / nlive)
-    log_vols_end = np.zeros(len(end_data))
-    log_vols_end[-1] = np.NINF
-    log_vols_end[0] = log_vols_start[-1] + np.log1p(-1.0 / nlive)
-    for i in range(len(end_data) - 1):
-        log_vols_end[i+1] = log_vols_end[i] + np.log1p(-1.0 / (nlive - i))
-
-    log_likes = np.concatenate((start_data, end_data, [end_data[-1]]))
-
-    log_vols = np.concatenate((log_vols_start, log_vols_end))
     log_ev = log_integrate_log_trap(log_likes, log_vols)
 
     log_dXs = logsubexp(log_vols[:-1], log_vols[1:])
@@ -53,23 +60,62 @@ def compute_weights(samples, nlive):
     return log_ev, log_wts
 
 
-def draw_posterior_samples(nested_samples, nlive):
-    """
-    Draw posterior samples given the nested samples and number of live points.
+def draw_posterior_samples(
+    nested_samples,
+    nlive=None,
+    log_vols=None,
+    n=None,
+    log_w=None,
+    method='rejection_sampling',
+):
+    """Draw posterior samples given the nested samples.
+
+    Requires either the posterior weights or the number of live points.
 
     Parameters
     ----------
     nested_samples : structured array
         Array of nested samples.
-    nlive : int
-        Number of live points used during nested sampling.
+    nlive : int, optional
+        Number of live points used during nested sampling. Either this
+        arguments or log_w must be specified.
+    log_vols : array_like, optional
+        Log prior volumes for each nested sample. If not provided they are
+        computed assuming the skrinkage is -1/nlive.
+    n : int, optional
+        Number of samples to draw. Only used for importance sampling. If not
+        specified, the effetive sample size is used instead.
+    log_w : array_like, optional
+        Array of posterior weights. If specified the weights are not computed
+        and these weights are used instead.
+    method : str, {'rejection_sampling', 'importance_sampling'}
+        Method for drawing the posterior samples.
 
     Returns
     -------
     array_like
         Samples from the posterior distribution.
     """
-    log_Z, log_w = compute_weights(nested_samples['logL'], nlive)
+    nested_samples = np.asarray(nested_samples)
+    if log_w is None:
+        _, log_w = \
+            compute_weights(nested_samples['logL'], nlive, log_vols=log_vols)
     log_w -= np.max(log_w)
-    log_u = np.log(np.random.rand(nested_samples.size))
-    return nested_samples[log_w > log_u]
+    if method == 'rejection_sampling':
+        logger.info('Producing posterior samplies using rejection sampling')
+        if n is not None:
+            logger.warning(
+                'Number of samples cannot be specified for rejection sampling')
+        log_u = np.log(np.random.rand(nested_samples.size))
+        return nested_samples[log_w > log_u]
+    elif method == 'importance_sampling':
+        logger.info('Producing posterior samplies using importance sampling')
+        p = np.exp(log_w - logsumexp(log_w))
+        if n is None:
+            n = int(1 / np.sum(p ** 2.0))
+            logger.info(
+                f'Computed effective sample size for importance sampling: {n}')
+        return np.random.choice(nested_samples, size=n, p=p, replace=True)
+    else:
+        raise ValueError(
+            f'Unknown method of drawing posterior sampling: {method}')
