@@ -18,7 +18,7 @@ NON_SAMPLING_PARAMETERS = CORE_PARAMETERS + EXTRA_PARAMETERS
 DEFAULT_VALUES = DEFAULT_VALUES_CORE + DEFAULT_VALUES_EXTRA
 
 
-def add_extra_parameters(parameters, default_values=None):
+def add_extra_parameters_to_live_points(parameters, default_values=None):
     """Add extra parameters to the live points dtype.
 
     Extra parameters will be included in the live points dtype that is used
