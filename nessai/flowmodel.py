@@ -102,6 +102,15 @@ def update_config(d):
             default_model.update(d.get('model_config', {}))
             default['model_config'] = default_model
 
+    if (
+        not isinstance(default['noise_scale'], float) and
+        not default['noise_scale'] == 'adaptive'
+    ):
+        raise ValueError(
+            "noise_scale must be a float or 'adaptive'. "
+            f"Received: {default['noise_scale']}"
+        )
+
     return default
 
 
