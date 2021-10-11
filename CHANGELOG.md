@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added more checks to the init method for `nessai.reparameterisations.AnglePair` to catch invalid combinations of priors and/or angle conventions. Now supports RA or azimuth defined on [-pi, pi] in addition to [0, 2pi].
+- Add a check in `nessai.flowmodel.update_config` for `'noise_scale'`, a `ValueError` is now raised if `noise_scale` is not a float or `'adaptive'`.
 
 
 ### Changed
