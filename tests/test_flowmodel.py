@@ -42,6 +42,15 @@ def test_update_config_invalid_type():
     assert 'Must pass a dictionary' in str(excinfo.value)
 
 
+@pytest.mark.parametrize('noise_scale', ['auto', 4])
+def test_update_config_invalid_noise_scale(noise_scale):
+    """Assert an error is raised if noise_scale is not a float or adapative."""
+    config = {'noise_scale': noise_scale}
+    with pytest.raises(ValueError) as excinfo:
+        update_config(config)
+    assert 'noise_scale must be a float or' in str(excinfo.value)
+
+
 def test_init_no_config(tmpdir):
     """Test the init method with no config specified"""
     output = str(tmpdir.mkdir('no_config'))
