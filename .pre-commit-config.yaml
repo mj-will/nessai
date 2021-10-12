@@ -11,6 +11,6 @@ repos:
     hooks:
     -   id: flake8
 -   repo: https://github.com/codespell-project/codespell
-    rev: v1.16.0
+    rev: v2.1.0
     hooks:
     -   id: codespell
