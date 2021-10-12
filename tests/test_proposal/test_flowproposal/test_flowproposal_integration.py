@@ -10,6 +10,23 @@ from nessai.livepoint import numpy_array_to_live_points
 torch.set_num_threads(1)
 
 
+@pytest.mark.integration_test
+def test_flowproposal_basic_rescaling(tmpdir, model):
+    """
+    Test the basic rescaling.
+    """
+    output = str(tmpdir.mkdir('flowproposal'))
+    fp = FlowProposal(
+        model,
+        output=output,
+        rescale_parameters=['x'],
+        poolsize=100,
+    )
+
+    fp.initialise()
+    assert fp.rescaled_names == ['x_prime', 'y']
+
+
 @pytest.mark.parametrize('latent_prior', ['gaussian', 'truncated_gaussian',
                                           'uniform_nball', 'uniform_nsphere',
                                           'uniform'])
