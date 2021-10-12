@@ -318,7 +318,7 @@ def test_unknown_prior():
 
 
 def test_unknown_convention():
-    """Assert an unknown convetion raises an error"""
+    """Assert an unknown convention raises an error"""
     with pytest.raises(ValueError) as excinfo:
         AnglePair(
             parameters=['az', 'zen'],

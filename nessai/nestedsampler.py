@@ -51,7 +51,7 @@ class NestedSampler:
         Boolean to toggle checkpointing, must be enabled to resume the sampler.
         If false the sampler is still saved at the end of sampling.
     resume_file : str, optional
-        If specified sampler will be resumed from this file. Still requieres
+        If specified sampler will be resumed from this file. Still requires
         correct model.
     seed : int, optional
         seed for the initialisation of the pseudorandom chain
@@ -70,16 +70,16 @@ class NestedSampler:
         Maximum number of iterations before forcing the sampler to switch to
         using the proposal method with the flow.
     uninformed_proposal : :obj:`nessai.proposal.Proposal`: (None)
-        Class to use for inintial sampling before training the flow. If
+        Class to use for initial sampling before training the flow. If
         None RejectionProposal or AnalyticProposal are used depending if
         `analytic_priors` is False or True.
     uninformed_acceptance_threshold : float (None)
-        Acceptance threshold for initialing sampling, if acceptance falls
+        Acceptance threshold for initialising sampling, if acceptance falls
         below this value sampler switches to flow-based proposal. If None
         then value is set to 10 times `acceptance_threshold`
     uninformed_proposal_kwargs : dict, ({})
-        Dictionary of keyword argument to parase to the class use for
-        the intial sampling when it is initialised.
+        Dictionary of keyword argument to pass to the class use for
+        the initial sampling when it is initialised.
     flow_class : :obj:`nessai.proposal.FlowProposal`
         Class to use for flow-based proposal method
     flow_config : dict ({})
@@ -98,19 +98,19 @@ class NestedSampler:
         Number of old live points to use in training. If False only the current
         live points are used.
     reset_weights : bool, int, (False)
-        Boolean to toggle reseting the flow weights whenever re-training.
-        If an interger is specified the flow is reset every nth time it is
+        Boolean to toggle resetting the flow weights whenever re-training.
+        If an integer is specified the flow is reset every nth time it is
         trained.
-    reset_permuations: bool, int, (False)
-        Boolean to toggle reseting the permuation layers in the flow whenever
-        re-training. If an interger is specified the flow is reset every nth
+    reset_permutations: bool, int, (False)
+        Boolean to toggle resetting the permutation layers in the flow whenever
+        re-training. If an integer is specified the flow is reset every nth
         time it is trained.
     reset_acceptance : bool, (True)
         If true use mean acceptance of samples produced with current flow
         as a criteria for retraining
     retrain_acceptance : bool (False)
         Force the flow to be reset if the acceptance falls below the acceptance
-        threshold. Requiers `reset_acceptance=True`
+        threshold. Requires `reset_acceptance=True`
     acceptance_threshold : float (0.01)
         Threshold to determine if the flow should be retrained, will not
         retrain if cooldown is not satisfied.
@@ -232,7 +232,7 @@ class NestedSampler:
 
         # Uninformed proposal is used for prior sampling
         # If maximum uninformed is greater than 0, the it will be used for
-        # another n interation or until it becomes inefficient
+        # another n iterations or until it becomes inefficient
 
         self.store_live_points = False
         if self.store_live_points:
@@ -391,7 +391,7 @@ class NestedSampler:
         flow_config : dict
             Configuration dictionary passed to the class.
         proposal_plots : bool or str
-            Configuration of plottinmg in proposal class.
+            Configuration of plotting in proposal class.
         **kwargs :
             Kwargs passed to init function.
         """
@@ -497,7 +497,7 @@ class NestedSampler:
 
     def check_insertion_indices(self, rolling=True, filename=None):
         """
-        Checking the distibution of the insertion indices either during
+        Checking the distribution of the insertion indices either during
         the nested sampling run (rolling=True) or for the whole run
         (rolling=False).
         """
@@ -651,7 +651,7 @@ class NestedSampler:
 
         self.live_points = np.sort(live_points, order='logL')
         if self.store_live_points:
-            np.savetxt(self.live_points_dir + '/intial_live_points.dat',
+            np.savetxt(self.live_points_dir + '/initial_live_points.dat',
                        self.live_points,
                        header='\t'.join(self.live_points.dtype.names))
 
@@ -801,7 +801,7 @@ class NestedSampler:
 
     def train_proposal(self, force=False):
         """
-        Try to trin the proposal. Proposal will not train if cooldown is not
+        Try to train the proposal. Proposal will not train if cooldown is not
         exceeded unless force is True.
 
         Parameters
@@ -835,7 +835,7 @@ class NestedSampler:
         """
         Check if state should be updated prior to drawing a new sample
 
-        Force will overide the cooldown mechanism.
+        Force will override the cooldown mechanism.
         """
 
         if self.uninformed_sampling:
@@ -843,7 +843,7 @@ class NestedSampler:
                 force = True
             else:
                 return
-        # General overide
+        # General override
         train = False
         if force:
             train = True
@@ -857,12 +857,12 @@ class NestedSampler:
     def plot_state(self, filename=None):
         """
         Produce plots with the current state of the nested sampling run.
-        Plots are saved to the output directory specifed at initialisation.
+        Plots are saved to the output directory specified at initialisation.
 
         Parameters
         ----------
         filename : str, optional
-            If specifie the figure will be saved, otherwise the figure is
+            If specified the figure will be saved, otherwise the figure is
             returned.
         """
 
@@ -905,7 +905,7 @@ class NestedSampler:
         ax[1].set_yscale('log')
 
         ax[2].plot(it, self.likelihood_evaluations, c=colours[0], ls=ls[0],
-                   label='Evalutions')
+                   label='Evaluations')
         ax[2].set_ylabel('logL evaluations')
 
         ax[3].plot(it, self.logZ_history, label='logZ', c=colours[0], ls=ls[0])

@@ -11,7 +11,7 @@ from nessai.nestedsampler import NestedSampler
 
 
 def test_configure_flow_reset_false(sampler):
-    """Assert the attributes evalute to false if the inputs are false"""
+    """Assert the attributes evaluate to false if the inputs are false"""
     NestedSampler.configure_flow_reset(sampler, False, False)
     assert not sampler.reset_weights
     assert not sampler.reset_permutations
@@ -20,7 +20,7 @@ def test_configure_flow_reset_false(sampler):
 @pytest.mark.parametrize('weights', [10, 5.0])
 @pytest.mark.parametrize('permutations', [10, 5.0])
 def test_configure_flow_reset(sampler, weights, permutations):
-    """Assert the attributes evalute to false if the inputs are false"""
+    """Assert the attributes evaluate to false if the inputs are false"""
     NestedSampler.configure_flow_reset(sampler, weights, permutations)
     assert sampler.reset_weights == float(weights)
     assert sampler.reset_permutations == float(permutations)

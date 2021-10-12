@@ -133,11 +133,11 @@ class NFlow(BaseFlow):
     Parameters
     ----------
     transform : :obj: `nflows.transforms.Transform`
-        Object that applys the transformation, must have`forward` and
+        Object that applies the transformation, must have`forward` and
         `inverse` methods. See nflows for more details.
     distribution : :obj: `nflows.distributions.Distribution`
         Object the serves as the base distribution used when sampling
-        and computing the log probrability. Must have `log_prob` and
+        and computing the log probability. Must have `log_prob` and
         `sample` methods. See nflows for details
     """
     def __init__(self, transform, distribution):

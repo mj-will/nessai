@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added more checks to the init method for `nessai.reparameterisations.AnglePair` to catch invalid combinations of priors and/or angle conventions. Now supports RA or azimuth defined on [-pi, pi] in addition to [0, 2pi].
 - Add a check in `nessai.flowmodel.update_config` for `'noise_scale'`, a `ValueError` is now raised if `noise_scale` is not a float or `'adaptive'`.
+- Add `codespell` to the pre-commit checks.
 
 
 ### Changed
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed an issue where `nessai.reparameterisations.AnglePair` would silently break when the prior range for RA or azimuth was set to a range that wasn't [0, 2pi]. It now correctly handles both [0, 2pi] and [-pi, pi] and raises an error for any other ranges.
+- Fixed various spelling mistakes throughtout the source code and documentation.
 
 
 ## [0.3.1] Minor improvements and bug fixes - 2021-08-23

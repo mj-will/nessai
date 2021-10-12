@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class Model(ABC):
     """Base class for the user-defined model being sampled.
 
-    The user must define the attributes ``names`` ``bounds`` and the metods
+    The user must define the attributes ``names`` ``bounds`` and the methods
     ``log_likelihood`` and ``log_prior``.
 
     The user can also define the reparemeterisations here instead of in
@@ -98,7 +98,7 @@ class Model(ABC):
 
     def new_point_log_prob(self, x):
         """
-        Computes the proposal probabaility for a new point.
+        Computes the proposal probability for a new point.
 
         This does not assume the that points will be drawn according to the
         prior. If `new_point` is redefined this method must be updated to

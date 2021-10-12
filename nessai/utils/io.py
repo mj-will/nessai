@@ -43,7 +43,7 @@ class NessaiJSONEncoder(json.JSONEncoder):
     This class should be used in the ``cls`` argument::
 
         with open(filename, 'w') as wf:
-             json.dump(d, wf, indent=4, cls=FPJSONEncoder)
+             json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
     """
 
     def default(self, obj):

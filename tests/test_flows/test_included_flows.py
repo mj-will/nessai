@@ -66,7 +66,7 @@ def test_init(flow_class, kwargs):
 
 
 def test_forward(flow, x, n, data_dim):
-    """Test the foward pass of the flow"""
+    """Test the forward pass of the flow"""
     with torch.no_grad():
         z, _ = flow.forward(x)
     assert z.shape == (n, data_dim)
@@ -104,7 +104,7 @@ def test_forward_and_log_prob(flow, x, n, data_dim):
     Test the forward and log prob method.
 
     Tests to ensure method runs and that it agrees with using forward
-    and log_prob seperately
+    and log_prob separately
     """
     with torch.no_grad():
         z, log_prob = flow.forward_and_log_prob(x)

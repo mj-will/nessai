@@ -346,7 +346,7 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
 
 
 def plot_histogram(samples, label=None, filename=None, **kwargs):
-    """Plot a histgram of samples.
+    """Plot a histogram of samples.
 
     Parameters
     ----------
