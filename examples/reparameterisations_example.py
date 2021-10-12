@@ -10,13 +10,13 @@ from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.utils import setup_logger
 
-output = './outdir/reparemterisations_example/'
+output = './outdir/reparameterisations_example/'
 logger = setup_logger(output=output, log_level='INFO')
 
 
 class HalfGaussianModel(Model):
     """
-    A simple two-dimensional Guassian likelihood with a cut at x=0.
+    A simple two-dimensional Gaussian likelihood with a cut at x=0.
     """
     def __init__(self):
         # Names of parameters to sample
@@ -26,7 +26,7 @@ class HalfGaussianModel(Model):
 
     def log_prior(self, x):
         """
-        Returns log of prior given a live point assuming uniforn
+        Returns log of prior given a live point assuming uniform
         priors on each parameter.
         """
         log_p = 0.
@@ -45,7 +45,7 @@ class HalfGaussianModel(Model):
         likelihood.
         """
         log_l = 0
-        # Use a Guassian logpdf and iterate through the parameters
+        # Use a Gaussian logpdf and iterate through the parameters
         for pn in self.names:
             log_l += norm.logpdf(x[pn])
         return log_l
@@ -59,7 +59,7 @@ flow_config = dict(
                           kwargs=dict(batch_norm_between_layers=True))
         )
 
-# In this example we use the reparameterisation options to specifiy how each
+# In this example we use the reparameterisation options to specify how each
 # parameter should be rescaled.
 fp = FlowSampler(HalfGaussianModel(), output=output, flow_config=flow_config,
                  resume=False, expansion_fraction=1.0,

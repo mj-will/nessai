@@ -48,7 +48,7 @@ def test_init_with_draw():
 
 
 def test_initialised(proposal):
-    """Test the initalised property"""
+    """Test the initialised property"""
     proposal._initialised = True
     val = Proposal.initialised.__get__(proposal)
     assert val is True

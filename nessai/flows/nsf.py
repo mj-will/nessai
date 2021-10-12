@@ -29,22 +29,22 @@ class NeuralSplineFlow(NFlow):
     hidden_features : int
         Number of neurons per layer in each neural network
     num_layers : int
-        Number of coupling tranformations
+        Number of coupling transformations
     num_blocks_per_layer : int
-        Number of layers (or blocks for resnet) per nerual network for
+        Number of layers (or blocks for resnet) per neural network for
         each coupling transform
     num_bins : int, optional (8)
         Number of bins to use for each spline
     activation : function
         Activation function implemented in torch
     dropout_probability : float, optional (0.0)
-        Dropout probaiblity used in each layer of the neural network
+        Dropout probability used in each layer of the neural network
     batch_norm_within_layers : bool, optional (False)
        Enable or disable batch norm within the neural network for each coupling
        transform
     batch_norm_between_layers : bool, optional (False)
        Enable or disable batch norm between coupling transforms
-    linear_transform : {'permutaiton', 'lu', 'svd'}
+    linear_transform : {'permutation', 'lu', 'svd'}
         Linear transform to use between coupling layers. Not recommended when
         using a custom mask.
     kwargs : dict

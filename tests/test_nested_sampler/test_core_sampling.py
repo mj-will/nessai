@@ -42,7 +42,7 @@ def sampler(sampler):
 def test_log_likelihood(sampler):
     """Test the log-likelihood method.
 
-    This method is ununsed in the sampler and there only for the user.
+    This method is unused in the sampler and there only for the user.
     """
     sampler.model.log_likelihood = MagicMock()
     NestedSampler.log_likelihood(sampler, [0.1])
@@ -125,7 +125,7 @@ def test_finalise(sampler, live_points):
 
 
 def test_consume_sample(sampler, live_points):
-    """Test the defauly behaviour of consume sample"""
+    """Test the default behaviour of consume sample"""
     sampler.live_points = live_points
     new_sample = parameters_to_live_point((0.5,), ['x'])
     new_sample['logL'] = 0.5
@@ -150,7 +150,7 @@ def test_consume_sample(sampler, live_points):
 
 
 def test_consume_sample_reject(sampler, live_points):
-    """Test the defauly behaviour of consume sample"""
+    """Test the default behaviour of consume sample"""
     sampler.live_points = live_points
     reject_sample = parameters_to_live_point((-0.5,), ['x'])
     reject_sample['logL'] = -0.5

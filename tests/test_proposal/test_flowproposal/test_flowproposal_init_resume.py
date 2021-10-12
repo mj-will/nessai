@@ -128,7 +128,7 @@ def test_resume_pickle(model, tmpdir, reparameterisation, init):
     """Test pickling and resuming the proposal.
 
     Tests both with and without reparameterisations and before and after
-    intialise has been called.
+    initialise has been called.
     """
     import pickle
     output = tmpdir.mkdir('test_integration')
@@ -178,7 +178,7 @@ def test_reset(proposal):
 
 @pytest.mark.integration_test
 def test_reset_integration(tmpdir, model):
-    """Test reset method interation with other methods"""
+    """Test reset method iteration with other methods"""
     proposal = FlowProposal(model, poolsize=10)
     output = str(tmpdir.mkdir('reset_integration'))
     proposal = FlowProposal(model, output=output, plot=False,

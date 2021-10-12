@@ -67,7 +67,7 @@ def test_ra_dec_to_cartesian_to_ra_dec(dl):
 
 def test_cartesian_to_ra_dec_to_cartesian():
     """
-    Assert that the coversion from x, y, z, to ra, dec, dL and back
+    Assert that the conversion from x, y, z, to ra, dec, dL and back
     is self consistent
     """
     cart = np.random.randn(3, 1000)
@@ -99,7 +99,7 @@ def test_az_zen_to_cartesian_to_az_zen(dl):
 
 def test_cartesian_to_az_zen_to_cartesian():
     """
-    Assert that the coversion from x, y, z, to azimuth, zenith, dL and back
+    Assert that the conversion from x, y, z, to azimuth, zenith, dL and back
     is self consistent
     """
     cart = np.random.randn(3, 1000)
@@ -158,7 +158,7 @@ def test_cartesian_to_zero_one():
 @pytest.mark.requires('lal')
 def test_precessing_parameters():
     """
-    Test to ensure spin coversions are invertible
+    Test to ensure spin conversions are invertible
     """
     n = 1000
     theta_jn = np.arccos(np.random.uniform(-1, 1, n))

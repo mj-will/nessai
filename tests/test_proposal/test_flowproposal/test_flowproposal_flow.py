@@ -11,7 +11,7 @@ from nessai.proposal import FlowProposal
 
 
 def test_reset_model_weights(proposal):
-    """Test reseting model weights"""
+    """Test resetting model weights"""
     proposal.flow = MagicMock()
     proposal.flow.reset_model = MagicMock()
     FlowProposal.reset_model_weights(proposal, reset_permutations=True)
@@ -44,7 +44,7 @@ def test_train_plot_false(mock_os_makedirs, proposal, model):
 
 @pytest.mark.parametrize('n', [1, 10])
 def test_forward_pass(proposal, model, n):
-    """Test the foward pass method"""
+    """Test the forward pass method"""
     x = model.new_point(n)
     z = np.random.randn(n, model.dims)
     proposal.clip = False
@@ -64,7 +64,7 @@ def test_forward_pass(proposal, model, n):
 
 @pytest.mark.parametrize('log_p', [np.ones(2), np.array([-1, np.inf])])
 def test_backward_pass(proposal, model, log_p):
-    """Test the foward pass method"""
+    """Test the forward pass method"""
     n = 2
     acc = int(np.isfinite(log_p).sum())
     x = np.random.randn(n, model.dims)

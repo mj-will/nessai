@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for utilies related to insertion indices.
+Tests for utilities related to insertion indices.
 """
 import numpy as np
 import pytest
@@ -11,7 +11,7 @@ from nessai.utils.indices import compute_indices_ks_test, bonferroni_correction
 @pytest.mark.parametrize("mode", ['D+', 'D-'])
 def test_ks_test(mode):
     """
-    Test KS test for insertion indices with a specifed mode
+    Test KS test for insertion indices with a specified mode
     """
     indices = np.random.randint(0, 1000, 1000)
     out = compute_indices_ks_test(indices, 1000, mode=mode)

@@ -170,7 +170,7 @@ def test_compute_acceptance(proposal):
 
 
 def test_convert_to_samples(proposal):
-    """Test covert to sample without the prime prior"""
+    """Test convert to sample without the prime prior"""
     samples = numpy_array_to_live_points(np.random.randn(10, 4), ['x', 'y'])
     proposal.use_x_prime_prior = False
     proposal.model = MagicMock()
@@ -184,7 +184,7 @@ def test_convert_to_samples(proposal):
 
 @patch('nessai.proposal.flowproposal.plot_1d_comparison')
 def test_convert_to_samples_with_prime(mock_plot, proposal):
-    """Test covert to sample with the prime prior"""
+    """Test convert to sample with the prime prior"""
     samples = numpy_array_to_live_points(np.random.randn(10, 4), ['x', 'y'])
     proposal.use_x_prime_prior = True
     proposal.model = MagicMock()

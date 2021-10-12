@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for utilies related to producing histograms.
+Tests for utilities related to producing histograms.
 """
 import numpy as np
 import pytest

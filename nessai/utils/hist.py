@@ -45,7 +45,7 @@ def _hist_bin_sturges(x):
 def auto_bins(x, max_bins=50):
     """
     Compute the number bins for a histogram using numpy.histogram_bin_edges
-    but enforece a maximum number of bins.
+    but enforces a maximum number of bins.
 
     Parameters
     ----------

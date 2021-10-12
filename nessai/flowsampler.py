@@ -31,7 +31,7 @@ class FlowSampler:
     output : str, optional
         Output directory
     resume : bool, optional
-        If True try to resume the sampler is the resume file existis.
+        If True try to resume the sampler is the resume file exists.
     resume_file : str, optional
         File to resume sampler from.
     weights_files : str, optional
@@ -104,7 +104,7 @@ class FlowSampler:
         ----------
         plot : bool, optional
             Toggle plots produced once the sampler has converged
-        save : bool, opitional
+        save : bool, optional
             Toggle automatic saving of results
         """
         self.ns.initialise()

@@ -55,7 +55,7 @@ class RejectionProposal(AnalyticProposal):
         Returns
         -------
         :obj:`numpy.ndarray`
-            Array of log-probabilites.
+            Array of log-probabilities.
         """
         return self.model.new_point_log_prob(x)
 

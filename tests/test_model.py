@@ -201,12 +201,12 @@ def test_likelihood_evaluations(model):
 
 
 def test_log_prior(model):
-    """Verify the log prior does nothing by defauly"""
+    """Verify the log prior does nothing by default"""
     assert Model.log_prior(model, 1) is None
 
 
 def test_log_likelihood(model):
-    """Verify the log likelihood does nothing by defauly"""
+    """Verify the log likelihood does nothing by default"""
     assert Model.log_likelihood(model, 1) is None
 
 

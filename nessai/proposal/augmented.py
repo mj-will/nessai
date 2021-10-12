@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Aumgented version of FlowProposal.
+Augmented version of FlowProposal.
 """
 import logging
 import os
@@ -30,7 +30,7 @@ class AugmentedFlowProposal(FlowProposal):
         User defined model
     augment_dims : int
         Number of augment parameters to add to the inputs
-    generate_agument : {'gaussian', 'zeroes', 'zeros'}, optional
+    generate_augment : {'gaussian', 'zeroes', 'zeros'}, optional
         Method used when computing the radius of the latent contour.
     marginalise_augment : bool, optional
         Use the marginalised likelihood when performing rejection sampling.
@@ -137,9 +137,9 @@ class AugmentedFlowProposal(FlowProposal):
 
     def augmented_prior(self, x):
         """
-        Log guassian for augmented variables.
+        Log Gaussian for augmented variables.
 
-        If self.marginalise_agument is True, log_prior is 0.
+        If self.marginalise_augment is True, log_prior is 0.
         """
         log_p = 0.0
         if not self.marginalise_augment:
@@ -160,7 +160,7 @@ class AugmentedFlowProposal(FlowProposal):
         return super().x_prime_log_prior(x) + self.augmented_prior(x)
 
     def _marginalise_augment(self, x_prime):
-        """Marginalise out the augmented feautures.
+        """Marginalise out the augmented features.
 
         Note that x_prime is not a structured array. See the original paper
         for the details
@@ -192,9 +192,9 @@ class AugmentedFlowProposal(FlowProposal):
         Returns
         -------
         x : array_like
-            Samples in the latent sapce
+            Samples in the latent space
         log_prob : array_like
-            Log probabilties corresponding to each sample (including the
+            Log probabilities corresponding to each sample (including the
             Jacobian)
         """
         try:

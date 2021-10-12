@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.3.2] - 2021-10-12
+
+### Added
+
+- Added more checks to the init method for `nessai.reparameterisations.AnglePair` to catch invalid combinations of priors and/or angle conventions. Now supports RA or azimuth defined on [-pi, pi] in addition to [0, 2pi]. ([#114](https://github.com/mj-will/nessai/pull/114))
+- Add a check in `nessai.flowmodel.update_config` for `'noise_scale'`, a `ValueError` is now raised if `noise_scale` is not a float or `'adaptive'`. ([#115](https://github.com/mj-will/nessai/pull/115))
+- Add `codespell` to the pre-commit checks. ([#116](https://github.com/mj-will/nessai/pull/116))
+
+### Changed
+
+- The dtype for tensors passed to the flow is now set using `torch.get_default_dtype()` rather than always using `float32`. ([#108](https://github.com/mj-will/nessai/pull/108))
+- Incorrect values for `mask` in `nessai.flows.realnvp.RealNVP` now raise `ValueError` and improved the error messages returned by all the exceptions in the class. ([#109](https://github.com/mj-will/nessai/pull/109))
+- Change scale of y-axis of the log-prior volume vs. log-likelihood plot from `symlog` to the default linear axis. ([#110](https://github.com/mj-will/nessai/pull/110))
+- `nessai.plot.plot_trace` now includes additional parameters such as `logL` and `logP` default, previously the last two parameters (assumed to be `logL` and `logP` were always excluded). ([#111](https://github.com/mj-will/nessai/pull/111))
+
+### Fixed
+
+- Fixed an issue where `nessai.reparameterisations.AnglePair` would silently break when the prior range for RA or azimuth was set to a range that wasn't [0, 2pi]. It now correctly handles both [0, 2pi] and [-pi, pi] and raises an error for any other ranges. ([#114](https://github.com/mj-will/nessai/pull/114))
+- Fixed various spelling mistakes throughtout the source code and documentation. ([#116](https://github.com/mj-will/nessai/pull/116))
+
+
 ## [0.3.1] Minor improvements and bug fixes - 2021-08-23
 
 This release has a few minor improvements and bug fixes. It also explicitly adds support for python 3.9, which worked previously but was not tested.
@@ -19,7 +41,6 @@ This release has a few minor improvements and bug fixes. It also explicitly adds
 - Add example using the Rosenbrock likelihood in two dimensions ([#99](https://github.com/mj-will/nessai/pull/99))
 - Add a `colours` argument to `nessai.plot.plot_1d_comparison` ([#102](https://github.com/mj-will/nessai/pull/102))
 - Explicitly support Python 3.9 (Added Python 3.9 to unit tests) ([#103](https://github.com/mj-will/nessai/pull/103))
-
 
 ### Changed
 
@@ -226,7 +247,8 @@ First public release.
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/mj-will/nessai/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mj-will/nessai/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mj-will/nessai/compare/v0.2.4...v0.3.0
 [0.2.4]: https://github.com/mj-will/nessai/compare/v0.2.3...v0.2.4
