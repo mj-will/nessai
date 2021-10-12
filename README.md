@@ -3,7 +3,7 @@
 
 # nessai: Nested Sampling with Artificial Intelligence
 
-``nessai`` (/ˈnɛsi/): Nested Sampling with Aritificial Intelligence
+``nessai`` (/ˈnɛsi/): Nested Sampling with Artificial Intelligence
 
 ``nessai`` is a nested sampling algorithm for Bayesian Inference that incorporates normalisings flows. It is designed for applications where the Bayesian likelihood is computationally expensive.
 
@@ -19,7 +19,7 @@ Installing via ``conda`` is not currently supported.
 
 ### PyTorch
 
-By default the version of PyTroch will not necessarily match the drivers on your system, to install a different version with the correct CUDA support see the PyTorch homepage for instructions: https://pytorch.org/.
+By default the version of PyTorch will not necessarily match the drivers on your system, to install a different version with the correct CUDA support see the PyTorch homepage for instructions: https://pytorch.org/.
 
 ### Using ``bilby``
 
@@ -29,7 +29,7 @@ See the examples included with ``nessai`` for how to run ``nessai`` via ``bilby`
 
 ## Documentation
 
-Documenation is available at: [nessai.readthedocs.io](https://nessai.readthedocs.io/)
+Documentation is available at: [nessai.readthedocs.io](https://nessai.readthedocs.io/)
 
 
 ## Contributing
