@@ -55,7 +55,7 @@ def test_empty_parameters_to_live_point(empty_live_point):
 
 def test_numpy_array_to_live_point(live_point):
     """
-    Test the fuction the produces an array of live points given numpy array
+    Test the function the produces an array of live points given numpy array
     of shape [# dimensions]
     """
     array = np.array([1., 2., 3.])
@@ -65,7 +65,7 @@ def test_numpy_array_to_live_point(live_point):
 
 def test_numpy_array_multiple_to_live_points(live_points):
     """
-    Test the fuction the produces an array of live points given numpy array
+    Test the function the produces an array of live points given numpy array
     of shape [# point, # dimensions]
     """
     array = np.array([[1., 2., 3.], [4., 5., 6.]])
@@ -75,7 +75,7 @@ def test_numpy_array_multiple_to_live_points(live_points):
 
 def test_empty_numpy_array_to_live_points(empty_live_point):
     """
-    Test the fuction the produces an array of live points given an empty
+    Test the function the produces an array of live points given an empty
     numpy array
     """
     np.testing.assert_array_equal(
@@ -115,7 +115,7 @@ def test_empty_dict_to_live_points(empty_live_point):
 
 def test_live_point_to_numpy_array(live_point):
     """
-    Test coversion from a live point to an unstructured numpy array
+    Test conversion from a live point to an unstructured numpy array
     """
     np.testing.assert_array_equal(
         np.array([[1, 2, 3, 0, 0]]),
@@ -124,7 +124,7 @@ def test_live_point_to_numpy_array(live_point):
 
 def test_live_point_to_numpy_array_with_names(live_point):
     """
-    Test coversion from a live point to an unstructured numpy array with
+    Test conversion from a live point to an unstructured numpy array with
     specific fields
     """
     np.testing.assert_array_equal(

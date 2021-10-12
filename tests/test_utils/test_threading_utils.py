@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for threading realted utilities.
+Tests for threading related utilities.
 """
 import pytest
 from unittest.mock import patch
