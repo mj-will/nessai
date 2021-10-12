@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Example of using Nessai with Bilby (Requires seperate installation)
+# Example of using Nessai with Bilby (Requires separate installation)
 # See 2d_gaussian.py for a more detailed explanation of using nessai
 
 import bilby
@@ -36,10 +36,10 @@ class SimpleGaussianLikelihood(bilby.Likelihood):
 priors = dict(x=bilby.core.prior.Uniform(-10, 10, 'x'),
               y=bilby.core.prior.Uniform(-10, 10, 'y'))
 
-# Instantiate the likleihood
+# Instantiate the likelihood
 likelihood = SimpleGaussianLikelihood()
 
-# Configure the normalisng flow
+# Configure the normalising flow
 flow_config = dict(
         max_epochs=50,
         patience=10,

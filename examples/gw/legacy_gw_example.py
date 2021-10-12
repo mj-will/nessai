@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-Example of running nessai with bilby on a gravitational wave likelihook using
+Example of running nessai with bilby on a gravitational wave likelihood using
 the legacy implementation of the proposal method as used in the paper. This
 method is less flexible and has hard coded settings which make it impractical
 to build upon.
@@ -21,7 +21,7 @@ sampling_frequency = 2048.
 
 np.random.seed(151226)
 
-# Use an injection that is imilar to GW150914
+# Use an injection that is similar to GW150914
 injection_parameters = dict(
     total_mass=66., mass_ratio=0.9, a_1=0.4, a_2=0.3, tilt_1=0.5, tilt_2=1.0,
     phi_12=1.7, phi_jl=0.3, luminosity_distance=2000, theta_jn=0.4, psi=2.659,
@@ -97,7 +97,7 @@ flow_config = {
 # it knows that theta_jn is angle with a sine prior.
 
 # This examples use the legacy GWFlowProposal class which was used in the
-# paper but has a number of settings hard coded ans is generally less flexible.
+# paper but has a number of settings hard coded and is generally less flexible.
 result = bilby.core.sampler.run_sampler(
     likelihood=likelihood,
     priors=priors,

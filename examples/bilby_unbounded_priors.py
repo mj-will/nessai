@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Example of using Nessai with Bilby (Requires seperate installation)
+# Example of using Nessai with Bilby (Requires separate installation)
 # with unbounded priors. We use bilby since the priors include a sample
 # method which is used to redefine `Model.new_point`. Without this we
 # would have to redefine the method ourselves.
@@ -38,10 +38,10 @@ class SimpleGaussianLikelihood(bilby.Likelihood):
 priors = dict(x=bilby.core.prior.Gaussian(0, 5, 'x'),
               y=bilby.core.prior.Gaussian(0, 10, 'y'))
 
-# Instantiate the likleihood
+# Instantiate the likelihood
 likelihood = SimpleGaussianLikelihood()
 
-# Configure the normalisng flow
+# Configure the normalising flow
 flow_config = dict(
         max_epochs=50,
         patience=10,
@@ -54,8 +54,8 @@ flow_config = dict(
 # NOTE: when using Bilby if the priors can be sampled analytically  the flag
 # `analytic_priors` enables faster initial sampling. See 'further details' in
 # the documentation for more details
-# We need to disable the rescaling since we can't rescle without bounds.
-# Alternatively a different reparmeterisation could be used, in this case
+# We need to disable the rescaling since we can't rescale without bounds.
+# Alternatively a different reparameterisation could be used, in this case
 # we can used the 'Rescale' reparameterisation that rescales the inputs by
 # a constant, this is useful when we do not prior bounds we can use.
 result = bilby.run_sampler(outdir=outdir, label=label, resume=False, plot=True,
