@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Functions realted to computing the posterior samples.
+Functions related to computing the posterior samples.
 """
 import numpy as np
 
@@ -24,7 +24,7 @@ def compute_weights(samples, nlive):
     float
         The computed log-evidence.
     array_like
-        Array of computed weigths (already normalised by the log-evidence).
+        Array of computed weights (already normalised by the log-evidence).
     """
     samples = np.asarray(samples)
     start_data = np.concatenate(([float('-inf')], samples[:-nlive]))

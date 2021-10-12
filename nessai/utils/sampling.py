@@ -74,7 +74,7 @@ def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     N : int, ignored
         Number of samples to draw
     fuzz : float, ignored
-        Fuzz factor by which to increase the radius of the n-ball. (Ingored by
+        Fuzz factor by which to increase the radius of the n-ball. (Ignored by
         this function)
 
     Returns

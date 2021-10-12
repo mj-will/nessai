@@ -33,18 +33,18 @@ logger = logging.getLogger(__name__)
 
 
 def get_reparameterisation(reparameterisation):
-    """Function to get a reparmeterisation class from a name
+    """Function to get a reparameterisation class from a name
 
     Parameters
     ----------
     reparameterisation : str, \
-            :obj:`nessai.reparameterisations.Reparametersiation`
+            :obj:`nessai.reparameterisations.Reparameterisation`
         Name of the reparameterisations to return or a class that inherits from
-        :obj:`~nessai.reparameterisations.Reparmeterisation`
+        :obj:`~nessai.reparameterisations.Reparameterisation`
 
     Returns
     -------
-    :obj:`nessai.reparameteristaions.Reparmeterisation`
+    :obj:`nessai.reparameteristaions.Reparameterisation`
         T
     dict
         Keyword arguments for the specific reparameterisations.
@@ -192,7 +192,7 @@ class Reparameterisation:
 
 
 class CombinedReparameterisation(dict):
-    """Class to handle mulitple reparameterisations
+    """Class to handle multiple reparameterisations
 
     Parameters
     ----------
@@ -326,14 +326,14 @@ class CombinedReparameterisation(dict):
 
 
 class NullReparameterisation(Reparameterisation):
-    """Reparameteristion that does not modify the parameters.
+    """Reparameterisation that does not modify the parameters.
 
     Parameters
     ----------
     parameters : list or str
         Parameters for which the reparameterisation will be used.
     prior_bounds : list, dict or None
-        Prior bounds for parameters. Ununsed for this reparameterisation.
+        Prior bounds for parameters. Unused for this reparameterisation.
     """
     def __init__(self, parameters=None, prior_bounds=None):
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
@@ -443,7 +443,7 @@ class Rescale(Reparameterisation):
 
 
 class RescaleToBounds(Reparameterisation):
-    """Reparmeterisation that maps to the specified interval.
+    """Reparameterisation that maps to the specified interval.
 
     By default the interval is [-1, 1]. Also includes options for
     boundary inversion.
@@ -583,7 +583,7 @@ class RescaleToBounds(Reparameterisation):
                         pre_rescaling.lower(), (None, None))
                 if self.pre_rescaling is None:
                     raise RuntimeError(
-                        f'Unkown rescaling function: {pre_rescaling}')
+                        f'Unknown rescaling function: {pre_rescaling}')
             elif len(pre_rescaling) == 2:
                 self.pre_rescaling = pre_rescaling[0]
                 self.pre_rescaling_inv = pre_rescaling[1]
@@ -608,7 +608,7 @@ class RescaleToBounds(Reparameterisation):
                         post_rescaling.lower(), (None, None))
                 if self.post_rescaling is None:
                     raise RuntimeError(
-                        f'Unkown rescaling function: {post_rescaling}')
+                        f'Unknown rescaling function: {post_rescaling}')
             elif len(post_rescaling) == 2:
                 self.post_rescaling = post_rescaling[0]
                 self.post_rescaling_inv = post_rescaling[1]
@@ -735,7 +735,7 @@ class RescaleToBounds(Reparameterisation):
         x, x_prime :  array_like
             Arrays of samples in the physical and prime space
         log_j : array_like
-            Array of values of log-Jacboian
+            Array of values of log-Jacobian
         compute_radius : bool, optional
             If true force duplicate for inversion
         kwargs :
@@ -863,7 +863,7 @@ class Angle(Reparameterisation):
         `reparameterisations`.
     scale : float, optional
         Value used to rescale the angle before converting to Cartesian
-        coordiantes.
+        coordinates.
     prior : {'uniform', 'sine', None}
         Type of prior being used for sampling this angle. If specified, the
         prime prior is enabled. If None then it is disabled.
@@ -995,7 +995,7 @@ class Angle(Reparameterisation):
 
 
 class ToCartesian(Angle):
-    """Convert a paraemter to Cartesian coordinates"""
+    """Convert a parameter to Cartesian coordinates"""
     def __init__(self, mode='split', scale=np.pi, **kwargs):
         super().__init__(scale=scale, **kwargs)
 
@@ -1035,7 +1035,7 @@ class ToCartesian(Angle):
 class AnglePair(Reparameterisation):
     """Reparameterisation for a pair of angles and a radial component.
 
-    Coverts to three-diemensional Cartesian coordinates.
+    Converts to three-dimensional Cartesian coordinates.
 
     If the radial component is not specified, it is sampled from a chi-
     distribution with three degrees of freedom.

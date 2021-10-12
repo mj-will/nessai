@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Functions realted to computing the evidence.
+Functions related to computing the evidence.
 """
 import logging
 

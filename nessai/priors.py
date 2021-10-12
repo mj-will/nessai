@@ -24,7 +24,7 @@ def log_2d_cartesian_prior(x, y, k=np.pi):
     """
     Log probability for isotropic 2d Cartesian coordinates.
 
-    Assumes a uniform distibution of angles on [0, k] and a radial component
+    Assumes a uniform distribution of angles on [0, k] and a radial component
     drawn from a chi distribution with two degrees of freedom.
 
     Parameters
@@ -52,7 +52,7 @@ def log_2d_cartesian_prior_sine(x, y, k=np.pi):
     x, y : array_like
         Cartesian coordinates
     k : float
-        Must be ``np.pi``. Included for compatability with the interface for
+        Must be ``np.pi``. Included for compatibility with the interface for
         angle reparameterisations.
     """
     if k != np.pi:
