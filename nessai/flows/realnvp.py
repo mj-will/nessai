@@ -33,9 +33,9 @@ class RealNVP(NFlow):
     hidden_features : int
         Number of neurons per layer in each neural network
     num_layers : int
-        Number of coupling tranformations
+        Number of coupling transformations
     num_blocks_per_layer : int
-        Number of layers (or blocks for resnet) per nerual network for
+        Number of layers (or blocks for resnet) per neural network for
         each coupling transform
     mask : array_like, optional
         Custom mask to use between coupling transforms. Can either be
@@ -45,17 +45,17 @@ class RealNVP(NFlow):
     net : {'resnet', 'mlp'}
         Type of neural network to use
     use_volume_preserving : bool, optional (False)
-        Use volume preserving flows which use only additiona and no scaling
+        Use volume preserving flows which use only addition and no scaling
     activation : function
         Activation function implemented in torch
     dropout_probability : float, optional (0.0)
-        Dropout probaiblity used in each layer of the neural network
+        Dropout probability used in each layer of the neural network
     batch_norm_within_layers : bool, optional (False)
        Enable or disable batch norm within the neural network for each coupling
        transform
     batch_norm_between_layers : bool, optional (False)
        Enable or disable batch norm between coupling transforms
-    linear_transform : {'permutaiton', 'lu', 'svd', None}
+    linear_transform : {'permutation', 'lu', 'svd', None}
         Linear transform to use between coupling layers. Not recommended when
         using a custom mask.
     """

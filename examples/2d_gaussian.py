@@ -20,14 +20,14 @@ logger = setup_logger(output=output, log_level='INFO')
 # as a dictionary with arrays/lists with the min and max
 
 # The main functions in the model should be the log_prior and log_likelihood
-# The log prior must be able to accept structed arrays of points
+# The log prior must be able to accept structured arrays of points
 # where each field is one of the names in the model and there are two
 # extra fields which are `logP` and `logL'
 
 
 class GaussianModel(Model):
     """
-    A simple two-dimensional Guassian likelihood
+    A simple two-dimensional Gaussian likelihood
     """
     def __init__(self):
         # Names of parameters to sample
@@ -37,7 +37,7 @@ class GaussianModel(Model):
 
     def log_prior(self, x):
         """
-        Returns log of prior given a live point assuming uniforn
+        Returns log of prior given a live point assuming uniform
         priors on each parameter.
         """
         log_p = 0.
@@ -56,7 +56,7 @@ class GaussianModel(Model):
         likelihood.
         """
         log_l = 0
-        # Use a Guassian logpdf and iterate through the parameters
+        # Use a Gaussian logpdf and iterate through the parameters
         for pn in self.names:
             log_l += norm.logpdf(x[pn])
         return log_l
@@ -65,7 +65,7 @@ class GaussianModel(Model):
 # The normalsing flow that is trained to produce the proposal points
 # is configured with a dictionary that contains the parameters related to
 # training (e.g. learning rate (lr)) and model_config for the configuring
-# the flow itself (neurons, number of trasformations etc)
+# the flow itself (neurons, number of transformations etc)
 flow_config = dict(
         max_epochs=50,
         patience=10,

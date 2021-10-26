@@ -25,7 +25,7 @@ class MultimodalModel(Model):
 
     def log_prior(self, x):
         """
-        Returns log of prior given a live point assuming uniforn
+        Returns log of prior given a live point assuming uniform
         priors on each parameter.
         """
         log_p = 0.
@@ -43,7 +43,7 @@ class MultimodalModel(Model):
         Returns log likelihood of given live point.
         """
         log_l = 0
-        # Use a Guassian logpdf and iterate through the parameters
+        # Use a Gaussian logpdf and iterate through the parameters
         for pn in self.names:
             log_l += np.log(norm(-5).pdf(x[pn]) + norm(5).pdf(x[pn]))
         return log_l
@@ -58,7 +58,7 @@ flow_config = dict(
                                       linear_transform='lu'))
         )
 
-# We `augment_dims` which help the sampler bridge disconneted regions of
+# We `augment_dims` which help the sampler bridge disconnected regions of
 # probability. There additional parameters are Gaussian and included in the
 # parameters transformed by the flow.
 fp = FlowSampler(MultimodalModel(4), output=output, flow_config=flow_config,

@@ -33,18 +33,18 @@ logger = logging.getLogger(__name__)
 
 
 def get_reparameterisation(reparameterisation):
-    """Function to get a reparmeterisation class from a name
+    """Function to get a reparameterisation class from a name
 
     Parameters
     ----------
     reparameterisation : str, \
-            :obj:`nessai.reparameterisations.Reparametersiation`
+            :obj:`nessai.reparameterisations.Reparameterisation`
         Name of the reparameterisations to return or a class that inherits from
-        :obj:`~nessai.reparameterisations.Reparmeterisation`
+        :obj:`~nessai.reparameterisations.Reparameterisation`
 
     Returns
     -------
-    :obj:`nessai.reparameteristaions.Reparmeterisation`
+    :obj:`nessai.reparameteristaions.Reparameterisation`
         T
     dict
         Keyword arguments for the specific reparameterisations.
@@ -193,7 +193,7 @@ class Reparameterisation:
 
 
 class CombinedReparameterisation(dict):
-    """Class to handle mulitple reparameterisations
+    """Class to handle multiple reparameterisations
 
     Parameters
     ----------
@@ -327,14 +327,14 @@ class CombinedReparameterisation(dict):
 
 
 class NullReparameterisation(Reparameterisation):
-    """Reparameteristion that does not modify the parameters.
+    """Reparameterisation that does not modify the parameters.
 
     Parameters
     ----------
     parameters : list or str
         Parameters for which the reparameterisation will be used.
     prior_bounds : list, dict or None
-        Prior bounds for parameters. Ununsed for this reparameterisation.
+        Prior bounds for parameters. Unused for this reparameterisation.
     """
     def __init__(self, parameters=None, prior_bounds=None):
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
@@ -444,7 +444,7 @@ class Rescale(Reparameterisation):
 
 
 class RescaleToBounds(Reparameterisation):
-    """Reparmeterisation that maps to the specified interval.
+    """Reparameterisation that maps to the specified interval.
 
     By default the interval is [-1, 1]. Also includes options for
     boundary inversion.
@@ -584,7 +584,7 @@ class RescaleToBounds(Reparameterisation):
                         pre_rescaling.lower(), (None, None))
                 if self.pre_rescaling is None:
                     raise RuntimeError(
-                        f'Unkown rescaling function: {pre_rescaling}')
+                        f'Unknown rescaling function: {pre_rescaling}')
             elif len(pre_rescaling) == 2:
                 self.pre_rescaling = pre_rescaling[0]
                 self.pre_rescaling_inv = pre_rescaling[1]
@@ -609,7 +609,7 @@ class RescaleToBounds(Reparameterisation):
                         post_rescaling.lower(), (None, None))
                 if self.post_rescaling is None:
                     raise RuntimeError(
-                        f'Unkown rescaling function: {post_rescaling}')
+                        f'Unknown rescaling function: {post_rescaling}')
             elif len(post_rescaling) == 2:
                 self.post_rescaling = post_rescaling[0]
                 self.post_rescaling_inv = post_rescaling[1]
@@ -736,7 +736,7 @@ class RescaleToBounds(Reparameterisation):
         x, x_prime :  array_like
             Arrays of samples in the physical and prime space
         log_j : array_like
-            Array of values of log-Jacboian
+            Array of values of log-Jacobian
         compute_radius : bool, optional
             If true force duplicate for inversion
         kwargs :
@@ -864,7 +864,7 @@ class Angle(Reparameterisation):
         `reparameterisations`.
     scale : float, optional
         Value used to rescale the angle before converting to Cartesian
-        coordiantes.
+        coordinates.
     prior : {'uniform', 'sine', None}
         Type of prior being used for sampling this angle. If specified, the
         prime prior is enabled. If None then it is disabled.
@@ -996,7 +996,7 @@ class Angle(Reparameterisation):
 
 
 class ToCartesian(Angle):
-    """Convert a paraemter to Cartesian coordinates"""
+    """Convert a parameter to Cartesian coordinates"""
     def __init__(self, mode='split', scale=np.pi, **kwargs):
         super().__init__(scale=scale, **kwargs)
 
@@ -1034,13 +1034,44 @@ class ToCartesian(Angle):
 
 
 class AnglePair(Reparameterisation):
-    """Reparameterisation for a pair of angles and a radial component"""
+    """Reparameterisation for a pair of angles and a radial component.
+
+    Converts to three-dimensional Cartesian coordinates.
+
+    If the radial component is not specified, it is sampled from a chi-
+    distribution with three degrees of freedom.
+
+    Notes
+    -----
+    The parameters will be reordered such that the first parameter is the angle
+    along the horizon, the second parameter is the vertical angle and the last
+    parameter is the radial parameter.
+
+    Parameters
+    -----------
+    parameters : list
+        List of parameters. Must contain at least the two angles and,
+        optionally, also a radial component.
+    prior_bounds : dict
+        Dictionary of prior bounds for each parameter
+    prior : str, {'isotropic', None}
+        Type of prior, used to enable use of the prime prior.
+    convention : str, {'ra-dec', 'az-zen'}
+        Convention used for defining the spherical polar coordinates. If not
+        set, it will be guessed based on either dec or zen. Where it is assumed
+        declination is defined on [-pi/2, pi/2] and zenith on [0, pi].
+    """
     requires_bounded_prior = True
+    known_priors = ['isotropic', None]
+    _conventions = {'az-zen': [0, np.pi], 'ra-dec': [-np.pi / 2, np.pi / 2]}
 
-    def __init__(self, parameters=None, prior_bounds=None,
-                 prior=None, convention=None):
-
-        self._conventions = ['az-zen', 'ra-dec']
+    def __init__(
+        self,
+        parameters=None,
+        prior_bounds=None,
+        prior=None,
+        convention=None
+    ):
 
         if len(parameters) not in [2, 3]:
             raise RuntimeError(
@@ -1052,26 +1083,41 @@ class AnglePair(Reparameterisation):
         # and which is for the vertical plane
         logger.debug('Checking order of parameters')
         b = np.ptp([prior_bounds[p] for p in parameters], axis=1)
-        hz = np.where(b == (2 * np.pi))[0][0]
-        vt = np.where(b == np.pi)[0][0]
-
+        try:
+            hz = np.where(b == (2 * np.pi))[0][0]
+            vt = np.where(b == np.pi)[0][0]
+        except IndexError:
+            raise ValueError(
+                f'Invalid prior ranges: {self.prior_bounds}. '
+                'Parameters must be defined over a range of pi and 2 pi!'
+            )
+        # Make sure order is horizon, vertical, radial
         if len(parameters) == 3:
             r = list({0, 1, 2} - {hz, vt})[0]
             parameters[0], parameters[1], parameters[2] = \
                 parameters[hz], parameters[vt], parameters[r]
+            m = '_'.join(parameters)
+            self.chi = False
         else:
             parameters[0], parameters[1] = parameters[hz], parameters[vt]
-
-        if len(parameters) == 2:
             m = '_'.join(parameters)
             parameters.append(f'{m}_radial')
             self.chi = stats.chi(3)
             self.has_prior = True
-        else:
-            m = '_'.join(parameters)
-            self.chi = False
 
         logger.debug(f'Parameters are: {parameters}')
+
+        # Modulo 2pi is used if the first parameter (ra/az) in defined on
+        # [0, 2pi] since output would otherwise be [-pi, pi]
+        if np.array_equal(self.prior_bounds[parameters[0]], [0, 2 * np.pi]):
+            self._modulo_2pi = True
+        elif np.array_equal(self.prior_bounds[parameters[0]], [-np.pi, np.pi]):
+            self._modulo_2pi = False
+        else:
+            raise ValueError(
+                f'Prior bounds for {parameters[0]} must be [0, 2pi] or '
+                f'[-pi, pi]. Received: {self.prior_bounds[parameters[0]]}'
+            )
 
         self.parameters = parameters
         self.prime_parameters = [f'{m}_{x}' for x in ['x', 'y', 'z']]
@@ -1079,23 +1125,45 @@ class AnglePair(Reparameterisation):
         if prior == 'isotropic' and self.chi:
             self.has_prime_prior = True
             logger.info(f'Prime prior enabled for {self.name}')
+        elif prior not in self.known_priors:
+            raise ValueError(
+                f'Unknown prior: `{prior}`. Choose from: {self.known_priors}'
+            )
         else:
             self.has_prime_prior = False
             logger.info(f'Prime prior disabled for {self.name}')
 
         if convention is None:
-            if (self.prior_bounds[self.parameters[1]][0] == 0 and
-                    self.prior_bounds[self.parameters[1]][1] == np.pi):
+            logger.debug('Trying to determine convention')
+            if np.array_equal(
+                self.prior_bounds[self.parameters[1]], [0, np.pi]
+            ):
                 self.convention = 'az-zen'
-            elif (self.prior_bounds[self.parameters[1]][0] == -np.pi / 2 and
-                    self.prior_bounds[self.parameters[1]][1] == np.pi / 2):
+            elif np.array_equal(
+                self.prior_bounds[self.parameters[1]], [-np.pi / 2, np.pi / 2]
+            ):
                 self.convention = 'ra-dec'
             else:
-                raise RuntimeError
-        elif convention in self._conventions:
+                raise RuntimeError(
+                    f'Could not determine convention for: {self.parameters}!'
+                )
+        elif convention in self._conventions.keys():
             self.convention = convention
+            if not np.array_equal(
+                self.prior_bounds[parameters[1]],
+                self._conventions[convention]
+            ):
+                raise ValueError(
+                    f'Prior bounds for {parameters[1]} must be '
+                    f'{self._conventions[convention]} for the '
+                    f'{convention} convention. '
+                    f'Received: {self.prior_bounds[parameters[1]]}.'
+                )
         else:
-            raise RuntimeError(f'Unknown convention: {convention}')
+            raise ValueError(
+                f'Unknown convention: `{convention}`. '
+                f'Choose from: {list(self._conventions.keys())}.'
+            )
 
         logger.debug(f'Using convention: {self.convention}')
 
@@ -1103,22 +1171,30 @@ class AnglePair(Reparameterisation):
 
     @property
     def angles(self):
+        """Names of the two angles.
+
+        Order is: angle along the horizon, vertical angle.
+        """
         return self.parameters[:2]
 
     @property
     def radial(self):
+        """Name of the radial parameter"""
         return self.parameters[-1]
 
     @property
     def x(self):
+        """Name of the first Cartesian coordinate"""
         return self.prime_parameters[0]
 
     @property
     def y(self):
+        """Name of the second Cartesian coordinate"""
         return self.prime_parameters[1]
 
     @property
     def z(self):
+        """Name of the third Cartesian coordinate"""
         return self.prime_parameters[2]
 
     def _az_zen(self, x, x_prime, log_j, r):
@@ -1146,9 +1222,17 @@ class AnglePair(Reparameterisation):
             x_prime[self.prime_parameters[0]] ** 2. +
             x_prime[self.prime_parameters[1]] ** 2. +
             x_prime[self.prime_parameters[2]] ** 2.)
-        x[self.parameters[0]] = \
-            np.arctan2(x_prime[self.prime_parameters[1]],
-                       x_prime[self.prime_parameters[0]]) % (2. * np.pi)
+
+        if self._modulo_2pi:
+            x[self.parameters[0]] = np.arctan2(
+                x_prime[self.prime_parameters[1]],
+                x_prime[self.prime_parameters[0]]
+            ) % (2. * np.pi)
+        else:
+            x[self.parameters[0]] = np.arctan2(
+                    x_prime[self.prime_parameters[1]],
+                    x_prime[self.prime_parameters[0]]
+            )
         x[self.parameters[1]] = \
             np.arctan2(np.sqrt(x_prime[self.prime_parameters[0]] ** 2.
                                + x_prime[self.prime_parameters[1]] ** 2.),
@@ -1163,9 +1247,18 @@ class AnglePair(Reparameterisation):
             x_prime[self.prime_parameters[0]] ** 2. +
             x_prime[self.prime_parameters[1]] ** 2. +
             x_prime[self.prime_parameters[2]] ** 2.)
-        x[self.parameters[0]] = \
-            np.arctan2(x_prime[self.prime_parameters[1]],
-                       x_prime[self.prime_parameters[0]]) % (2. * np.pi)
+
+        if self._modulo_2pi:
+            x[self.parameters[0]] = np.arctan2(
+                x_prime[self.prime_parameters[1]],
+                x_prime[self.prime_parameters[0]]
+            ) % (2. * np.pi)
+        else:
+            x[self.parameters[0]] = np.arctan2(
+                x_prime[self.prime_parameters[1]],
+                x_prime[self.prime_parameters[0]]
+            )
+
         x[self.parameters[1]] = \
             np.arctan2(x_prime[self.prime_parameters[2]],
                        np.sqrt(x_prime[self.prime_parameters[0]] ** 2.
@@ -1197,11 +1290,16 @@ class AnglePair(Reparameterisation):
             return self._inv_az_zen(x, x_prime, log_j)
         else:
             return self._inv_ra_dec(x, x_prime, log_j)
-        return x, x_prime, log_j
 
     def log_prior(self, x):
         """Prior for radial parameter"""
-        return self.chi.logpdf(x[self.parameters[2]])
+        if self.chi and self.has_prior:
+            return self.chi.logpdf(x[self.parameters[2]])
+        else:
+            raise RuntimeError(
+                'log_prior is not defined when a radial parameter has been '
+                'specified!'
+            )
 
     def x_prime_log_prior(self, x_prime):
         """
@@ -1214,7 +1312,7 @@ class AnglePair(Reparameterisation):
                    - np.sum([x_prime[pp] ** 2 for pp in self.prime_parameters],
                             axis=0) / 2
         else:
-            raise RuntimeError('x prime prior')
+            raise RuntimeError('x prime prior is not defined!')
 
 
 default_reparameterisations = {

@@ -14,7 +14,7 @@ def compute_indices_ks_test(indices, nlive, mode='D+'):
     Parameters
     ----------
     indices : array_like
-        Indices of newly inserteed live points
+        Indices of newly inserted live points
     nlive : int
         Number of live points
 

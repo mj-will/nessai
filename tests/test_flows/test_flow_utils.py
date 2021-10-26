@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Test the flow utilties"""
+"""Test the flow utilities"""
 import logging
 import numpy as np
 import pytest

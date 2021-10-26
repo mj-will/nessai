@@ -13,7 +13,7 @@ logger = setup_logger(output=output, log_level='DEBUG')
 
 class HalfGaussian(Model):
     """
-    Two-dimensional Guassian with a bound at y=0
+    Two-dimensional Gaussian with a bound at y=0
     """
     def __init__(self):
 

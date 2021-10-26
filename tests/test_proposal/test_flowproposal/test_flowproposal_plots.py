@@ -58,9 +58,9 @@ def test_plot_pool_all(proposal):
 
 @pytest.mark.parametrize('alt_dist', [False, True])
 def test_plot_pool_1d(proposal, tmpdir, alt_dist):
-    """Test `plot_pool` when ploting is not 'all'.
+    """Test `plot_pool` when plotting is not 'all'.
 
-    Test cases when there is an alternative base distibution is used and
+    Test cases when there is an alternative base distribution is used and
     when one is not used.
     """
     output = tmpdir.mkdir('test_plot_pool_1d')

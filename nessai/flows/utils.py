@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Various utilies for implementeding normalising flows.
+Various utilities for implementing normalising flows.
 """
 import logging
 import numpy as np
@@ -139,7 +139,7 @@ def reset_weights(module):
 def reset_permutations(module):
     """Resets permutations and linear transforms for a given module in place.
 
-    Resets using theor original initialisation method. This needed since they
+    Resets using the original initialisation method. This needed since they
     do not have a ``reset_parameters`` method.
 
     Parameters
@@ -166,13 +166,13 @@ class MLP(NFlowsMLP):
         inputs : :obj:`torch.tensor`
             Inputs to the MLP
         context : None
-            Conditional inputs, must be None. Only implemeted to the
+            Conditional inputs, must be None. Only implemented to the
             function is compatible with other methods.
 
         Raises
         ------
         RuntimeError
-            If te context is not None.
+            If the context is not None.
         """
         if context is not None:
             raise NotImplementedError(

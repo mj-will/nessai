@@ -23,7 +23,7 @@ def test_init_w_reparam():
 
 
 def test_add_single_reparameterisations():
-    """Test the core functionailty of adding reparameterisations"""
+    """Test the core functionality of adding reparameterisations"""
     r = RescaleToBounds(parameters='x', prior_bounds=[0, 1])
     c = CombinedReparameterisation()
     c.add_reparameterisations(r)

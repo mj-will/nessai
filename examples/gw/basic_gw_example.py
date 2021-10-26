@@ -19,7 +19,7 @@ sampling_frequency = 2048.
 
 np.random.seed(151226)
 
-# Use an injection that is imilar to GW150914
+# Use an injection that is similar to GW150914
 injection_parameters = dict(
     total_mass=66., mass_ratio=0.9, a_1=0.4, a_2=0.3, tilt_1=0.5, tilt_2=1.0,
     phi_12=1.7, phi_jl=0.3, luminosity_distance=2000, theta_jn=0.4, psi=2.659,
