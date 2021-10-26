@@ -106,8 +106,11 @@ def numpy_array_to_live_points(array, names):
 
 
 def dict_to_live_points(d):
-    """
-    Convert a dictionary with parameters names as keys to live points.
+    """Convert a dictionary with parameters names as keys to live points.
+
+    Assumes all entries have the same length. Also, determines number of points
+    from the first entry by checking if the value has `__len__` attribute,
+    if not the dictionary is assumed to contain a single point.
 
     Parameters
     ----------
@@ -120,12 +123,13 @@ def dict_to_live_points(d):
     structured_array
         Numpy structured array with fields given by names plus logP and logL
     """
-    if isinstance(list(d.values())[0], int):
-        N = 1
+    a = list(d.values())
+    if hasattr(a[0], '__len__'):
+        N = len(a[0])
     else:
-        N = len(list(d.values())[0])
+        N = 1
     if N == 1:
-        return np.array((*list(d.values()), 0., 0.),
+        return np.array((*a, 0., 0.),
                         dtype=get_dtype(d.keys(), DEFAULT_FLOAT_DTYPE))
     else:
         array = np.zeros(N, dtype=get_dtype(list(d.keys())))
