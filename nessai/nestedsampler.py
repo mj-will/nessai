@@ -338,7 +338,8 @@ class NestedSampler:
             priors rather than using rejection sampling.
         maximum_uninformed : {False, None, int, float}
             Maximum number of iterations before switching to FlowProposal.
-            If None, no max is set. If False uninformed sampling is not used.
+            If None, two times nlive is used. If False uninformed sampling is
+            not used.
         uninformed_acceptance_threshold :  float or None:
             Threshold to use for uninformed proposal, once reached proposal
             method will switch. If None acceptance_threshold is used if
@@ -348,13 +349,13 @@ class NestedSampler:
         """
         if maximum_uninformed is None:
             self.uninformed_sampling = True
-            self.maximum_uninformed = np.inf
+            self.maximum_uninformed = 2 * self.nlive
         elif not maximum_uninformed:
             self.uninformed_sampling = False
             self.maximum_uninformed = 0
         else:
             self.uninformed_sampling = True
-            self.maximum_uninformed = maximum_uninformed
+            self.maximum_uninformed = int(maximum_uninformed)
 
         if uninformed_acceptance_threshold is None:
             if self.acceptance_threshold < 0.1:
