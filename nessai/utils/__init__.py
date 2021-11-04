@@ -28,6 +28,7 @@ from .rescaling import (
     sigmoid
 )
 from .sampling import (
+    compute_radius,
     draw_gaussian,
     draw_nsphere,
     draw_surface_nsphere,
@@ -47,6 +48,7 @@ __all__ = [
     'bonferroni_correction',
     'compute_indices_ks_test',
     'compute_minimum_distances',
+    'compute_radius',
     'configure_edge_detection',
     'configure_threads',
     'detect_edge',

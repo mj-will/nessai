@@ -6,6 +6,27 @@ import numpy as np
 from scipy import stats
 
 
+def compute_radius(n, q=0.95):
+    """Compute the radius that contains a fraction of the total probability \
+         in an n-dimensional unit Gaussian.
+
+    Uses the inverse CDF of a chi-distribution with n degrees of freedom.
+
+    Parameters
+    ----------
+    n : int
+        Number of dimensions
+    q : float
+        Fraction of the total probability
+
+    Returns
+    -------
+    float
+        Radius
+    """
+    return stats.chi.ppf(q, n)
+
+
 def draw_surface_nsphere(dims, r=1, N=1000):
     """
     Draw N points uniformly from  n-1 sphere of radius r using Marsaglia's
