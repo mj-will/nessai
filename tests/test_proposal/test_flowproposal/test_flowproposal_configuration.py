@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test general configuration functions"""
 import pytest
+from unittest.mock import patch
 
 from nessai.proposal import FlowProposal
 from nessai import utils
@@ -112,6 +113,34 @@ def test_configure_latent_prior_unknown(proposal):
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.configure_latent_prior(proposal)
     assert 'Unknown latent prior: truncated, ' in str(excinfo.value)
+
+
+def test_configure_constant_volume(proposal):
+    """Test configuration for constant volume mode."""
+    proposal.constant_volume_mode = True
+    proposal.volume_fraction = 0.95
+    proposal.rescaled_dims = 5
+    proposal.latent_prior = 'truncated_gaussian'
+    proposal.max_radius = 3.0
+    proposal.min_radius = 5.0
+    proposal.fuzz = 1.5
+    with patch(
+        'nessai.proposal.flowproposal.compute_radius', return_value=4.0
+    ) as mock:
+        FlowProposal.configure_constant_volume(proposal)
+    mock.assert_called_once_with(5, 0.95)
+    assert proposal.fixed_radius == 4.0
+    assert proposal.min_radius is False
+    assert proposal.max_radius is False
+    assert proposal.fuzz == 1.0
+
+
+def test_configure_constant_volume_disabled(proposal):
+    """Assert nothing happens if constant_volume is False"""
+    proposal.constant_volume_mode = False
+    with patch('nessai.proposal.flowproposal.compute_radius') as mock:
+        FlowProposal.configure_constant_volume(proposal)
+    mock.assert_not_called()
 
 
 @pytest.mark.parametrize('inversion, parameters',
