@@ -27,6 +27,7 @@ from ..reparameterisations import (
 from ..plot import plot_live_points, plot_1d_comparison
 from .rejection import RejectionProposal
 from ..utils import (
+    compute_radius,
     get_uniform_distribution,
     get_multivariate_normal,
     detect_edge,
@@ -83,6 +84,12 @@ class FlowProposal(RejectionProposal):
         If specified and the chosen latent distribution is compatible, this
         radius will be used to draw new samples instead of the value computed
         with the flow.
+    constant_volume_mode : bool
+        If True, then a constant volume is used for the latent contour used to
+        draw new samples. The exact volume can be set using `volume_fraction`
+    volume_fraction : float
+        Fraction of the total probability to contain with the latent contour
+        when using a constant volume.
     compute_radius_with_all : bool, optional
         If True all the radius of the latent contour is computed using the
         maximum radius of all the samples used to train the flow.
@@ -148,6 +155,8 @@ class FlowProposal(RejectionProposal):
                  poolsize=None,
                  rescale_parameters=True,
                  latent_prior='truncated_gaussian',
+                 constant_volume_mode=False,
+                 volume_fraction=0.95,
                  fuzz=1.0,
                  keep_samples=False,
                  plot='min',
@@ -218,6 +227,8 @@ class FlowProposal(RejectionProposal):
         self.boundary_inversion = boundary_inversion
         self.inversion_type = inversion_type
         self.flow_config = flow_config
+        self.constant_volume_mode = constant_volume_mode
+        self.volume_fraction = volume_fraction
 
         self.detect_edges = detect_edges
         self.detect_edges_kwargs = \
@@ -421,6 +432,38 @@ class FlowProposal(RejectionProposal):
                            'returned by the worst point.')
             self.max_radius = False
 
+    def configure_constant_volume(self):
+        """Configure using constant volume latent contour."""
+        if self.constant_volume_mode:
+            logger.debug('Configuring constant volume latent contour')
+            if not self.latent_prior == 'truncated_gaussian':
+                raise RuntimeError(
+                    "Constant volume requires "
+                    "`latent_prior='truncated_gaussian'"
+                )
+            self.fixed_radius = compute_radius(
+                self.rescaled_dims, self.volume_fraction
+            )
+            self.fuzz = 1.0
+            if self.max_radius < self.fixed_radius:
+                logger.warning(
+                    'Max radius is less than the radius need to use a '
+                    'constant volume latent contour. Max radius will be '
+                    'disabled.'
+                )
+                self.max_radius = False
+            if self.min_radius > self.fixed_radius:
+                logger.warning(
+                    'Min radius is greater than the radius need to use a '
+                    'constant volume latent contour. Min radius will be '
+                    'disabled.'
+                )
+                self.min_radius = False
+        else:
+            logger.debug(
+                'Nothing to configure for constant volume latent contour.'
+            )
+
     def initialise(self):
         """
         Initialise the proposal class.
@@ -443,6 +486,9 @@ class FlowProposal(RejectionProposal):
             self.fuzz = \
                 (1 + self.expansion_fraction) ** (1 / self.rescaled_dims)
             logger.info(f'New fuzz factor: {self.fuzz}')
+
+        self.configure_constant_volume()
+
         self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
