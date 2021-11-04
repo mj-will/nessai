@@ -67,3 +67,28 @@ def test_training(tmpdir, model, plot):
 
     assert fp.training_count == 1
     assert fp.populated is False
+
+
+@pytest.mark.integration_test
+def test_constant_volume_mode(tmpdir, model):
+    """Integration test for constant volume mode.
+
+    With q=0.8647 should get a radius of ~2.
+    """
+    output = str(tmpdir.mkdir('flowproposal'))
+    expected_radius = 2.0
+    fp = FlowProposal(
+        model,
+        output=output,
+        plot=False,
+        poolsize=100,
+        constant_volume_mode=True,
+        volume_fraction=0.8647,
+    )
+    fp.initialise()
+    worst = numpy_array_to_live_points(0.5 * np.ones(fp.dims), fp.names)
+    fp.populate(worst, N=100)
+    assert fp.x.size == 100
+
+    np.testing.assert_approx_equal(fp.r, expected_radius, 4)
+    np.testing.assert_approx_equal(fp.fixed_radius, expected_radius, 4)
