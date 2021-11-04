@@ -6,6 +6,7 @@ import copy
 import datetime
 import logging
 import os
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -100,11 +101,6 @@ class FlowProposal(RejectionProposal):
         Similar to ``fuzz`` but instead a scaling factor applied to the radius
         this specifies a rescaling for volume of the n-ball used to draw
         samples. This is translated to a value for ``fuzz``.
-    zero_reset : int, optional
-        Value used when resetting proposal if zero samples are accepted.
-        If specified is after drawing samples zero_reset times the current
-        poolsize is less than half, then the radius is reduced by 1% and
-        the pool is reset.
     truncate : bool, optional
         Truncate proposals using probability compute for worst point.
         Not recommended.
@@ -148,41 +144,42 @@ class FlowProposal(RejectionProposal):
         kwargs.
     """
 
-    def __init__(self,
-                 model,
-                 flow_config=None,
-                 output='./',
-                 poolsize=None,
-                 rescale_parameters=True,
-                 latent_prior='truncated_gaussian',
-                 constant_volume_mode=False,
-                 volume_fraction=0.95,
-                 fuzz=1.0,
-                 keep_samples=False,
-                 plot='min',
-                 fixed_radius=False,
-                 drawsize=None,
-                 check_acceptance=False,
-                 truncate=False,
-                 zero_reset=None,
-                 rescale_bounds=[-1, 1],
-                 expansion_fraction=1.0,
-                 boundary_inversion=False,
-                 inversion_type='split',
-                 update_bounds=True,
-                 min_radius=False,
-                 max_radius=50.0,
-                 pool=None,
-                 n_pool=None,
-                 max_poolsize_scale=10,
-                 update_poolsize=True,
-                 save_training_data=False,
-                 compute_radius_with_all=False,
-                 draw_latent_kwargs=None,
-                 detect_edges=False,
-                 detect_edges_kwargs=None,
-                 reparameterisations=None,
-                 **kwargs):
+    def __init__(
+        self,
+        model,
+        flow_config=None,
+        output='./',
+        poolsize=None,
+        rescale_parameters=True,
+        latent_prior='truncated_gaussian',
+        constant_volume_mode=False,
+        volume_fraction=0.95,
+        fuzz=1.0,
+        keep_samples=False,
+        plot='min',
+        fixed_radius=False,
+        drawsize=None,
+        check_acceptance=False,
+        truncate=False,
+        rescale_bounds=[-1, 1],
+        expansion_fraction=4.0,
+        boundary_inversion=False,
+        inversion_type='split',
+        update_bounds=True,
+        min_radius=False,
+        max_radius=50.0,
+        pool=None,
+        n_pool=None,
+        max_poolsize_scale=10,
+        update_poolsize=True,
+        save_training_data=False,
+        compute_radius_with_all=False,
+        draw_latent_kwargs=None,
+        detect_edges=False,
+        detect_edges_kwargs=None,
+        reparameterisations=None,
+        **kwargs
+    ):
 
         super(FlowProposal, self).__init__(model)
         logger.debug('Initialising FlowProposal')
@@ -219,11 +216,16 @@ class FlowProposal(RejectionProposal):
 
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
+        if self.keep_samples:
+            warnings.warn(
+                "`keep_samples` will be removed in nessai 0.4.0",
+                DeprecationWarning,
+                stacklevel=2
+            )
         self.update_bounds = update_bounds
         self.check_acceptance = check_acceptance
         self.rescale_bounds = rescale_bounds
         self.truncate = truncate
-        self.zero_reset = zero_reset
         self.boundary_inversion = boundary_inversion
         self.inversion_type = inversion_type
         self.flow_config = flow_config
