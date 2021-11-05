@@ -83,22 +83,34 @@ def test_empty_numpy_array_to_live_points(empty_live_point):
         lp.numpy_array_to_live_points(np.array([]), names=['x', 'y', 'z']))
 
 
-def test_dict_to_live_point(live_point):
+@pytest.mark.parametrize(
+    'd',
+    [
+        {'x': 1, 'y': 2, 'z': 3},
+        {'x': 1.0, 'y': 2.0, 'z': 3.0},
+    ]
+)
+def test_dict_to_live_point(live_point, d):
     """
-    Test the function that converts a dictionary with a signel live point to
+    Test the function that converts a dictionary with a single live point to
     a live point array
     """
-    d = {'x': 1, 'y': 2, 'z': 3}
     x = lp.dict_to_live_points(d)
     np.testing.assert_array_equal(live_point, x)
 
 
-def test_dict_multiple_to_live_points(live_points):
+@pytest.mark.parametrize(
+    'd',
+    [
+        {'x': [1, 4], 'y': [2, 5], 'z': [3, 6]},
+        {'x': np.array([1, 4]), 'y': np.array([2, 5]), 'z': np.array([3, 6])},
+    ]
+)
+def test_dict_multiple_to_live_points(live_points, d):
     """
     Test the function that converts a dictionary with multiple live points to
     a live point array
     """
-    d = {'x': [1, 4], 'y': [2, 5], 'z': [3, 6]}
     x = lp.dict_to_live_points(d)
     np.testing.assert_array_equal(live_points, x)
 

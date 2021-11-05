@@ -45,6 +45,8 @@ The normalising flows implemented in ``nessai`` are all either directly imported
 
 Other code snippets that draw on existing code reference the source in their corresponding doc-strings.
 
+The authors also thank Laurence Datrier, Fergus Hayes and Jethro Linley for their feedback and help finding bugs in ``nessai``.
+
 ## Citing
 
 If you find ``nessai`` useful in your work please cite the DOI for this code and our paper:
