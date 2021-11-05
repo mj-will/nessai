@@ -206,3 +206,18 @@ def test_sampling_with_infinite_prior_bounds(tmpdir):
     )
     fs.run(plot=False)
     assert fs.ns.condition <= 0.1
+
+
+@pytest.mark.slow_integration_test
+def test_constant_volume_mode(model, tmpdir):
+    """Test sampling in constant volume mode"""
+    output = str(tmpdir.mkdir('test'))
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=500,
+        plot=False,
+        proposal_plots=False,
+        constant_volume_mode=True
+    )
+    fs.run(plot=False)
