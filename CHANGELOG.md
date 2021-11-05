@@ -12,9 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add a constant volume mode to `FlowProposal`. In this mode the radius of the latent contour is fixed to the q'th quantile, which by default is `0.95`.
 
+
+## [0.3.3] - 2021-11-04
+
 ### Fixed
 
-- Fixed a bug in `nessai.livepoint.dict_to_live_points` when passing a dictionary where the entries contained floats instead of objects with a length raised an error.
+- Fixed a bug in `nessai.livepoint.dict_to_live_points` when passing a dictionary where the entries contained floats instead of objects with a length raised an error. ([#119](https://github.com/mj-will/nessai/pull/119))
 
 
 ## [0.3.2] - 2021-10-12
@@ -256,7 +259,8 @@ First public release.
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/mj-will/nessai/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/mj-will/nessai/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mj-will/nessai/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mj-will/nessai/compare/v0.2.4...v0.3.0
