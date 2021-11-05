@@ -143,6 +143,18 @@ def test_configure_constant_volume_disabled(proposal):
     mock.assert_not_called()
 
 
+def test_constant_volume_invalid_latent_prior(proposal):
+    """Assert an error is raised if the latent prior is not a truncated \
+        Gaussian
+    """
+    err = "Constant volume requires `latent_prior='truncated_gaussian'`"
+    proposal.constant_volume_mode = True
+    proposal.latent_prior = 'gaussian'
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.configure_constant_volume(proposal)
+    assert str(excinfo.value) == err
+
+
 @pytest.mark.parametrize('inversion, parameters',
                          [(True, ['x', 'y']), (False, []), (['x'], ['x'])])
 def test_set_boundary_inversion(proposal, inversion, parameters):

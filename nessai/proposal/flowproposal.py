@@ -439,7 +439,7 @@ class FlowProposal(RejectionProposal):
             if not self.latent_prior == 'truncated_gaussian':
                 raise RuntimeError(
                     "Constant volume requires "
-                    "`latent_prior='truncated_gaussian'"
+                    "`latent_prior='truncated_gaussian'`"
                 )
             self.fixed_radius = compute_radius(
                 self.rescaled_dims, self.volume_fraction
