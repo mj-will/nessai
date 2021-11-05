@@ -152,7 +152,7 @@ class FlowProposal(RejectionProposal):
         poolsize=None,
         rescale_parameters=True,
         latent_prior='truncated_gaussian',
-        constant_volume_mode=False,
+        constant_volume_mode=True,
         volume_fraction=0.95,
         fuzz=1.0,
         keep_samples=False,
