@@ -14,10 +14,11 @@ import torch
 
 from ..flowmodel import FlowModel, update_config
 from ..livepoint import (
+    DEFAULT_FLOAT_DTYPE,
+    NON_SAMPLING_PARAMETERS,
     live_points_to_array,
     numpy_array_to_live_points,
     get_dtype,
-    DEFAULT_FLOAT_DTYPE
     )
 from ..reparameterisations import (
     CombinedReparameterisation,
@@ -710,8 +711,8 @@ class FlowProposal(RejectionProposal):
         x, x_prime, log_J = self._reparameterisation.reparameterise(
             x, x_prime, log_J, compute_radius=compute_radius, **kwargs)
 
-        x_prime['logP'] = x['logP']
-        x_prime['logL'] = x['logL']
+        for nsp in NON_SAMPLING_PARAMETERS:
+            x_prime[nsp] = x[nsp]
         return x_prime, log_J
 
     def _inverse_rescale_w_reparameterisation(self, x_prime, **kwargs):
@@ -720,8 +721,8 @@ class FlowProposal(RejectionProposal):
         x, x_prime, log_J = self._reparameterisation.inverse_reparameterise(
             x, x_prime, log_J, **kwargs)
 
-        x['logP'] = x_prime['logP']
-        x['logL'] = x_prime['logL']
+        for nsp in NON_SAMPLING_PARAMETERS:
+            x[nsp] = x_prime[nsp]
         return x, log_J
 
     def _rescale_to_bounds(self, x, compute_radius=False, test=None):
@@ -776,8 +777,9 @@ class FlowProposal(RejectionProposal):
                         logger.debug(f'Not using inversion for {n}')
             else:
                 x_prime[rn] = x[n]
-        x_prime['logP'] = x['logP']
-        x_prime['logL'] = x['logL']
+
+        for nsp in NON_SAMPLING_PARAMETERS:
+            x_prime[nsp] = x[nsp]
         return x_prime, log_J
 
     def _inverse_rescale_to_bounds(self, x_prime):
@@ -805,8 +807,8 @@ class FlowProposal(RejectionProposal):
                           - np.log(self._rescale_factor))
             else:
                 x[n] = x_prime[rn]
-        x['logP'] = x_prime['logP']
-        x['logL'] = x_prime['logL']
+        for nsp in NON_SAMPLING_PARAMETERS:
+            x[nsp] = x_prime[nsp]
         return x, log_J
 
     def rescale(self, x, compute_radius=False, **kwargs):
@@ -1266,7 +1268,7 @@ class FlowProposal(RejectionProposal):
 
             x, _ = self.inverse_rescale(x)
         x['logP'] = self.model.log_prior(x)
-        return rfn.repack_fields(x[self.model.names + ['logP', 'logL']])
+        return rfn.repack_fields(x[self.model.names + NON_SAMPLING_PARAMETERS])
 
     def populate(self, worst_point, N=10000, plot=True, r=None):
         """
