@@ -152,8 +152,10 @@ class _NSIntegralState:
 
 
 class _INSIntegralState:
-
-    def __init__(self, **kwargs):
+    """
+    Object to handle computing the evidence for importance nested sampling.
+    """
+    def __init__(self) -> None:
         self._n = 0
         self._logZ = -np.inf
         self.info = [np.nan]
@@ -162,14 +164,15 @@ class _INSIntegralState:
         self.effective_sample_size = 0
         self._logZ_history = np.empty(0)
 
-    def update_evidence(self, x: np.ndarray):
-        """Update the evidence estimate."""
+    def update_evidence(self, x: np.ndarray) -> None:
+        """Update the evidence estimate with new samples (live points)"""
         log_Z_k = x['logL'] + x['logW']
         self._logZ_history = np.concatenate([self._logZ_history, log_Z_k])
         self._logZ = logsumexp(self._logZ_history)
         self._n += x.size
 
     def update_evidence_from_nested_samples(self, x):
+        """Update the evidence from a set of nested samples"""
         log_Z_k = x['logL'] + x['logW']
         self._logZ_history = log_Z_k
         self._logZ = logsumexp(log_Z_k)
@@ -177,23 +180,33 @@ class _INSIntegralState:
 
     @property
     def logZ(self):
+        """The current log-evidence."""
         return self._logZ
 
-    def finalise(self):
-        logger.debug('Calling finalise. Nothing happened!')
-        pass
+    def compute_log_Z(self, samples: np.ndarray) -> float:
+        """Compute the evidence if a set of samples were added.
 
-    def compute_condition(self, logL, logW) -> float:
-        logZ = np.logaddexp(self._logZ, logL + logW)
+        Does not update the running estimate of log Z.
+        """
+        log_Z_s = logsumexp(samples['logL'] + samples['logW'])
+        logZ = np.logaddexp(self._logZ, log_Z_s)
+        return logZ
+
+    def compute_condition(self, samples: np.ndarray) -> float:
+        """Compute the fraction change in the evidence."""
+        log_Z_s = logsumexp(samples['logL'] + samples['logW'])
+        logZ = np.logaddexp(self._logZ, log_Z_s)
+        logger.debug(f'Current log Z: {self._logZ}, expected: {logZ}')
         dZ = logZ - self.logZ
         return dZ
 
     def compute_uncertainty(self) -> float:
+        """Compute the uncertainty on the current estimate of the evidence."""
         n = self._n
         Z_hat = np.exp(self.logZ, dtype=np.float128)
         # Include n since g does not include it
         Z = n * np.exp(self._logZ_history.astype(np.float128))
-        # Var[Z]
+        # Standard error sqrt(Var[Z] / n)
         u = np.sqrt(np.sum((Z - Z_hat) ** 2) / (n * (n - 1)))
         # sigma[ln Z] = |sigma[Z] / Z|
         return float(np.abs(u / Z_hat))
