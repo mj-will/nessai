@@ -247,7 +247,14 @@ class FlowModel:
         if update_default:
             self.device = device
 
-    def prep_data(self, samples, val_size, batch_size, use_dataloader=False):
+    def prep_data(
+        self,
+        samples,
+        val_size,
+        batch_size,
+        weights=None,
+        use_dataloader=False
+    ):
         """
         Prep data and return dataloaders for training
 
@@ -262,6 +269,9 @@ class FlowModel:
             Batch size used when contructing dataloaders.
         use_dataloader : bool, optional
             If True data is returned in a dataloader else a tensor is returned.
+        weights : array_like, optional
+            Array of weights for each sample, weights will used when computing
+            the loss.
 
         Returns
         -------
@@ -273,12 +283,18 @@ class FlowModel:
 
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
+        if weights is not None:
+            weights = weights[idx]
+            use_dataloader = True
 
         logger.debug("N input samples: {}".format(len(samples)))
 
         # setup data loading
         n = int((1 - val_size) * samples.shape[0])
         x_train, x_val = samples[:n], samples[n:]
+        if weights is not None:
+            weights_train = weights[:n]
+            weights_val = weights[n:]
         logger.debug(f'{x_train.shape} training samples')
         logger.debug(f'{x_val.shape} validation samples')
 
@@ -292,13 +308,22 @@ class FlowModel:
         dtype = torch.get_default_dtype()
         if use_dataloader:
             logger.debug('Using dataloaders')
-            train_tensor = torch.from_numpy(x_train).type(dtype)
-            train_dataset = torch.utils.data.TensorDataset(train_tensor)
+            train_tensors = [torch.from_numpy(x_train).type(dtype)]
+            val_tensors = [torch.from_numpy(x_val).type(dtype)]
+
+            if weights is not None:
+                train_tensors.append(
+                    torch.from_numpy(weights_train).type(dtype)
+                )
+                val_tensors.append(torch.from_numpy(
+                    weights_val).type(dtype)
+                )
+
+            train_dataset = torch.utils.data.TensorDataset(*train_tensors)
             train_data = torch.utils.data.DataLoader(
                 train_dataset, batch_size=self.batch_size, shuffle=True)
 
-            val_tensor = torch.from_numpy(x_val).type(dtype)
-            val_dataset = torch.utils.data.TensorDataset(val_tensor)
+            val_dataset = torch.utils.data.TensorDataset(*val_tensors)
             val_data = torch.utils.data.DataLoader(
                 val_dataset, batch_size=x_val.shape[0], shuffle=False)
         else:
@@ -310,7 +335,13 @@ class FlowModel:
 
         return train_data, val_data
 
-    def _train(self, train_data, noise_scale=0.0, is_dataloader=False):
+    def _train(
+        self,
+        train_data,
+        noise_scale=0.0,
+        is_dataloader=False,
+        weighted=False
+    ):
         """
         Loop over the data and update the weights
 
@@ -323,6 +354,9 @@ class FlowModel:
             Scale of Gaussian noise added to data.
         is_dataloader : bool, optional
             Must be True when using a dataloader
+        weighted : bool
+            If True the weighted KL will be used to compute the loss. Requires
+            data to include weights.
 
         Returns
         -------
@@ -335,6 +369,12 @@ class FlowModel:
 
         if hasattr(model, 'loss_function'):
             loss_fn = model.loss_function
+        elif weighted:
+            def loss_fn(data, weights):
+                return (
+                    -torch.sum(model.log_prob(data) * weights)
+                    / torch.sum(weights)
+                )
         else:
             def loss_fn(data):
                 return -model.log_prob(data).mean()
@@ -346,12 +386,18 @@ class FlowModel:
         n = 0
         for data in train_data:
             if is_dataloader:
-                data = data[0].to(self.device)
+                x = data[0].to(self.device)
+            else:
+                x = data
             if noise_scale:
-                data += noise_scale * torch.randn_like(data)
+                x += noise_scale * torch.randn_like(x)
             for param in model.parameters():
                 param.grad = None
-            loss = loss_fn(data)
+            if weighted:
+                weights = data[1].to(self.device)
+                loss = loss_fn(x, weights)
+            else:
+                loss = loss_fn(x)
             train_loss += loss.item()
             loss.backward()
             if self.clip_grad_norm:
@@ -364,7 +410,7 @@ class FlowModel:
 
         return train_loss / n
 
-    def _validate(self, val_data, is_dataloader=False):
+    def _validate(self, val_data, is_dataloader=False, weighted=False):
         """
         Loop over the data and get validation loss
 
@@ -374,6 +420,9 @@ class FlowModel:
             Dataloader with data to validate on
         is_dataloader : bool, optional
             Boolean to indicate if the data is a dataloader
+        weighted : bool
+            If True the weighted KL will be used to compute the loss. Requires
+            data to include weights.
 
         Returns
         -------
@@ -386,6 +435,12 @@ class FlowModel:
 
         if hasattr(model, 'loss_function'):
             loss_fn = model.loss_function
+        elif weighted:
+            def loss_fn(data, weights):
+                return (
+                    -torch.sum(model.log_prob(data) * weights)
+                    / torch.sum(weights)
+                )
         else:
             def loss_fn(data):
                 return -model.log_prob(data).mean()
@@ -394,9 +449,14 @@ class FlowModel:
             n = 0
             for data in val_data:
                 if is_dataloader:
-                    data = data[0].to(self.device)
-                with torch.no_grad():
-                    val_loss += loss_fn(data).item()
+                    x = data[0].to(self.device)
+                if weighted:
+                    weights = data[1].to(self.device)
+                    with torch.no_grad():
+                        val_loss += loss_fn(x, weights).item()
+                else:
+                    with torch.no_grad():
+                        val_loss += loss_fn(x).item()
                 n += 1
 
             return val_loss / n
@@ -405,8 +465,16 @@ class FlowModel:
                 val_loss += loss_fn(val_data).item()
             return val_loss
 
-    def train(self, samples, max_epochs=None, patience=None, output=None,
-              val_size=None, plot=True):
+    def train(
+        self,
+        samples,
+        weights=None,
+        max_epochs=None,
+        patience=None,
+        output=None,
+        val_size=None,
+        plot=True
+    ):
         """
         Train the flow on a set of samples.
 
@@ -417,6 +485,8 @@ class FlowModel:
         ----------
         samples : ndarray
             Unstructured numpy array containing data to train on
+        weights : array_like
+            Array of weights to use with the weight KL when computing the loss.
         max_epochs : int, optional
             Maxinum number of epochs that is used instead of value
             in the configuration.
@@ -451,11 +521,15 @@ class FlowModel:
 
         self.move_to(self.device)
 
+        weighted = True if weights is not None else False
+        use_dataloader = self.use_dataloader or weighted
+
         train_data, val_data = self.prep_data(
             samples,
             val_size=val_size,
             batch_size=self.batch_size,
-            use_dataloader=self.use_dataloader
+            weights=weights,
+            use_dataloader=use_dataloader
         )
 
         if max_epochs is None:
@@ -483,11 +557,13 @@ class FlowModel:
             loss = self._train(
                 train_data,
                 noise_scale=noise_scale,
-                is_dataloader=self.use_dataloader
+                is_dataloader=use_dataloader,
+                weighted=weighted,
             )
             val_loss = self._validate(
                 val_data,
-                is_dataloader=self.use_dataloader
+                is_dataloader=use_dataloader,
+                weighted=weighted,
             )
             if plot:
                 history['loss'].append(loss)
