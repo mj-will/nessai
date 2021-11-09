@@ -6,7 +6,7 @@ import logging
 import os
 
 
-def setup_logger(output=None, label='nessai', log_level='INFO'):
+def setup_logger(output=None, label='nessai', log_level='WARNING'):
     """
     Setup the logger.
 
