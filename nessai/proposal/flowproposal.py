@@ -466,6 +466,10 @@ class FlowProposal(RejectionProposal):
                 'Nothing to configure for constant volume latent contour.'
             )
 
+    def update_flow_config(self):
+        """Update the flow configuration dictionary."""
+        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+
     def initialise(self):
         """
         Initialise the proposal class.
@@ -490,8 +494,7 @@ class FlowProposal(RejectionProposal):
             logger.info(f'New fuzz factor: {self.fuzz}')
 
         self.configure_constant_volume()
-
-        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+        self.update_flow_config()
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
         self.populated = False
