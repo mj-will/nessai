@@ -1409,9 +1409,12 @@ class FlowProposal(RejectionProposal):
             self.plot_pool(z_samples, self.samples)
 
         if self.check_acceptance:
-            self.approx_acceptance.append(self.compute_acceptance(worst_q))
-            logger.debug(
-                f'Current approximate acceptance {self.approx_acceptance[-1]}')
+            if worst_q:
+                self.approx_acceptance.append(self.compute_acceptance(worst_q))
+                logger.debug(
+                    'Current approximate acceptance '
+                    f'{self.approx_acceptance[-1]}'
+                )
             self.evaluate_likelihoods()
             self.acceptance.append(
                 self.compute_acceptance(worst_point['logL']))
