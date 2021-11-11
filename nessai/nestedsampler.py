@@ -360,7 +360,7 @@ class NestedSampler:
             self.maximum_uninformed = 0
         else:
             self.uninformed_sampling = True
-            self.maximum_uninformed = int(maximum_uninformed)
+            self.maximum_uninformed = float(maximum_uninformed)
 
         if uninformed_acceptance_threshold is None:
             if self.acceptance_threshold < 0.1:
