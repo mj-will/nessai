@@ -285,13 +285,16 @@ def test_check_prior_bounds(proposal):
     np.testing.assert_array_equal(y_out, y[:6])
 
 
-def test_populate(proposal):
+@pytest.mark.parametrize('check_acceptance', [False, True])
+def test_populate(proposal, check_acceptance):
     """Test the main populate method"""
     n_dims = 2
     poolsize = 10
     drawsize = 5
     names = ['x', 'y']
-    worst_point = np.array([1, 2])
+    worst_point = np.array(
+        [[1, 2, 3]], dtype=[('x', 'f8'), ('y', 'f8'), ('logL', 'f8')]
+    )
     worst_z = np.random.randn(1, n_dims)
     worst_q = np.random.randn(1)
     z = [
@@ -313,10 +316,12 @@ def test_populate(proposal):
     proposal.min_radius = 0.1
     proposal.fuzz = 1.0
     proposal.indices = []
+    proposal.approx_acceptance = [0.4]
+    proposal.acceptance = [0.7]
     proposal.keep_samples = False
     proposal.fixed_radius = False
     proposal.compute_radius_with_all = False
-    proposal.check_acceptance = False
+    proposal.check_acceptance = check_acceptance
     proposal._plot_pool = True
     proposal.populated_count = 1
     proposal.population_dtype = \
@@ -330,6 +335,8 @@ def test_populate(proposal):
     proposal.rejection_sampling = MagicMock(
         side_effect=[(a[:-1], b[:-1]) for a, b in zip(z, x)]
     )
+    proposal.compute_acceptance = MagicMock(side_effect=[0.5, 0.8])
+    proposal.evaluate_likelihoods = MagicMock()
 
     proposal.plot_pool = MagicMock()
     proposal.convert_to_samples = MagicMock(
@@ -368,9 +375,19 @@ def test_populate(proposal):
     assert proposal.populated is True
     assert proposal.x.size == 10
 
+    if check_acceptance:
+        proposal.compute_acceptance.assert_called()
+        proposal.evaluate_likelihoods.assert_called_once()
+        assert proposal.approx_acceptance == [0.4, 0.5]
+        assert proposal.acceptance == [0.7, 0.8]
+    else:
+        proposal.compute_acceptance.assert_not_called()
+        proposal.evaluate_likelihoods.assert_not_called()
+        assert np.all(proposal.samples['logL'] == 0.0)
+
 
 def test_populate_not_initialised(proposal):
-    """Assert popluate fails if the proposal is not initialised"""
+    """Assert populate fails if the proposal is not initialised"""
     proposal.initialised = False
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.populate(proposal, 1.0)
