@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a constant volume mode to `FlowProposal`. In this mode the radius of the latent contour is fixed to the q'th quantile, which by default is `0.95`.
 - Add a check for `resume_file` when `resume=True`.
 - Change default logging level to `WARNING`.
+- Add `angle-cosine` reparameterisation.
 
 ### Changed
 
@@ -27,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cooldown` now defaults to `200` to reflect the change in `nlive`.
 - Default optimiser is now `adamw`.
 - Rework `AugmentedFlowProposal` to work with the new defaults.
+
+## Deprecated
+
+- `keep_samples` in `FlowProposal` will be removed in the next minor release.
+
 
 ## [0.3.3] - 2021-11-04
 
