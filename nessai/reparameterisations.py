@@ -1334,6 +1334,7 @@ default_reparameterisations = {
     'angle-pi': (Angle, {'scale': 2.0, 'prior': 'uniform'}),
     'angle-2pi': (Angle, {'scale': 1.0, 'prior': 'uniform'}),
     'angle-sine': (RescaleToBounds, None),
+    'angle-cosine': (RescaleToBounds, None),
     'angle-pair': (AnglePair, None),
     'to-cartesian': (ToCartesian, None),
     'none': (NullReparameterisation, None),
