@@ -8,12 +8,43 @@ from scipy import stats
 from unittest.mock import patch
 
 from nessai.utils.sampling import (
+    compute_radius,
     draw_gaussian,
     draw_nsphere,
     draw_surface_nsphere,
     draw_truncated_gaussian,
     draw_uniform,
 )
+
+
+def test_compute_radius():
+    """Assert compute radius calls the correct function"""
+    with patch('scipy.stats.chi.ppf') as mock:
+        compute_radius(2, 0.95)
+    mock.assert_called_once_with(0.95, 2)
+
+
+@pytest.mark.parametrize(
+    "d, q, r",
+    [
+        [1, 0.6827, 1.0],
+        [1, 0.9545, 2.0],
+        [2, 0.3935, 1.0],
+        [5, 0.8909, 3.0],
+        [10, 0.9004, 4.0]
+    ]
+)
+def test_compute_radius_integration(d, q, r):
+    """Assert compute radius returns the expected value.
+
+    Checks that for a given confidence level the correct radius is returned,
+    values checked correspond to standard deviations.
+
+    Values for q taken from: \
+        https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4358977/
+    """
+    r_out = compute_radius(d, q)
+    np.testing.assert_almost_equal(r_out, r, decimal=4)
 
 
 @pytest.mark.parametrize("ndims, radius", [(2, 1), (10, 2), (10, 10), (1, 1)])

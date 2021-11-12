@@ -6,6 +6,7 @@ import copy
 import datetime
 import logging
 import os
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,6 +28,7 @@ from ..reparameterisations import (
 from ..plot import plot_live_points, plot_1d_comparison
 from .rejection import RejectionProposal
 from ..utils import (
+    compute_radius,
     get_uniform_distribution,
     get_multivariate_normal,
     detect_edge,
@@ -83,6 +85,12 @@ class FlowProposal(RejectionProposal):
         If specified and the chosen latent distribution is compatible, this
         radius will be used to draw new samples instead of the value computed
         with the flow.
+    constant_volume_mode : bool
+        If True, then a constant volume is used for the latent contour used to
+        draw new samples. The exact volume can be set using `volume_fraction`
+    volume_fraction : float
+        Fraction of the total probability to contain with the latent contour
+        when using a constant volume.
     compute_radius_with_all : bool, optional
         If True all the radius of the latent contour is computed using the
         maximum radius of all the samples used to train the flow.
@@ -93,11 +101,6 @@ class FlowProposal(RejectionProposal):
         Similar to ``fuzz`` but instead a scaling factor applied to the radius
         this specifies a rescaling for volume of the n-ball used to draw
         samples. This is translated to a value for ``fuzz``.
-    zero_reset : int, optional
-        Value used when resetting proposal if zero samples are accepted.
-        If specified is after drawing samples zero_reset times the current
-        poolsize is less than half, then the radius is reduced by 1% and
-        the pool is reset.
     truncate : bool, optional
         Truncate proposals using probability compute for worst point.
         Not recommended.
@@ -141,39 +144,42 @@ class FlowProposal(RejectionProposal):
         kwargs.
     """
 
-    def __init__(self,
-                 model,
-                 flow_config=None,
-                 output='./',
-                 poolsize=None,
-                 rescale_parameters=True,
-                 latent_prior='truncated_gaussian',
-                 fuzz=1.0,
-                 keep_samples=False,
-                 plot='min',
-                 fixed_radius=False,
-                 drawsize=None,
-                 check_acceptance=False,
-                 truncate=False,
-                 zero_reset=None,
-                 rescale_bounds=[-1, 1],
-                 expansion_fraction=1.0,
-                 boundary_inversion=False,
-                 inversion_type='split',
-                 update_bounds=True,
-                 min_radius=False,
-                 max_radius=50.0,
-                 pool=None,
-                 n_pool=None,
-                 max_poolsize_scale=10,
-                 update_poolsize=True,
-                 save_training_data=False,
-                 compute_radius_with_all=False,
-                 draw_latent_kwargs=None,
-                 detect_edges=False,
-                 detect_edges_kwargs=None,
-                 reparameterisations=None,
-                 **kwargs):
+    def __init__(
+        self,
+        model,
+        flow_config=None,
+        output='./',
+        poolsize=None,
+        rescale_parameters=True,
+        latent_prior='truncated_gaussian',
+        constant_volume_mode=True,
+        volume_fraction=0.95,
+        fuzz=1.0,
+        keep_samples=False,
+        plot='min',
+        fixed_radius=False,
+        drawsize=None,
+        check_acceptance=False,
+        truncate=False,
+        rescale_bounds=[-1, 1],
+        expansion_fraction=4.0,
+        boundary_inversion=False,
+        inversion_type='split',
+        update_bounds=True,
+        min_radius=False,
+        max_radius=50.0,
+        pool=None,
+        n_pool=None,
+        max_poolsize_scale=10,
+        update_poolsize=True,
+        save_training_data=False,
+        compute_radius_with_all=False,
+        draw_latent_kwargs=None,
+        detect_edges=False,
+        detect_edges_kwargs=None,
+        reparameterisations=None,
+        **kwargs
+    ):
 
         super(FlowProposal, self).__init__(model)
         logger.debug('Initialising FlowProposal')
@@ -210,14 +216,21 @@ class FlowProposal(RejectionProposal):
 
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
+        if self.keep_samples:
+            warnings.warn(
+                "`keep_samples` will be removed in nessai 0.4.0",
+                DeprecationWarning,
+                stacklevel=2
+            )
         self.update_bounds = update_bounds
         self.check_acceptance = check_acceptance
         self.rescale_bounds = rescale_bounds
         self.truncate = truncate
-        self.zero_reset = zero_reset
         self.boundary_inversion = boundary_inversion
         self.inversion_type = inversion_type
         self.flow_config = flow_config
+        self.constant_volume_mode = constant_volume_mode
+        self.volume_fraction = volume_fraction
 
         self.detect_edges = detect_edges
         self.detect_edges_kwargs = \
@@ -421,6 +434,42 @@ class FlowProposal(RejectionProposal):
                            'returned by the worst point.')
             self.max_radius = False
 
+    def configure_constant_volume(self):
+        """Configure using constant volume latent contour."""
+        if self.constant_volume_mode:
+            logger.debug('Configuring constant volume latent contour')
+            if not self.latent_prior == 'truncated_gaussian':
+                raise RuntimeError(
+                    "Constant volume requires "
+                    "`latent_prior='truncated_gaussian'`"
+                )
+            self.fixed_radius = compute_radius(
+                self.rescaled_dims, self.volume_fraction
+            )
+            self.fuzz = 1.0
+            if self.max_radius < self.fixed_radius:
+                logger.warning(
+                    'Max radius is less than the radius need to use a '
+                    'constant volume latent contour. Max radius will be '
+                    'disabled.'
+                )
+                self.max_radius = False
+            if self.min_radius > self.fixed_radius:
+                logger.warning(
+                    'Min radius is greater than the radius need to use a '
+                    'constant volume latent contour. Min radius will be '
+                    'disabled.'
+                )
+                self.min_radius = False
+        else:
+            logger.debug(
+                'Nothing to configure for constant volume latent contour.'
+            )
+
+    def update_flow_config(self):
+        """Update the flow configuration dictionary."""
+        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+
     def initialise(self):
         """
         Initialise the proposal class.
@@ -443,7 +492,9 @@ class FlowProposal(RejectionProposal):
             self.fuzz = \
                 (1 + self.expansion_fraction) ** (1 / self.rescaled_dims)
             logger.info(f'New fuzz factor: {self.fuzz}')
-        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+
+        self.configure_constant_volume()
+        self.update_flow_config()
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
         self.populated = False
@@ -1358,9 +1409,12 @@ class FlowProposal(RejectionProposal):
             self.plot_pool(z_samples, self.samples)
 
         if self.check_acceptance:
-            self.approx_acceptance.append(self.compute_acceptance(worst_q))
-            logger.debug(
-                f'Current approximate acceptance {self.approx_acceptance[-1]}')
+            if worst_q:
+                self.approx_acceptance.append(self.compute_acceptance(worst_q))
+                logger.debug(
+                    'Current approximate acceptance '
+                    f'{self.approx_acceptance[-1]}'
+                )
             self.evaluate_likelihoods()
             self.acceptance.append(
                 self.compute_acceptance(worst_point['logL']))

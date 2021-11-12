@@ -7,18 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
 ### Added
 
+- Add a constant volume mode to `FlowProposal`. In this mode the radius of the latent contour is fixed to the q'th quantile, which by default is `0.95`.
+- Add a check for `resume_file` when `resume=True`.
+- Change default logging level to `WARNING`.
+- Add `angle-cosine` reparameterisation.
 - Added an explicit check for one-dimensional models that raises a custom exception `OneDimensionalModelError`.
 - `RealNVP` and `NeuralSplineFlow` now raise an error if `features<=1`.
 
 ### Changed
 
+- Constant volume mode is now enabled by default.
+- Reparameterisation `angle-sine` is now an alias for `RescaledToBounds` instead of `Angle` with specific keyword arguments.
+- `maximum_uninformed=None` now defaults to 2 times `nlive` instead of `np.inf`.
+- `nlive=2000` by default.
+- Default `batch_size` is now 1000.
+- Default `n_neurons` is now 2 times the dimensions of the normalising flow.
+- Default mode for `FlowProposal` is `constant_volume_mode=True`.
+- Proposal plots are now disabled by default.
+- `cooldown` now defaults to `200` to reflect the change in `nlive`.
+- Default optimiser is now `adamw`.
+- Rework `AugmentedFlowProposal` to work with the new defaults.
 - `Model.names` and `Model.bounds` are now properties by default and their setters include checks to verify the values provided are valid and raise errors if not.
+
+## Deprecated
+
+- `keep_samples` in `FlowProposal` will be removed in the next minor release.
+
+
+## [0.3.3] - 2021-11-04
 
 ### Fixed
 
-- Fixed a bug in `nessai.livepoint.dict_to_live_points` when passing a dictionary where the entries contained floats instead of objects with a length raised an error.
+- Fixed a bug in `nessai.livepoint.dict_to_live_points` when passing a dictionary where the entries contained floats instead of objects with a length raised an error. ([#119](https://github.com/mj-will/nessai/pull/119))
 
 
 ## [0.3.2] - 2021-10-12
@@ -260,7 +283,8 @@ First public release.
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/mj-will/nessai/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/mj-will/nessai/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/mj-will/nessai/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/mj-will/nessai/compare/v0.2.4...v0.3.0

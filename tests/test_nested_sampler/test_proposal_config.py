@@ -29,8 +29,10 @@ def sampler(sampler, tmpdir):
     return sampler
 
 
-@pytest.mark.parametrize('maximum, result',
-                         [[None, np.inf], [False, 0], [100, 100]])
+@pytest.mark.parametrize(
+    'maximum, result',
+    [[None, 200], [False, 0], [100, 100], ['inf', np.inf]]
+)
 def test_uninformed_maximum(sampler, maximum, result):
     """
     Test to check that the proposal is correctly configured depending on

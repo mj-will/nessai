@@ -21,7 +21,6 @@ def test_init(model, kwargs):
 
 
 @pytest.mark.parametrize('ef, fuzz', [(2.0, 3.0**0.5), (False, 2.0)])
-@patch('nessai.flowmodel.FlowModel', new=MagicMock())
 def test_initialise(tmpdir, proposal, ef, fuzz):
     """Test the initialise method"""
     p = tmpdir.mkdir('test')
@@ -32,11 +31,22 @@ def test_initialise(tmpdir, proposal, ef, fuzz):
     proposal.flow_config = {'model_config': {}}
     proposal.set_rescaling = MagicMock()
     proposal.verify_rescaling = MagicMock()
+    proposal.update_flow_config = MagicMock()
+    proposal.configure_constant_volume = MagicMock()
+    fm = MagicMock()
+    fm.initialise = MagicMock()
 
-    FlowProposal.initialise(proposal)
+    with patch('nessai.proposal.flowproposal.FlowModel', new=fm) as mock_fm:
+        FlowProposal.initialise(proposal)
 
     proposal.set_rescaling.assert_called_once()
     proposal.verify_rescaling.assert_called_once()
+    proposal.update_flow_config.assert_called_once()
+    proposal.configure_constant_volume.assert_called_once()
+    mock_fm.assert_called_once_with(
+        config=proposal.flow_config, output=proposal.output
+    )
+    proposal.flow.initialise.assert_called_once()
     assert proposal.populated is False
     assert proposal.initialised
     assert proposal.fuzz == fuzz
@@ -181,12 +191,23 @@ def test_reset_integration(tmpdir, model):
     """Test reset method iteration with other methods"""
     proposal = FlowProposal(model, poolsize=10)
     output = str(tmpdir.mkdir('reset_integration'))
-    proposal = FlowProposal(model, output=output, plot=False,
-                            poolsize=100, latent_prior='uniform_nball')
+    proposal = FlowProposal(
+        model,
+        output=output,
+        plot=False,
+        poolsize=100,
+        latent_prior='uniform_nball',
+        constant_volume_mode=False
+    )
 
-    modified_proposal = \
-        FlowProposal(model, output=output, plot=False, poolsize=100,
-                     latent_prior='uniform_nball')
+    modified_proposal = FlowProposal(
+        model,
+        output=output,
+        plot=False,
+        poolsize=100,
+        latent_prior='uniform_nball',
+        constant_volume_mode=False
+    )
     proposal.initialise()
     modified_proposal.initialise()
 

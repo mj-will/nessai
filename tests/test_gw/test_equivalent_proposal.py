@@ -83,20 +83,20 @@ def kwargs(legacy_kwargs):
 @pytest.mark.requires('bilby')
 @pytest.mark.requires('lal')
 @pytest.mark.requires('astropy')
-@pytest.mark.parametrize('parameters',
-                         ['psi',
-                          'theta_jn',
-                          'tilt_1',
-                          'tilt_2',
-                          'phi_12',
-                          'phi_jl',
-                          'a_1',
-                          'a_2',
-                          ['ra', 'dec'],
-                          ['chirp_mass', 'geocent_time'],
-                          ['chirp_mass', 'mass_ratio'],
-                          ['chirp_mass', 'luminosity_distance'],
-                          ])
+@pytest.mark.parametrize(
+    'parameters',
+    [
+        'psi',
+        'phi_12',
+        'phi_jl',
+        'a_1',
+        'a_2',
+        ['ra', 'dec'],
+        ['chirp_mass', 'geocent_time'],
+        ['chirp_mass', 'mass_ratio'],
+        ['chirp_mass', 'luminosity_distance'],
+    ]
+)
 @pytest.mark.parametrize('compute_radius', [False, True])
 def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
                    compute_radius, tmpdir):

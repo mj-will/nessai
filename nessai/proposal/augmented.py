@@ -3,13 +3,11 @@
 Augmented version of FlowProposal.
 """
 import logging
-import os
 
 import numpy as np
 from scipy import stats
 from scipy.special import logsumexp
 
-from ..flowmodel import FlowModel
 from .flowproposal import FlowProposal
 from ..livepoint import numpy_array_to_live_points, DEFAULT_FLOAT_DTYPE
 
@@ -67,35 +65,14 @@ class AugmentedFlowProposal(FlowProposal):
         logger.info(
             f'Augmented x prime space parameters: {self.rescaled_names}')
 
-    def initialise(self):
-        """
-        Initialise the proposal class
-        """
-        if not os.path.exists(self.output):
-            os.makedirs(self.output, exist_ok=True)
-
-        self._x_dtype = False
-        self._x_prime_dtype = False
-
-        self.set_rescaling()
-        self.verify_rescaling()
-        if self.expansion_fraction and self.expansion_fraction is not None:
-            logger.info('Overwritting fuzz factor with expansion fraction')
-            self.fuzz = \
-                (1 + self.expansion_fraction) ** (1 / self.rescaled_dims)
-            logger.info(f'New fuzz factor: {self.fuzz}')
-
+    def update_flow_config(self):
+        """Update the flow configuration dictionary"""
+        super().update_flow_config()
         m = np.ones(self.rescaled_dims)
         m[-self.augment_dims:] = -1
         if 'kwargs' not in self.flow_config['model_config'].keys():
             self.flow_config['model_config']['kwargs'] = {}
         self.flow_config['model_config']['kwargs']['mask'] = m
-
-        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
-        self.flow = FlowModel(config=self.flow_config, output=self.output)
-        self.flow.initialise()
-        self.populated = False
-        self.initialised = True
 
     def _augmented_rescale(self, x, generate_augment=None,
                            compute_radius=False, **kwargs):

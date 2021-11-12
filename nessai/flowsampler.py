@@ -59,6 +59,11 @@ class FlowSampler:
 
         self.output = os.path.join(output, '')
         if resume:
+            if not resume_file:
+                raise RuntimeError(
+                    '`resume_file` must be specified if resume=True. '
+                    f'Current value: {resume_file}'
+                )
             if not any((os.path.exists(os.path.join(self.output, f)) for f in
                         [resume_file, resume_file + '.old'])):
                 logger.warning('No files to resume from, starting sampling')

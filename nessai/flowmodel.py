@@ -64,7 +64,7 @@ def update_config(d):
     """
     default_model = dict(
         n_inputs=None,
-        n_neurons=32,
+        n_neurons=None,
         n_blocks=4,
         n_layers=2,
         ftype='RealNVP',
@@ -81,13 +81,13 @@ def update_config(d):
         lr=0.001,
         annealing=False,
         clip_grad_norm=5,
-        batch_size=100,
+        batch_size=1000,
         val_size=0.1,
         max_epochs=500,
         patience=20,
         noise_scale=0.0,
         use_dataloader=False,
-        optimiser='adam',
+        optimiser='adamw',
         optimiser_kwargs={}
     )
 
@@ -100,6 +100,12 @@ def update_config(d):
         else:
             default.update(d)
             default_model.update(d.get('model_config', {}))
+            if default_model['n_neurons'] is None:
+                if default_model['n_inputs'] is not None:
+                    default_model['n_neurons'] = 2 * default_model['n_inputs']
+                else:
+                    default_model['n_neurons'] = 8
+
             default['model_config'] = default_model
 
     if (

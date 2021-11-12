@@ -25,30 +25,20 @@ def test_init(model):
     AugmentedFlowProposal(model, poolsize=100)
 
 
-@patch('nessai.proposal.augmented.FlowModel')
-@patch('os.makedirs')
-@patch('os.path.exists', return_value=False)
-def test_initialise(mock_osexists, mock_makedirs, mock_flow, proposal):
-    """Test the method the initialise the proposal"""
-    proposal.output = 'output'
+def test_update_flow_config(proposal):
+    """Test update flow config"""
     proposal.rescaled_dims = 4
     proposal.augment_dims = 2
-    proposal.expansion_fraction = 1.0
-    proposal.flow_config = {'model_config': {}}
-    proposal.set_rescaling = MagicMock()
-    proposal.verify_rescaling = MagicMock()
-    AugmentedFlowProposal.initialise(proposal)
-
-    assert proposal.initialised is True
-    assert proposal.fuzz == (2 ** 0.25)
-    assert proposal.flow_config['model_config']['kwargs']['mask'].tolist() == \
-        [1, 1, -1, -1]
-    proposal.set_rescaling.assert_called_once()
-    proposal.verify_rescaling.assert_called_once()
-    mock_flow.assert_called_once()
-    proposal.flow.initialise.assert_called_once()
-    mock_osexists.assert_called_once_with('output')
-    mock_makedirs.assert_called_once_with('output', exist_ok=True)
+    proposal.flow_config = dict(model_config={})
+    with patch(
+        'nessai.proposal.augmented.FlowProposal.update_flow_config'
+    ) as mock:
+        AugmentedFlowProposal.update_flow_config(proposal)
+    mock.assert_called_once()
+    mask = np.array([1, 1, -1, -1])
+    np.testing.assert_array_equal(
+        proposal.flow_config['model_config']['kwargs']['mask'], mask
+    )
 
 
 @patch('nessai.proposal.FlowProposal.set_rescaling')
