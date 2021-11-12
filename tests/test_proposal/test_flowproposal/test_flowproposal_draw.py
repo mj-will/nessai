@@ -83,11 +83,14 @@ def test_test_draw(proposal):
     proposal.draw.assert_called_once_with(test_point)
 
 
+@pytest.mark.timeout(10)
+@pytest.mark.flaky(run=3)
 @pytest.mark.integration_test
 def test_test_draw_integration(model, tmpdir):
     """Integration test for the test draw method"""
     proposal = FlowProposal(
-        model, poolsize=10, output=tmpdir.mkdir('test_draw')
+        model, poolsize=10, output=tmpdir.mkdir('test_draw'),
+        volume_fraction=0.5
     )
     proposal.initialise()
     proposal.test_draw()
