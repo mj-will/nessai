@@ -51,6 +51,13 @@ def test_update_config_invalid_noise_scale(noise_scale):
     assert 'noise_scale must be a float or' in str(excinfo.value)
 
 
+def test_update_config_n_neurons():
+    """Assert the n_neurons is set to 2x n_inputs"""
+    config = dict(model_config=dict(n_inputs=10))
+    config = update_config(config)
+    assert config['model_config']['n_neurons'] == 20
+
+
 def test_init_no_config(tmpdir):
     """Test the init method with no config specified"""
     output = str(tmpdir.mkdir('no_config'))

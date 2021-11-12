@@ -4,6 +4,7 @@ Test the Angle reparameterisation
 """
 import numpy as np
 import pytest
+from unittest.mock import MagicMock, create_autospec
 
 from nessai.reparameterisations import Angle
 from nessai.livepoint import get_dtype
@@ -14,6 +15,11 @@ scales = [1.0, 2.0]
 @pytest.fixture(params=scales, scope='function')
 def scale(request):
     return request.param
+
+
+@pytest.fixture
+def reparam():
+    return create_autospec(Angle)
 
 
 @pytest.fixture(scope='function')
@@ -73,6 +79,56 @@ def test_angle_parameter():
     assert reparam.radius == (parameter + '_radial')
     assert reparam.x == (parameter + '_x')
     assert reparam.y == (parameter + '_y')
+
+
+def test_angle_prior_uniform():
+    """Assert the prior is correctly assigned for uniform prior"""
+    from nessai.priors import log_2d_cartesian_prior
+    reparam = Angle(
+        parameters='theta',
+        prior='uniform',
+        prior_bounds={'theta': [0, np.pi]},
+        scale=2.0,
+    )
+    assert reparam.prior == 'uniform'
+    assert reparam.has_prime_prior is True
+    assert reparam._k == (2 * np.pi)
+    assert reparam._prime_prior is log_2d_cartesian_prior
+
+
+def test_angle_prior_sine():
+    """Assert the prior is correctly assigned for sine prior"""
+    from nessai.priors import log_2d_cartesian_prior_sine
+    reparam = Angle(
+        parameters='theta',
+        prior='sine',
+        prior_bounds={'theta': [0, np.pi]},
+    )
+    assert reparam.prior == 'sine'
+    assert reparam.has_prime_prior is True
+    assert reparam._k == np.pi
+    assert reparam._prime_prior is log_2d_cartesian_prior_sine
+
+
+def test_log_prior(reparam):
+    """Assert the log-prior calls the correct function"""
+    reparam.chi = MagicMock()
+    reparam.chi.logpdf = MagicMock()
+    reparam.parameters = ['theta', 'theta_radial']
+    x = {'theta': [1.0], 'theta_radial': [0.5]}
+    Angle.log_prior(reparam, x)
+    reparam.chi.logpdf.assert_called_once_with([0.5])
+
+
+def test_x_prime_log_prior(reparam):
+    """
+    Assert an error is raised when called the prime prior if is not enabled.
+    """
+    reparam.has_prime_prior = False
+    x = {'theta': [1.0], 'theta_radial': [0.5]}
+    with pytest.raises(RuntimeError) as excinfo:
+        Angle.x_prime_log_prior(reparam, x)
+    assert 'Prime prior' in str(excinfo.value)
 
 
 def test_both_parameters():

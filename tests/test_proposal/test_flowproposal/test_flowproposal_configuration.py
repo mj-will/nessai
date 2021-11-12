@@ -223,3 +223,11 @@ def test_set_boundary_inversion_incorrect_inversion_type(proposal):
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.set_boundary_inversion(proposal)
     assert 'Unknown inversion type' in str(excinfo.value)
+
+
+def test_update_flow_proposal(proposal):
+    """Assert the number of inputs is updated"""
+    proposal.flow_config = {'model_config': {}}
+    proposal.rescaled_dims = 4
+    FlowProposal.update_flow_config(proposal)
+    assert proposal.flow_config['model_config']['n_inputs'] == 4
