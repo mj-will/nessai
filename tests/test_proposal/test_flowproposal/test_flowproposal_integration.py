@@ -72,6 +72,8 @@ def test_training(tmpdir, model, plot):
     assert fp.populated is False
 
 
+@pytest.mark.timeout(10)
+@pytest.mark.flaky(run=3)
 @pytest.mark.integration_test
 def test_constant_volume_mode(tmpdir, model):
     """Integration test for constant volume mode.
@@ -84,7 +86,7 @@ def test_constant_volume_mode(tmpdir, model):
         model,
         output=output,
         plot=False,
-        poolsize=100,
+        poolsize=10,
         constant_volume_mode=True,
         volume_fraction=0.8647,
     )
