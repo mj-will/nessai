@@ -86,11 +86,11 @@ def kwargs(legacy_kwargs):
 @pytest.mark.parametrize(
     'parameters',
     [
-        'psi',
-        'phi_12',
-        'phi_jl',
-        'a_1',
-        'a_2',
+        ['psi', 'chirp_mass'],
+        ['phi_12', 'chirp_mass'],
+        ['phi_jl', 'chirp_mass'],
+        ['a_1', 'chirp_mass'],
+        ['a_2', 'chirp_mass'],
         ['ra', 'dec'],
         ['chirp_mass', 'geocent_time'],
         ['chirp_mass', 'mass_ratio'],
@@ -272,11 +272,17 @@ def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
             new_proposal.check_state(x)
             np.random.seed(1234)
             t_new, lj_new = new_proposal.rescale(x, test=test)
-            min_vals = \
-                {n: False for n in new_proposal._reparameterisation.keys()}
-            max_vals = \
-                {n: False for n in new_proposal._reparameterisation.keys()}
+            min_vals = {
+                n: False for n, r in new_proposal._reparameterisation.items()
+                if r.prime_prior_bounds is not None
+            }
+            max_vals = {
+                n: False for n, r in new_proposal._reparameterisation.items()
+                if r.prime_prior_bounds is not None
+            }
             for k, r in new_proposal._reparameterisation.items():
+                if r.prime_prior_bounds is None:
+                    continue
                 for pb in r.prime_prior_bounds.values():
                     for vmin in orig_proposal._rescaled_min.values():
                         logger.warning([k, pb, vmin])
