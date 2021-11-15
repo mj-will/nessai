@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a check for `resume_file` when `resume=True`.
 - Change default logging level to `WARNING`.
 - Add `angle-cosine` reparameterisation.
+- Added an explicit check for one-dimensional models that raises a custom exception `OneDimensionalModelError`.
+- `RealNVP` and `NeuralSplineFlow` now raise an error if `features<=1`.
 
 ### Changed
 
@@ -28,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cooldown` now defaults to `200` to reflect the change in `nlive`.
 - Default optimiser is now `adamw`.
 - Rework `AugmentedFlowProposal` to work with the new defaults.
+- `Model.names` and `Model.bounds` are now properties by default and their setters include checks to verify the values provided are valid and raise errors if not.
 
 ## Deprecated
 
