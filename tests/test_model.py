@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, create_autospec
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.model import Model, OneDimensionalModelError
+from nessai.utils.multiprocessing import initialise_pool_variables
 
 
 class EmptyModel(Model):
@@ -596,3 +597,42 @@ def test_unbounded_priors_w_new_point():
 
     model = TestModel()
     model.verify_model()
+
+
+@pytest.mark.integration_test
+def test_pool(integration_model):
+    """Integration test for evaluating the likelihood with a pool"""
+    from multiprocessing import Pool
+    # Cannot pickle lambda functions
+    integration_model.fn = lambda x: x
+    initialise_pool_variables(integration_model)
+    pool = Pool(1)
+    integration_model.configure_pool(pool=pool)
+    assert integration_model.pool is pool
+    x = integration_model.new_point(10)
+    out = integration_model.batch_evaluate_log_likelihood(x)
+
+    target = np.fromiter(map(integration_model.log_likelihood, x), 'float')
+    np.testing.assert_array_equal(out, target)
+    assert integration_model.likelihood_evaluations == 10
+
+    integration_model.close_pool()
+    assert integration_model.pool is None
+
+
+@pytest.mark.integration_test
+def test_n_pool(integration_model):
+    """Integration test for evaluating the likelihood with n_pool"""
+    # Cannot pickle lambda functions
+    integration_model.fn = lambda x: x
+    integration_model.configure_pool(n_pool=1)
+    assert integration_model.n_pool == 1
+    x = integration_model.new_point(10)
+    out = integration_model.batch_evaluate_log_likelihood(x)
+
+    target = np.fromiter(map(integration_model.log_likelihood, x), 'float')
+    np.testing.assert_array_equal(out, target)
+    assert integration_model.likelihood_evaluations == 10
+
+    integration_model.close_pool()
+    assert integration_model.pool is None
