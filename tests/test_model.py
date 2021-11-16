@@ -2,14 +2,19 @@
 """
 Tests for `nessai.model`
 """
+import datetime
+import logging
 import numpy as np
 import pytest
 from scipy.stats import norm
-from unittest.mock import MagicMock, create_autospec
+from unittest.mock import MagicMock, call, create_autospec, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.model import Model, OneDimensionalModelError
-from nessai.utils.multiprocessing import initialise_pool_variables
+from nessai.utils.multiprocessing import (
+    initialise_pool_variables,
+    log_likelihood_wrapper,
+)
 
 
 class EmptyModel(Model):
@@ -597,6 +602,85 @@ def test_unbounded_priors_w_new_point():
 
     model = TestModel()
     model.verify_model()
+
+
+def test_configure_pool(model):
+    """Test configuring the pool"""
+    n_pool = 1
+    pool = MagicMock()
+    with patch('multiprocessing.Pool', return_value=pool) as mock_pool:
+        Model.configure_pool(model, n_pool=n_pool)
+    assert model.pool is pool
+    mock_pool.assert_called_once_with(
+        processes=n_pool,
+        initializer=initialise_pool_variables,
+        initargs=(model,)
+    )
+
+
+def test_configure_pool_none(model, caplog):
+    """Test configuring the pool when pool and n_pool are None"""
+    caplog.set_level(logging.INFO)
+    Model.configure_pool(model, pool=None, n_pool=None)
+    assert model.pool is None
+    assert 'pool and n_pool are none, no multiprocessing pool' \
+        in str(caplog.text)
+
+
+@pytest.mark.parametrize('code', [10, 2])
+def test_close_pool(model, code):
+    """Test closing the pool"""
+    pool = MagicMock()
+    pool.close = MagicMock()
+    pool.terminate = MagicMock()
+    pool.join = MagicMock()
+    model.pool = pool
+    Model.close_pool(model, code=code)
+    pool.join.assert_called_once()
+    if code == 2:
+        pool.terminate.assert_called_once()
+        pool.pool.assert_not_called()
+    else:
+        pool.close.assert_called_once()
+        pool.terminate.assert_not_called()
+    assert model.pool is None
+
+
+def test_evaluate_likelihoods_pool(model):
+    """Test evaluating the likelihood with a pool"""
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    logL = np.array([3, 4])
+    model.pool = MagicMock(side_effect=True)
+    model.pool.map = MagicMock(return_value=logL)
+    model.samples = samples
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    model.pool.map.assert_called_once_with(
+        log_likelihood_wrapper,
+        samples
+    )
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 102
+    np.testing.assert_array_equal(out, logL)
+
+
+def test_evaluate_likelihoods_no_pool(model):
+    """Test evaluating the likelihood without a pool"""
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    logL = np.array([3, 4])
+    model.pool = None
+    model.samples = samples
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+    model.log_likelihood = MagicMock(side_effect=logL)
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    model.log_likelihood.assert_has_calls(
+        [call(samples[0]), call(samples[1])]
+    )
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 102
+    np.testing.assert_array_equal(out, logL)
 
 
 @pytest.mark.integration_test
