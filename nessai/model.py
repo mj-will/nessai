@@ -3,15 +3,18 @@
 Object for defining the use-defined model.
 """
 from abc import ABC, abstractmethod
+import datetime
 import logging
 import numpy as np
 
 from .livepoint import (
-        parameters_to_live_point,
-        numpy_array_to_live_points,
-        get_dtype,
-        DEFAULT_FLOAT_DTYPE
-        )
+    parameters_to_live_point,
+    numpy_array_to_live_points,
+    get_dtype,
+    DEFAULT_FLOAT_DTYPE,
+    LOGL_DTYPE,
+)
+from .utils.multiprocessing import log_likelihood_wrapper
 
 
 logger = logging.getLogger(__name__)
@@ -49,8 +52,10 @@ class Model(ABC):
     _bounds = None
     reparameterisations = None
     likelihood_evaluations = 0
+    likelihood_evaluation_time = datetime.timedelta()
     _lower = None
     _upper = None
+    pool = None
 
     @property
     def names(self):
@@ -125,6 +130,51 @@ class Model(ABC):
             self._lower = bounds_array[:, 0]
             self._upper = bounds_array[:, 1]
         return self._upper
+
+    def configure_pool(self, pool=None, n_pool=None):
+        """Configure a multiprocessing pool for the likelihood computation.
+
+        Parameters
+        ----------
+        pool :
+            User provided pool. Must call
+            :py:func:`nessai.utils.multiprocessing.initialise_pool_variables`
+            before creating the pool.
+        n_pool : int
+            Number of threads to use to create an instance of
+            :py:obj:`multiprocessing.Pool`.
+        """
+        self.pool = pool
+        self.n_pool = n_pool
+        if self.pool:
+            if self.n_pool:
+                logger.warning('`n_pool` is ignored when `pool` is specified')
+            logger.info('Using user specified pool')
+        elif self.n_pool:
+            logger.info(
+                f'Starting multiprocessing pool with {n_pool} processes'
+            )
+            import multiprocessing
+            from nessai.utils.multiprocessing import initialise_pool_variables
+            self.pool = multiprocessing.Pool(
+                processes=self.n_pool,
+                initializer=initialise_pool_variables,
+                initargs=(self,)
+            )
+        else:
+            logger.info('pool and n_pool are none, no multiprocessing pool')
+
+    def close_pool(self, code=None):
+        """Close the the multiprocessing pool"""
+        if getattr(self, "pool", None) is not None:
+            logger.info("Starting to close worker pool.")
+            if code == 2:
+                self.pool.terminate()
+            else:
+                self.pool.close()
+            self.pool.join()
+            self.pool = None
+            logger.info("Finished closing worker pool.")
 
     def new_point(self, N=1):
         """
@@ -295,6 +345,34 @@ class Model(ABC):
         self.likelihood_evaluations += 1
         return self.log_likelihood(x)
 
+    def batch_evaluate_log_likelihood(self, x):
+        """Evaluate the likelihood for a batch of samples.
+
+        Uses the pool if available.
+
+        Parameters
+        ----------
+        x : :obj:`numpy.ndarray`
+            Array of samples
+
+        Returns
+        -------
+        :obj:`numpy.ndarray`
+            Array of log-likelihood values
+        """
+        st = datetime.datetime.now()
+        if self.pool is None:
+            logger.debug('Not using pool to evaluate likelihood')
+            log_likelihood = \
+                np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
+        else:
+            logger.debug('Using pool to evaluate likelihood')
+            log_likelihood = \
+                np.asarray(self.pool.map(log_likelihood_wrapper, x)).flatten()
+        self.likelihood_evaluations += x.size
+        self.likelihood_evaluation_time += (datetime.datetime.now() - st)
+        return log_likelihood
+
     def verify_model(self):
         """
         Verify that the model is correctly setup. This includes checking
@@ -360,3 +438,8 @@ class Model(ABC):
         if self.log_likelihood(x) is None:
             raise RuntimeError('Log-likelihood function did not return '
                                'a likelihood value')
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['pool']
+        return state
