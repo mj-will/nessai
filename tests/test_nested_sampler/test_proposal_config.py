@@ -178,8 +178,6 @@ def test_proposal_switch(sampler, val):
 
     assert sampler.uninformed_sampling is False
     assert sampler.proposal == sampler._flow_proposal
-    sampler._uninformed_proposal.close_pool.assert_called_once()
-    sampler._flow_proposal.configure_pool.assert_called_once()
 
 
 def test_proposal_no_switch(sampler):

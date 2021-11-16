@@ -10,8 +10,14 @@ from unittest.mock import patch, MagicMock
 from nessai.nestedsampler import NestedSampler
 
 
-def test_init(sampler, model):
+def test_init(sampler):
     """Test the init method"""
+    pool = 'pool'
+    n_pool = 2
+    model = MagicMock()
+    model.verify_model = MagicMock()
+    model.configure_pool = MagicMock()
+
     sampler.setup_output = MagicMock()
     sampler.configure_flow_reset = MagicMock()
     sampler.configure_flow_proposal = MagicMock()
@@ -20,9 +26,14 @@ def test_init(sampler, model):
         sampler,
         model,
         nlive=100,
-        poolsize=100)
+        poolsize=100,
+        pool=pool,
+        n_pool=n_pool,
+    )
     assert sampler.initialised is False
     assert sampler.nlive == 100
+    model.verify_model.assert_called_once()
+    model.configure_pool.assert_called_once_with(pool=pool, n_pool=n_pool)
 
 
 @patch('numpy.random.seed')

@@ -39,11 +39,9 @@ def test_likelihood_calls(sampler):
 
 def test_likelihood_evaluation_time(sampler):
     """Assert the time is the some of the time for individual proposals"""
-    sampler._uninformed_proposal = MagicMock()
-    sampler._flow_proposal = MagicMock()
-    sampler._uninformed_proposal.logl_eval_time = 1
-    sampler._flow_proposal.logl_eval_time = 2
-    assert NestedSampler.likelihood_evaluation_time.__get__(sampler) == 3
+    sampler.model = MagicMock()
+    sampler.model.likelihood_evaluation_time = 1.0
+    assert NestedSampler.likelihood_evaluation_time.__get__(sampler) == 1.0
 
 
 def test_population_time(sampler):

@@ -49,7 +49,7 @@ def test_log_likelihood(sampler):
     sampler.model.log_likelihood.assert_called_once_with([0.1])
 
 
-def test_intialise(sampler):
+def test_initialise(sampler):
     """Test the initialise method when being used without resuming"""
     sampler._flow_proposal = MagicMock()
     sampler._uninformed_proposal = MagicMock()
@@ -72,10 +72,9 @@ def test_intialise(sampler):
     sampler.populate_live_points.assert_called_once()
     assert sampler.initialised is True
     assert sampler.proposal is sampler._uninformed_proposal
-    sampler.proposal.configure_pool.assert_called_once()
 
 
-def test_intialise_resume(sampler):
+def test_initialise_resume(sampler):
     """Test the initialise method when being used after resuming.
 
     In this case the live points are not None
@@ -100,7 +99,6 @@ def test_intialise_resume(sampler):
     sampler.populate_live_points.assert_not_called()
     assert sampler.initialised is False
     assert sampler.proposal is sampler._flow_proposal
-    sampler.proposal.configure_pool.assert_called_once()
 
 
 def test_finalise(sampler, live_points):
@@ -204,8 +202,10 @@ def test_nested_sampling_loop(sampler, config):
     sampler.likelihood_calls = 1
     sampler.nested_samples = [1, 2]
 
+    sampler.model = MagicMock()
+    sampler.model.close_pool = MagicMock()
+
     sampler.proposal = MagicMock()
-    sampler.proposal.close_pool = MagicMock()
     sampler.proposal.pool = True
     sampler.proposal.logl_eval_time.total_seconds = MagicMock()
 
@@ -236,7 +236,7 @@ def test_nested_sampling_loop(sampler, config):
         sampler.consume_sample.assert_not_called()
         sampler.update_state.assert_not_called()
 
-    sampler.proposal.close_pool.assert_called_once()
+    sampler.model.close_pool.assert_called_once()
 
     if config.get('call_finalise'):
         sampler.finalise.assert_called_once()
