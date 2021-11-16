@@ -53,8 +53,8 @@ class AnalyticProposal(Proposal):
         self.samples = self.model.new_point(N=N)
         self.samples['logP'] = self.model.log_prior(self.samples)
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
-        if self.pool is not None:
-            self.evaluate_likelihoods()
+        self.samples['logL'] = \
+            self.model.batch_evaluate_log_likelihood(self.samples)
         self.populated = True
 
     def draw(self, old_sample, **kwargs):

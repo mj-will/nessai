@@ -106,7 +106,7 @@ class RejectionProposal(AnalyticProposal):
         self.samples = x[indices]
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
         self.population_acceptance = self.samples.size / N
-        if self.pool is not None:
-            self.evaluate_likelihoods()
+        self.samples['logL'] = \
+            self.model.batch_evaluate_log_likelihood(self.samples)
         self.populated = True
         self._checked_population = False
