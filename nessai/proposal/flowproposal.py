@@ -133,6 +133,15 @@ class FlowProposal(RejectionProposal):
         Dictionary for configure more flexible reparameterisations. This
         ignores any of the other settings related to rescaling. For more
         details see the documentation.
+    use_default_reparameterisations : bool, optional
+        If True then reparameterisations will be used even if
+        ``reparameterisations`` is None. The exact reparameterisations used
+        will depend on
+        :py:func:`~nessai.proposal.flowproposal.FlowProposal.add_default_reparameterisations`
+        which may be overloaded by child classes. If not specified then the
+        value of the attribute
+        :py:attr:`~nessai.proposal.flowproposal.FlowProposal.use_default_reparameterisations`
+        is used.
     keep_samples : bool, optional
         If true samples are stored when repopulating the proposal. Not
         recommended.
@@ -142,6 +151,13 @@ class FlowProposal(RejectionProposal):
         Dictionary of kwargs passed to the function for drawing samples
         in the latent space. See the functions in utils for the possible
         kwargs.
+    """
+
+    use_default_reparameterisations = False
+    """
+    Indicates whether reparameterisations will be used be default in this
+    class. Child classes can change this value a force the default
+    behaviour to change without changing the keyword arguments.
     """
 
     def __init__(
@@ -178,6 +194,7 @@ class FlowProposal(RejectionProposal):
         detect_edges=False,
         detect_edges_kwargs=None,
         reparameterisations=None,
+        use_default_reparameterisations=None,
         **kwargs
     ):
 
@@ -207,6 +224,9 @@ class FlowProposal(RejectionProposal):
         self.use_x_prime_prior = False
 
         self.reparameterisations = reparameterisations
+        if use_default_reparameterisations is not None:
+            self.use_default_reparameterisations = \
+                use_default_reparameterisations
 
         self.output = output
 
@@ -570,7 +590,22 @@ class FlowProposal(RejectionProposal):
         return get_reparameterisation(name)
 
     def configure_reparameterisations(self, reparameterisations):
-        _reparameterisations = copy.deepcopy(reparameterisations)
+        """Configure the reparameterisations.
+
+        Parameters
+        ----------
+        reparameterisations : {dict, None}
+            Dictionary of reparameterisations. If None, then the defaults
+            from :py:func`get_default_reparameterisations` are used.
+        """
+        if reparameterisations is None:
+            logger.info(
+                'No reparameterisations provided, using default '
+                f'reparameterisations included in {self.__class__.__name__}'
+            )
+            _reparameterisations = {}
+        else:
+            _reparameterisations = copy.deepcopy(reparameterisations)
         logger.info(f'Adding reparameterisations from: {_reparameterisations}')
         self._reparameterisation = CombinedReparameterisation()
 
@@ -638,7 +673,8 @@ class FlowProposal(RejectionProposal):
 
         self.add_default_reparameterisations()
 
-        p = set(self.names) - set(self._reparameterisation.parameters)
+        p = [n for n in self.names
+             if n not in self._reparameterisation.parameters]
         if p:
             logger.info(f'Assuming no rescaling for {p}')
             r = NullReparameterisation(parameters=list(p))
@@ -683,7 +719,10 @@ class FlowProposal(RejectionProposal):
         if self.model.reparameterisations is not None:
             self.configure_reparameterisations(self.model.reparameterisations)
             self.reparameterisations = self.model.reparameterisations
-        elif self.reparameterisations is not None:
+        elif (
+            self.reparameterisations is not None
+            or self.use_default_reparameterisations
+        ):
             self.configure_reparameterisations(self.reparameterisations)
         elif self.rescale_parameters:
             # if rescale is a list, there are the parameters to rescale
