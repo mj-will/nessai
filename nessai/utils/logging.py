@@ -11,7 +11,7 @@ def setup_logger(output=None, label='nessai', log_level='WARNING'):
     Setup the logger.
 
     Based on the implementation in Bilby:
-    https://git.ligo.org/lscsoft/bilby/-/blob/master/bilby/core/utils.py#L448
+    https://git.ligo.org/lscsoft/bilby/-/blob/master/bilby/core/utils/log.py
 
     Parameters
     ----------
