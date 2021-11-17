@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `angle-cosine` reparameterisation.
 - Added an explicit check for one-dimensional models that raises a custom exception `OneDimensionalModelError`.
 - `RealNVP` and `NeuralSplineFlow` now raise an error if `features<=1`.
+- Add option in `nessai.reparameterisations.Angle` to set `scale=None`, the scale is then set as `2 * pi / angle_prior_range`.
+- Add `'periodic'` reparameterisation that uses `scale=None` in `nessai.reparameterisations.Angle`.
 
 ### Changed
 
@@ -32,7 +34,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rework `AugmentedFlowProposal` to work with the new defaults.
 - `Model.names` and `Model.bounds` are now properties by default and their setters include checks to verify the values provided are valid and raise errors if not.
 
-## Deprecated
+### Fixed
+
+- Fixed a bug where the parameters list passed to `Reparameterisation` (or its child classes) wasn't being copied and changes made within the reparameterisation would change the original list.
+
+### Deprecated
 
 - `keep_samples` in `FlowProposal` will be removed in the next minor release.
 
