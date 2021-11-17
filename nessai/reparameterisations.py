@@ -866,7 +866,7 @@ class Angle(Reparameterisation):
         `reparameterisations`.
     scale : float, optional
         Value used to rescale the angle before converting to Cartesian
-        coordinates.
+        coordinates. If None the scale will be set to 2pi / prior_bounds.
     prior : {'uniform', 'sine', None}
         Type of prior being used for sampling this angle. If specified, the
         prime prior is enabled. If None then it is disabled.
@@ -886,7 +886,11 @@ class Angle(Reparameterisation):
         else:
             raise RuntimeError('Too many parameters for Angle')
 
-        self.scale = scale
+        if scale is None:
+            logger.debug('Scale is None, using 2pi / prior_range')
+            self.scale = 2.0 * np.pi / np.ptp(self.prior_bounds[self.angle])
+        else:
+            self.scale = scale
 
         if prior_bounds[self.angle][0] == 0:
             self._zero_bound = True
