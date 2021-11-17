@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default optimiser is now `adamw`.
 - Rework `AugmentedFlowProposal` to work with the new defaults.
 - `Model.names` and `Model.bounds` are now properties by default and their setters include checks to verify the values provided are valid and raise errors if not.
+- Logger now has propagation enabled by default.
 
 ### Fixed
 
