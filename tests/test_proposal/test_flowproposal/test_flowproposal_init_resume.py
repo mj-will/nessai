@@ -20,6 +20,19 @@ def test_init(model, kwargs):
     assert getattr(fp, 'prior', None) is None
 
 
+@pytest.mark.parametrize(
+    'value, expected',
+    [(True, True), (False, False), (None, False)]
+)
+def test_init_use_default_reparams(model, proposal, value, expected):
+    """Assert use_default_reparameterisations is set correctly"""
+    proposal.use_default_reparameterisations = False
+    FlowProposal.__init__(
+        proposal, model, poolsize=10, use_default_reparameterisations=value
+    )
+    assert proposal.use_default_reparameterisations is expected
+
+
 @pytest.mark.parametrize('ef, fuzz', [(2.0, 3.0**0.5), (False, 2.0)])
 def test_initialise(tmpdir, proposal, ef, fuzz):
     """Test the initialise method"""
