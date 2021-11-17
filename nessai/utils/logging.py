@@ -37,7 +37,6 @@ def setup_logger(output=None, label='nessai', log_level='WARNING'):
         level = int(log_level)
 
     logger = logging.getLogger('nessai')
-    logger.propagate = False
     logger.setLevel(level)
 
     if any([type(h) == logging.StreamHandler for h in logger.handlers]) \
