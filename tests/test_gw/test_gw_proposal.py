@@ -99,7 +99,7 @@ def test_augmented_reparameterisation_prime_prior(augmented_proposal):
 
 
 @pytest.mark.integration_test
-def test_default_reparameterisations(caplog):
+def test_default_reparameterisations(caplog, tmpdir):
     """Assert that the GW defaults are used even in reparameterisations
     is not given.
     """
@@ -113,7 +113,9 @@ def test_default_reparameterisations(caplog):
     }
     model.reparameterisations = None
     expected_params = model.names + ['phase_radial']
-    proposal = GWFlowProposal(model, poolsize=100)
+    proposal = GWFlowProposal(
+        model, poolsize=100, output=str(tmpdir.mkdir('test'))
+    )
     # Mocked model so can't verify rescaling
     proposal.verify_rescaling = MagicMock()
     proposal.initialise()

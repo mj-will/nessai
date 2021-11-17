@@ -80,14 +80,16 @@ def test_configure_reparameterisation_angle_pair(tmpdir, model):
 
 
 @pytest.mark.integration_test
-def test_default_reparameterisations(caplog):
+def test_default_reparameterisations(caplog, tmpdir):
     """Assert that by default reparameterisations are not used."""
     caplog.set_level('INFO')
     model = MagicMock()
     model.names = ['x', 'y']
     model.bounds = {p: [-1, 1] for p in model.names}
     model.reparameterisations = None
-    proposal = FlowProposal(model, poolsize=100)
+    proposal = FlowProposal(
+        model, poolsize=100, output=str(tmpdir.mkdir('test'))
+    )
     # Mocked model so can't verify rescaling
     proposal.verify_rescaling = MagicMock()
     proposal.initialise()
