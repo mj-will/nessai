@@ -41,6 +41,7 @@ known_reparameteristions = [
     ('angle', Angle, {}),
     ('angle-pi', Angle, {'scale': 2.0, 'prior': 'uniform'}),
     ('angle-2pi', Angle, {'scale': 1.0, 'prior': 'uniform'}),
+    ('periodic', Angle, {'scale': None}),
     ('angle-sine', RescaleToBounds, {}),
     ('angle-cosine', RescaleToBounds, {}),
     ('angle-pair', AnglePair, {}),
