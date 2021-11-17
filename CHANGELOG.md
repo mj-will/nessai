@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RealNVP` and `NeuralSplineFlow` now raise an error if `features<=1`.
 - Add option in `nessai.reparameterisations.Angle` to set `scale=None`, the scale is then set as `2 * pi / angle_prior_range`.
 - Add `'periodic'` reparameterisation that uses `scale=None` in `nessai.reparameterisations.Angle`.
+- Add the `use_default_reparameterisations` option to `FlowProposal` to allow the use of the default reparameterisations in `GWFlowProposal` without specifying any reparameterisations.
 
 ### Changed
 
@@ -34,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rework `AugmentedFlowProposal` to work with the new defaults.
 - `Model.names` and `Model.bounds` are now properties by default and their setters include checks to verify the values provided are valid and raise errors if not.
 - Logger now has propagation enabled by default.
+- `FlowProposal.configure_reparameterisations` can now handle an input of `None`. In this case only the default reparameterisations will be added.
 
 ### Fixed
 
