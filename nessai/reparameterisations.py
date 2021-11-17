@@ -98,7 +98,7 @@ class Reparameterisation:
             raise TypeError('Parameters must be a str or list.')
 
         self.parameters = \
-            [parameters] if isinstance(parameters, str) else parameters
+            [parameters] if isinstance(parameters, str) else parameters.copy()
 
         if isinstance(prior_bounds, (list, tuple, np.ndarray)):
             if len(prior_bounds) == 2:
