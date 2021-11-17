@@ -55,7 +55,7 @@ def setup_logger(output=None, label='nessai', log_level='WARNING'):
                     os.makedirs(output, exist_ok=True)
             else:
                 output = '.'
-            log_file = '{}/{}.log'.format(output, label)
+            log_file = os.path.join(output, f'{label}.log')
             file_handler = logging.FileHandler(log_file)
             file_handler.setFormatter(logging.Formatter(
                 '%(asctime)s %(levelname)-8s: %(message)s', datefmt='%H:%M'))
