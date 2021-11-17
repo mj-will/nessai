@@ -1343,6 +1343,7 @@ default_reparameterisations = {
     'angle-sine': (RescaleToBounds, None),
     'angle-cosine': (RescaleToBounds, None),
     'angle-pair': (AnglePair, None),
+    'periodic': (Angle, {'scale': None}),
     'to-cartesian': (ToCartesian, None),
     'none': (NullReparameterisation, None),
     'null': (NullReparameterisation, None),
