@@ -36,6 +36,15 @@ class GWFlowProposal(FlowProposal):
         'a_2': ('to-cartesian', None),
         'luminosity_distance': ('distance', None),
     }
+    """
+    Dictionary of aliases used to determine the default reparameterisations
+    for common gravitational-wave parameters.
+    """
+    use_default_reparameterisations = True
+    """
+    GW specific reparameterisations will be used by default. This is different
+    to the parent class where they are disabled by default.
+    """
 
     def get_reparameterisation(self, reparameterisation):
         """Function to get reparameterisations that checks GW defaults and

@@ -20,6 +20,19 @@ def test_init(model, kwargs):
     assert getattr(fp, 'prior', None) is None
 
 
+@pytest.mark.parametrize(
+    'value, expected',
+    [(True, True), (False, False), (None, False)]
+)
+def test_init_use_default_reparams(model, proposal, value, expected):
+    """Assert use_default_reparameterisations is set correctly"""
+    proposal.use_default_reparameterisations = False
+    FlowProposal.__init__(
+        proposal, model, poolsize=10, use_default_reparameterisations=value
+    )
+    assert proposal.use_default_reparameterisations is expected
+
+
 @pytest.mark.parametrize('ef, fuzz', [(2.0, 3.0**0.5), (False, 2.0)])
 def test_initialise(tmpdir, proposal, ef, fuzz):
     """Test the initialise method"""
@@ -186,6 +199,8 @@ def test_reset(proposal):
     assert proposal._edges['x'] is None
 
 
+@pytest.mark.timeout(10)
+@pytest.mark.flaky(run=3)
 @pytest.mark.integration_test
 def test_reset_integration(tmpdir, model):
     """Test reset method iteration with other methods"""
@@ -195,8 +210,8 @@ def test_reset_integration(tmpdir, model):
         model,
         output=output,
         plot=False,
-        poolsize=100,
-        latent_prior='uniform_nball',
+        poolsize=10,
+        latent_prior='truncated_gaussian',
         constant_volume_mode=False
     )
 
@@ -204,8 +219,8 @@ def test_reset_integration(tmpdir, model):
         model,
         output=output,
         plot=False,
-        poolsize=100,
-        latent_prior='uniform_nball',
+        poolsize=10,
+        latent_prior='truncated_gaussian',
         constant_volume_mode=False
     )
     proposal.initialise()
@@ -226,6 +241,8 @@ def test_reset_integration(tmpdir, model):
 
 
 @pytest.mark.parametrize('rescale', [True, False])
+@pytest.mark.timeout(10)
+@pytest.mark.flaky(run=3)
 @pytest.mark.integration_test
 def test_test_draw(tmpdir, model, rescale):
     """Verify that the `test_draw` method works.
