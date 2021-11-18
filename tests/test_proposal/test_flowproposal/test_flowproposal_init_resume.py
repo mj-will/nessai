@@ -199,6 +199,8 @@ def test_reset(proposal):
     assert proposal._edges['x'] is None
 
 
+@pytest.mark.timeout(10)
+@pytest.mark.flaky(run=3)
 @pytest.mark.integration_test
 def test_reset_integration(tmpdir, model):
     """Test reset method iteration with other methods"""
@@ -208,8 +210,8 @@ def test_reset_integration(tmpdir, model):
         model,
         output=output,
         plot=False,
-        poolsize=100,
-        latent_prior='uniform_nball',
+        poolsize=10,
+        latent_prior='truncated_gaussian',
         constant_volume_mode=False
     )
 
@@ -217,8 +219,8 @@ def test_reset_integration(tmpdir, model):
         model,
         output=output,
         plot=False,
-        poolsize=100,
-        latent_prior='uniform_nball',
+        poolsize=10,
+        latent_prior='truncated_gaussian',
         constant_volume_mode=False
     )
     proposal.initialise()
@@ -239,6 +241,8 @@ def test_reset_integration(tmpdir, model):
 
 
 @pytest.mark.parametrize('rescale', [True, False])
+@pytest.mark.timeout(10)
+@pytest.mark.flaky(run=3)
 @pytest.mark.integration_test
 def test_test_draw(tmpdir, model, rescale):
     """Verify that the `test_draw` method works.
