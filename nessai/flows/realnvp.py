@@ -74,6 +74,7 @@ class RealNVP(NFlow):
         batch_norm_between_layers=False,
         linear_transform=None,
         distribution=None,
+        pre_transform=None,
     ):
 
         if use_volume_preserving:
@@ -158,6 +159,15 @@ class RealNVP(NFlow):
             )
 
         layers = []
+
+        if pre_transform == 'logit':
+            from .transforms import Logit
+            layers.append(
+                Logit(temperature=np.ones(features), learn_temperature=True)
+            )
+        elif pre_transform is not None:
+            raise ValueError(pre_transform)
+
         for i in range(num_layers):
             if linear_transform is not None:
                 layers.append(create_linear_transform())
