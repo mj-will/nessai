@@ -5,10 +5,13 @@ Utilities related to rescaling.
 import logging
 
 import numpy as np
+from scipy.special import erf, erfinv
 
 from .hist import auto_bins
 
 logger = logging.getLogger(__name__)
+SQRT2 = np.sqrt(2)
+LN2PI = np.log(2 * np.pi)
 
 
 def rescale_zero_to_one(x, xmin, xmax):
@@ -269,7 +272,7 @@ def determine_rescaled_bounds(
         raise ValueError(f'Invalid value for `invert`: {invert}')
 
 
-def logit(x, fuzz=1e-12):
+def logit(x, fuzz=False):
     """Logit function that also returns log Jacobian determinant.
 
     See :py:func:`nessai.utils.rescaling.sigmoid` for the inverse.
@@ -298,7 +301,7 @@ def logit(x, fuzz=1e-12):
     return np.log(x) - np.log1p(-x), log_j
 
 
-def sigmoid(x, fuzz=1e-12):
+def sigmoid(x, fuzz=False):
     """Sigmoid function that also returns log Jacobian determinant.
 
     See :py:func:`nessai.utils.rescaling.logit` for the inverse.
@@ -324,6 +327,22 @@ def sigmoid(x, fuzz=1e-12):
         x -= fuzz
         log_j += np.log(1 + 2 * fuzz)
     return x, log_j
+
+
+def gaussian_cdf_with_log_j(x):
+    """Error function that includes the log Jacobian determinant."""
+    log_j = -0.5 * LN2PI - (x ** 2 / 2)
+    out = 0.5 * (1.0 + erf(x / SQRT2))
+    out = np.clip(out, )
+    return out, log_j
+
+
+def inv_gaussian_cdf_with_log_j(x):
+    """Inverse error function that includes the log Jacobian determinant."""
+    out = SQRT2 * erfinv(2.0 * x - 1.0)
+    out = np.nan_to_num(out)
+    log_j = 0.5 * LN2PI + (out ** 2 / 2)
+    return out, log_j
 
 
 rescaling_functions = {'logit': (logit, sigmoid)}
