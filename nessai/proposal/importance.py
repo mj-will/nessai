@@ -339,6 +339,9 @@ class ImportanceFlowProposal(Proposal):
                 & np.isfinite(x_check).all(axis=1)
                 & np.isfinite(x_prime).all(axis=1)
             )
+            logger.debug(f'Rejected {n_draw - acc.size} points')
+            if not acc.size:
+                continue
             x, x_prime, log_j, log_q = \
                 get_subset_arrays(acc, x, x_prime, log_j, log_q)
 
