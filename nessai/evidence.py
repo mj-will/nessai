@@ -171,7 +171,7 @@ class _INSIntegralState:
         self._logZ = logsumexp(self._logZ_history)
         self._n += x.size
 
-    def update_evidence_from_nested_samples(self, x):
+    def update_evidence_from_nested_samples(self, x: np.ndarray) -> None:
         """Update the evidence from a set of nested samples"""
         log_Z_k = x['logL'] + x['logW']
         self._logZ_history = log_Z_k
@@ -179,7 +179,7 @@ class _INSIntegralState:
         self._n = x.size
 
     @property
-    def logZ(self):
+    def logZ(self) -> float:
         """The current log-evidence."""
         return self._logZ
 
@@ -193,7 +193,12 @@ class _INSIntegralState:
         return logZ
 
     def compute_condition(self, samples: np.ndarray) -> float:
-        """Compute the fraction change in the evidence."""
+        """Compute the fraction change in the evidence.
+
+        If samples is None or empty, returns zero.
+        """
+        if samples is None or not len(samples):
+            return 0.0
         log_Z_s = logsumexp(samples['logL'] + samples['logW'])
         logZ = np.logaddexp(self._logZ, log_Z_s)
         logger.debug(f'Current log Z: {self._logZ}, expected: {logZ}')
@@ -212,7 +217,7 @@ class _INSIntegralState:
         return float(np.abs(u / Z_hat))
 
     @property
-    def log_posterior_weights(self):
+    def log_posterior_weights(self) -> np.ndarray:
         """Compute the weights for all of the dead points."""
         return np.asarray(self._logZ_history).copy() - self.logZ
 
