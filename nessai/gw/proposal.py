@@ -32,8 +32,11 @@ class GWFlowProposal(FlowProposal):
         'phase': ('angle-2pi', None),
         'psi': ('angle-pi', None),
         'geocent_time': ('time', None),
-        'a_1': ('to-cartesian', None),
-        'a_2': ('to-cartesian', None),
+        'time_jitter': ('periodic', None),
+        'a_1': ('default', None),
+        'a_2': ('default', None),
+        'chi_1': ('default', None),
+        'chi_2': ('default', None),
         'luminosity_distance': ('distance', None),
     }
     """
