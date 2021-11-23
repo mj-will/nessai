@@ -13,7 +13,11 @@ import seaborn as sns
 from tqdm import tqdm
 
 from .basesampler import BaseNestedSampler
-from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
+from .livepoint import (
+    DEFAULT_FLOAT_DTYPE,
+    get_dtype,
+    live_points_to_dict,
+)
 from .plot import plot_indices, plot_trace
 from .evidence import _NSIntegralState
 from .proposal import FlowProposal
@@ -935,7 +939,7 @@ class NestedSampler(BaseNestedSampler):
             If filename is None, the figure is returned. Else the figure
             is saved with that file name.
         """
-        if self.nested_samples:
+        if len(self.nested_samples):
             fig = plot_trace(self.state.log_vols[1:], self.nested_samples,
                              filename=filename)
             return fig
@@ -1040,6 +1044,8 @@ class NestedSampler(BaseNestedSampler):
             self.state.increment(p['logL'], nlive=self.nlive-i)
             self.nested_samples.append(p)
 
+        self.nested_samples = np.asarray(self.nested_samples)
+
         # Refine evidence estimate
         self.update_state(force=True)
         self.state.finalise()
@@ -1105,6 +1111,40 @@ class NestedSampler(BaseNestedSampler):
 
         return self.state.logZ, np.array(self.nested_samples)
 
+    def get_result_dictionary(self):
+        """Return a dictionary that contains results."""
+        iterations = np.arange(len(self.min_likelihood)) \
+            * (self.nlive // 10)
+        iterations[-1] = self.iteration
+        d = super().get_result_dictionary()
+        d['history'] = dict(
+                iterations=iterations,
+                min_likelihood=self.min_likelihood,
+                max_likelihood=self.max_likelihood,
+                likelihood_evaluations=self.likelihood_evaluations,
+                logZ=self.logZ_history,
+                dZ=self.dZ_history,
+                mean_acceptance=self.mean_acceptance_history,
+                rolling_p=self.rolling_p,
+                population=dict(
+                    iterations=self.population_iterations,
+                    acceptance=self.population_acceptance
+                    ),
+                training_iterations=self.training_iterations
+
+                )
+        d['insertion_indices'] = self.insertion_indices
+        d['nested_samples'] = live_points_to_dict(self.nested_samples)
+        d['log_evidence'] = self.log_evidence
+        d['information'] = self.information
+        d['sampling_time'] = self.sampling_time.total_seconds()
+        d['training_time'] = self.training_time.total_seconds()
+        d['population_time'] = self.proposal_population_time.total_seconds()
+        if self.likelihood_evaluation_time.total_seconds():
+            d['likelihood_evaluation_time'] = \
+                self.likelihood_evaluation_time.total_seconds()
+        return d
+
     @classmethod
     def resume(cls, filename, model, flow_config={}, weights_file=None):
         """
@@ -1133,6 +1173,10 @@ class NestedSampler(BaseNestedSampler):
 
         obj.resumed = True
         return obj
+
+    def close_pool(self):
+        """Close the multiprocessing pool."""
+        self.proposal.close_pool()
 
     def __getstate__(self):
         state = self.__dict__.copy()
