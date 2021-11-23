@@ -10,6 +10,7 @@ from typing import Union
 import numpy as np
 import torch
 
+from . import __version__ as version
 from .model import Model
 from .utils import safe_file_dump
 
@@ -58,6 +59,7 @@ class BaseNestedSampler(ABC):
         self.sampling_time = datetime.timedelta()
         self.sampling_start_time = datetime.datetime.now()
         self.iteration = 0
+        self.checkpoint_iterations = []
 
         self.configure_random_seed(seed)
         self.configure_output(output, resume_file=resume_file)
@@ -156,6 +158,18 @@ class BaseNestedSampler(ABC):
     @abstractmethod
     def nested_sampling_loop(self):
         raise NotImplementedError()
+
+    def get_result_dictionary(self):
+        """Return a dictionary that contains results.
+
+        Only includes vesrion, seed and sampling time. Child classes should
+        call this method and add to the dictionary.
+        """
+        d = dict()
+        d['version'] = version
+        d['seed'] = self.seed
+        d['sampling_time'] = self.sampling_time.total_seconds()
+        return d
 
     def __getstate__(self):
         state = self.__dict__.copy()
