@@ -5,7 +5,7 @@ Importance nested sampler.
 import datetime
 import logging
 import os
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -831,6 +831,40 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return fig
 
+    def plot_trace(
+        self, filename: Optional[str] = None
+    ) -> Union[plt.figure, None]:
+        """Produce a trace-like plot of the nested samples."""
+
+        parameters = list(self.nested_samples.dtype.names)
+        for p in ['logW', 'it']:
+            parameters.remove(p)
+        n = len(parameters)
+
+        fig, axs = plt.subplots(n, 1, sharex=True, figsize=(5, 2 * n))
+
+        log_w = self.nested_samples['logW']
+
+        for ax, p in zip(axs, parameters):
+            ax.scatter(
+                log_w,
+                self.nested_samples[p],
+                c=self.nested_samples['it'],
+                s=1.0,
+                vmin=-1,
+                vmax=self.nested_samples['it'].max(),
+            )
+            ax.set_ylabel(p)
+        axs[-1].set_xlabel('Log W')
+
+        fig.tight_layout()
+
+        if filename is not None:
+            fig.savefig(filename)
+            plt.close(fig)
+        else:
+            return fig
+
     def produce_plots(self, overide: bool = False) -> None:
         """Produce all of the relevant plots.
 
@@ -844,6 +878,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         if self.plot or overide:
             logger.debug('Producing plots')
             self.plot_state(os.path.join(self.output, 'state.png'))
+            self.plot_trace(os.path.join(self.output, 'trace.png'))
         else:
             logger.debug('Skipping plots')
 
