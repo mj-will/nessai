@@ -1,5 +1,6 @@
 
 import numpy as np
+import pandas as pd
 import pytest
 
 import nessai.livepoint as lp
@@ -123,6 +124,13 @@ def test_empty_dict_to_live_points(empty_live_point):
     np.testing.assert_array_equal(
         empty_live_point,
         lp.dict_to_live_points({'x': [], 'y': [], 'z': []}))
+
+
+def test_dataframe_to_lve_points(live_points):
+    """Test converting from a pandas dataframe to live points."""
+    df = pd.DataFrame({'x': [1, 4], 'y': [2, 5], 'z': [3, 6]})
+    out = lp.dataframe_to_live_points(df)
+    np.testing.assert_array_equal(out, live_points)
 
 
 def test_live_point_to_numpy_array(live_point):
