@@ -159,3 +159,17 @@ def live_points_to_dict(live_points, names=None):
     if names is None:
         names = live_points.dtype.names
     return {f: live_points[f] for f in names}
+
+
+def dataframe_to_live_points(df):
+    """Convert and pandas dataframe to live points.
+
+    Adds the additional parameters logL and logP initialised to zero.
+
+    Based on this answer on Stack Exchange:
+    https://stackoverflow.com/a/51280608
+    """
+    return np.array(
+        [tuple(x) + (0.0, 0.0,) for x in df.values],
+        dtype=get_dtype(list(df.dtypes.index))
+    )
