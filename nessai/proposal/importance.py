@@ -340,7 +340,7 @@ class ImportanceFlowProposal(Proposal):
                 & np.isfinite(x_prime).all(axis=1)
             )
             logger.debug(f'Rejected {n_draw - acc.size} points')
-            if not acc.size:
+            if not np.any(acc):
                 continue
             x, x_prime, log_j, log_q = \
                 get_subset_arrays(acc, x, x_prime, log_j, log_q)
@@ -351,6 +351,8 @@ class ImportanceFlowProposal(Proposal):
             x['logP'] = self.model.log_prior(x)
             x['logW'] = - x['logG']
             accept = np.isfinite(x['logW'])
+            if not np.any(accept):
+                continue
             x = x[accept]
             if logL_min is not None:
                 self.log_likelihood(x)
