@@ -168,6 +168,17 @@ def dataframe_to_live_points(df):
 
     Based on this answer on Stack Exchange:
     https://stackoverflow.com/a/51280608
+
+    Parameters
+    ----------
+    df : :obj:`pandas.DataFrame`
+        Pandas DataFrame to convert to live points
+
+    Returns
+    -------
+    structured_array
+        Numpy structured array with fields given by column names plus logP and
+        logL.
     """
     return np.array(
         [tuple(x) + (0.0, 0.0,) for x in df.values],
