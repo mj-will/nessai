@@ -13,7 +13,7 @@ from nessai.utils import setup_logger
 # see: https://git.ligo.org/lscsoft/bilby
 
 output = './outdir/2d_gaussian_example/'
-logger = setup_logger(output=output, log_level='INFO')
+logger = setup_logger(output=output)
 
 # Define the model, in this case we use a simple 2D gaussian
 # The model must contain names for each of the parameters and their bounds
@@ -26,9 +26,7 @@ logger = setup_logger(output=output, log_level='INFO')
 
 
 class GaussianModel(Model):
-    """
-    A simple two-dimensional Gaussian likelihood
-    """
+    """A simple two-dimensional Gaussian likelihood."""
     def __init__(self):
         # Names of parameters to sample
         self.names = ['x', 'y']
@@ -40,14 +38,13 @@ class GaussianModel(Model):
         Returns log of prior given a live point assuming uniform
         priors on each parameter.
         """
-        log_p = 0.
+        # Check if values are in bounds
+        log_p = np.log(self.in_bounds(x))
         # Iterate through each parameter (x and y)
         # since the live points are a structured array we can
         # get each value using just the name
         for n in self.names:
-            log_p += (np.log((x[n] >= self.bounds[n][0])
-                             & (x[n] <= self.bounds[n][1]))
-                      - np.log(self.bounds[n][1] - self.bounds[n][0]))
+            log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
         return log_p
 
     def log_likelihood(self, x):
@@ -55,28 +52,16 @@ class GaussianModel(Model):
         Returns log likelihood of given live point assuming a Gaussian
         likelihood.
         """
-        log_l = 0
+        log_l = np.zeros(x.size)
         # Use a Gaussian logpdf and iterate through the parameters
-        for pn in self.names:
-            log_l += norm.logpdf(x[pn])
+        for n in self.names:
+            log_l += norm.logpdf(x[n])
         return log_l
 
 
-# The normalsing flow that is trained to produce the proposal points
-# is configured with a dictionary that contains the parameters related to
-# training (e.g. learning rate (lr)) and model_config for the configuring
-# the flow itself (neurons, number of transformations etc)
-flow_config = dict(
-        max_epochs=50,
-        patience=10,
-        model_config=dict(n_blocks=2, n_neurons=4, n_layers=1,
-                          kwargs=dict(batch_norm_between_layers=True))
-        )
-
-# The FlowSampler object is used to managed the sampling as has more
-# configuration options
-fp = FlowSampler(GaussianModel(), output=output, flow_config=flow_config,
-                 resume=False, seed=1234)
+# The FlowSampler object is used to managed the sampling. Keyword arguments
+# are passed to the nested sampling.
+fs = FlowSampler(GaussianModel(), output=output, resume=False, seed=1234)
 
 # And go!
-fp.run()
+fs.run()
