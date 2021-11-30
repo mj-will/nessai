@@ -704,8 +704,8 @@ class FlowProposal(RejectionProposal):
         self.names = self._reparameterisation.parameters
         self.rescaled_names = self._reparameterisation.prime_parameters
         self.rescale_parameters = \
-            list(set(self._reparameterisation.parameters)
-                 - set(self._reparameterisation.prime_parameters))
+            [p for p in self._reparameterisation.parameters
+             if p not in self._reparameterisation.prime_parameters]
 
     def set_rescaling(self):
         """

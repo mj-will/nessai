@@ -60,8 +60,9 @@ class GWFlowProposal(FlowProposal):
         Add default reparameterisations for parameters that have not been
         specified.
         """
-        parameters = list(set(self.names)
-                          - set(self._reparameterisation.parameters))
+        parameters = \
+            [n for n in self.names
+             if n not in self._reparameterisation.parameters]
         logger.info(f'Adding default reparameterisations for {parameters}')
 
         for p in parameters:
