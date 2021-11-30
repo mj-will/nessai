@@ -39,6 +39,7 @@ def test_add_default_reparameterisation(proposal):
         {'chirp_mass': [10.0, 20.0], 'theta_jn': [0.0, 3.0]}
 
     reparam = MagicMock()
+    reparam.__name__ = 'MockReparam'
     with patch('nessai.gw.proposal.get_gw_reparameterisation',
                return_value=(reparam, {})) as mock_get:
         GWFlowProposal.add_default_reparameterisations(proposal)
