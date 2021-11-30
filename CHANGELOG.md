@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add `dataframe_to_live_points` function to `nessai.livepoint` for converting from a `pandas.DataFrame` to live points.
+- Add `fallback_reparameterisation` to `FlowProposal`. This allows the user to specify which reparameterisation to use for parameters which are not included in the reparameterisations dictionary. Default behaviour remains unchanged (defaults to no reparameterisation).
 
 ## [0.4.0] - 2021-11-23
 
