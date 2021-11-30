@@ -22,7 +22,6 @@ from ..livepoint import (
     )
 from ..reparameterisations import (
     CombinedReparameterisation,
-    NullReparameterisation,
     get_reparameterisation
     )
 from ..plot import plot_live_points, plot_1d_comparison
@@ -133,6 +132,11 @@ class FlowProposal(RejectionProposal):
         Dictionary for configure more flexible reparameterisations. This
         ignores any of the other settings related to rescaling. For more
         details see the documentation.
+    fallback_reparameterisation : None or str
+        Name of the reparameterisation to be used for parameters that have not
+        been specified in the reparameterisations dictionary. If None, the
+        :py:class:`~nessai.reparameterisations.NullReparameterisation` is used.
+        Reparameterisation should support multiple parameters.
     use_default_reparameterisations : bool, optional
         If True then reparameterisations will be used even if
         ``reparameterisations`` is None. The exact reparameterisations used
@@ -194,6 +198,7 @@ class FlowProposal(RejectionProposal):
         detect_edges=False,
         detect_edges_kwargs=None,
         reparameterisations=None,
+        fallback_reparameterisation=None,
         use_default_reparameterisations=None,
         **kwargs
     ):
@@ -227,6 +232,7 @@ class FlowProposal(RejectionProposal):
         if use_default_reparameterisations is not None:
             self.use_default_reparameterisations = \
                 use_default_reparameterisations
+        self.fallback_reparameterisation = fallback_reparameterisation
 
         self.output = output
 
@@ -667,17 +673,26 @@ class FlowProposal(RejectionProposal):
                     {default_config['parameters']:
                      self.model.bounds[default_config['parameters']]}
 
-            logger.debug(f'Adding {rc.__name__} with config {default_config}')
+            logger.info(f'Adding {rc.__name__} with config: {default_config}')
             r = rc(prior_bounds=prior_bounds, **default_config)
             self._reparameterisation.add_reparameterisations(r)
 
         self.add_default_reparameterisations()
 
-        p = [n for n in self.names
-             if n not in self._reparameterisation.parameters]
-        if p:
-            logger.info(f'Assuming no rescaling for {p}')
-            r = NullReparameterisation(parameters=list(p))
+        other_params = [n for n in self.names
+                        if n not in self._reparameterisation.parameters]
+        if other_params:
+            logger.debug('Getting fallback reparameterisation')
+            FallbackClass, fallback_kwargs = \
+                self.get_reparameterisation(self.fallback_reparameterisation)
+            fallback_kwargs['prior_bounds'] = \
+                {p: self.model.bounds[p] for p in other_params}
+            logger.info(
+                f'Assuming fallback reparameterisation '
+                f'({FallbackClass.__name__}) for {other_params} with kwargs: '
+                f'{fallback_kwargs}.'
+            )
+            r = FallbackClass(parameters=other_params, **fallback_kwargs)
             self._reparameterisation.add_reparameterisations(r)
 
         if any(r._update_bounds for r in self._reparameterisation.values()):
@@ -688,14 +703,15 @@ class FlowProposal(RejectionProposal):
         if self._reparameterisation.has_prime_prior:
             self.use_x_prime_prior = True
             self.x_prime_log_prior = self._reparameterisation.x_prime_log_prior
-            logger.info('Using x prime prior')
+            logger.debug('Using x prime prior')
         else:
-            logger.info('Prime prior is disabled')
+            logger.debug('Prime prior is disabled')
             if self._reparameterisation.requires_prime_prior:
                 raise RuntimeError(
                     'One or more reparameterisations require use of the x '
                     'prime prior but it cannot be enabled with the current '
-                    'settings.')
+                    'settings.'
+                )
 
         self.rescale = self._rescale_w_reparameterisation
         self.inverse_rescale = \
@@ -704,8 +720,8 @@ class FlowProposal(RejectionProposal):
         self.names = self._reparameterisation.parameters
         self.rescaled_names = self._reparameterisation.prime_parameters
         self.rescale_parameters = \
-            list(set(self._reparameterisation.parameters)
-                 - set(self._reparameterisation.prime_parameters))
+            [p for p in self._reparameterisation.parameters
+             if p not in self._reparameterisation.prime_parameters]
 
     def set_rescaling(self):
         """

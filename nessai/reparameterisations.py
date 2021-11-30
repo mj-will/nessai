@@ -557,10 +557,10 @@ class RescaleToBounds(Reparameterisation):
             self.prior = 'uniform'
             self.has_prime_prior = True
             self._prime_prior = log_uniform_prior
-            logger.info(f'Prime prior enabled for {self.name}')
+            logger.debug(f'Prime prior enabled for {self.name}')
         else:
             self.has_prime_prior = False
-            logger.info(f'Prime prior disabled for {self.name}')
+            logger.debug(f'Prime prior disabled for {self.name}')
 
         self.configure_pre_rescaling(pre_rescaling)
         self.configure_post_rescaling(post_rescaling)
@@ -909,10 +909,10 @@ class Angle(Reparameterisation):
             else:
                 self._prime_prior = log_2d_cartesian_prior_sine
                 self._k = np.pi
-            logger.info(f'Prime prior enabled for {self.name}')
+            logger.debug(f'Prime prior enabled for {self.name}')
         else:
             self.has_prime_prior = False
-            logger.info(f'Prime prior disabled for {self.name}')
+            logger.debug(f'Prime prior disabled for {self.name}')
 
     @property
     def angle(self):
@@ -1137,7 +1137,7 @@ class AnglePair(Reparameterisation):
             )
         else:
             self.has_prime_prior = False
-            logger.info(f'Prime prior disabled for {self.name}')
+            logger.debug(f'Prime prior disabled for {self.name}')
 
         if convention is None:
             logger.debug('Trying to determine convention')
