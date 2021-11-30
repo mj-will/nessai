@@ -9,6 +9,7 @@ import os
 import pickle
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 import seaborn as sns
 import torch
@@ -893,7 +894,10 @@ class NestedSampler:
 
         for i in self.checkpoint_iterations:
             for a in ax:
-                a.axvline(i, ls='-', color='tab:pink')
+                a.axvline(i, ls=':', color='#66ccff')
+
+        for a in ax:
+            a.axvline(self.iteration, c='#ff9900', ls='-.')
 
         ax[0].plot(it, self.min_likelihood, label='Min logL',
                    c=colours[0], ls=ls[0])
@@ -968,6 +972,18 @@ class NestedSampler:
 
         fig.suptitle(f'Sampling time: {self.current_sampling_time}',
                      fontsize=16)
+
+        handles = [
+            Line2D([0], [0], color='#ff9900', linestyle='-.',
+                   label='Current iteration'),
+            Line2D([0], [0], color='lightgrey', linestyle='-',
+                   markersize=10, markeredgewidth=1.5, label='Training'),
+            Line2D([0], [0], color='#66ccff', linestyle=':',
+                   label='Checkpoint'),
+        ]
+        fig.legend(
+            handles=handles, frameon=False, ncol=3, loc=(0.6, 0.0)
+        )
 
         fig.tight_layout()
         fig.subplots_adjust(top=0.95)
