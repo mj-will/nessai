@@ -50,6 +50,7 @@ class ImportanceFlowProposal(Proposal):
         reparam: str = None,
         plot_training: bool = False,
         weighted_kl: bool = False,
+        weights_include_likelihood: bool = False,
         reset_flows: bool = False,
         flow_config: dict = None,
         combined_proposal: bool = True,
@@ -77,6 +78,7 @@ class ImportanceFlowProposal(Proposal):
         self.log_likelihood = None
 
         self.combined_proposal = combined_proposal
+        self.weights_include_likelihood = weights_include_likelihood
 
         self.dtype = get_dtype(self.model.names)
 
@@ -208,7 +210,10 @@ class ImportanceFlowProposal(Proposal):
 
         if self.weighted_kl:
             logger.debug('Using weights in training')
-            log_weights = training_data['logW']
+            if self.weights_include_likelihood:
+                log_weights = training_data['logW'] + training_data['logL']
+            else:
+                log_weights = training_data['logW']
             log_weights -= logsumexp(log_weights)
             weights = np.exp(log_weights)
             if plot:
