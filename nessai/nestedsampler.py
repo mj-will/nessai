@@ -21,6 +21,7 @@ from .proposal import FlowProposal
 from .utils import (
     safe_file_dump,
     compute_indices_ks_test,
+    rolling_mean,
     )
 
 sns.set()
@@ -901,14 +902,31 @@ class NestedSampler:
         ax[0].set_ylabel('logL')
         ax[0].legend(frameon=False)
 
+        logX_its = np.arange(len(self.state.log_vols))
+        ax[1].plot(
+            logX_its, self.state.log_vols, ls=ls[0], c=colours[0],
+            label='log X'
+        )
+        ax[1].set_ylabel('Log X')
+        ax[1].legend(frameon=False)
+
         if self.state.track_gradients:
-            g = np.min([len(self.state.gradients), self.iteration])
-            ax[1].plot(np.arange(g), np.abs(self.state.gradients[:g]),
-                       c=colours[0], label='Gradient')
-        else:
-            logger.warning('Gradients were not saved, skipping.')
-        ax[1].set_ylabel(r'$|d\log L/d \log X|$')
-        ax[1].set_yscale('log')
+            ax_logX_grad = plt.twinx(ax[1])
+            # Use dotted linestyle (ls[2]) because dashed isn't clear
+            ax_logX_grad.plot(
+                logX_its,
+                rolling_mean(np.abs(self.state.gradients), self.nlive // 10),
+                c=colours[1],
+                ls=ls[2],
+                label='Gradient'
+            )
+            ax_logX_grad.set_ylabel(r'$|d\log L/d \log X|$')
+            ax_logX_grad.set_yscale('log')
+            handles, labels = ax[1].get_legend_handles_labels()
+            handles_tw, labels_tw = ax_logX_grad.get_legend_handles_labels()
+            ax[1].legend(
+                handles + handles_tw, labels + labels_tw, frameon=False
+            )
 
         ax[2].plot(it, self.likelihood_evaluations, c=colours[0], ls=ls[0],
                    label='Evaluations')
