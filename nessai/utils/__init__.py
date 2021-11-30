@@ -36,6 +36,7 @@ from .sampling import (
     draw_uniform
 )
 from .distance import compute_minimum_distances
+from .stats import rolling_mean
 from .structures import replace_in_list
 from .threading import configure_threads
 
@@ -67,6 +68,7 @@ __all__ = [
     'inverse_rescale_zero_to_one',
     'is_jsonable',
     'logit',
+    'rolling_mean',
     'replace_in_list',
     'rescale_minus_one_to_one',
     'rescale_zero_to_one',

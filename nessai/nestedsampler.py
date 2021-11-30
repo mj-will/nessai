@@ -9,6 +9,7 @@ import os
 import pickle
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 import seaborn as sns
 import torch
@@ -21,6 +22,7 @@ from .proposal import FlowProposal
 from .utils import (
     safe_file_dump,
     compute_indices_ks_test,
+    rolling_mean,
     )
 
 sns.set()
@@ -892,7 +894,10 @@ class NestedSampler:
 
         for i in self.checkpoint_iterations:
             for a in ax:
-                a.axvline(i, ls='-', color='tab:pink')
+                a.axvline(i, ls=':', color='#66ccff')
+
+        for a in ax:
+            a.axvline(self.iteration, c='#ff9900', ls='-.')
 
         ax[0].plot(it, self.min_likelihood, label='Min logL',
                    c=colours[0], ls=ls[0])
@@ -901,14 +906,31 @@ class NestedSampler:
         ax[0].set_ylabel('logL')
         ax[0].legend(frameon=False)
 
+        logX_its = np.arange(len(self.state.log_vols))
+        ax[1].plot(
+            logX_its, self.state.log_vols, ls=ls[0], c=colours[0],
+            label='log X'
+        )
+        ax[1].set_ylabel('Log X')
+        ax[1].legend(frameon=False)
+
         if self.state.track_gradients:
-            g = np.min([len(self.state.gradients), self.iteration])
-            ax[1].plot(np.arange(g), np.abs(self.state.gradients[:g]),
-                       c=colours[0], label='Gradient')
-        else:
-            logger.warning('Gradients were not saved, skipping.')
-        ax[1].set_ylabel(r'$|d\log L/d \log X|$')
-        ax[1].set_yscale('log')
+            ax_logX_grad = plt.twinx(ax[1])
+            # Use dotted linestyle (ls[2]) because dashed isn't clear
+            ax_logX_grad.plot(
+                logX_its,
+                rolling_mean(np.abs(self.state.gradients), self.nlive // 10),
+                c=colours[1],
+                ls=ls[2],
+                label='Gradient'
+            )
+            ax_logX_grad.set_ylabel(r'$|d\log L/d \log X|$')
+            ax_logX_grad.set_yscale('log')
+            handles, labels = ax[1].get_legend_handles_labels()
+            handles_tw, labels_tw = ax_logX_grad.get_legend_handles_labels()
+            ax[1].legend(
+                handles + handles_tw, labels + labels_tw, frameon=False
+            )
 
         ax[2].plot(it, self.likelihood_evaluations, c=colours[0], ls=ls[0],
                    label='Evaluations')
@@ -950,6 +972,18 @@ class NestedSampler:
 
         fig.suptitle(f'Sampling time: {self.current_sampling_time}',
                      fontsize=16)
+
+        handles = [
+            Line2D([0], [0], color='#ff9900', linestyle='-.',
+                   label='Current iteration'),
+            Line2D([0], [0], color='lightgrey', linestyle='-',
+                   markersize=10, markeredgewidth=1.5, label='Training'),
+            Line2D([0], [0], color='#66ccff', linestyle=':',
+                   label='Checkpoint'),
+        ]
+        fig.legend(
+            handles=handles, frameon=False, ncol=3, loc=(0.6, 0.0)
+        )
 
         fig.tight_layout()
         fig.subplots_adjust(top=0.95)
