@@ -14,7 +14,6 @@ from tqdm import tqdm
 
 from .basesampler import BaseNestedSampler
 from .livepoint import (
-    DEFAULT_FLOAT_DTYPE,
     get_dtype,
     live_points_to_dict,
 )
@@ -598,10 +597,9 @@ class NestedSampler(BaseNestedSampler):
         Initialise the pool of live points.
         """
         i = 0
-        live_points = np.empty(self.nlive,
-                               dtype=get_dtype(self.model.names,
-                                               DEFAULT_FLOAT_DTYPE))
-
+        live_points = np.empty(
+            self.nlive, dtype=get_dtype(self.model.names)
+        )
         with tqdm(total=self.nlive, desc='Drawing live points') as pbar:
             while i < self.nlive:
                 while i < self.nlive:

@@ -12,10 +12,9 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import torch
 
+from .. import config
 from ..flowmodel import FlowModel, update_config
 from ..livepoint import (
-    DEFAULT_FLOAT_DTYPE,
-    NON_SAMPLING_PARAMETERS,
     live_points_to_array,
     numpy_array_to_live_points,
     get_dtype,
@@ -277,7 +276,7 @@ class FlowProposal(RejectionProposal):
     def x_dtype(self):
         """Return the dtype for the x space"""
         if not self._x_dtype:
-            self._x_dtype = get_dtype(self.names, DEFAULT_FLOAT_DTYPE)
+            self._x_dtype = get_dtype(self.names)
         return self._x_dtype
 
     @property
@@ -285,7 +284,7 @@ class FlowProposal(RejectionProposal):
         """Return the dtype for the x prime space"""
         if not self._x_prime_dtype:
             self._x_prime_dtype = \
-                get_dtype(self.rescaled_names, DEFAULT_FLOAT_DTYPE)
+                get_dtype(self.rescaled_names)
         return self._x_prime_dtype
 
     @property
@@ -528,38 +527,38 @@ class FlowProposal(RejectionProposal):
             raise TypeError('Reparameterisations must be a dictionary, '
                             f'receieved {type(_reparameterisations).__name__}')
 
-        for k, config in _reparameterisations.items():
+        for k, cfg in _reparameterisations.items():
             if k in self.names:
                 logger.debug(f'Found parameter {k} in model, '
                              'assuming it is a parameter')
-                if isinstance(config, str) or config is None:
-                    rc, default_config = self.get_reparameterisation(config)
+                if isinstance(cfg, str) or cfg is None:
+                    rc, default_config = self.get_reparameterisation(cfg)
                     default_config['parameters'] = k
-                elif isinstance(config, dict):
-                    if config.get('reparameterisation', None) is None:
+                elif isinstance(cfg, dict):
+                    if cfg.get('reparameterisation', None) is None:
                         raise RuntimeError(
                             f'No reparameterisation found for {k}. '
                             'Check inputs (and their spelling :)). '
-                            f'Current keys: {list(config.keys())}')
+                            f'Current keys: {list(cfg.keys())}')
                     rc, default_config = self.get_reparameterisation(
-                        config['reparameterisation'])
-                    config.pop('reparameterisation')
+                        cfg['reparameterisation'])
+                    cfg.pop('reparameterisation')
 
-                    if config.get('parameters', False):
-                        config['parameters'] += [k]
+                    if cfg.get('parameters', False):
+                        cfg['parameters'] += [k]
                     else:
                         default_config['parameters'] = k
 
-                    default_config.update(config)
+                    default_config.update(cfg)
                 else:
                     raise TypeError(
                         f'Unknown config type for: {k}. Expected str or dict, '
-                        f'received instance of {type(config)}.')
+                        f'received instance of {type(cfg)}.')
             else:
                 logger.debug(f'Assuming {k} is a reparameterisation')
                 try:
                     rc, default_config = self.get_reparameterisation(k)
-                    default_config.update(config)
+                    default_config.update(cfg)
                 except ValueError:
                     raise RuntimeError(
                         f'{k} is not a parameter in the model or a known '
@@ -711,7 +710,7 @@ class FlowProposal(RejectionProposal):
         x, x_prime, log_J = self._reparameterisation.reparameterise(
             x, x_prime, log_J, compute_radius=compute_radius, **kwargs)
 
-        for nsp in NON_SAMPLING_PARAMETERS:
+        for nsp in config.NON_SAMPLING_PARAMETERS:
             x_prime[nsp] = x[nsp]
         return x_prime, log_J
 
@@ -721,7 +720,7 @@ class FlowProposal(RejectionProposal):
         x, x_prime, log_J = self._reparameterisation.inverse_reparameterise(
             x, x_prime, log_J, **kwargs)
 
-        for nsp in NON_SAMPLING_PARAMETERS:
+        for nsp in config.NON_SAMPLING_PARAMETERS:
             x[nsp] = x_prime[nsp]
         return x, log_J
 
@@ -778,7 +777,7 @@ class FlowProposal(RejectionProposal):
             else:
                 x_prime[rn] = x[n]
 
-        for nsp in NON_SAMPLING_PARAMETERS:
+        for nsp in config.NON_SAMPLING_PARAMETERS:
             x_prime[nsp] = x[nsp]
         return x_prime, log_J
 
@@ -807,7 +806,7 @@ class FlowProposal(RejectionProposal):
                           - np.log(self._rescale_factor))
             else:
                 x[n] = x_prime[rn]
-        for nsp in NON_SAMPLING_PARAMETERS:
+        for nsp in config.NON_SAMPLING_PARAMETERS:
             x[nsp] = x_prime[nsp]
         return x, log_J
 
@@ -1095,7 +1094,7 @@ class FlowProposal(RejectionProposal):
 
         valid = np.isfinite(log_prob)
         x, log_prob = x[valid], log_prob[valid]
-        x = numpy_array_to_live_points(x.astype(DEFAULT_FLOAT_DTYPE),
+        x = numpy_array_to_live_points(x.astype(config.DEFAULT_FLOAT_DTYPE),
                                        self.rescaled_names)
         # Apply rescaling in rescale=True
         if rescale:
@@ -1268,7 +1267,9 @@ class FlowProposal(RejectionProposal):
 
             x, _ = self.inverse_rescale(x)
         x['logP'] = self.model.log_prior(x)
-        return rfn.repack_fields(x[self.model.names + NON_SAMPLING_PARAMETERS])
+        return rfn.repack_fields(
+            x[self.model.names + config.NON_SAMPLING_PARAMETERS]
+        )
 
     def populate(self, worst_point, N=10000, plot=True, r=None):
         """

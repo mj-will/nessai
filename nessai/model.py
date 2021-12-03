@@ -7,11 +7,10 @@ import logging
 import numpy as np
 
 from .livepoint import (
-        parameters_to_live_point,
-        numpy_array_to_live_points,
-        get_dtype,
-        DEFAULT_FLOAT_DTYPE
-        )
+    parameters_to_live_point,
+    numpy_array_to_live_points,
+    get_dtype,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -152,8 +151,7 @@ class Model(ABC):
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
-        new_points = np.array([], dtype=get_dtype(self.names,
-                                                  DEFAULT_FLOAT_DTYPE))
+        new_points = np.array([], dtype=get_dtype(self.names))
         while new_points.size < N:
             p = numpy_array_to_live_points(
                     np.random.uniform(self.lower_bounds, self.upper_bounds,

@@ -3,19 +3,14 @@
 Functions related to creating live points and converting to other common
 data-types.
 """
+import logging
+
 import numpy as np
 from numpy.lib import recfunctions as rfn
 
+from . import config
 
-LOGL_DTYPE = 'f8'
-IT_DTYPE = 'i4'
-DEFAULT_FLOAT_DTYPE = 'f8'
-CORE_PARAMETERS = ['logP', 'logL', 'it']
-DEFAULT_VALUES_CORE = [0.0, 0.0, 0]
-EXTRA_PARAMETERS = []
-DEFAULT_VALUES_EXTRA = []
-NON_SAMPLING_PARAMETERS = CORE_PARAMETERS + EXTRA_PARAMETERS
-DEFAULT_VALUES = DEFAULT_VALUES_CORE + DEFAULT_VALUES_EXTRA
+logger = logging.getLogger(__name__)
 
 
 def add_extra_parameters_to_live_points(parameters, default_values=None):
@@ -35,12 +30,25 @@ def add_extra_parameters_to_live_points(parameters, default_values=None):
     if default_values is None:
         default_values = len(parameters) * [0.0]
     for p, dv in zip(parameters, default_values):
-        if p not in EXTRA_PARAMETERS:
-            EXTRA_PARAMETERS.append(p)
-            DEFAULT_VALUES_EXTRA.append(dv)
+        if p not in config.EXTRA_PARAMETERS:
+            config.EXTRA_PARAMETERS.append(p)
+            config.DEFAULT_VALUES_EXTRA.append(dv)
+    config.NON_SAMPLING_PARAMETERS = \
+        config.NON_SAMPLING_PARAMETERS \
+        + config.EXTRA_PARAMETERS
+    config.DEFAULT_VALUES = \
+        config.DEFAULT_VALUES \
+        + config.DEFAULT_VALUES_EXTRA
+    logger.debug(
+        f'Updated non-sampling parameters: {config.NON_SAMPLING_PARAMETERS}'
+    )
+    logger.debug(
+        'Updated defaults for non-sampling parameters: '
+        f'{config.DEFAULT_VALUES}'
+    )
 
 
-def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
+def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
     """
     Get a list of tuples containing the dtypes for the structed array
 
@@ -58,8 +66,9 @@ def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
     """
     return (
         [(n, array_dtype) for n in names]
-        + [('logP', array_dtype), ('logL', LOGL_DTYPE), ('it', IT_DTYPE)]
-        + [(ep, array_dtype) for ep in EXTRA_PARAMETERS]
+        + [('logP', array_dtype), ('logL', config.LOGL_DTYPE),
+           ('it', config.IT_DTYPE)]
+        + [(ep, array_dtype) for ep in config.EXTRA_PARAMETERS]
     )
 
 
@@ -105,10 +114,10 @@ def parameters_to_live_point(parameters, names):
         Numpy structured array with fields given by names plus logP and logL
     """
     if not len(parameters):
-        return np.empty(0, dtype=get_dtype(names, DEFAULT_FLOAT_DTYPE))
+        return np.empty(0, dtype=get_dtype(names, config.DEFAULT_FLOAT_DTYPE))
     else:
-        return np.array((*parameters, *DEFAULT_VALUES),
-                        dtype=get_dtype(names, DEFAULT_FLOAT_DTYPE))
+        return np.array((*parameters, *config.DEFAULT_VALUES),
+                        dtype=get_dtype(names, config.DEFAULT_FLOAT_DTYPE))
 
 
 def numpy_array_to_live_points(array, names):
@@ -157,8 +166,8 @@ def dict_to_live_points(d):
     else:
         N = len(list(d.values())[0])
     if N == 1:
-        return np.array((*list(d.values()), *DEFAULT_VALUES),
-                        dtype=get_dtype(d.keys(), DEFAULT_FLOAT_DTYPE))
+        return np.array((*list(d.values()), *config.DEFAULT_VALUES),
+                        dtype=get_dtype(d.keys(), config.DEFAULT_FLOAT_DTYPE))
     else:
         array = np.zeros(N, dtype=get_dtype(list(d.keys())))
         for k, v in d.items():

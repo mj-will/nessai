@@ -9,9 +9,10 @@ import numpy as np
 from scipy import stats
 from scipy.special import logsumexp
 
+from ..import config
 from ..flowmodel import FlowModel
 from .flowproposal import FlowProposal
-from ..livepoint import numpy_array_to_live_points, DEFAULT_FLOAT_DTYPE
+from ..livepoint import numpy_array_to_live_points
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +209,7 @@ class AugmentedFlowProposal(FlowProposal):
 
         valid = np.isfinite(log_prob)
         x, log_prob = x[valid], log_prob[valid]
-        x = numpy_array_to_live_points(x.astype(DEFAULT_FLOAT_DTYPE),
+        x = numpy_array_to_live_points(x.astype(config.DEFAULT_FLOAT_DTYPE),
                                        self.rescaled_names)
         # Apply rescaling in rescale=True
         if rescale:
