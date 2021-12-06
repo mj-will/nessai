@@ -306,6 +306,7 @@ class FlowModel:
         else:
             self.batch_size = batch_size
         dtype = torch.get_default_dtype()
+        logger.debug(f'Using dtype {dtype} for tensors')
         if use_dataloader:
             logger.debug('Using dataloaders')
             train_tensors = [torch.from_numpy(x_train).type(dtype)]
@@ -706,7 +707,11 @@ class FlowModel:
         ndarray
             Array of log-probabilities.
         """
-        x = torch.from_numpy(x.astype(np.float32)).to(self.model.device)
+        # Should this be the inference device?
+        x = (
+            torch.from_numpy(x).type(torch.get_default_dtype())
+            .to(self.model.device)
+        )
         self.model.eval()
         with torch.no_grad():
             log_prob = self.model.log_prob(x)
