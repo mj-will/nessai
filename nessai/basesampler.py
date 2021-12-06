@@ -169,6 +169,8 @@ class BaseNestedSampler(ABC):
         d['version'] = version
         d['seed'] = self.seed
         d['sampling_time'] = self.sampling_time.total_seconds()
+        if hasattr(self.model, 'truth'):
+            d['truth'] = self.model.truth
         return d
 
     def __getstate__(self):
