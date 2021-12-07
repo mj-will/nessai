@@ -35,7 +35,10 @@ from .sampling import (
     draw_uniform
 )
 from .distance import compute_minimum_distances
-from .structures import replace_in_list
+from .structures import (
+    isfinite_struct,
+    replace_in_list,
+)
 from .threading import configure_threads
 
 
@@ -63,6 +66,7 @@ __all__ = [
     'indices',
     'inverse_rescale_minus_one_to_one',
     'inverse_rescale_zero_to_one',
+    'isfinite_struct',
     'is_jsonable',
     'logit',
     'replace_in_list',
