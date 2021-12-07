@@ -244,33 +244,46 @@ class ImportanceFlowProposal(Proposal):
         self.flows.append(flow)
         self.levels[self.level_count] = flow
 
-    def _compute_log_g_combined(self, x, log_q, n, log_j):
+    def _compute_log_g_combined(self, x_prime, log_q, n, log_j):
         n_flows = len(self.flows)
-        log_g = np.empty((x.shape[0], n_flows))
-        if np.isnan(x).any():
+        log_g = np.empty((x_prime.shape[0], n_flows))
+        if np.isnan(x_prime).any():
             logger.warning('NaNs in samples when computing log_g')
-        if not np.isfinite(x).all():
+        if not np.isfinite(x_prime).all():
             logger.warning(
                 'Infinite values in the samples when computing log_g'
             )
         if log_q is not None:
+            logger.debug('Setting log_g for current flow using inputs')
+            logger.debug(f'n={n}')
+            logger.debug(f'log_q finite={np.isfinite(log_q).all()}')
+            logger.debug(f'log_j finite={np.isfinite(log_j).all()}')
             n_flows -= 1
             log_g[:, -1] = np.log(n) + log_q + log_j
 
+        logger.debug(f'Updating log_g for flows: {list(range(n_flows))}')
         for i, flow in enumerate(self.flows[:n_flows]):
+            logger.debug(f"Poolsize: {self._history['poolsize'][i]}")
+            log_prob = flow.log_prob(x_prime)
             log_g[:, i] = (
-                flow.log_prob(x)
+                log_prob
                 + log_j
                 + np.log(self._history['poolsize'][i])
             )
 
-        logger.debug(f'Initial g: {np.exp(self.initial_log_g):.2f}')
+        logger.debug(f'log_g is nan: {np.isnan(log_g).any()}')
+        logger.debug(f'Initial log g: {self.initial_log_g:.2f}')
         logger.debug(
-            f'Mean g for each each flow: {np.exp(log_g).mean(axis=0)}'
+            f'Mean log g for each each flow: {log_g.mean(axis=0)}'
         )
         # Could move Jacobian here
         log_g = logsumexp(log_g, axis=1)
-        return np.logaddexp(self.initial_log_g, log_g)
+        if np.isnan(log_g).any():
+            raise ValueError('There is a NaN in log g before initial!')
+        log_g = np.logaddexp(self.initial_log_g, log_g)
+        if np.isnan(log_g).any():
+            raise ValueError('There is a NaN in log g!')
+        return log_g
 
     def _compute_log_g_independent(self, x, log_q, n, log_j):
         log_g = log_q + log_j + np.log(n)
@@ -333,7 +346,7 @@ class ImportanceFlowProposal(Proposal):
             x_prime, log_q = \
                 self.flows[flow_number].sample_and_log_prob(N=n_draw)
             assert x_prime.min() >= 0, x_prime.min()
-            assert x_prime.max() <= 1
+            assert x_prime.max() <= 1, x_prime.max()
             x, log_j = self.inverse_rescale(x_prime)
             # Rescaling can sometimes produce infs that don't appear in samples
             x_check = self.rescale(x)[0]
@@ -343,6 +356,7 @@ class ImportanceFlowProposal(Proposal):
                 & isfinite_struct(x)
                 & np.isfinite(x_check).all(axis=1)
                 & np.isfinite(x_prime).all(axis=1)
+                & np.isfinite(log_j)
             )
             logger.debug(f'Rejected {n_draw - acc.size} points')
             if not np.any(acc):
@@ -355,13 +369,21 @@ class ImportanceFlowProposal(Proposal):
             )
             x['logP'] = self.model.log_prior(x)
             x['logW'] = - x['logG']
-            accept = np.isfinite(x['logW'])
+            accept = (
+                np.isfinite(x['logP'])
+                & np.isfinite(x['logW'])
+            )
             if not np.any(accept):
                 continue
+
             x = x[accept]
+            if not np.isfinite(x['logP']).all():
+                raise RuntimeError('Prior value is inf!')
+
             if logL_min is not None:
+                raise RuntimeError('Avoid computing log-likelihood here!')
                 self.log_likelihood(x)
-            samples = np.concatenate([samples, x[accept]])
+            samples = np.concatenate([samples, x])
             if logL_min is not None:
                 m = (x['logL'] >= logL_min).sum()
                 n_accepted += m
