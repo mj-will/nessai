@@ -971,6 +971,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d['update_level_time'] = self.update_level_time.total_seconds()
         d['log_likelihood_time'] = self.log_likelihood_time.total_seconds()
         d['add_samples_time'] = self.add_samples_time.total_seconds()
+        d['update_ns_time'] = self.update_ns_time.total_seconds()
         return d
 
     def __getstate__(self):
