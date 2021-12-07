@@ -55,9 +55,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         User-defined model.
     nlive
         Number of live points.
-    proposal_config
-        Configuration for the proposal object. This includes the normalising
-        flow.
     tolerance
         Tolerance for determining when to stop the sampler.
     stopping_condition
@@ -68,29 +65,42 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def __init__(
         self,
         model: Model,
-        nlive: int,
-        proposal_config: Optional[dict] = None,
+        nlive: int = 3000,
+        output: str = None,
+        seed: int = None,
+        checkpointing: bool = True,
+        resume_file: str = None,
+        plot: bool = True,
+        plotting_frequency: int = 5,
         min_iteration: Optional[int] = None,
         max_iteration: Optional[int] = None,
         min_samples: int = 1000,
         tolerance: float = 0.1,
         n_update: Optional[int] = None,
         use_n_effective: bool = False,
-        plot_pool: bool = True,
+        plot_pool: bool = False,
         replace_all: bool = False,
-        update_nested_samples: bool = False,
-        level_method: Literal['entropy', 'quantile'] = 'entropy',
+        update_nested_samples: bool = True,
+        level_method: Literal['entropy', 'quantile'] = 'quantile',
         leaky: bool = True,
         n_pool: Optional[int] = None,
         stopping_condition: Literal['evidence', 'kl'] = 'evidence',
-        min_dZ: Optional[float] = 5.0,
+        min_dZ: Optional[float] = None,
         level_kwargs=None,
         **kwargs: Any
     ):
 
         add_extra_parameters_to_live_points(['logW', 'logG'])
 
-        super().__init__(model, nlive, **kwargs)
+        super().__init__(
+            model,
+            nlive,
+            output=output,
+            seed=seed,
+            checkpointing=checkpointing,
+            resume_file=resume_file,
+            plot=plot
+        )
         self.state = _INSIntegralState()
 
         self._posterior_samples = None
@@ -99,6 +109,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history = None
         self.pool = None
         self.dZ = np.inf
+        self.live_points_ess = np.nan
 
         self.tolerance = tolerance
         self.stopping_condition = stopping_condition
@@ -107,6 +118,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.stop = False
         self.n_update = n_update
         self.plot_pool = plot_pool
+        self.plotting_frequency = plotting_frequency
         self.use_n_effective = use_n_effective
         self.replace_all = replace_all
         self._update_nested_samples = update_nested_samples
@@ -122,13 +134,16 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         self.min_dZ = min_dZ if min_dZ is not None else np.inf
 
-        self.proposal = self.get_proposal(proposal_config)
-        self.proposal_config = proposal_config
+        self.proposal = self.get_proposal(**kwargs)
         self.configure_iterations(min_iteration, max_iteration)
 
         self.nested_samples = np.empty(0, dtype=get_dtype(self.model.names))
 
         self.update_level_time = datetime.timedelta()
+        self.log_likelihood_time = datetime.timedelta()
+        self.draw_time = datetime.timedelta()
+        self.update_ns_time = datetime.timedelta()
+        self.add_samples_time = datetime.timedelta()
 
         if self.replace_all:
             self._update_nested_samples = False
@@ -157,19 +172,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def get_proposal(
         self,
-        config: Optional[dict] = None,
-        subdir: str = 'levels'
+        subdir: str = 'levels',
+        **kwargs
     ):
         """Configure the proposal."""
         output = os.path.join(self.output, subdir, '')
-        if config is None:
-            config = {}
         proposal = ImportanceFlowProposal(
             self.model,
             output,
             self.nlive,
             combined_proposal=not self.replace_all,
-            **config
+            **kwargs
         )
         proposal.set_log_likelihood(self.log_likelihood)
         return proposal
@@ -224,6 +237,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def log_likelihood(self, samples: np.ndarray) -> None:
         """Update the log-likelihood in place."""
         logger.debug('Evaluating likelihoods')
+        st = datetime.datetime.now()
         if self.pool is not None:
             samples['logL'] = self.pool.map(
                 _log_likelihood_wrapper,
@@ -236,6 +250,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             samples['logL'] = \
                 list(map(self.model.evaluate_log_likelihood, samples))
+        self.log_likelihood_time += (datetime.datetime.now() - st)
 
     def populate_live_points(self) -> None:
         """Draw the initial live points from the prior.
@@ -283,11 +298,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 logZ=[],
                 dZ=[],
                 alt_dZ=[],
+                smc_dZ=[],
                 n_added=[],
                 n_removed=[],
                 n_post=[],
                 live_points_entropy=[],
                 live_points_remaining_entropy=[],
+                live_points_ess=[],
                 pool_entropy=[],
                 likelihood_evaluations=[],
                 max_log_g=[],
@@ -309,10 +326,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['logZ'].append(self.state.logZ)
         self.history['dZ'].append(self.dZ)
         self.history['alt_dZ'].append(self.alt_dZ)
+        self.history['smc_dZ'].append(self.smc_dZ)
         self.history['n_post'].append(self.state.effective_n_posterior_samples)
         self.history['live_points_entropy'].append(
             entropy(np.exp(self.live_points['logW']))
         )
+        self.history['live_points_ess'].append(self.live_points_ess)
         self.history['live_points_remaining_entropy'].append(
             self.entropy_remaining
         )
@@ -336,7 +355,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Parameters
         ----------
         q : float
-            Quantile to use. Defaults to 1 - 1/e.
+            Quantile to use. Defaults to 0.8
 
         Returns
         -------
@@ -344,7 +363,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             The number of live points to discard.
         """
         if q is None:
-            q = 1.0 - 1.0 / np.e
+            q = 0.8
         logger.debug(f'Determining {q:.3f} quantile')
         a = self.live_points['logL']
         weights = np.exp(self.live_points['logW'], dtype=np.float64)
@@ -411,8 +430,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def update_nested_samples(self) -> None:
         """Update the nested samples to reflect the current g."""
+        st = datetime.datetime.now()
         logger.debug('Updating all nested samples')
         self.proposal.update_samples(self.nested_samples)
+        self.update_ns_time += (datetime.datetime.now() - st)
 
     def draw_n_samples(self, n: int):
         """Draw n points from the proposal"""
@@ -420,7 +441,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logL_min = self.min_logL
         else:
             logL_min = None
+        st = datetime.datetime.now()
         new_points = self.proposal.draw(n, logL_min=logL_min)
+        self.draw_time = (datetime.datetime.now() - st)
         if self.leaky:
             logger.info('Evaluating likelihood for new points')
             self.log_likelihood(new_points)
@@ -434,6 +457,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n : int
             The number of points to add.
         """
+        st = datetime.datetime.now()
         logger.debug(f'Adding {n} points')
         new_points = self.draw_n_samples(n)
         new_points.sort(order='logL')
@@ -478,6 +502,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.live_points = np.insert(
                 self.live_points, idx, new_points[cut:]
             )
+        self.live_points_ess = effective_sample_size(
+            self.live_points['logW']
+        )
+        logger.info(f'Current live points ESS: {self.live_points_ess:.2f}')
+        self.add_samples_time += (datetime.datetime.now() - st)
 
     def add_to_nested_samples(self, samples: np.ndarray) -> None:
         """Add an array of samples to the nested samples."""
@@ -511,16 +540,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.entropy_remaining = entropy(
             np.exp(self.training_points['logW'])
         )
-        logger.warning(
-            f'Update {self.iteration} - '
-            f'log Z: {self.state.logZ:.3f} +/- '
-            f'{self.state.compute_uncertainty():.3f} '
-            f'dZ: {self.state.compute_condition(self.live_points):.3f} '
-            f'H: {self.entropy_remaining:.3f} '
-            f'ESS: {self.state.effective_n_posterior_samples:.1f} '
-            # f"logL min: {self.live_points['logL'].min():.3f} "
-            # f"logL max: {self.live_points['logL'].max():.3f}"
-        )
 
     def finalise(self) -> None:
         """Finalise the sampling process."""
@@ -541,6 +560,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f'Final ESS: {self.state.effective_n_posterior_samples:.3f}'
         )
         self.checkpoint(periodic=True)
+        self.produce_plots()
         self.finalised = True
 
     def add_level_post_sampling(self, samples: np.ndarray, n: int) -> None:
@@ -570,8 +590,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         current_ln_Z = self.state.logZ
         self.alt_dZ = np.abs(current_ln_Z - self.initial_ln_Z)
-        logger.info(f'Alt dZ: {self.alt_dZ}')
         self.dZ = self.state.compute_condition(self.live_points)
+        self.other = np.abs(current_ln_Z - previous_log_evidence)
+        logger.debug(f'dZ: {self.dZ}')
+        logger.debug(f'Alt dZ: {self.alt_dZ}')
+        logger.debug(f'SMC dZ: {self.smc_dZ}')
+        logger.debug(f'Other: {self.other}')
         self.post_kl = self.kl_divergence(include_live_points=True)
         log_p = np.concatenate([
             self.live_points['logL'] + self.live_points['logW'],
@@ -599,14 +623,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         self.current_log_evidence = self.state.compute_log_Z(self.live_points)
 
-        logger.info(f'Current entropy: {self.current_entropy:.3f}')
-        logger.info(f'Relative change in entropy: {self.d_entropy:.3f}')
-        logger.info(
+        logger.debug(f'Current entropy: {self.current_entropy:.3f}')
+        logger.debug(f'Relative change in entropy: {self.d_entropy:.3f}')
+        logger.debug(
             f'Current LP entropy: {self.current_live_points_entropy:.3f}'
         )
-        logger.info(f'Relative change in LP entropy: {self.d_lp_entropy:.3f}')
-        logger.info(f'Current NS entropy: {self.current_ns_entropy:.3f}')
-        logger.info(f'Relative change in NS entropy: {self.d_ns_entropy:.3f}')
+        logger.debug(
+            f'Relative change in LP entropy: {self.d_lp_entropy:.3f}'
+        )
+        logger.debug(
+            f'Current NS entropy: {self.current_ns_entropy:.3f}'
+        )
+        logger.debug(
+            f'Relative change in NS entropy: {self.d_ns_entropy:.3f}'
+        )
         if self.stopping_condition == 'evidence':
             cond = self.dZ
         elif self.stopping_condition == 'kl':
@@ -615,6 +645,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             cond = self.alt_dZ
         elif self.stopping_condition == 'smc_evidence':
             cond = self.smc_dZ
+        elif self.stopping_condition == 'other':
+            cond = self.other
         elif self.stopping_condition == 'entropy':
             cond = self.d_entropy
         elif self.stopping_condition == 'lp_entropy':
@@ -670,8 +702,19 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.condition = self.compute_stopping_condition()
             logger.info(f'Live points entropy: {self.live_points_entropy}')
             logger.info(f'NS entropy: {self.nested_samples_entropy}')
+            logger.warning(
+                f'Update {self.iteration} - '
+                f'log Z: {self.state.logZ:.3f} +/- '
+                f'{self.state.compute_uncertainty():.3f} '
+                f'dZ: {self.state.compute_condition(self.live_points):.3f} '
+                f'H: {self.entropy_remaining:.3f} '
+                f'ESS: {self.state.effective_n_posterior_samples:.1f} '
+                f"logL min: {self.live_points['logL'].min():.3f} "
+                f"logL max: {self.live_points['logL'].max():.3f}"
+            )
             self.update_history()
-            self.produce_plots()
+            if not self.iteration % self.plotting_frequency:
+                self.produce_plots()
             if self.iteration >= self.max_iteration:
                 break
 
@@ -681,6 +724,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         self.finalise()
         self.close_pool()
+        logger.info(f'Level update time: {self.update_level_time}')
+        logger.info(f'Log-likelihood time: {self.log_likelihood_time}')
+        logger.info(f'Draw time: {self.draw_time}')
+        logger.info(f'Update NS time: {self.update_ns_time}')
+        logger.info(f'Add samples time: {self.add_samples_time}')
         return self.log_evidence, self.nested_samples
 
     def draw_posterior_samples(
@@ -912,6 +960,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.debug('Skipping plots')
 
     def get_result_dictionary(self):
+        """Get a dictionary contain the main results from the sampler."""
         d = super().get_result_dictionary()
         d['history'] = self.history
         d['nested_samples'] = live_points_to_dict(self.nested_samples)
@@ -920,6 +969,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d['log_evidence_error'] = self.log_evidence_error
         d['sampling_time'] = self.sampling_time.total_seconds()
         d['update_level_time'] = self.update_level_time.total_seconds()
+        d['log_likelihood_time'] = self.log_likelihood_time.total_seconds()
+        d['add_samples_time'] = self.add_samples_time.total_seconds()
         return d
 
     def __getstate__(self):
