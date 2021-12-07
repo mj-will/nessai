@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 import logging
 import numpy as np
 
+from . import config
 from .livepoint import (
     parameters_to_live_point,
     numpy_array_to_live_points,
@@ -46,6 +47,7 @@ class Model(ABC):
     has_vectorised_likelihood = True
     _lower = None
     _upper = None
+    _dtype = None
 
     @property
     def dims(self):
@@ -72,6 +74,42 @@ class Model(ABC):
             self._lower = bounds_array[:, 0]
             self._upper = bounds_array[:, 1]
         return self._upper
+
+    @property
+    def _names_dtype(self):
+        """dtype used for unstructured view"""
+        if self._dtype is None:
+            x = self.new_point()
+            self._dtype = np.dtype(
+                {name: x.dtype.fields[name] for name in self.names}
+            )
+        return self._dtype
+
+    def _model_parameters_view(self, x):
+        """View that contains only the model parameters"""
+        return np.ndarray(x.shape, self._names_dtype, x, 0,  x.strides)
+
+    def unstructured_view(self, x):
+        """An unstructured view of point(s) x that only contains the \
+            parameters in the model.
+
+        This is quicker than converting to a unstructured array and does not
+        create a copy of the array.
+
+        Parameters
+        ----------
+        x : structured_array
+            Structured array of points
+
+        Returns
+        -------
+        numpy.ndarray
+            View of x as a unstructed array that contains only the parameters
+            in the model. Shape is (x.size, self.dims).
+        """
+        return self._model_parameters_view(x).view(
+            (config.DEFAULT_FLOAT_DTYPE, self.dims)
+        )
 
     def new_point(self, N=1):
         """
