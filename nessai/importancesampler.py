@@ -739,84 +739,113 @@ class ImportanceNestedSampler(BaseNestedSampler):
             If specifie the figure will be saved, otherwise the figure is
             returned.
         """
-        fig, ax = plt.subplots(9, 1, sharex=True, figsize=(15, 12))
+        fig, ax = plt.subplots(7, 1, sharex=True, figsize=(15, 12))
         ax = ax.ravel()
         its = np.arange(self.iteration)
 
         colours = ['#4575b4', '#d73027', '#fad117']
         ls = ['-', '--', ':', '-.']
 
-        ax[0].plot(its, self.history['min_logL'], label='Min logL',
+        # Counter for each plot
+        m = 0
+
+        ax[m].plot(its, self.history['min_logL'], label='Min logL',
                    c=colours[0], ls=ls[0])
-        ax[0].plot(its, self.history['max_logL'], label='Max logL',
+        ax[m].plot(its, self.history['max_logL'], label='Max logL',
                    c=colours[1], ls=ls[1])
-        ax[0].set_ylabel('Log-likelihood')
-        ax[0].legend(frameon=False)
+        ax[m].set_ylabel('Log-likelihood')
+        ax[m].legend(frameon=False)
 
-        ax[1].plot(its, self.history['logZ'], label='logZ', c=colours[0],
+        m += 1
+
+        ax[m].plot(its, self.history['logZ'], label='logZ', c=colours[0],
                    ls=ls[0])
-        ax[1].set_ylabel('Log-evidence')
-        ax[1].legend(frameon=False)
+        ax[m].set_ylabel('Log-evidence')
+        ax[m].legend(frameon=False)
 
-        ax_dz = plt.twinx(ax[1])
+        ax_dz = plt.twinx(ax[m])
         ax_dz.plot(its, self.history['dZ'], label='dZ', c=colours[1], ls=ls[1])
         ax_dz.set_ylabel('dZ')
         ax_dz.set_yscale('log')
         ax_dz.axhline(self.tolerance, label=f'dZ={self.tolerance}', ls=':',
                       c=colours[2])
-        handles, labels = ax[1].get_legend_handles_labels()
+        handles, labels = ax[m].get_legend_handles_labels()
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
-        ax[1].legend(handles + handles_dz, labels + labels_dz, frameon=False)
+        ax[m].legend(handles + handles_dz, labels + labels_dz, frameon=False)
 
-        ax[2].plot(its, self.history['live_points_entropy'],
-                   label='Live points - combined', c=colours[0], ls=ls[0])
-        ax[2].plot(its, self.history['pool_entropy'],
-                   label='Pool', c=colours[1], ls=ls[0])
-        ax[2].plot(its, self.history['live_points_remaining_entropy'],
-                   label='Live points - remaining', c=colours[2], ls=ls[0])
-        ax[2].axhline(np.log(self.nlive), label='Target', ls=ls[1],
-                      c=colours[0])
-        ax[2].set_ylabel('Entropy')
-        ax[2].legend(frameon=False)
+        m += 1
 
-        ax[3].plot(its, self.history['kl_proposals'], label='(q_i||q_i-1)',
+        # ax[m].plot(its, self.history['live_points_entropy'],
+        #            label='Live points - combined', c=colours[0], ls=ls[0])
+        # ax[m].plot(its, self.history['pool_entropy'],
+        #            label='Pool', c=colours[1], ls=ls[0])
+        # ax[m].plot(its, self.history['live_points_remaining_entropy'],
+        #            label='Live points - remaining', c=colours[2], ls=ls[0])
+        # ax[m].axhline(np.log(self.nlive), label='Target', ls=ls[1],
+        #               c=colours[0])
+        # ax[m].set_ylabel('Entropy')
+        # ax[m].legend(frameon=False)
+
+        # m += 1
+
+        ax[m].plot(its, self.history['kl_proposals'], label='(q_i||q_i-1)',
                    c=colours[0], ls=ls[0])
-        ax[3].set_ylabel('KL divergence')
-        ax_kl = plt.twinx(ax[3])
+        ax[m].set_ylabel('KL divergence')
+        ax_kl = plt.twinx(ax[m])
         ax_kl.plot(its, self.history['kl'], label='(g||post)', c=colours[1],
                    ls=ls[1])
         ax_kl.set_ylabel('KL divergence')
 
-        ax[4].plot(its, self.history['n_removed'], ls=ls[0], c=colours[0],
+        m += 1
+
+        ax[m].plot(its, self.history['n_removed'], ls=ls[0], c=colours[0],
                    label='Removed')
-        ax[4].plot(its, self.history['n_added'], ls=ls[1], c=colours[1],
+        ax[m].plot(its, self.history['n_added'], ls=ls[1], c=colours[1],
                    label='Added')
-        ax[4].set_ylabel('# samples')
-        ax[4].legend(frameon=False)
+        ax[m].set_ylabel('# samples')
+        ax[m].legend(frameon=False)
 
-        ax[5].plot(its, self.history['max_log_g'], label='Max.')
-        ax[5].plot(its, self.history['min_log_g'], label='Min.')
-        ax[5].plot(its, self.history['mean_log_g'], label='Mean')
-        ax[5].plot(its, self.history['median_log_g'], label='Median')
-        ax[5].legend(frameon=False)
-        ax[5].set_ylabel('Log g')
+        m += 1
 
-        ax[6].plot(its, self.history['likelihood_evaluations'])
-        ax[6].set_ylabel('# likelihood evaluations')
+        # ax[m].plot(its, self.history['max_log_g'], label='Max.')
+        # ax[m].plot(its, self.history['min_log_g'], label='Min.')
+        # ax[m].plot(its, self.history['mean_log_g'], label='Mean')
+        # ax[m].plot(its, self.history['median_log_g'], label='Median')
+        # ax[m].legend(frameon=False)
+        # ax[m].set_ylabel('Log g')
 
-        ax[7].plot(its, self.history['n_post'], label='# posterior samples')
-        ax[7].set_ylabel('ESS')
-        ax[7].legend(frameon=False)
+        # m += 1
 
-        ax[8].plot(its, self.history['dZ'], label='dZ', c=colours[0], ls=ls[0])
-        ax[8].plot(its, self.history['kl'], label='KL', c=colours[1], ls=ls[1])
-        ax[8].plot(
+        ax[m].plot(its, self.history['likelihood_evaluations'])
+        ax[m].set_ylabel('# likelihood \n evaluations')
+
+        m += 1
+
+        ax[m].plot(
+            its, self.history['n_post'], label='Posterior',
+            ls=ls[0], c=colours[0]
+        )
+        ax[m].plot(
+            its, self.history['live_points_ess'], label='Live points',
+            ls=ls[1], c=colours[1]
+        )
+        ax[m].set_ylabel('ESS')
+        ax[m].legend(frameon=False)
+
+        m += 1
+
+        ax[m].plot(its, self.history['dZ'], label='dZ', c=colours[0], ls=ls[0])
+        ax[m].plot(
+            its, self.history['smc_dZ'], label='SMC dZ', c=colours[1], ls=ls[1]
+        )
+        ax[m].plot(
             its, self.history['alt_dZ'], label='Alt. dZ', c=colours[2],
             ls=ls[2]
         )
-        ax[8].legend(frameon=False)
-        ax[8].set_ylabel('Stopping criteria')
-        ax[8].set_yscale('log')
+        ax[m].axhline(self.tolerance, label='Threshold', ls='-', c='grey')
+        ax[m].legend(frameon=False)
+        ax[m].set_ylabel('Stopping criteria')
+        ax[m].set_yscale('log')
 
         ax[-1].set_xlabel('Iteration')
 
