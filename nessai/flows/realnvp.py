@@ -12,6 +12,7 @@ from nflows.distributions import StandardNormal
 from nflows import transforms
 
 from .base import NFlow
+from .utils import create_linear_transform
 
 logger = logging.getLogger(__name__)
 
@@ -106,27 +107,6 @@ class RealNVP(NFlow):
                 mask *= -1
             mask = mask_array
 
-        def create_linear_transform():
-            if linear_transform == 'permutation':
-                return transforms.RandomPermutation(features=features)
-            elif linear_transform == 'lu':
-                return transforms.CompositeTransform([
-                    transforms.RandomPermutation(features=features),
-                    transforms.LULinear(features, identity_init=True,
-                                        using_cache=True)
-                ])
-            elif linear_transform == 'svd':
-                return transforms.CompositeTransform([
-                    transforms.RandomPermutation(features=features),
-                    transforms.SVDLinear(features, num_householder=10,
-                                         identity_init=True)
-                ])
-            else:
-                raise ValueError(
-                    f'Unknown linear transform: {linear_transform}. '
-                    'Choose from: {permutation, lu, svd, None}.'
-                )
-
         if net.lower() == 'resnet':
             from nflows.nn.nets import ResidualNet
 
@@ -166,7 +146,9 @@ class RealNVP(NFlow):
         layers = []
         for i in range(num_layers):
             if linear_transform is not None:
-                layers.append(create_linear_transform())
+                layers.append(
+                    create_linear_transform(linear_transform, features)
+                )
             transform = coupling_constructor(
                 mask=mask[i], transform_net_create_fn=create_net
             )

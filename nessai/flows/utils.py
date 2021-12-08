@@ -7,14 +7,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from nflows.transforms.normalization import BatchNorm
-from nflows.transforms.lu import LULinear
-from nflows.transforms.permutations import RandomPermutation
+from nflows import transforms
 from nflows.nn.nets import MLP as NFlowsMLP
 
-from .realnvp import RealNVP
-from .maf import MaskedAutoregressiveFlow
-from .nsf import NeuralSplineFlow
 from .distributions import MultivariateNormal
 
 logger = logging.getLogger(__name__)
@@ -35,6 +30,9 @@ def configure_model(config):
     """
     Setup the flow form a configuration dictionary.
     """
+    from .realnvp import RealNVP
+    from .maf import MaskedAutoregressiveFlow
+    from .nsf import NeuralSplineFlow
     kwargs = {}
     flows = {
         'realnvp': RealNVP,
@@ -124,7 +122,7 @@ def reset_weights(module):
     """
     if hasattr(module, 'reset_parameters'):
         module.reset_parameters()
-    elif isinstance(module, BatchNorm):
+    elif isinstance(module, transforms.BatchNorm):
         # nflows BatchNorm does not have a weight reset, so must
         # be done manually
         constant = np.log(np.exp(1 - module.eps) - 1)
@@ -147,10 +145,10 @@ def reset_permutations(module):
     module : :obj:`torch.nn.Module`
         Module to reset
     """
-    if isinstance(module, LULinear):
+    if isinstance(module, transforms.LULinear):
         module.cache.invalidate()
         module._initialize(identity_init=True)
-    elif isinstance(module, RandomPermutation):
+    elif isinstance(module, transforms.RandomPermutation):
         module._permutation = torch.randperm(len(module._permutation))
 
 
@@ -179,3 +177,26 @@ class MLP(NFlowsMLP):
                 'MLP with conditional inputs is not implemented.'
             )
         return super().forward(inputs)
+
+
+def create_linear_transform(linear_transform, features):
+    """Function for creating linear transforms."""
+    if linear_transform == 'permutation':
+        return transforms.RandomPermutation(features=features)
+    elif linear_transform == 'lu':
+        return transforms.CompositeTransform([
+            transforms.RandomPermutation(features=features),
+            transforms.LULinear(features, identity_init=True, using_cache=True)
+        ])
+    elif linear_transform == 'svd':
+        return transforms.CompositeTransform([
+            transforms.RandomPermutation(features=features),
+            transforms.SVDLinear(
+                features, num_householder=10, identity_init=True
+            )
+        ])
+    else:
+        raise ValueError(
+            f'Unknown linear transform: {linear_transform}. '
+            'Choose from: {permutation, lu, svd, None}.'
+        )

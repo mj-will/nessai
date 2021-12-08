@@ -12,6 +12,7 @@ from nflows.nn.nets import ResidualNet
 from nflows.utils import create_alternating_binary_mask
 
 from .base import NFlow
+from .utils import create_linear_transform
 
 logger = logging.getLogger(__name__)
 
@@ -75,23 +76,6 @@ class NeuralSplineFlow(NFlow):
                 f'dimensions. Specified dimensions: {features}.'
             )
 
-        def create_linear_transform():
-            if linear_transform == 'permutation':
-                return transforms.RandomPermutation(features=features)
-            elif linear_transform == 'lu':
-                return transforms.CompositeTransform([
-                    transforms.RandomPermutation(features=features),
-                    transforms.LULinear(features, identity_init=True)
-                ])
-            elif linear_transform == 'svd':
-                return transforms.CompositeTransform([
-                    transforms.RandomPermutation(features=features),
-                    transforms.SVDLinear(features, num_householder=10,
-                                         identity_init=True)
-                ])
-            else:
-                raise ValueError
-
         def create_resnet(in_features, out_features):
             return ResidualNet(
                 in_features,
@@ -118,7 +102,9 @@ class NeuralSplineFlow(NFlow):
         transforms_list = []
         for i in range(num_layers):
             if linear_transform is not None:
-                transforms_list.append(create_linear_transform())
+                transforms_list.append(
+                    create_linear_transform(linear_transform, features)
+                )
             transforms_list.append(spline_constructor(i))
             if batch_norm_between_layers:
                 transforms_list.append(transforms.BatchNorm(features=features))
