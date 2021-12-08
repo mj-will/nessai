@@ -108,7 +108,7 @@ def test_mlp_forward_context():
 def test_configure_model_basic(config):
     """Test configure model with the most basic config."""
     config['kwargs'] = dict(num_bins=2)
-    with patch('nessai.flows.utils.RealNVP') as mock_flow:
+    with patch('nessai.flows.realnvp.RealNVP') as mock_flow:
         configure_model(config)
 
     mock_flow.assert_called_with(
@@ -123,17 +123,17 @@ def test_configure_model_basic(config):
 @pytest.mark.parametrize(
     'flow_inputs',
     [
-        {'ftype': 'realnvp', 'expected': 'RealNVP'},
-        {'ftype': 'frealnvp', 'expected': 'RealNVP'},
-        {'ftype': 'spline', 'expected': 'NeuralSplineFlow'},
-        {'ftype': 'nsf', 'expected': 'NeuralSplineFlow'},
-        {'ftype': 'maf', 'expected': 'MaskedAutoregressiveFlow'}
+        {'ftype': 'realnvp', 'expected': 'realnvp.RealNVP'},
+        {'ftype': 'frealnvp', 'expected': 'realnvp.RealNVP'},
+        {'ftype': 'spline', 'expected': 'nsf.NeuralSplineFlow'},
+        {'ftype': 'nsf', 'expected': 'nsf.NeuralSplineFlow'},
+        {'ftype': 'maf', 'expected': 'maf.MaskedAutoregressiveFlow'}
     ]
 )
 def test_configure_model_flows(config, flow_inputs):
     """Test the different flows."""
     config['ftype'] = flow_inputs['ftype']
-    with patch(f"nessai.flows.utils.{flow_inputs['expected']}") as mock_flow:
+    with patch(f"nessai.flows.{flow_inputs['expected']}") as mock_flow:
         model, _ = configure_model(config)
     mock_flow.assert_called_with(
         config['n_inputs'],
@@ -168,7 +168,7 @@ def test_configure_model_device_cuda(config):
     config['device_tag'] = 'cuda'
     expected_device = torch.device('cuda')
     mock_model = MagicMock()
-    with patch('nessai.flows.utils.RealNVP',
+    with patch('nessai.flows.realnvp.RealNVP',
                return_value=mock_model) as mock_flow:
         model, device = configure_model(config)
 
@@ -197,7 +197,7 @@ def test_configure_model_activation_functions(config, act):
     """Test the different activation functions."""
     config['kwargs'] = dict(activation=act['act'])
 
-    with patch('nessai.flows.utils.RealNVP') as mock_flow:
+    with patch('nessai.flows.realnvp.RealNVP') as mock_flow:
         configure_model(config)
 
     mock_flow.assert_called_with(
