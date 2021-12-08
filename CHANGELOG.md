@@ -12,11 +12,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `dataframe_to_live_points` function to `nessai.livepoint` for converting from a `pandas.DataFrame` to live points.
 - Add `fallback_reparameterisation` to `FlowProposal`. This allows the user to specify which reparameterisation to use for parameters that are not included in the reparameterisations dictionary. Default behaviour remains unchanged (defaults to no reparameterisation).
 - Add `rolling_mean` to `nessai.utils.stats`.
+- Add `nessai.flows.utils.create_linear_transform` as a common function for creating linear transforms in the flows.
 
 ### Changed
 
 - `NestedSampler.plot_state` now includes the log-prior volume in one of the subplots and the rolling mean of the gradient (|dlogL/dLogX|) is plotted instead of the gradient directly.
 - The figure produced by `NestedSampler.plot_state` now includes a legend for the different vertical lines that can appear in the subplots.
+- `RealNVP` and `NeuralSplineFlow` now use `nessai.flows.utils.create_linear_transform`.
 
 ## [0.4.0] - 2021-11-23
 
