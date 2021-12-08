@@ -21,7 +21,7 @@ def test_LULinear_weight_inverse():
     assert not torch.isnan(out).any()
     assert not torch.isinf(out).any()
     assert out.shape == torch.Size((2, 2))
-    torch.testing.assert_equal(out, weight_inverse)
+    assert torch.equal(out, weight_inverse)
 
 
 @pytest.mark.cuda
