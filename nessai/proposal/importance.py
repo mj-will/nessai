@@ -345,8 +345,6 @@ class ImportanceFlowProposal(Proposal):
             logger.debug(f'Drawing batch of {n_draw} samples')
             x_prime, log_q = \
                 self.flows[flow_number].sample_and_log_prob(N=n_draw)
-            assert x_prime.min() >= 0, x_prime.min()
-            assert x_prime.max() <= 1, x_prime.max()
             x, log_j = self.inverse_rescale(x_prime)
             # Rescaling can sometimes produce infs that don't appear in samples
             x_check = self.rescale(x)[0]
@@ -381,7 +379,6 @@ class ImportanceFlowProposal(Proposal):
                 raise RuntimeError('Prior value is inf!')
 
             if logL_min is not None:
-                raise RuntimeError('Avoid computing log-likelihood here!')
                 self.log_likelihood(x)
             samples = np.concatenate([samples, x])
             if logL_min is not None:
