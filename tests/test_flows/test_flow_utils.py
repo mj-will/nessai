@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, create_autospec, patch
 
 from nessai.flows.utils import (
     configure_model,
+    create_linear_transform,
     silu,
     reset_weights,
     reset_permutations,
@@ -231,3 +232,17 @@ def test_configure_model_unknown_activation(config):
     with pytest.raises(RuntimeError) as excinfo:
         configure_model(config)
     assert "Unknown activation function: 'test'" in str(excinfo.value)
+
+
+@pytest.mark.parametrize('linear_transform', ['lu', 'permutation', 'svd'])
+def test_create_linear_transform(linear_transform):
+    """Test creating a linear transform."""
+    lt = create_linear_transform(linear_transform, 2)
+    assert lt is not None
+
+
+def test_create_linear_transform_unknown():
+    """Assert an error is raised if an invalid input is given."""
+    with pytest.raises(ValueError) as excinfo:
+        create_linear_transform('not_a_transform', 2)
+    assert 'Unknown linear transform: not_a_transform' in str(excinfo.value)
