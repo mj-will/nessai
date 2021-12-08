@@ -180,15 +180,23 @@ class MLP(NFlowsMLP):
 
 
 def create_linear_transform(linear_transform, features):
-    """Function for creating linear transforms."""
-    if linear_transform == 'permutation':
+    """Function for creating linear transforms.
+
+    Parameters
+    ----------
+    linear_transform : {'permutation', 'lu', 'svd'}
+        Linear transform to use.
+    featres : int
+        Number of features.
+    """
+    if linear_transform.lower() == 'permutation':
         return transforms.RandomPermutation(features=features)
-    elif linear_transform == 'lu':
+    elif linear_transform.lower() == 'lu':
         return transforms.CompositeTransform([
             transforms.RandomPermutation(features=features),
             transforms.LULinear(features, identity_init=True, using_cache=True)
         ])
-    elif linear_transform == 'svd':
+    elif linear_transform.lower() == 'svd':
         return transforms.CompositeTransform([
             transforms.RandomPermutation(features=features),
             transforms.SVDLinear(
@@ -198,5 +206,5 @@ def create_linear_transform(linear_transform, features):
     else:
         raise ValueError(
             f'Unknown linear transform: {linear_transform}. '
-            'Choose from: {permutation, lu, svd, None}.'
+            'Choose from: {permutation, lu, svd}.'
         )
