@@ -7,6 +7,7 @@ import logging
 import numpy as np
 from scipy.special import erf, erfinv
 
+from .. import config
 from .hist import auto_bins
 
 logger = logging.getLogger(__name__)
@@ -272,7 +273,7 @@ def determine_rescaled_bounds(
         raise ValueError(f'Invalid value for `invert`: {invert}')
 
 
-def logit(x, fuzz=False):
+def logit(x, fuzz=config.eps):
     """Logit function that also returns log Jacobian determinant.
 
     See :py:func:`nessai.utils.rescaling.sigmoid` for the inverse.
@@ -301,7 +302,7 @@ def logit(x, fuzz=False):
     return np.log(x) - np.log1p(-x), log_j
 
 
-def sigmoid(x, fuzz=False):
+def sigmoid(x, fuzz=config.eps):
     """Sigmoid function that also returns log Jacobian determinant.
 
     See :py:func:`nessai.utils.rescaling.logit` for the inverse.
