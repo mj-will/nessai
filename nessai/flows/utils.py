@@ -11,6 +11,7 @@ from nflows import transforms
 from nflows.nn.nets import MLP as NFlowsMLP
 
 from .distributions import MultivariateNormal
+from .transforms import LULinear
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +146,7 @@ def reset_permutations(module):
     module : :obj:`torch.nn.Module`
         Module to reset
     """
-    if isinstance(module, transforms.LULinear):
+    if isinstance(module, (transforms.LULinear, LULinear)):
         module.cache.invalidate()
         module._initialize(identity_init=True)
     elif isinstance(module, transforms.RandomPermutation):
@@ -194,7 +195,7 @@ def create_linear_transform(linear_transform, features):
     elif linear_transform.lower() == 'lu':
         return transforms.CompositeTransform([
             transforms.RandomPermutation(features=features),
-            transforms.LULinear(features, identity_init=True, using_cache=True)
+            LULinear(features, identity_init=True, using_cache=True)
         ])
     elif linear_transform.lower() == 'svd':
         return transforms.CompositeTransform([

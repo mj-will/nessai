@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `fallback_reparameterisation` to `FlowProposal`. This allows the user to specify which reparameterisation to use for parameters that are not included in the reparameterisations dictionary. Default behaviour remains unchanged (defaults to no reparameterisation).
 - Add `rolling_mean` to `nessai.utils.stats`.
 - Add `nessai.flows.utils.create_linear_transform` as a common function for creating linear transforms in the flows.
+- Add `nessai.flows.transforms.LULinear` to address a [bug in nflows](https://github.com/bayesiains/nflows/pull/38) that has not been patched and prevents the use of CUDA with `LULinear`.
 
 ### Changed
 
