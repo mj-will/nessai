@@ -247,6 +247,42 @@ class FlowModel:
         if update_default:
             self.device = device
 
+    @staticmethod
+    def check_batch_size(x, batch_size, min_fraction=0.1):
+        """Check that the batch size is valid.
+
+        Tries to ensure that the last batch is at least a minimum fraction of
+         the size of the batch size.
+        """
+        logger.debug('Checking batch size')
+        if batch_size == 1:
+            raise ValueError('Cannot use a batch size of 1!')
+        min_batch_size = int(min_fraction * batch_size)
+        final_batch_size = len(x) % batch_size
+        if final_batch_size and (final_batch_size < min_batch_size):
+            logger.debug(
+                'Adjusting batch size to ensure final batch has at least '
+                f'{min_batch_size} samples in it.'
+            )
+            while True:
+                batch_size -= 1
+                final_batch_size = len(x) % batch_size
+                if batch_size < 2:
+                    raise RuntimeError('Could not find a valid batch size')
+                elif (
+                    (final_batch_size == 0)
+                    or (final_batch_size >= min_batch_size)
+                ):
+                    break
+                elif (batch_size <= min_batch_size) and final_batch_size > 1:
+                    logger.warning(
+                        f'Batch size is less than {min_batch_size} but valid. '
+                        f'Setting batch size to: {batch_size}'
+                    )
+                    break
+        logger.debug(f'Using valid batch size of: {batch_size}')
+        return batch_size
+
     def prep_data(
         self,
         samples,
@@ -281,9 +317,14 @@ class FlowModel:
         if not self.initialised:
             self.initialise()
 
+        if not np.isfinite(samples).any():
+            raise ValueError('Training data contains non-finite values!')
+
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
         if weights is not None:
+            if not np.isfinite(weights).all():
+                raise ValueError('Weights contain non-finite values!')
             weights = weights[idx]
             use_dataloader = True
 
@@ -299,12 +340,13 @@ class FlowModel:
         logger.debug(f'{x_val.shape} validation samples')
 
         if not type(batch_size) is int:
-            if batch_size == 'all':
-                self.batch_size = x_train.shape[0]
+            if batch_size == 'all' or batch_size is None:
+                batch_size = x_train.shape[0]
             else:
                 raise RuntimeError(f'Unknown batch size: {batch_size}')
-        else:
-            self.batch_size = batch_size
+
+        batch_size = self.check_batch_size(x_train, batch_size)
+
         dtype = torch.get_default_dtype()
         logger.debug(f'Using dtype {dtype} for tensors')
         if use_dataloader:
@@ -322,7 +364,7 @@ class FlowModel:
 
             train_dataset = torch.utils.data.TensorDataset(*train_tensors)
             train_data = torch.utils.data.DataLoader(
-                train_dataset, batch_size=self.batch_size, shuffle=True)
+                train_dataset, batch_size=batch_size, shuffle=True)
 
             val_dataset = torch.utils.data.TensorDataset(*val_tensors)
             val_data = torch.utils.data.DataLoader(
@@ -333,8 +375,9 @@ class FlowModel:
                 torch.from_numpy(x_train).type(dtype).to(self.device)
             val_data = \
                 torch.from_numpy(x_val).type(dtype).to(self.device)
+            self._batch_size = batch_size
 
-        return train_data, val_data
+        return train_data, val_data, batch_size
 
     def _train(
         self,
@@ -382,7 +425,7 @@ class FlowModel:
 
         if not is_dataloader:
             p = torch.randperm(train_data.shape[0])
-            train_data = train_data[p, :].split(self.batch_size)
+            train_data = train_data[p, :].split(self._batch_size)
 
         n = 0
         for data in train_data:
@@ -525,7 +568,7 @@ class FlowModel:
         weighted = True if weights is not None else False
         use_dataloader = self.use_dataloader or weighted
 
-        train_data, val_data = self.prep_data(
+        train_data, val_data, batch_size = self.prep_data(
             samples,
             val_size=val_size,
             batch_size=self.batch_size,
