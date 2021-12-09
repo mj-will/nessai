@@ -86,8 +86,51 @@ def test_get_optimiser(model, optimiser):
     mock.assert_called_once()
 
 
-@pytest.mark.parametrize('val_size, batch_size', [(0.1, 100),
-                                                  (0.5, 'all')])
+@pytest.mark.parametrize(
+    'data_size, batch_size',
+    [(4010, 1000), (106, 21), (1000, 1000), (2000, 1000)]
+)
+def test_check_batch_size(data_size, batch_size):
+    """"""
+    x = np.arange(data_size)
+    out = FlowModel.check_batch_size(x, batch_size)
+    assert out >= int(0.1 * batch_size)
+    if not data_size % batch_size:
+        assert out == batch_size
+
+
+def test_check_batch_size_min_size():
+    """Make sure the minimum batch size is respected so long as the final batch
+    has size > 1.
+
+    In this case the minimum valid size is 8 but that results in the final
+    batch having a size of 1, so it should be 7 instead.
+    """
+    x = np.arange(25)
+    out = FlowModel.check_batch_size(x, 10, min_fraction=0.8)
+    assert out == 7
+
+
+def test_check_batch_size_2():
+    """Assert an error is raised if the batch size reaches less than two"""
+    x = np.arange(3)
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowModel.check_batch_size(x, 2, min_fraction=1.0)
+    assert 'Could not find a valid batch size' in str(excinfo.value)
+
+
+def test_check_batch_size_1():
+    """Assert an error is raised if the batch size is 1"""
+    x = np.arange(2)
+    with pytest.raises(ValueError) as excinfo:
+        FlowModel.check_batch_size(x, 1, min_fraction=1.0)
+    assert 'Cannot use a batch size of 1' in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    'val_size, batch_size',
+    [(0.1, 100), (0.5, 'all'), (0.1, None)]
+)
 def test_prep_data(flow_model, data_dim, val_size, batch_size):
     """
     Test the data prep, make sure batch sizes and validation size
@@ -96,16 +139,17 @@ def test_prep_data(flow_model, data_dim, val_size, batch_size):
     n = 100
     x = np.random.randn(n, data_dim)
 
-    train, val = flow_model.prep_data(x, val_size, batch_size)
-    if batch_size == 'all':
+    train, val, batch_size_out = flow_model.prep_data(x, val_size, batch_size)
+    if batch_size == 'all' or batch_size is None:
         batch_size = int(n * (1 - val_size))
 
-    assert flow_model.batch_size == batch_size
+    assert batch_size_out == batch_size
     assert len(train) + len(val) == n
 
 
-@pytest.mark.parametrize('val_size, batch_size', [(0.1, 100),
-                                                  (0.5, 'all')])
+@pytest.mark.parametrize(
+    'val_size, batch_size', [(0.1, 100), (0.5, 'all'), (0.1, None)]
+)
 def test_prep_data_dataloader(flow_model, data_dim, val_size, batch_size):
     """
     Test the data prep, make sure batch sizes and validation size
@@ -114,19 +158,19 @@ def test_prep_data_dataloader(flow_model, data_dim, val_size, batch_size):
     n = 100
     x = np.random.randn(n, data_dim)
 
-    train, val = flow_model.prep_data(
+    train, val, batch_size_out = flow_model.prep_data(
         x, val_size, batch_size, use_dataloader=True)
     train_batch = next(iter(train))[0]
     val_batch = next(iter(val))[0]
-    if batch_size == 'all':
+    if batch_size == 'all' or batch_size is None:
         batch_size = int(n * (1 - val_size))
 
-    assert train.batch_size == batch_size
+    assert batch_size_out == batch_size
     assert list(val_batch.shape) == [int(val_size * n), data_dim]
     assert len(train) * train_batch.shape[0] + val_batch.shape[0] == n
 
 
-@pytest.mark.parametrize('batch_size', [None, '10', True, False])
+@pytest.mark.parametrize('batch_size', ['10', True, False])
 def test_incorrect_batch_size_type(flow_model, data_dim, batch_size):
     """Ensure the non-interger batch sizes do not work"""
     n = 1000
@@ -247,3 +291,14 @@ def test_save_weights(mock_save, model):
 def test_get_state(flow_model):
     """Make the object can be pickled"""
     pickle.dumps(flow_model)
+
+
+@pytest.mark.integration_test
+def test_train_with_weights(tmpdir):
+    """Test training with weights"""
+    data = np.random.randn(100, 2)
+    weights = np.random.randn(100)
+    output = str(tmpdir.mkdir('weights'))
+    flow = FlowModel(config=dict(model_config={'n_inputs': 2}), output=output)
+    flow.initialise()
+    flow.train(data, weights=weights, max_epochs=5, plot=False)
