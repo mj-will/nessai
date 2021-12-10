@@ -268,27 +268,21 @@ class ImportanceFlowProposal(Proposal):
             logger.debug(f'log_q finite={np.isfinite(log_q).all()}')
             logger.debug(f'log_j finite={np.isfinite(log_j).all()}')
             n_flows -= 1
-            log_g[:, -1] = np.log(n) + log_q + log_j
+            log_g[:, -1] = log_q + np.log(n)
 
         logger.debug(f'Updating log_g for flows: {list(range(n_flows))}')
         for i, flow in enumerate(self.flows[:n_flows]):
-            logger.debug(f"Poolsize: {self._history['poolsize'][i]}")
+            logger.debug(f"Poolsize: {self.n_draws[i]}")
             log_prob = flow.log_prob(x_prime)
-            log_g[:, i] = (
-                log_prob
-                + log_j
-                + np.log(self._history['poolsize'][i])
-            )
+            log_g[:, i] = log_prob + np.log(self.n_draws[i])
 
         logger.debug(f'log_g is nan: {np.isnan(log_g).any()}')
         logger.debug(f'Initial log g: {self.initial_log_g:.2f}')
         logger.debug(
             f'Mean log g for each each flow: {log_g.mean(axis=0)}'
         )
-        # Could move Jacobian here
+        log_g += log_j[:, np.newaxis]
         log_g = logsumexp(log_g, axis=1)
-        if np.isnan(log_g).any():
-            raise ValueError('There is a NaN in log g before initial!')
         log_g = np.logaddexp(self.initial_log_g, log_g)
         if np.isnan(log_g).any():
             raise ValueError('There is a NaN in log g!')
@@ -344,19 +338,15 @@ class ImportanceFlowProposal(Proposal):
         else:
             n_draw = int(1.01 * n)
         logger.debug(f'Drawing {n} points')
-        # This could be managed better
         samples = np.zeros(0, dtype=self.dtype)
         n_accepted = 0
-        # Remove this after testing
-        # self._history['poolsize'].append(n)
-        # print('You need to fix this!')
         while n_accepted < n and n_draw > 0:
             logger.debug(f'Drawing batch of {n_draw} samples')
             x_prime, log_q = \
                 self.flows[flow_number].sample_and_log_prob(N=n_draw)
-            x, log_j = self.inverse_rescale(x_prime)
+            x, log_j_inv = self.inverse_rescale(x_prime)
             # Rescaling can sometimes produce infs that don't appear in samples
-            x_check = self.rescale(x)[0]
+            x_check, log_j = self.rescale(x)
             # Probably don't need all these checks.
             acc = (
                 self.model.in_bounds(x)
@@ -364,6 +354,8 @@ class ImportanceFlowProposal(Proposal):
                 & np.isfinite(x_check).all(axis=1)
                 & np.isfinite(x_prime).all(axis=1)
                 & np.isfinite(log_j)
+                & np.isfinite(log_j_inv)
+                & np.isfinite(log_q)
             )
             logger.debug(f'Rejected {n_draw - acc.size} points')
             if not np.any(acc):
@@ -372,7 +364,7 @@ class ImportanceFlowProposal(Proposal):
                 get_subset_arrays(acc, x, x_prime, log_j, log_q)
 
             x['logG'] = self.compute_log_g(
-                x_prime, log_q=log_q, n=n, log_j=-log_j
+                x_prime, log_q=log_q, n=n, log_j=log_j
             )
             x['logP'] = self.model.log_prior(x)
             x['logW'] = - x['logG']
@@ -428,9 +420,24 @@ class ImportanceFlowProposal(Proposal):
         samples : numpy.ndarray
             Array of samples to update.
         """
+        if self.level_count < 0:
+            raise RuntimeError(
+                'Cannot update samples unless a level has been constructed!'
+            )
+        if self.level_count not in self.n_draws:
+            raise RuntimeError(
+                'Must draw samples from the new level before updating any '
+                'existing samples!'
+            )
         x, log_j = self.rescale(samples.copy())
-        new_log_g = self.compute_log_g(x, log_j=log_j)
-        samples['logG'] = new_log_g
+        log_prob_fn = self.get_proposal_log_prob(self.level_count)
+        log_q = log_prob_fn(x)
+        new_log_g = (
+            log_q
+            + log_j
+            + np.log(self.n_draws[self.level_count])
+            )
+        samples['logG'] = np.logaddexp(samples['logG'], new_log_g)
         samples['logW'] = - samples['logG']
 
     def _log_prior(self, x: np.ndarray) -> np.ndarray:
