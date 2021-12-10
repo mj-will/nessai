@@ -12,6 +12,7 @@ from nflows.distributions import StandardNormal
 from nflows import transforms
 
 from .base import NFlow
+from .utils import create_linear_transform
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +34,9 @@ class RealNVP(NFlow):
     hidden_features : int
         Number of neurons per layer in each neural network
     num_layers : int
-        Number of coupling tranformations
+        Number of coupling transformations
     num_blocks_per_layer : int
-        Number of layers (or blocks for resnet) per nerual network for
+        Number of layers (or blocks for resnet) per neural network for
         each coupling transform
     mask : array_like, optional
         Custom mask to use between coupling transforms. Can either be
@@ -45,17 +46,17 @@ class RealNVP(NFlow):
     net : {'resnet', 'mlp'}
         Type of neural network to use
     use_volume_preserving : bool, optional (False)
-        Use volume preserving flows which use only additiona and no scaling
+        Use volume preserving flows which use only addition and no scaling
     activation : function
         Activation function implemented in torch
     dropout_probability : float, optional (0.0)
-        Dropout probaiblity used in each layer of the neural network
+        Dropout probability used in each layer of the neural network
     batch_norm_within_layers : bool, optional (False)
        Enable or disable batch norm within the neural network for each coupling
        transform
     batch_norm_between_layers : bool, optional (False)
        Enable or disable batch norm between coupling transforms
-    linear_transform : {'permutaiton', 'lu', 'svd', None}
+    linear_transform : {'permutation', 'lu', 'svd', None}
         Linear transform to use between coupling layers. Not recommended when
         using a custom mask.
     """
@@ -76,6 +77,12 @@ class RealNVP(NFlow):
         distribution=None,
         pre_transform=None,
     ):
+
+        if features <= 1:
+            raise ValueError(
+                'RealNVP requires at least 2 dimensions. '
+                f'Specified dimensions: {features}.'
+            )
 
         if use_volume_preserving:
             coupling_constructor = transforms.AdditiveCouplingTransform
@@ -100,27 +107,6 @@ class RealNVP(NFlow):
                 mask_array[i] = mask
                 mask *= -1
             mask = mask_array
-
-        def create_linear_transform():
-            if linear_transform == 'permutation':
-                return transforms.RandomPermutation(features=features)
-            elif linear_transform == 'lu':
-                return transforms.CompositeTransform([
-                    transforms.RandomPermutation(features=features),
-                    transforms.LULinear(features, identity_init=True,
-                                        using_cache=True)
-                ])
-            elif linear_transform == 'svd':
-                return transforms.CompositeTransform([
-                    transforms.RandomPermutation(features=features),
-                    transforms.SVDLinear(features, num_householder=10,
-                                         identity_init=True)
-                ])
-            else:
-                raise ValueError(
-                    f'Unknown linear transform: {linear_transform}. '
-                    'Choose from: {permutation, lu, svd, None}.'
-                )
 
         if net.lower() == 'resnet':
             from nflows.nn.nets import ResidualNet
@@ -170,7 +156,9 @@ class RealNVP(NFlow):
 
         for i in range(num_layers):
             if linear_transform is not None:
-                layers.append(create_linear_transform())
+                layers.append(
+                    create_linear_transform(linear_transform, features)
+                )
             transform = coupling_constructor(
                 mask=mask[i], transform_net_create_fn=create_net
             )

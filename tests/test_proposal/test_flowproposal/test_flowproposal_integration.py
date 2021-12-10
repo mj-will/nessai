@@ -37,7 +37,8 @@ def test_flowproposal_populate(tmpdir, model, latent_prior, expansion_fraction,
         expansion_fraction=expansion_fraction,
         check_acceptance=check_acceptance,
         rescale_parameters=rescale_parameters,
-        max_radius=max_radius
+        max_radius=max_radius,
+        constant_volume_mode=False,
     )
 
     fp.initialise()
@@ -67,3 +68,36 @@ def test_training(tmpdir, model, plot):
 
     assert fp.training_count == 1
     assert fp.populated is False
+
+
+@pytest.mark.parametrize('check_acceptance', [False, True])
+@pytest.mark.parametrize('rescale_parameters', [False, True])
+@pytest.mark.timeout(10)
+@pytest.mark.flaky(run=3)
+@pytest.mark.integration_test
+def test_constant_volume_mode(
+    tmpdir, model, check_acceptance, rescale_parameters
+):
+    """Integration test for constant volume mode.
+
+    With q=0.8647 should get a radius of ~2.
+    """
+    output = str(tmpdir.mkdir('flowproposal'))
+    expected_radius = 2.0
+    fp = FlowProposal(
+        model,
+        output=output,
+        plot=False,
+        poolsize=10,
+        constant_volume_mode=True,
+        volume_fraction=0.8647,
+        check_acceptance=check_acceptance,
+        rescale_parameters=rescale_parameters,
+    )
+    fp.initialise()
+    worst = numpy_array_to_live_points(0.5 * np.ones(fp.dims), fp.names)
+    fp.populate(worst, N=100)
+    assert fp.x.size == 100
+
+    np.testing.assert_approx_equal(fp.r, expected_radius, 4)
+    np.testing.assert_approx_equal(fp.fixed_radius, expected_radius, 4)

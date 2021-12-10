@@ -28,6 +28,7 @@ from .rescaling import (
     sigmoid
 )
 from .sampling import (
+    compute_radius,
     draw_gaussian,
     draw_nsphere,
     draw_surface_nsphere,
@@ -35,6 +36,7 @@ from .sampling import (
     draw_uniform
 )
 from .distance import compute_minimum_distances
+from .stats import rolling_mean
 from .structures import (
     isfinite_struct,
     replace_in_list,
@@ -50,6 +52,7 @@ __all__ = [
     'bonferroni_correction',
     'compute_indices_ks_test',
     'compute_minimum_distances',
+    'compute_radius',
     'configure_edge_detection',
     'configure_threads',
     'detect_edge',
@@ -69,6 +72,7 @@ __all__ = [
     'isfinite_struct',
     'is_jsonable',
     'logit',
+    'rolling_mean',
     'replace_in_list',
     'rescale_minus_one_to_one',
     'rescale_zero_to_one',

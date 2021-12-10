@@ -19,7 +19,7 @@ class MultivariateNormal(Distribution):
         Shape of distribution, this is used to determine the number of
         dimensions.
     var : float, optional
-        Variance of the distrinution.
+        Variance of the distribution.
     """
 
     def __init__(self, shape, var=1):

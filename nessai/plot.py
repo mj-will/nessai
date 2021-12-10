@@ -294,8 +294,10 @@ def plot_loss(epoch, history, filename=None):
 
 
 def plot_trace(log_x, nested_samples, labels=None, filename=None):
-    """
-    Produce trace plot for all of the parameters.
+    """Produce trace plot for all of the parameters.
+
+    This includes all parameters in the sampler, not just those included in the
+    model being sampled.
 
     Parameters
     ----------
@@ -313,8 +315,7 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
     if not nested_samples.dtype.names:
         raise TypeError('Nested samples must be a structured array')
 
-    names = nested_samples.dtype.names[:-2]
-
+    names = nested_samples.dtype.names
     if labels is None:
         labels = names
 
@@ -345,7 +346,7 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
 
 
 def plot_histogram(samples, label=None, filename=None, **kwargs):
-    """Plot a histgram of samples.
+    """Plot a histogram of samples.
 
     Parameters
     ----------

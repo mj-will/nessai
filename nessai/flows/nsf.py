@@ -12,6 +12,7 @@ from nflows.nn.nets import ResidualNet
 from nflows.utils import create_alternating_binary_mask
 
 from .base import NFlow
+from .utils import create_linear_transform
 
 logger = logging.getLogger(__name__)
 
@@ -29,22 +30,22 @@ class NeuralSplineFlow(NFlow):
     hidden_features : int
         Number of neurons per layer in each neural network
     num_layers : int
-        Number of coupling tranformations
+        Number of coupling transformations
     num_blocks_per_layer : int
-        Number of layers (or blocks for resnet) per nerual network for
+        Number of layers (or blocks for resnet) per neural network for
         each coupling transform
     num_bins : int, optional (8)
         Number of bins to use for each spline
     activation : function
         Activation function implemented in torch
     dropout_probability : float, optional (0.0)
-        Dropout probaiblity used in each layer of the neural network
+        Dropout probability used in each layer of the neural network
     batch_norm_within_layers : bool, optional (False)
        Enable or disable batch norm within the neural network for each coupling
        transform
     batch_norm_between_layers : bool, optional (False)
        Enable or disable batch norm between coupling transforms
-    linear_transform : {'permutaiton', 'lu', 'svd'}
+    linear_transform : {'permutation', 'lu', 'svd'}
         Linear transform to use between coupling layers. Not recommended when
         using a custom mask.
     kwargs : dict
@@ -69,22 +70,11 @@ class NeuralSplineFlow(NFlow):
         **kwargs
     ):
 
-        def create_linear_transform():
-            if linear_transform == 'permutation':
-                return transforms.RandomPermutation(features=features)
-            elif linear_transform == 'lu':
-                return transforms.CompositeTransform([
-                    transforms.RandomPermutation(features=features),
-                    transforms.LULinear(features, identity_init=True)
-                ])
-            elif linear_transform == 'svd':
-                return transforms.CompositeTransform([
-                    transforms.RandomPermutation(features=features),
-                    transforms.SVDLinear(features, num_householder=10,
-                                         identity_init=True)
-                ])
-            else:
-                raise ValueError
+        if features <= 1:
+            raise ValueError(
+                'Coupling based Neural Spline flow requires at least 2 '
+                f'dimensions. Specified dimensions: {features}.'
+            )
 
         def create_resnet(in_features, out_features):
             return ResidualNet(
@@ -112,7 +102,9 @@ class NeuralSplineFlow(NFlow):
         transforms_list = []
         for i in range(num_layers):
             if linear_transform is not None:
-                transforms_list.append(create_linear_transform())
+                transforms_list.append(
+                    create_linear_transform(linear_transform, features)
+                )
             transforms_list.append(spline_constructor(i))
             if batch_norm_between_layers:
                 transforms_list.append(transforms.BatchNorm(features=features))

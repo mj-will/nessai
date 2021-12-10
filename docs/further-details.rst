@@ -38,7 +38,7 @@ Importantly the structured arrays used for live points can also contain multiple
      [0.62390321 0.32606928]
      [0.21743918 0.23915047]
      [0.45478996 0.09699358]]
-    >>> y = numpy_array_to_live_points(x, ['a', 'b'])    # call the paramters a and b
+    >>> y = numpy_array_to_live_points(x, ['a', 'b'])    # call the parameters a and b
     >>> print(y)
     array([(0.72451217, 0.1788154 , 0., 0.), (0.31549832, 0.55898106, 0., 0.),
            (0.74000576, 0.73103116, 0., 0.), (0.37362176, 0.25791271, 0., 0.),

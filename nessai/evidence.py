@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Functions realted to computing the evidence.
+Functions related to computing the evidence.
 """
 import logging
 
@@ -223,7 +223,7 @@ class _INSIntegralState:
 
     @property
     def effective_n_posterior_samples(self) -> float:
-        """Kish's effectice sample size"""
+        """Kish's effective sample size"""
         log_p = self.log_posterior_weights
         log_p -= logsumexp(log_p)
         n = np.exp(-logsumexp(2 * log_p))

@@ -64,7 +64,7 @@ def update_config(d):
     """
     default_model = dict(
         n_inputs=None,
-        n_neurons=32,
+        n_neurons=None,
         n_blocks=4,
         n_layers=2,
         ftype='RealNVP',
@@ -81,13 +81,13 @@ def update_config(d):
         lr=0.001,
         annealing=False,
         clip_grad_norm=5,
-        batch_size=100,
+        batch_size=1000,
         val_size=0.1,
         max_epochs=500,
         patience=20,
         noise_scale=0.0,
         use_dataloader=False,
-        optimiser='adam',
+        optimiser='adamw',
         optimiser_kwargs={}
     )
 
@@ -100,7 +100,22 @@ def update_config(d):
         else:
             default.update(d)
             default_model.update(d.get('model_config', {}))
+            if default_model['n_neurons'] is None:
+                if default_model['n_inputs'] is not None:
+                    default_model['n_neurons'] = 2 * default_model['n_inputs']
+                else:
+                    default_model['n_neurons'] = 8
+
             default['model_config'] = default_model
+
+    if (
+        not isinstance(default['noise_scale'], float) and
+        not default['noise_scale'] == 'adaptive'
+    ):
+        raise ValueError(
+            "noise_scale must be a float or 'adaptive'. "
+            f"Received: {default['noise_scale']}"
+        )
 
     return default
 
@@ -110,7 +125,7 @@ class FlowModel:
     Object that contains the normalsing flows and handles training and data
     pre-processing.
 
-    Does NOT use stuctured arrays for live points, \
+    Does NOT use structured arrays for live points, \
             :obj:`~nessai.proposal.base.Proposal`
     object should act as the interface between structured used by the sampler
     and unstructured arrays of live points used for training.
@@ -143,7 +158,7 @@ class FlowModel:
         ----------
         config : dict
             Dictionary to save.
-        ouput_file : str, optional
+        output_file : str, optional
             File to save the config to.
         """
         config = copy.deepcopy(config)
@@ -167,7 +182,7 @@ class FlowModel:
     def setup_from_input_dict(self, config):
         """
         Setup the trainer from a dictionary, all keys in the dictionary are
-        added as methods to the ocject. Input is automatically saved.
+        added as methods to the object. Input is automatically saved.
 
         Parameters
         ----------
@@ -189,7 +204,7 @@ class FlowModel:
 
     def get_optimiser(self, optimiser='adam', **kwargs):
         """
-        Get the optimiser and ensure it is always correctly intialised.
+        Get the optimiser and ensure it is always correctly initialised.
 
         Returns
         -------
@@ -215,7 +230,7 @@ class FlowModel:
 
             - Updating the model configuration
             - Initialising the normalising flow
-            - Initialiseing the optimiser
+            - Initialising the optimiser
             - Configuring the inference device
         """
         self.update_mask()
@@ -302,7 +317,7 @@ class FlowModel:
             Float between 0 and 1 that defines the fraction of data used for
             validation.
         batch_size : int
-            Batch size used when contructing dataloaders.
+            Batch size used when constructing dataloaders.
         use_dataloader : bool, optional
             If True data is returned in a dataloader else a tensor is returned.
         weights : array_like, optional
@@ -532,7 +547,7 @@ class FlowModel:
         weights : array_like
             Array of weights to use with the weight KL when computing the loss.
         max_epochs : int, optional
-            Maxinum number of epochs that is used instead of value
+            Maximum number of epochs that is used instead of value
             in the configuration.
         patience : int, optional
             Patience in number of epochs that is used instead of value
@@ -652,8 +667,8 @@ class FlowModel:
 
     def load_weights(self, weights_file):
         """
-        Load weights for the model and initialiases the model if it is not
-        intialised. The weights_file attribute is also updated.
+        Load weights for the model and initialises the model if it is not
+        initialised. The weights_file attribute is also updated.
 
         Model is loaded in evaluation mode (``model.eval()``)
 
@@ -671,7 +686,7 @@ class FlowModel:
 
     def reload_weights(self, weights_file):
         """
-        Trys to the load the weights file and if not, trys to load
+        Tries to the load the weights file and if not, tries to load
         the weights file stored internally.
 
         Parameters
@@ -706,12 +721,12 @@ class FlowModel:
             logger.debug('Reset linear transforms')
         self._optimiser = self.get_optimiser(
             self.optimiser, **self.optimiser_kwargs)
-        logger.debug('Reseting optimiser')
+        logger.debug('Resetting optimiser')
 
     def forward_and_log_prob(self, x):
         """
         Forward pass through the model and return the samples in the latent
-        space with their log probabilties
+        space with their log probabilities
 
         Parameters
         ----------
@@ -723,7 +738,7 @@ class FlowModel:
         z : ndarray
             Samples in the latent space
         log_prob : ndarray
-            Log probabilties for each samples
+            Log probabilities for each samples
         """
         x = (
             torch.from_numpy(x).type(torch.get_default_dtype())
@@ -784,7 +799,7 @@ class FlowModel:
         samples : ndarray
             Array containing samples in the latent space.
         log_prob : ndarray
-            Array containing the log probabaility that corresponds to each
+            Array containing the log probability that corresponds to each
             sample.
         """
         if self.model is None:

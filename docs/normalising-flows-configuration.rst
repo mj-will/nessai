@@ -3,7 +3,7 @@ Normalising flows configuration
 ===============================
 
 
-``nessai`` uses the implementation of normalising flow avaiable in ``nflows`` but with some minor changes to make the interface more general.
+``nessai`` uses the implementation of normalising flow available in ``nflows`` but with some minor changes to make the interface more general.
 
 The normalising flow is configured using the the keyword argument ``flow_config`` when calling :py:class:`~nessai.flowsampler.FlowSampler`. This is a dictionary which contains the configuration for training and the flow itself which is another dictionary ``model_config``.
 
@@ -19,7 +19,7 @@ The hyper-parameters accepted in ``model_config`` are:
 The remaining items in :code:`flow_config` control the training and these are:
 
 - :code:`lr`: the learning rate used to train the model, default is 0.001
-- :code:`batch_size`: the batch size to use fro training
+- :code:`batch_size`: the batch size to use for training
 - :code:`val_size`: the fraction of data to use for validation
 - :code:`max_epochs`: the maximum number of epochs to train for
 - :code:`patience`: the number of iterations with no improvement in the validation loss to wait before stopping training early

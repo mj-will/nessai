@@ -4,7 +4,7 @@ Integration tests for adding the default reparameterisations
 """
 import numpy as np
 import pytest
-from unittest.mock import create_autospec
+from unittest.mock import MagicMock, create_autospec
 
 from nessai.model import Model
 from nessai.proposal import FlowProposal
@@ -77,3 +77,20 @@ def test_configure_reparameterisation_angle_pair(tmpdir, model):
         )
     proposal.set_rescaling()
     assert proposal._reparameterisation is not None
+
+
+@pytest.mark.integration_test
+def test_default_reparameterisations(caplog, tmpdir):
+    """Assert that by default reparameterisations are not used."""
+    caplog.set_level('INFO')
+    model = MagicMock()
+    model.names = ['x', 'y']
+    model.bounds = {p: [-1, 1] for p in model.names}
+    model.reparameterisations = None
+    proposal = FlowProposal(
+        model, poolsize=100, output=str(tmpdir.mkdir('test'))
+    )
+    # Mocked model so can't verify rescaling
+    proposal.verify_rescaling = MagicMock()
+    proposal.initialise()
+    assert proposal._reparameterisation is None

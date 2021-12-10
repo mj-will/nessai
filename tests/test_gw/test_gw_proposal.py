@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test the GW flow proposal method"""
+from math import pi
 import pytest
 from unittest.mock import create_autospec, MagicMock, patch
 
@@ -38,6 +39,7 @@ def test_add_default_reparameterisation(proposal):
         {'chirp_mass': [10.0, 20.0], 'theta_jn': [0.0, 3.0]}
 
     reparam = MagicMock()
+    reparam.__name__ = 'MockReparam'
     with patch('nessai.gw.proposal.get_gw_reparameterisation',
                return_value=(reparam, {})) as mock_get:
         GWFlowProposal.add_default_reparameterisations(proposal)
@@ -95,3 +97,31 @@ def test_augmented_reparameterisation_prime_prior(augmented_proposal):
 
     augmented_proposal.augmented_prior.assert_called_once_with(1)
     mock.assert_called_once_with(1)
+
+
+@pytest.mark.integration_test
+def test_default_reparameterisations(caplog, tmpdir):
+    """Assert that the GW defaults are used even in reparameterisations
+    is not given.
+    """
+    caplog.set_level("INFO")
+    model = MagicMock()
+    model.names = ['mass_ratio', 'theta_jn', 'phase']
+    model.bounds = {
+        'mass_ratio': [20.0, 40.0],
+        'theta_jn': [0.0, pi],
+        'phase': [0.0, 2 * pi]
+    }
+    model.reparameterisations = None
+    expected_params = model.names + ['phase_radial']
+    proposal = GWFlowProposal(
+        model, poolsize=100, output=str(tmpdir.mkdir('test'))
+    )
+    # Mocked model so can't verify rescaling
+    proposal.verify_rescaling = MagicMock()
+    proposal.initialise()
+    assert proposal._reparameterisation is not None
+    assert all(
+        [p in expected_params for p in proposal._reparameterisation.parameters]
+    )
+    assert 'reparameterisations included in GWFlowProposal' in caplog.text

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Tests for utilies related to python structures such as lists.
+Tests for utilities related to python structures such as lists.
 """
 import pytest
 

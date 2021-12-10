@@ -8,7 +8,7 @@ from scipy.stats import norm
 from unittest.mock import MagicMock, create_autospec
 
 from nessai.livepoint import numpy_array_to_live_points
-from nessai.model import Model
+from nessai.model import Model, OneDimensionalModelError
 
 
 class EmptyModel(Model):
@@ -48,15 +48,85 @@ def model():
     return create_autospec(Model)
 
 
-def test_dims_no_names(model):
-    """Test the behaviour dims when names is empty"""
-    assert Model.dims.__get__(model) is None
+def test_names(model):
+    """Assert names returns the correct value."""
+    model._names = ['x', 'y']
+    assert Model.names.__get__(model) is model._names
+
+
+def test_names_setter(model):
+    """Assert names is correctly set"""
+    Model.names.__set__(model, ['x', 'y'])
+    assert model._names == ['x', 'y']
+
+
+def test_names_invalid_type(model):
+    """Assert an error is raised if `names` is not a list."""
+    with pytest.raises(TypeError) as excinfo:
+        Model.names.__set__(model, True)
+    assert '`names` must be a list' in str(excinfo.value)
+
+
+def test_names_empty_list(model):
+    """Assert an error is raised if `names` is empty."""
+    with pytest.raises(ValueError) as excinfo:
+        Model.names.__set__(model, [])
+    assert '`names` list is empty' in str(excinfo.value)
+
+
+def test_names_1d_list(model):
+    """Assert an error is raised if `names` is 1d"""
+    with pytest.raises(OneDimensionalModelError) as excinfo:
+        Model.names.__set__(model, ['x'])
+    assert 'names list has length 1' in str(excinfo.value)
+
+
+def test_bounds(model):
+    """Assert bounds returns the correct value."""
+    model._bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    assert Model.bounds.__get__(model) is model._bounds
+
+
+def test_bounds_setter(model):
+    """Assert bounds is correctly set"""
+    Model.bounds.__set__(model, {'x': [-1, 1], 'y': [-2, 2]})
+    assert list(model._bounds.keys()) == ['x', 'y']
+    np.testing.assert_array_equal(model._bounds['x'], [-1, 1])
+    np.testing.assert_array_equal(model._bounds['y'], [-2, 2])
+
+
+def test_bounds_invalid_type(model):
+    """Assert an error is raised if `bounds` is not a dictionary."""
+    with pytest.raises(TypeError) as excinfo:
+        Model.bounds.__set__(model, True)
+    assert '`bounds` must be a dictionary' in str(excinfo.value)
+
+
+def test_bounds_1d(model):
+    """Assert an error is raised if `bounds` is 1d"""
+    with pytest.raises(OneDimensionalModelError) as excinfo:
+        Model.bounds.__set__(model, {'x': [0, 1]})
+    assert 'bounds dictionary has length 1' in str(excinfo.value)
+
+
+@pytest.mark.parametrize('b', [[1], [1, 2, 3]])
+def test_bounds_incorrect_length(model, b):
+    """Assert an error is raised if `bounds` is 1d"""
+    with pytest.raises(ValueError) as excinfo:
+        Model.bounds.__set__(model, {'x': b, 'y': [0, 1]})
+    assert 'Each entry in `bounds` must have length 2' in str(excinfo.value)
 
 
 def test_dims(model):
     """Ensure dims are correct"""
     model.names = ['x', 'y']
     assert Model.dims.__get__(model) == 2
+
+
+def test_dims_no_names(model):
+    """Test the behaviour dims when names is empty"""
+    model.names = []
+    assert Model.dims.__get__(model) is None
 
 
 def test_lower_bounds(model):
@@ -201,13 +271,15 @@ def test_likelihood_evaluations(model):
 
 
 def test_log_prior(model):
-    """Verify the log prior does nothing by defauly"""
-    assert Model.log_prior(model, 1) is None
+    """Verify the log prior raises a NotImplementedError"""
+    with pytest.raises(NotImplementedError):
+        Model.log_prior(model, 1)
 
 
 def test_log_likelihood(model):
-    """Verify the log likelihood does nothing by defauly"""
-    assert Model.log_likelihood(model, 1) is None
+    """Verify the log likelihood raises a NotImplementedError"""
+    with pytest.raises(NotImplementedError):
+        Model.log_likelihood(model, 1)
 
 
 def test_missing_log_prior():
@@ -245,6 +317,20 @@ def test_missing_log_likelihood():
     with pytest.raises(TypeError) as excinfo:
         TestModel()
     assert "Can't instantiate abstract class TestModel" in str(excinfo.value)
+
+
+def test_model_1d_error():
+    """Assert an error is raised if the model is one dimensional."""
+    class TestModel(EmptyModel):
+
+        def __init__(self):
+            self.names = ['x']
+            self.bounds = {'x': [-5, 5]}
+
+    with pytest.raises(OneDimensionalModelError) as excinfo:
+        TestModel()
+    assert 'nessai is not designed to handle one-dimensional models' \
+        in str(excinfo.value)
 
 
 def test_verify_new_point():
@@ -345,13 +431,43 @@ def test_verify_no_names():
     class TestModel(EmptyModel):
 
         def __init__(self):
-            self.names = []
             self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
 
     model = TestModel()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
+    assert '`names` is not set' in str(excinfo.value)
+
+
+def test_verify_empty_names():
+    """Assert an error is raised if names evaluates to false."""
+    class TestModel(EmptyModel):
+        names = []
+
+        def __init__(self):
+            self.bounds = {'x': [-2, 2], 'y': [-2, 2]}
+
+    model = TestModel()
+    with pytest.raises(ValueError) as excinfo:
+        model.verify_model()
+
+    assert '`names` is not set to a valid value' in str(excinfo.value)
+
+
+def test_verify_invalid_names_type():
+    """Assert an error is raised if names is not a list."""
+    class TestModel(EmptyModel):
+        names = 'x'
+
+        def __init__(self):
+            self.bounds = {'x': [-2, 2], 'y': [-2, 2]}
+
+    model = TestModel()
+    with pytest.raises(TypeError) as excinfo:
+        model.verify_model()
+
+    assert '`names` must be a list' in str(excinfo.value)
 
 
 def test_verify_no_bounds():
@@ -363,14 +479,45 @@ def test_verify_no_bounds():
 
         def __init__(self):
             self.names = ['x', 'y']
-            self.bounds = {}
+
+    model = TestModel()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        model.verify_model()
+
+    assert '`bounds` is not set' in str(excinfo.value)
+
+
+def test_verify_empty_bounds():
+    """Assert an error is raised if bounds evaluates to false."""
+    class TestModel(EmptyModel):
+        bounds = {}
+
+        def __init__(self):
+            self.names = ['x', 'y']
 
     model = TestModel()
 
     with pytest.raises(ValueError) as excinfo:
         model.verify_model()
 
-    assert 'Bounds are not set' in str(excinfo.value)
+    assert '`bounds` is not set to a valid value' in str(excinfo.value)
+
+
+def test_verify_invalid_bounds_type():
+    """Assert an error is raised if bounds are not a dictionary."""
+    class TestModel(EmptyModel):
+        bounds = []
+
+        def __init__(self):
+            self.names = ['x', 'y']
+
+    model = TestModel()
+
+    with pytest.raises(TypeError) as excinfo:
+        model.verify_model()
+
+    assert '`bounds` must be a dictionary' in str(excinfo.value)
 
 
 def test_verify_incomplete_bounds():
@@ -379,15 +526,29 @@ def test_verify_incomplete_bounds():
     function raises the correct error
     """
     class TestModel(EmptyModel):
+        bounds = {'x': [-5, 5]}
 
         def __init__(self):
             self.names = ['x', 'y']
-            self.bounds = {'x': [-5, 5]}
 
     model = TestModel()
 
     with pytest.raises(RuntimeError):
         model.verify_model()
+
+
+def test_verify_model_1d():
+    """Assert an error is raised if the model is one dimensional."""
+    class TestModel(EmptyModel):
+        names = ['x']
+        bounds = {'x': [-5, 5]}
+
+    model = TestModel()
+
+    with pytest.raises(OneDimensionalModelError) as excinfo:
+        model.verify_model()
+    assert 'nessai is not designed to handle one-dimensional models' \
+        in str(excinfo.value)
 
 
 def test_unbounded_priors_wo_new_point():

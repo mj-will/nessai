@@ -7,7 +7,7 @@ from nflows.flows import MaskedAutoregressiveFlow as BaseMAF
 
 class MaskedAutoregressiveFlow(BaseMAF):
     """
-    Wrapper for MaskedAutoregressiveFlow included in nflowsi
+    Wrapper for MaskedAutoregressiveFlow included in nflows
 
     Adds the additional methods that are used in FlowModel.
 

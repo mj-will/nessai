@@ -175,7 +175,7 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
         logger.debug('Density too low at both bounds')
         return False
     else:
-        logger.debug('No bound prefered, returning bound with higher density')
+        logger.debug('No bound preferred, returning bound with higher density')
         return bounds[np.argmax(bounds_fraction)]
 
 
@@ -225,7 +225,7 @@ def determine_rescaled_bounds(
     Parameters
     ----------
     prior_min : float
-        Mininum of the prior.
+        Minimum of the prior.
     prior_max : float
         Maximum of the prior.
     x_min : float

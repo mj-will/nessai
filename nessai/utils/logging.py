@@ -6,12 +6,12 @@ import logging
 import os
 
 
-def setup_logger(output=None, label='nessai', log_level='INFO'):
+def setup_logger(output=None, label='nessai', log_level='WARNING'):
     """
     Setup the logger.
 
     Based on the implementation in Bilby:
-    https://git.ligo.org/lscsoft/bilby/-/blob/master/bilby/core/utils.py#L448
+    https://git.ligo.org/lscsoft/bilby/-/blob/master/bilby/core/utils/log.py
 
     Parameters
     ----------
@@ -37,7 +37,6 @@ def setup_logger(output=None, label='nessai', log_level='INFO'):
         level = int(log_level)
 
     logger = logging.getLogger('nessai')
-    logger.propagate = False
     logger.setLevel(level)
 
     if any([type(h) == logging.StreamHandler for h in logger.handlers]) \
@@ -56,7 +55,7 @@ def setup_logger(output=None, label='nessai', log_level='INFO'):
                     os.makedirs(output, exist_ok=True)
             else:
                 output = '.'
-            log_file = '{}/{}.log'.format(output, label)
+            log_file = os.path.join(output, f'{label}.log')
             file_handler = logging.FileHandler(log_file)
             file_handler.setFormatter(logging.Formatter(
                 '%(asctime)s %(levelname)-8s: %(message)s', datefmt='%H:%M'))

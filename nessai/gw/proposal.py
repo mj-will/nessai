@@ -32,10 +32,22 @@ class GWFlowProposal(FlowProposal):
         'phase': ('angle-2pi', None),
         'psi': ('angle-pi', None),
         'geocent_time': ('time', None),
-        'a_1': ('to-cartesian', None),
-        'a_2': ('to-cartesian', None),
+        'time_jitter': ('periodic', None),
+        'a_1': ('default', None),
+        'a_2': ('default', None),
+        'chi_1': ('default', None),
+        'chi_2': ('default', None),
         'luminosity_distance': ('distance', None),
     }
+    """
+    Dictionary of aliases used to determine the default reparameterisations
+    for common gravitational-wave parameters.
+    """
+    use_default_reparameterisations = True
+    """
+    GW specific reparameterisations will be used by default. This is different
+    to the parent class where they are disabled by default.
+    """
 
     def get_reparameterisation(self, reparameterisation):
         """Function to get reparameterisations that checks GW defaults and
@@ -48,9 +60,10 @@ class GWFlowProposal(FlowProposal):
         Add default reparameterisations for parameters that have not been
         specified.
         """
-        parameters = list(set(self.names)
-                          - set(self._reparameterisation.parameters))
-        logger.debug(f'Adding default reparameterisations for {parameters}')
+        parameters = \
+            [n for n in self.names
+             if n not in self._reparameterisation.parameters]
+        logger.info(f'Adding default reparameterisations for {parameters}')
 
         for p in parameters:
             logger.debug(f'Trying to add reparameterisation for {p}')
@@ -67,8 +80,10 @@ class GWFlowProposal(FlowProposal):
                 p = [p]
             prior_bounds = {k: self.model.bounds[k] for k in p}
             reparam, kwargs = get_gw_reparameterisation(name)
-            logger.debug(
-                f'Add reparameterisation for {p} with config: {kwargs}')
+            logger.info(
+                f'Adding reparameterisation {reparam.__name__} for {p} '
+                f'with config: {kwargs}'
+            )
             self._reparameterisation.add_reparameterisation(
                 reparam(parameters=p, prior_bounds=prior_bounds, **kwargs))
 

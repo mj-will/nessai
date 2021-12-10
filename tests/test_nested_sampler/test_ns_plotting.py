@@ -25,6 +25,7 @@ def test_plot_state(sampler, tmpdir, filename, track_gradients):
     sampler.checkpoint_iterations = [600]
     sampler.likelihood_evaluations = x
     sampler.state = MagicMock()
+    sampler.state.log_vols = np.linspace(0, -10, 1050)
     sampler.state.track_gradients = track_gradients
     sampler.state.gradients = np.arange(1050)
     sampler.logZ_history = x

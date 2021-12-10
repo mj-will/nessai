@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Aumgented version of FlowProposal.
+Augmented version of FlowProposal.
 """
 import logging
-import os
 
 import numpy as np
 from scipy import stats
 from scipy.special import logsumexp
 
-from ..import config
-from ..flowmodel import FlowModel
 from .flowproposal import FlowProposal
+
+from ..import config
 from ..livepoint import numpy_array_to_live_points
 
 logger = logging.getLogger(__name__)
@@ -31,7 +30,7 @@ class AugmentedFlowProposal(FlowProposal):
         User defined model
     augment_dims : int
         Number of augment parameters to add to the inputs
-    generate_agument : {'gaussian', 'zeroes', 'zeros'}, optional
+    generate_augment : {'gaussian', 'zeroes', 'zeros'}, optional
         Method used when computing the radius of the latent contour.
     marginalise_augment : bool, optional
         Use the marginalised likelihood when performing rejection sampling.
@@ -68,35 +67,14 @@ class AugmentedFlowProposal(FlowProposal):
         logger.info(
             f'Augmented x prime space parameters: {self.rescaled_names}')
 
-    def initialise(self):
-        """
-        Initialise the proposal class
-        """
-        if not os.path.exists(self.output):
-            os.makedirs(self.output, exist_ok=True)
-
-        self._x_dtype = False
-        self._x_prime_dtype = False
-
-        self.set_rescaling()
-        self.verify_rescaling()
-        if self.expansion_fraction and self.expansion_fraction is not None:
-            logger.info('Overwritting fuzz factor with expansion fraction')
-            self.fuzz = \
-                (1 + self.expansion_fraction) ** (1 / self.rescaled_dims)
-            logger.info(f'New fuzz factor: {self.fuzz}')
-
+    def update_flow_config(self):
+        """Update the flow configuration dictionary"""
+        super().update_flow_config()
         m = np.ones(self.rescaled_dims)
         m[-self.augment_dims:] = -1
         if 'kwargs' not in self.flow_config['model_config'].keys():
             self.flow_config['model_config']['kwargs'] = {}
         self.flow_config['model_config']['kwargs']['mask'] = m
-
-        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
-        self.flow = FlowModel(config=self.flow_config, output=self.output)
-        self.flow.initialise()
-        self.populated = False
-        self.initialised = True
 
     def _augmented_rescale(self, x, generate_augment=None,
                            compute_radius=False, **kwargs):
@@ -138,9 +116,9 @@ class AugmentedFlowProposal(FlowProposal):
 
     def augmented_prior(self, x):
         """
-        Log guassian for augmented variables.
+        Log Gaussian for augmented variables.
 
-        If self.marginalise_agument is True, log_prior is 0.
+        If self.marginalise_augment is True, log_prior is 0.
         """
         log_p = 0.0
         if not self.marginalise_augment:
@@ -161,7 +139,7 @@ class AugmentedFlowProposal(FlowProposal):
         return super().x_prime_log_prior(x) + self.augmented_prior(x)
 
     def _marginalise_augment(self, x_prime):
-        """Marginalise out the augmented feautures.
+        """Marginalise out the augmented features.
 
         Note that x_prime is not a structured array. See the original paper
         for the details
@@ -193,9 +171,9 @@ class AugmentedFlowProposal(FlowProposal):
         Returns
         -------
         x : array_like
-            Samples in the latent sapce
+            Samples in the latent space
         log_prob : array_like
-            Log probabilties corresponding to each sample (including the
+            Log probabilities corresponding to each sample (including the
             Jacobian)
         """
         try:

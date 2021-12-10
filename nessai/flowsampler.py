@@ -29,7 +29,7 @@ class FlowSampler:
     output : str, optional
         Output directory
     resume : bool, optional
-        If True try to resume the sampler is the resume file existis.
+        If True try to resume the sampler is the resume file exists.
     resume_file : str, optional
         File to resume sampler from.
     weights_files : str, optional
@@ -75,6 +75,11 @@ class FlowSampler:
 
         self.output = os.path.join(output, '')
         if resume:
+            if not resume_file:
+                raise RuntimeError(
+                    '`resume_file` must be specified if resume=True. '
+                    f'Current value: {resume_file}'
+                )
             if not any((os.path.exists(os.path.join(self.output, f)) for f in
                         [resume_file, resume_file + '.old'])):
                 logger.warning('No files to resume from, starting sampling')
@@ -125,7 +130,7 @@ class FlowSampler:
         ----------
         plot : bool, optional
             Toggle plots produced once the sampler has converged
-        save : bool, opitional
+        save : bool, optional
             Toggle automatic saving of results
         """
         if self.importance_sampler:

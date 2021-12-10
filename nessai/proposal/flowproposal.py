@@ -6,6 +6,7 @@ import copy
 import datetime
 import logging
 import os
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,12 +22,12 @@ from ..livepoint import (
     )
 from ..reparameterisations import (
     CombinedReparameterisation,
-    NullReparameterisation,
     get_reparameterisation
     )
 from ..plot import plot_live_points, plot_1d_comparison
 from .rejection import RejectionProposal
 from ..utils import (
+    compute_radius,
     get_uniform_distribution,
     get_multivariate_normal,
     detect_edge,
@@ -67,13 +68,13 @@ class FlowProposal(RejectionProposal):
         and the poolsize is 1000 the maximum number of points in the pool
         is 10,000.
     drawsize : int, optional
-        Number of points to simultaneosly draw when populating the proposal
+        Number of points to simultaneously draw when populating the proposal
         Defaults to 10000
     check_acceptance : bool, optional
         If True the acceptance is computed after populating the pool. This
         includes computing the likelihood for every point. Default False.
     min_radius : float, optional
-        Minimum radius used for popluation. If not specified not minimum is
+        Minimum radius used for population. If not specified not minimum is
         used.
     max_radius : float, optional
         If a float then this value is used as an upper limit for the
@@ -83,6 +84,12 @@ class FlowProposal(RejectionProposal):
         If specified and the chosen latent distribution is compatible, this
         radius will be used to draw new samples instead of the value computed
         with the flow.
+    constant_volume_mode : bool
+        If True, then a constant volume is used for the latent contour used to
+        draw new samples. The exact volume can be set using `volume_fraction`
+    volume_fraction : float
+        Fraction of the total probability to contain with the latent contour
+        when using a constant volume.
     compute_radius_with_all : bool, optional
         If True all the radius of the latent contour is computed using the
         maximum radius of all the samples used to train the flow.
@@ -93,11 +100,6 @@ class FlowProposal(RejectionProposal):
         Similar to ``fuzz`` but instead a scaling factor applied to the radius
         this specifies a rescaling for volume of the n-ball used to draw
         samples. This is translated to a value for ``fuzz``.
-    zero_reset : int, optional
-        Value used when reseting proposal if zero samples are accepted.
-        If specified is after drawing samples zero_reset times the current
-        poolsize is less than half, then the radius is reduced by 1% and
-        the pool is reset.
     truncate : bool, optional
         Truncate proposals using probability compute for worst point.
         Not recommended.
@@ -130,8 +132,22 @@ class FlowProposal(RejectionProposal):
         Dictionary for configure more flexible reparameterisations. This
         ignores any of the other settings related to rescaling. For more
         details see the documentation.
+    fallback_reparameterisation : None or str
+        Name of the reparameterisation to be used for parameters that have not
+        been specified in the reparameterisations dictionary. If None, the
+        :py:class:`~nessai.reparameterisations.NullReparameterisation` is used.
+        Reparameterisation should support multiple parameters.
+    use_default_reparameterisations : bool, optional
+        If True then reparameterisations will be used even if
+        ``reparameterisations`` is None. The exact reparameterisations used
+        will depend on
+        :py:func:`~nessai.proposal.flowproposal.FlowProposal.add_default_reparameterisations`
+        which may be overloaded by child classes. If not specified then the
+        value of the attribute
+        :py:attr:`~nessai.proposal.flowproposal.FlowProposal.use_default_reparameterisations`
+        is used.
     keep_samples : bool, optional
-        If true samples are stored when repopulating the propolal. Not
+        If true samples are stored when repopulating the proposal. Not
         recommended.
     n_pool : int, optional
         Number of threads to use for evaluating the likelihood.
@@ -141,39 +157,51 @@ class FlowProposal(RejectionProposal):
         kwargs.
     """
 
-    def __init__(self,
-                 model,
-                 flow_config=None,
-                 output='./',
-                 poolsize=None,
-                 rescale_parameters=True,
-                 latent_prior='truncated_gaussian',
-                 fuzz=1.0,
-                 keep_samples=False,
-                 plot='min',
-                 fixed_radius=False,
-                 drawsize=None,
-                 check_acceptance=False,
-                 truncate=False,
-                 zero_reset=None,
-                 rescale_bounds=[-1, 1],
-                 expansion_fraction=1.0,
-                 boundary_inversion=False,
-                 inversion_type='split',
-                 update_bounds=True,
-                 min_radius=False,
-                 max_radius=50.0,
-                 pool=None,
-                 n_pool=None,
-                 max_poolsize_scale=10,
-                 update_poolsize=True,
-                 save_training_data=False,
-                 compute_radius_with_all=False,
-                 draw_latent_kwargs=None,
-                 detect_edges=False,
-                 detect_edges_kwargs=None,
-                 reparameterisations=None,
-                 **kwargs):
+    use_default_reparameterisations = False
+    """
+    Indicates whether reparameterisations will be used be default in this
+    class. Child classes can change this value a force the default
+    behaviour to change without changing the keyword arguments.
+    """
+
+    def __init__(
+        self,
+        model,
+        flow_config=None,
+        output='./',
+        poolsize=None,
+        rescale_parameters=True,
+        latent_prior='truncated_gaussian',
+        constant_volume_mode=True,
+        volume_fraction=0.95,
+        fuzz=1.0,
+        keep_samples=False,
+        plot='min',
+        fixed_radius=False,
+        drawsize=None,
+        check_acceptance=False,
+        truncate=False,
+        rescale_bounds=[-1, 1],
+        expansion_fraction=4.0,
+        boundary_inversion=False,
+        inversion_type='split',
+        update_bounds=True,
+        min_radius=False,
+        max_radius=50.0,
+        pool=None,
+        n_pool=None,
+        max_poolsize_scale=10,
+        update_poolsize=True,
+        save_training_data=False,
+        compute_radius_with_all=False,
+        draw_latent_kwargs=None,
+        detect_edges=False,
+        detect_edges_kwargs=None,
+        reparameterisations=None,
+        fallback_reparameterisation=None,
+        use_default_reparameterisations=None,
+        **kwargs
+    ):
 
         super(FlowProposal, self).__init__(model)
         logger.debug('Initialising FlowProposal')
@@ -201,6 +229,10 @@ class FlowProposal(RejectionProposal):
         self.use_x_prime_prior = False
 
         self.reparameterisations = reparameterisations
+        if use_default_reparameterisations is not None:
+            self.use_default_reparameterisations = \
+                use_default_reparameterisations
+        self.fallback_reparameterisation = fallback_reparameterisation
 
         self.output = output
 
@@ -210,14 +242,21 @@ class FlowProposal(RejectionProposal):
 
         self.rescale_parameters = rescale_parameters
         self.keep_samples = keep_samples
+        if self.keep_samples:
+            warnings.warn(
+                "`keep_samples` will be removed in nessai 0.4.0",
+                DeprecationWarning,
+                stacklevel=2
+            )
         self.update_bounds = update_bounds
         self.check_acceptance = check_acceptance
         self.rescale_bounds = rescale_bounds
         self.truncate = truncate
-        self.zero_reset = zero_reset
         self.boundary_inversion = boundary_inversion
         self.inversion_type = inversion_type
         self.flow_config = flow_config
+        self.constant_volume_mode = constant_volume_mode
+        self.volume_fraction = volume_fraction
 
         self.detect_edges = detect_edges
         self.detect_edges_kwargs = \
@@ -323,7 +362,7 @@ class FlowProposal(RejectionProposal):
     def configure_plotting(self, plot):
         """Configure plotting.
 
-        Plotting is split into training and pool. Training referes to plots
+        Plotting is split into training and pool. Training refers to plots
         produced during training and pool refers to plots produces during
         the population stage.
 
@@ -403,7 +442,7 @@ class FlowProposal(RejectionProposal):
 
     def configure_min_max_radius(self, min_radius, max_radius):
         """
-        Configure the mininum and maximum radius
+        Configure the minimum and maximum radius
         """
         if isinstance(min_radius, (int, float)):
             self.min_radius = float(min_radius)
@@ -421,6 +460,42 @@ class FlowProposal(RejectionProposal):
                            'returned by the worst point.')
             self.max_radius = False
 
+    def configure_constant_volume(self):
+        """Configure using constant volume latent contour."""
+        if self.constant_volume_mode:
+            logger.debug('Configuring constant volume latent contour')
+            if not self.latent_prior == 'truncated_gaussian':
+                raise RuntimeError(
+                    "Constant volume requires "
+                    "`latent_prior='truncated_gaussian'`"
+                )
+            self.fixed_radius = compute_radius(
+                self.rescaled_dims, self.volume_fraction
+            )
+            self.fuzz = 1.0
+            if self.max_radius < self.fixed_radius:
+                logger.warning(
+                    'Max radius is less than the radius need to use a '
+                    'constant volume latent contour. Max radius will be '
+                    'disabled.'
+                )
+                self.max_radius = False
+            if self.min_radius > self.fixed_radius:
+                logger.warning(
+                    'Min radius is greater than the radius need to use a '
+                    'constant volume latent contour. Min radius will be '
+                    'disabled.'
+                )
+                self.min_radius = False
+        else:
+            logger.debug(
+                'Nothing to configure for constant volume latent contour.'
+            )
+
+    def update_flow_config(self):
+        """Update the flow configuration dictionary."""
+        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+
     def initialise(self):
         """
         Initialise the proposal class.
@@ -428,7 +503,7 @@ class FlowProposal(RejectionProposal):
         This includes:
             * Setting up the rescaling
             * Verifying the rescaling is invertible
-            * Intitialising the FlowModel
+            * Initialising the FlowModel
         """
         if not os.path.exists(self.output):
             os.makedirs(self.output, exist_ok=True)
@@ -443,7 +518,9 @@ class FlowProposal(RejectionProposal):
             self.fuzz = \
                 (1 + self.expansion_fraction) ** (1 / self.rescaled_dims)
             logger.info(f'New fuzz factor: {self.fuzz}')
-        self.flow_config['model_config']['n_inputs'] = self.rescaled_dims
+
+        self.configure_constant_volume()
+        self.update_flow_config()
         self.flow = FlowModel(config=self.flow_config, output=self.output)
         self.flow.initialise()
         self.populated = False
@@ -496,7 +573,7 @@ class FlowProposal(RejectionProposal):
                 else:
                     self.boundary_inversion = self.names.copy()
 
-            logger.info('Appyling boundary inversion to: '
+            logger.info('Appling boundary inversion to: '
                         f'{self.boundary_inversion}')
 
             if self.inversion_type not in ('split', 'duplicate'):
@@ -511,7 +588,7 @@ class FlowProposal(RejectionProposal):
             self.boundary_inversion = []
 
     def add_default_reparameterisations(self):
-        """Add any reparmeterisations which are assumed by default"""
+        """Add any reparameterisations which are assumed by default"""
         logger.debug('No default reparameterisations')
 
     def get_reparameterisation(self, name):
@@ -519,13 +596,28 @@ class FlowProposal(RejectionProposal):
         return get_reparameterisation(name)
 
     def configure_reparameterisations(self, reparameterisations):
-        _reparameterisations = copy.deepcopy(reparameterisations)
+        """Configure the reparameterisations.
+
+        Parameters
+        ----------
+        reparameterisations : {dict, None}
+            Dictionary of reparameterisations. If None, then the defaults
+            from :py:func`get_default_reparameterisations` are used.
+        """
+        if reparameterisations is None:
+            logger.info(
+                'No reparameterisations provided, using default '
+                f'reparameterisations included in {self.__class__.__name__}'
+            )
+            _reparameterisations = {}
+        else:
+            _reparameterisations = copy.deepcopy(reparameterisations)
         logger.info(f'Adding reparameterisations from: {_reparameterisations}')
         self._reparameterisation = CombinedReparameterisation()
 
         if not isinstance(_reparameterisations, dict):
             raise TypeError('Reparameterisations must be a dictionary, '
-                            f'receieved {type(_reparameterisations).__name__}')
+                            f'received {type(_reparameterisations).__name__}')
 
         for k, cfg in _reparameterisations.items():
             if k in self.names:
@@ -581,16 +673,26 @@ class FlowProposal(RejectionProposal):
                     {default_config['parameters']:
                      self.model.bounds[default_config['parameters']]}
 
-            logger.debug(f'Adding {rc.__name__} with config {default_config}')
+            logger.info(f'Adding {rc.__name__} with config: {default_config}')
             r = rc(prior_bounds=prior_bounds, **default_config)
             self._reparameterisation.add_reparameterisations(r)
 
         self.add_default_reparameterisations()
 
-        p = set(self.names) - set(self._reparameterisation.parameters)
-        if p:
-            logger.info(f'Assuming no rescaling for {p}')
-            r = NullReparameterisation(parameters=list(p))
+        other_params = [n for n in self.names
+                        if n not in self._reparameterisation.parameters]
+        if other_params:
+            logger.debug('Getting fallback reparameterisation')
+            FallbackClass, fallback_kwargs = \
+                self.get_reparameterisation(self.fallback_reparameterisation)
+            fallback_kwargs['prior_bounds'] = \
+                {p: self.model.bounds[p] for p in other_params}
+            logger.info(
+                f'Assuming fallback reparameterisation '
+                f'({FallbackClass.__name__}) for {other_params} with kwargs: '
+                f'{fallback_kwargs}.'
+            )
+            r = FallbackClass(parameters=other_params, **fallback_kwargs)
             self._reparameterisation.add_reparameterisations(r)
 
         if any(r._update_bounds for r in self._reparameterisation.values()):
@@ -601,14 +703,15 @@ class FlowProposal(RejectionProposal):
         if self._reparameterisation.has_prime_prior:
             self.use_x_prime_prior = True
             self.x_prime_log_prior = self._reparameterisation.x_prime_log_prior
-            logger.info('Using x prime prior')
+            logger.debug('Using x prime prior')
         else:
-            logger.info('Prime prior is disabled')
+            logger.debug('Prime prior is disabled')
             if self._reparameterisation.requires_prime_prior:
                 raise RuntimeError(
                     'One or more reparameterisations require use of the x '
                     'prime prior but it cannot be enabled with the current '
-                    'settings.')
+                    'settings.'
+                )
 
         self.rescale = self._rescale_w_reparameterisation
         self.inverse_rescale = \
@@ -617,8 +720,8 @@ class FlowProposal(RejectionProposal):
         self.names = self._reparameterisation.parameters
         self.rescaled_names = self._reparameterisation.prime_parameters
         self.rescale_parameters = \
-            list(set(self._reparameterisation.parameters)
-                 - set(self._reparameterisation.prime_parameters))
+            [p for p in self._reparameterisation.parameters
+             if p not in self._reparameterisation.prime_parameters]
 
     def set_rescaling(self):
         """
@@ -632,7 +735,10 @@ class FlowProposal(RejectionProposal):
         if self.model.reparameterisations is not None:
             self.configure_reparameterisations(self.model.reparameterisations)
             self.reparameterisations = self.model.reparameterisations
-        elif self.reparameterisations is not None:
+        elif (
+            self.reparameterisations is not None
+            or self.use_default_reparameterisations
+        ):
             self.configure_reparameterisations(self.reparameterisations)
         elif self.rescale_parameters:
             # if rescale is a list, there are the parameters to rescale
@@ -783,7 +889,7 @@ class FlowProposal(RejectionProposal):
 
     def _inverse_rescale_to_bounds(self, x_prime):
         """
-        Rescale the inputs from the prime space to the phyiscal space
+        Rescale the inputs from the prime space to the physical space
         using the bounds specified
         """
         x = np.zeros([x_prime.size], dtype=self.x_dtype)
@@ -812,7 +918,7 @@ class FlowProposal(RejectionProposal):
 
     def rescale(self, x, compute_radius=False, **kwargs):
         """
-        Rescale from the phyisical space to the primed physical space
+        Rescale from the physical space to the primed physical space
 
         Parameters
         ----------
@@ -865,7 +971,7 @@ class FlowProposal(RejectionProposal):
             Array of training live points which can be used to set parameters
         """
         if self.boundary_inversion:
-            logger.debug('Reseting inversion')
+            logger.debug('Resetting inversion')
             if self._reparameterisation is not None:
                 self._reparameterisation.reset_inversion()
             else:
@@ -957,8 +1063,8 @@ class FlowProposal(RejectionProposal):
             Array of live points
         plot : {True, False, 'all'}
             Enable or disable plots for during training. By default the plots
-            are only one-dimenensional histograms, `'all'` includes corner
-            plots with samples, these are often a fwe MB in size so
+            are only one-dimensional histograms, `'all'` includes corner
+            plots with samples, these are often a few MB in size so
             proceed with caution!
         """
         if (plot and self._plot_training) or self.save_training_data:
@@ -1015,15 +1121,15 @@ class FlowProposal(RejectionProposal):
         x: array_like
             Array of live points which will compared against prior bounds
         *args:
-            Aditional arrays which correspond to the array of live points.
+            Additional arrays which correspond to the array of live points.
             Only those corresponding to points within the prior bounds
             are returned
 
         Returns
         -------
         out: tuple of arrays
-            Array containing the subset of the orignal arrays which fall within
-            the prior bounds
+            Array containing the subset of the original arrays which fall
+            within the prior bounds
         """
         idx = np.array(list(((x[n] >= self.model.bounds[n][0])
                              & (x[n] <= self.model.bounds[n][1]))
@@ -1048,9 +1154,9 @@ class FlowProposal(RejectionProposal):
         Returns
         -------
         x : array_like
-            Samples in the latent sapce
+            Samples in the latent space
         log_prob : array_like
-            Log probabilties corresponding to each sample (including the
+            Log probabilities corresponding to each sample (including the
             jacobian)
         """
         log_J = 0
@@ -1080,9 +1186,9 @@ class FlowProposal(RejectionProposal):
         Returns
         -------
         x : array_like
-            Samples in the latent sapce
+            Samples in the latent space
         log_prob : array_like
-            Log probabilties corresponding to each sample (including the
+            Log probabilities corresponding to each sample (including the
             Jacobian)
         """
         # Compute the log probability
@@ -1114,13 +1220,13 @@ class FlowProposal(RejectionProposal):
         z : :obj:`np.ndarray`
             Array of points in the latent space
         log_q : :obj:`np.ndarray`, optional (None)
-            Array of correponding probabilities. If specified
+            Array of corresponding probabilities. If specified
             then probability of the maximum radius is also returned.
 
         Returns
         -------
         tuple of arrays
-            Tuple of array with the maximum raidus and correspoding log_q
+            Tuple of array with the maximum radius and corresponding log_q
             if it was a specified input.
         """
         if log_q is not None:
@@ -1173,10 +1279,10 @@ class FlowProposal(RejectionProposal):
 
         Parameters
         ----------
-        x :  structed_arrays
+        x :  structured_arrays
             Array of points
         log_q : array_like
-            Array of log proposal probabilties.
+            Array of log proposal probabilities.
 
         Returns
         -------
@@ -1197,7 +1303,7 @@ class FlowProposal(RejectionProposal):
         """
         Perform rejection sampling.
 
-        Coverts samples from the latent space and computes the corresponding
+        Converts samples from the latent space and computes the corresponding
         weights. Then returns samples using standard rejection sampling.
 
         Parameters
@@ -1239,7 +1345,7 @@ class FlowProposal(RejectionProposal):
         """
         Convert the array to samples ready to be used.
 
-        This removes are auxliary parameters, (e.g. auxiliary radial
+        This removes are auxiliary parameters, (e.g. auxiliary radial
         parameters) and ensures the prior is computed. These samples can
         be directly used in the nested sampler.
 
@@ -1284,8 +1390,8 @@ class FlowProposal(RejectionProposal):
             The total number of points to populate in the pool
         plot : {True, False, 'all'}
             Enable or disable plots for during training. By default the plots
-            are only one-dimenensional histograms, `'all'` includes corner
-            plots with samples, these are often a fwe MB in size so
+            are only one-dimensional histograms, `'all'` includes corner
+            plots with samples, these are often a few MB in size so
             proceed with caution!
         """
         if not self.initialised:
@@ -1361,9 +1467,12 @@ class FlowProposal(RejectionProposal):
             self.plot_pool(z_samples, self.samples)
 
         if self.check_acceptance:
-            self.approx_acceptance.append(self.compute_acceptance(worst_q))
-            logger.debug(
-                f'Current approximate acceptance {self.approx_acceptance[-1]}')
+            if worst_q:
+                self.approx_acceptance.append(self.compute_acceptance(worst_q))
+                logger.debug(
+                    'Current approximate acceptance '
+                    f'{self.approx_acceptance[-1]}'
+                )
             self.evaluate_likelihoods()
             self.acceptance.append(
                 self.compute_acceptance(worst_point['logL']))
@@ -1513,7 +1622,7 @@ class FlowProposal(RejectionProposal):
             Configuration dictionary for the flow.
         weights_files : str, optional
             Weights file to try and load. If not provided the proposal
-            tries to load the last weighst file.
+            tries to load the last weights file.
         """
         self.model = model
         self.flow_config = flow_config

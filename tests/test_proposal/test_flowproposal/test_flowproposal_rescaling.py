@@ -4,10 +4,19 @@ import numpy as np
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import FlowProposal
 from nessai.reparameterisations import (
-    get_reparameterisation
+    NullReparameterisation,
+    RescaleToBounds,
+    get_reparameterisation,
 )
 import pytest
 from unittest.mock import MagicMock, Mock, call, patch
+
+
+@pytest.fixture
+def proposal(proposal):
+    """Specific mocked proposal for reparameterisation tests"""
+    proposal.use_default_reparameterisations = False
+    return proposal
 
 
 @pytest.fixture
@@ -183,6 +192,7 @@ def test_configure_reparameterisations_str(mocked_class, proposal):
     proposal.model = MagicMock
     proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     proposal.names = ['x', 'y']
+    proposal.fallback_reparameterisation = None
     FlowProposal.configure_reparameterisations(
         proposal, {'x': 'default'})
 
@@ -202,6 +212,7 @@ def test_configure_reparameterisations_dict_reparam(mocked_class, proposal):
     proposal.model = MagicMock
     proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     proposal.names = ['x', 'y']
+    proposal.fallback_reparameterisation = None
     FlowProposal.configure_reparameterisations(
         proposal, {'default': {'parameters': ['x']}})
 
@@ -210,6 +221,53 @@ def test_configure_reparameterisations_dict_reparam(mocked_class, proposal):
     assert proposal.rescale_parameters == ['x']
     assert proposal._reparameterisation.parameters == ['x', 'y']
     assert proposal._reparameterisation.prime_parameters == ['x_prime', 'y']
+    assert mocked_class.called_once
+
+
+@patch('nessai.reparameterisations.CombinedReparameterisation')
+def test_configure_reparameterisations_none(mocked_class, proposal):
+    """Test configuration when input is None"""
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = get_reparameterisation
+    proposal.model = MagicMock()
+    proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    proposal.names = ['x', 'y']
+    proposal.fallback_reparameterisation = None
+    FlowProposal.configure_reparameterisations(proposal, None)
+    proposal.add_default_reparameterisations.assert_called_once()
+    assert proposal.rescaled_names == ['x', 'y']
+
+    assert proposal.rescale_parameters == []
+    assert proposal._reparameterisation.parameters == ['x', 'y']
+    assert proposal._reparameterisation.prime_parameters == ['x', 'y']
+    assert all(
+        [isinstance(r, NullReparameterisation)
+         for r in proposal._reparameterisation.reparameterisations.values()]
+    )
+    assert mocked_class.called_once
+
+
+@patch('nessai.reparameterisations.CombinedReparameterisation')
+def test_configure_reparameterisations_fallback(mocked_class, proposal):
+    """Test configuration when input is None"""
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = get_reparameterisation
+    proposal.model = MagicMock()
+    proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    proposal.names = ['x', 'y']
+    proposal.fallback_reparameterisation = 'default'
+    FlowProposal.configure_reparameterisations(proposal, None)
+    proposal.add_default_reparameterisations.assert_called_once()
+    assert proposal.rescaled_names == ['x_prime', 'y_prime']
+
+    assert proposal.rescale_parameters == ['x', 'y']
+    assert proposal._reparameterisation.parameters == ['x', 'y']
+    assert proposal._reparameterisation.prime_parameters == \
+        ['x_prime', 'y_prime']
+    assert all(
+        [isinstance(r, RescaleToBounds)
+         for r in proposal._reparameterisation.reparameterisations.values()]
+    )
     assert mocked_class.called_once
 
 

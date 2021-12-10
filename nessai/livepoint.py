@@ -24,7 +24,7 @@ def add_extra_parameters_to_live_points(parameters, default_values=None):
     parameters: list
         List of parameters to add.
     default_values: list
-        List of default values for each parameters. If not specfied, default
+        List of default values for each parameters. If not specified, default
         values will be set to zero.
     """
     if default_values is None:
@@ -50,7 +50,7 @@ def add_extra_parameters_to_live_points(parameters, default_values=None):
 
 def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
     """
-    Get a list of tuples containing the dtypes for the structed array
+    Get a list of tuples containing the dtypes for the structured array
 
     Parameters
     ----------
@@ -74,14 +74,14 @@ def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
 
 def live_points_to_array(live_points, names=None):
     """
-    Converts live points to unstructered arrays for training.
+    Converts live points to unstructured arrays for training.
 
     Parameters
     ----------
     live_points : structured_array
         Structured array of live points
     names : list of str or None
-        If None all fields in the structed array are added to the dictionary
+        If None all fields in the structured array are added to the dictionary
         else only those included in the list are added.
 
     Returns
@@ -110,7 +110,7 @@ def parameters_to_live_point(parameters, names):
 
     Returns
     -------
-    structed_array
+    structured_array
         Numpy structured array with fields given by names plus logP and logL
     """
     if not len(parameters):
@@ -127,13 +127,13 @@ def numpy_array_to_live_points(array, names):
     Parameters
     ----------
     array : np.ndarray
-        Instance of np.ndarray to converto to a structed array
+        Instance of np.ndarray to convert to a structured array
     names : tuple
         Names for each parameter as strings
 
     Returns
     -------
-    structed_array
+    structured_array
         Numpy structured array with fields given by names plus logP and logL
     """
     if array.size == 0:
@@ -147,13 +147,16 @@ def numpy_array_to_live_points(array, names):
 
 
 def dict_to_live_points(d):
-    """
-    Convert a dictionary with parameters names as keys to live points.
+    """Convert a dictionary with parameters names as keys to live points.
+
+    Assumes all entries have the same length. Also, determines number of points
+    from the first entry by checking if the value has `__len__` attribute,
+    if not the dictionary is assumed to contain a single point.
 
     Parameters
     ----------
     d : dict
-        Dictionary with parmeters names as keys and values that correspond
+        Dictionary with parameters names as keys and values that correspond
         to one or more parameters
 
     Returns
@@ -161,12 +164,13 @@ def dict_to_live_points(d):
     structured_array
         Numpy structured array with fields given by names plus logP and logL
     """
-    if isinstance(list(d.values())[0], int):
-        N = 1
+    a = list(d.values())
+    if hasattr(a[0], '__len__'):
+        N = len(a[0])
     else:
-        N = len(list(d.values())[0])
+        N = 1
     if N == 1:
-        return np.array((*list(d.values()), *config.DEFAULT_VALUES),
+        return np.array((*a, *config.DEFAULT_VALUES),
                         dtype=get_dtype(d.keys(), config.DEFAULT_FLOAT_DTYPE))
     else:
         array = np.zeros(N, dtype=get_dtype(list(d.keys())))
@@ -185,7 +189,7 @@ def live_points_to_dict(live_points, names=None):
     live_points : structured_array
         Array of live points
     names : list of str or None
-        If None all fields in the structed array are added to the dictionary
+        If None all fields in the structured array are added to the dictionary
         else only those included in the list are added.
 
     Returns
@@ -196,3 +200,28 @@ def live_points_to_dict(live_points, names=None):
     if names is None:
         names = live_points.dtype.names
     return {f: live_points[f] for f in names}
+
+
+def dataframe_to_live_points(df):
+    """Convert and pandas dataframe to live points.
+
+    Adds the additional parameters logL and logP initialised to zero.
+
+    Based on this answer on Stack Exchange:
+    https://stackoverflow.com/a/51280608
+
+    Parameters
+    ----------
+    df : :obj:`pandas.DataFrame`
+        Pandas DataFrame to convert to live points
+
+    Returns
+    -------
+    structured_array
+        Numpy structured array with fields given by column names plus logP and
+        logL.
+    """
+    return np.array(
+        [tuple(x) + (0.0, 0.0,) for x in df.values],
+        dtype=get_dtype(list(df.dtypes.index))
+    )
