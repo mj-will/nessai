@@ -334,7 +334,6 @@ def gaussian_cdf_with_log_j(x):
     """Error function that includes the log Jacobian determinant."""
     log_j = -0.5 * LN2PI - (x ** 2 / 2)
     out = 0.5 * (1.0 + erf(x / SQRT2))
-    out = np.clip(out, )
     return out, log_j
 
 
