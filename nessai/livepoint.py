@@ -170,7 +170,7 @@ def dict_to_live_points(d):
     else:
         N = 1
     if N == 1:
-        return np.array((*a, *config.DEFAULT_VALUES),
+        return np.array([(*a, *config.DEFAULT_VALUES)],
                         dtype=get_dtype(d.keys(), config.DEFAULT_FLOAT_DTYPE))
     else:
         array = np.zeros(N, dtype=get_dtype(list(d.keys())))
