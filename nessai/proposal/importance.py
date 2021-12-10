@@ -127,6 +127,7 @@ class ImportanceFlowProposal(Proposal):
 
     def to_prime(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Convert samples from the unit hypercube to samples in x'-space"""
+        x = np.atleast_2d(x)
         if self.reparam == 'logit':
             x_prime, log_j = logit(x.copy())
             log_j = log_j.sum(axis=1)
@@ -143,6 +144,7 @@ class ImportanceFlowProposal(Proposal):
 
     def from_prime(self, x_prime: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Convert samples the x'-space to samples in the unit hypercube."""
+        x_prime = np.atleast_2d(x_prime)
         if self.reparam == 'logit':
             x, log_j = sigmoid(x_prime.copy())
             log_j = log_j.sum(axis=1)
