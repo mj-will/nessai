@@ -4,7 +4,7 @@ from nflows.transforms import InverseTransform, Sigmoid
 
 
 class Logit(InverseTransform):
-    """Logit transform that has learn temperature as an option."""
+    """Logit transform that has ``learn_temperature`` as an option."""
     def __init__(self, temperature=1, eps=1e-6, learn_temperature=False):
         super().__init__(
             Sigmoid(
