@@ -14,12 +14,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `rolling_mean` to `nessai.utils.stats`.
 - Add `nessai.flows.utils.create_linear_transform` as a common function for creating linear transforms in the flows.
 - Add `nessai.flows.transforms.LULinear` to address a [bug in nflows](https://github.com/bayesiains/nflows/pull/38) that has not been patched and prevents the use of CUDA with `LULinear`.
+- Add `calibration_example.py` to the gravitational wave examples.
 
 ### Changed
 
 - `NestedSampler.plot_state` now includes the log-prior volume in one of the subplots and the rolling mean of the gradient (|dlogL/dLogX|) is plotted instead of the gradient directly.
 - The figure produced by `NestedSampler.plot_state` now includes a legend for the different vertical lines that can appear in the subplots.
 - `RealNVP` and `NeuralSplineFlow` now use `nessai.flows.utils.create_linear_transform`.
+- The figure produced by `NestedSampler.plot_state` now includes a legend for the different
+vertical lines that can appear in the subplots.
+- Updated all of the examples to reflect the new defaults.
+
+### Removed
+
+- Removed `legacy_gw_example.py`
 
 ## [0.4.0] - 2021-11-23
 
