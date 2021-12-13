@@ -28,6 +28,7 @@ vertical lines that can appear in the subplots.
 ### Removed
 
 - Removed `legacy_gw_example.py`
+- Removed `keep_samples` from `FlowProposal`.
 
 ## [0.4.0] - 2021-11-23
 
