@@ -75,7 +75,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         min_iteration: Optional[int] = None,
         max_iteration: Optional[int] = None,
         min_samples: int = 1000,
-        tolerance: float = 0.1,
+        tolerance: float = 1.0,
         n_update: Optional[int] = None,
         use_n_effective: bool = False,
         plot_pool: bool = False,
