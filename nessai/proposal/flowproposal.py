@@ -6,7 +6,6 @@ import copy
 import datetime
 import logging
 import os
-import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -146,9 +145,6 @@ class FlowProposal(RejectionProposal):
         value of the attribute
         :py:attr:`~nessai.proposal.flowproposal.FlowProposal.use_default_reparameterisations`
         is used.
-    keep_samples : bool, optional
-        If true samples are stored when repopulating the proposal. Not
-        recommended.
     n_pool : int, optional
         Number of threads to use for evaluating the likelihood.
     draw_latent_kwargs : dict, optional
@@ -175,7 +171,6 @@ class FlowProposal(RejectionProposal):
         constant_volume_mode=True,
         volume_fraction=0.95,
         fuzz=1.0,
-        keep_samples=False,
         plot='min',
         fixed_radius=False,
         drawsize=None,
@@ -241,13 +236,6 @@ class FlowProposal(RejectionProposal):
                                   latent_prior)
 
         self.rescale_parameters = rescale_parameters
-        self.keep_samples = keep_samples
-        if self.keep_samples:
-            warnings.warn(
-                "`keep_samples` will be removed in nessai 0.4.0",
-                DeprecationWarning,
-                stacklevel=2
-            )
         self.update_bounds = update_bounds
         self.check_acceptance = check_acceptance
         self.rescale_bounds = rescale_bounds
@@ -1421,7 +1409,7 @@ class FlowProposal(RejectionProposal):
 
         self.alt_dist = self.get_alt_distribution()
 
-        if not self.keep_samples or not self.indices:
+        if not self.indices:
             self.x = np.empty(N,  dtype=self.population_dtype)
             self.x['logP'] = np.nan * np.ones(N)
             self.indices = []
