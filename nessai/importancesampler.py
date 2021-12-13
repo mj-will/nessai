@@ -255,7 +255,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def populate_live_points(self) -> None:
         """Draw the initial live points from the prior.
 
-        The live points are automatically sorted and asigned the iteration
+        The live points are automatically sorted and assigned the iteration
         number -1.
         """
         live_points = self.model.from_unit_hypercube(
@@ -515,7 +515,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def remove_points(self, n: int) -> None:
         """Remove points from the current set of live points.
 
-        The evidence is updated with the discared points.
+        The evidence is updated with the discarded points.
 
         Parameters
         ----------
@@ -578,7 +578,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def compute_stopping_condition(self) -> float:
         """Compute the stopping condition.
 
-        The method used will depened on how the sampler was configured.
+        The method used will depend on how the sampler was configured.
         """
         # Version for SMC_NS
         previous_log_evidence = self.current_log_evidence
@@ -779,7 +779,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     ) -> Optional[plt.figure]:
         """
         Produce plots with the current state of the nested sampling run.
-        Plots are saved to the output directory specifed at initialisation.
+        Plots are saved to the output directory specified at initialisation.
 
         Parameters
         ----------
@@ -942,17 +942,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return fig
 
-    def produce_plots(self, overide: bool = False) -> None:
+    def produce_plots(self, override: bool = False) -> None:
         """Produce all of the relevant plots.
 
         Checks if plotting is enabled.
 
-        Paramters
+        Parameters
         ---------
         force : bool
-            Overide the plotting setting and force the plots to be produced.
+            Override the plotting setting and force the plots to be produced.
         """
-        if self.plot or overide:
+        if self.plot or override:
             logger.debug('Producing plots')
             self.plot_state(os.path.join(self.output, 'state.png'))
             self.plot_trace(os.path.join(self.output, 'trace.png'))
