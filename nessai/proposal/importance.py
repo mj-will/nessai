@@ -52,7 +52,7 @@ class ImportanceFlowProposal(Proposal):
         output: str,
         initial_draws: int,
         use_logit: bool = False,
-        reparam: str = None,
+        reparam: str = 'logit',
         plot_training: bool = False,
         weighted_kl: bool = True,
         weights_include_likelihood: bool = False,
