@@ -2,7 +2,6 @@
 """
 Proposals specifically for use with the importance based nested sampler.
 """
-import copy
 import logging
 import os
 from typing import Callable, Optional, Tuple, Union
@@ -14,7 +13,7 @@ from scipy.stats import entropy
 from nessai.plot import plot_histogram, plot_live_points
 
 from .base import Proposal
-from ..flowmodel import FlowModel, update_config
+from ..flowmodel import CombinedFlowModel, update_config
 from ..livepoint import (
     get_dtype,
     live_points_to_array,
@@ -51,7 +50,6 @@ class ImportanceFlowProposal(Proposal):
         model: Model,
         output: str,
         initial_draws: int,
-        use_logit: bool = False,
         reparam: str = 'logit',
         plot_training: bool = False,
         weighted_kl: bool = True,
@@ -61,15 +59,14 @@ class ImportanceFlowProposal(Proposal):
         combined_proposal: bool = True,
         clip: bool = False,
     ) -> None:
-        self.flows = []
         self.level_count = -1
         self.draw_count = 0
+        self._initialised = False
 
         self.model = model
         self.output = output
         self.flow_config = flow_config
         self.plot_training = plot_training
-        self.use_logit = use_logit
         self.reset_flows = reset_flows
         self.reparam = reparam
         self.weighted_kl = weighted_kl
@@ -102,28 +99,18 @@ class ImportanceFlowProposal(Proposal):
         config['model_config']['n_inputs'] = self.model.dims
         self._flow_config = update_config(config)
 
-    @property
-    def flow(self) -> FlowModel:
-        """The current normalising flow."""
-        if not self.flows:
-            flow = None
-        else:
-            flow = self.flows[-1]
-        return flow
+    def initialise(self):
+        if self.initialised:
+            return
+        self.flow = CombinedFlowModel(
+            config=self.flow_config, output=self.output
+        )
+        self.flow.initialise()
+        return super().initialise()
 
     def set_log_likelihood(self, func):
         """Set the log-likelihood function"""
         self.log_likelihood = func
-
-    def get_flow(self) -> FlowModel:
-        """Get a new flow object to train"""
-        flow = FlowModel(config=self.flow_config, output=self.output)
-        flow.initialise()
-        if self.flows and not self.reset_flows:
-            flow.model.load_state_dict(
-                copy.deepcopy(self.flows[-1].model.state_dict())
-            )
-        return flow
 
     def to_prime(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Convert samples from the unit hypercube to samples in x'-space"""
@@ -234,8 +221,9 @@ class ImportanceFlowProposal(Proposal):
         else:
             weights = None
 
-        flow = self.get_flow()
-        flow.train(
+        self.flow.add_new_flow(reset=self.reset_flows)
+        assert len(self.flow.models) == (self.level_count + 1)
+        self.flow.train(
             x_prime,
             weights=weights,
             output=level_output,
@@ -244,7 +232,7 @@ class ImportanceFlowProposal(Proposal):
         )
 
         if plot:
-            test_samples_prime, log_prob = flow.sample_and_log_prob(2000)
+            test_samples_prime, log_prob = self.flow.sample_and_log_prob(2000)
             test_samples, log_j_inv = self.inverse_rescale(test_samples_prime)
             log_prob -= log_j_inv
             test_samples['logG'] = log_prob
@@ -252,39 +240,45 @@ class ImportanceFlowProposal(Proposal):
                 test_samples,
                 filename=os.path.join(level_output, 'generated_samples.png')
             )
-        self.flows.append(flow)
-        self.levels[self.level_count] = flow
 
     def _compute_log_g_combined(self, x_prime, log_q, n, log_j):
-        n_flows = len(self.flows)
-        log_g = np.empty((x_prime.shape[0], n_flows))
         if np.isnan(x_prime).any():
             logger.warning('NaNs in samples when computing log_g')
         if not np.isfinite(x_prime).all():
             logger.warning(
                 'Infinite values in the samples when computing log_g'
             )
-        if log_q is not None:
-            logger.debug('Setting log_g for current flow using inputs')
-            logger.debug(f'n={n}')
-            logger.debug(f'log_q finite={np.isfinite(log_q).all()}')
-            logger.debug(f'log_j finite={np.isfinite(log_j).all()}')
-            n_flows -= 1
-            log_g[:, -1] = log_q + np.log(n)
 
-        logger.debug(f'Updating log_g for flows: {list(range(n_flows))}')
-        for i, flow in enumerate(self.flows[:n_flows]):
-            logger.debug(f"Poolsize: {self.n_draws[i]}")
-            log_prob = flow.log_prob(x_prime)
-            log_g[:, i] = log_prob + np.log(self.n_draws[i])
+        exclude_last = log_q is not None
+        if exclude_last and len(self.flow.models) == 1:
+            log_g = log_q + np.log(n) + log_j
+        else:
+            log_q_all = self.flow.log_prob_all(
+                x_prime, exclude_last=exclude_last
+            )
+            m = log_q_all.shape[1]
+            assert log_q_all.shape[0] == x_prime.shape[0]
+            if exclude_last:
+                log_g = np.concatenate([
+                    log_q_all + np.log(self._history['poolsize'][:m]),
+                    log_q[:, np.newaxis] + np.log(n)
+                ], axis=1)
+                assert log_q_all.shape[1] == (len(self.flow.models) - 1)
+            else:
+                log_g = log_q_all + np.log(self._history['poolsize'])
+                assert log_q_all.shape[1] == len(self.flow.models)
+            log_g += log_j[:, np.newaxis]
 
-        logger.debug(f'log_g is nan: {np.isnan(log_g).any()}')
-        logger.debug(f'Initial log g: {self.initial_log_g:.2f}')
-        logger.debug(
-            f'Mean log g for each each flow: {log_g.mean(axis=0)}'
-        )
-        log_g += log_j[:, np.newaxis]
-        log_g = logsumexp(log_g, axis=1)
+            logger.debug(f'log_g is nan: {np.isnan(log_g).any()}')
+            logger.debug(f'Initial log g: {self.initial_log_g:.2f}')
+            logger.debug(
+                f'Mean log g for each each flow: {log_g.mean(axis=0)}'
+            )
+            # Could move Jacobian here
+            log_g = logsumexp(log_g, axis=1)
+
+        if np.isnan(log_g).any():
+            raise ValueError('There is a NaN in log g before initial!')
         log_g = np.logaddexp(self.initial_log_g, log_g)
         if np.isnan(log_g).any():
             raise ValueError('There is a NaN in log g!')
@@ -344,8 +338,7 @@ class ImportanceFlowProposal(Proposal):
         n_accepted = 0
         while n_accepted < n and n_draw > 0:
             logger.debug(f'Drawing batch of {n_draw} samples')
-            x_prime, log_q = \
-                self.flows[flow_number].sample_and_log_prob(N=n_draw)
+            x_prime, log_q = self.flow.sample_and_log_prob(N=n_draw)
             x, log_j_inv = self.inverse_rescale(x_prime)
             # Rescaling can sometimes produce infs that don't appear in samples
             x_check, log_j = self.rescale(x)
@@ -450,8 +443,8 @@ class ImportanceFlowProposal(Proposal):
         """Get a pointer to the function for ith proposal."""
         if it == -1:
             return self._log_prior
-        elif it < len(self.flows):
-            return self.flows[it].log_prob
+        elif it < len(self.flow.models):
+            return lambda x: self.flow.log_prob_ith(x, it)
         else:
             raise ValueError
 
@@ -468,10 +461,10 @@ class ImportanceFlowProposal(Proposal):
         """
         x_prime, log_j = self.rescale(x)
         if p_it is None:
-            p_it = len(self.flows) - 1
+            p_it = self.flow.n_models - 1
 
         if q_it is None:
-            q_it = len(self.flows) - 2
+            q_it = self.flow.n_models - 2
 
         if p_it == q_it:
             raise ValueError('p and q must be different')
@@ -508,58 +501,65 @@ class ImportanceFlowProposal(Proposal):
             f'Drawing {n} samples from the combination of all the proposals'
         )
         if weights is None:
-            weights = np.empty(len(self.flows) + 1)
-            weights[0] = self.initial_draws
-            weights[1:] = self._history['poolsize']
+            weights = np.fromiter(self.n_draws.values(), float)
         weights /= np.sum(weights)
         logger.debug(f'Proposal weights: {weights}')
         a = np.random.choice(weights.size, size=n, p=weights)
-        proposal_id = np.arange(weights.size)
-        counts = np.bincount(a)
+        proposal_id = np.arange(weights.size) - 1
+        counts = np.bincount(a).astype(int)
+        logger.debug(f'Counts: {counts}')
         prime_samples = np.empty([n, self.model.dims])
-        assert len(weights) == (len(self.flows) + 1)
+        assert len(weights) == (self.flow.n_models + 1)
         count = 0
         # Draw from prior
         for i, m in zip(proposal_id, counts):
             if m == 0:
                 continue
             logger.debug(f'Drawing {m} samples from the {i}th proposal.')
-            if i == 0:
+            if i == -1:
                 prime_samples[count:(count + m)] = \
                     self.to_prime(np.random.rand(m, self.model.dims))[0]
             else:
-                prime_samples[count:(count + m)] = \
-                    self.flows[i-1].sample_and_log_prob(N=m)[0]
+                prime_samples[count:(count + m)] = self.flow.sample_ith(i, N=m)
             count += m
         samples, log_j = self.inverse_rescale(prime_samples)
-        finite = np.isfinite(log_j)
+        finite = (
+            np.isfinite(log_j)
+            & isfinite_struct(samples)
+            & np.isfinite(prime_samples).all(axis=1)
+        )
         samples, prime_samples, log_j = \
             get_subset_arrays(finite, samples, prime_samples, log_j)
-        log_g = np.empty((samples.size, len(self.flows) + 1))
-        log_g[:, 0] = np.log(counts[0])
-        for i, flow in enumerate(self.flows):
-            log_g[:, i + 1] = (
-                flow.log_prob(prime_samples)
-                - log_j
-                + np.log(counts[i + 1])
-            )
-        log_g = logsumexp(log_g, axis=1)
-        finite = np.isfinite(log_g).astype(bool)
-        samples, log_g = samples[finite], log_g[finite, ...]
+
+        log_g = np.zeros((samples.size, len(weights)))
+        log_g[:, 1:] = \
+            self.flow.log_prob_all(prime_samples) - log_j[:, np.newaxis]
+        log_g += np.log(counts)
         logger.debug(
             f'Mean g for each each flow: {np.exp(log_g).mean(axis=0)}'
         )
-        # Could move Jacobian here
-        # assert np.isfinite(log_g).all()
-        # log_g = self.compute_log_g(
-        #     prime_samples, log_j=-log_j,
-        # )
+        log_g = logsumexp(log_g, axis=1)
+
+        finite = np.isfinite(log_g)
+        samples, log_g = get_subset_arrays(finite, samples, log_g)
+
         samples['logP'] = self.model.log_prior(samples)
         samples['logG'] = log_g
         samples['logW'] = - samples['logG']
         return samples
 
+    def resume(self, model, flow_config, weights_path=None):
+        """Resume the proposal"""
+        super().resume(model)
+        self.flow_config = flow_config
+        self.initialise()
+        self.flow.setup_from_input_dict(self.flow_config)
+        if weights_path:
+            self.flow.update_weights_path(weights_path)
+        self.flow.load_all_weights()
+
     def __getstate__(self):
         obj = super().__getstate__()
         del obj['log_likelihood']
+        del obj['_flow_config']
         return obj
