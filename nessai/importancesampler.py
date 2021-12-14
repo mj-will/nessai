@@ -90,7 +90,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         **kwargs: Any
     ):
 
-        add_extra_parameters_to_live_points(['logW', 'logG'])
+        self.add_fields()
 
         super().__init__(
             model,
@@ -169,6 +169,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
         log_p -= logsumexp(log_p)
         p = np.exp(log_p)
         return entropy(p) / np.log(p.size)
+
+    @staticmethod
+    def add_fields():
+        """Add extra fields logW and logG"""
+        add_extra_parameters_to_live_points(['logW', 'logG'])
 
     def get_proposal(
         self,
@@ -662,10 +667,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         return cond
 
+    def checkpoint(self, periodic: bool = False):
+        """Checkpoint the sampler."""
+        if periodic is False:
+            logger.warning(
+                'Importance Sampler cannot checkpoint mid iteration'
+            )
+            return
+        super().checkpoint(periodic=periodic)
+
     def nested_sampling_loop(self):
         """Main nested sampling loop."""
         self.initialise()
         logger.warning('Starting the nested sampling loop')
+        if self.finalised:
+            logger.warning('Sampler has already finished sampling! Aborting')
+            return self.log_evidence, self.nested_samples
 
         while True:
             if (
@@ -715,6 +732,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.update_history()
             if not self.iteration % self.plotting_frequency:
                 self.produce_plots()
+            if self.checkpointing:
+                self.checkpoint(periodic=True)
             if self.iteration >= self.max_iteration:
                 break
 
@@ -770,7 +789,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def draw_more_nested_samples(self, n: int) -> np.ndarray:
         """Draw more nested samples from g"""
         samples = self.proposal.draw_from_flows(n)
-        samples['logL'] = self.model.evaluate_log_likelihood(samples)
+        self.log_likelihood(samples)
+        state = _INSIntegralState()
+        state.update_evidence_from_nested_samples(samples)
+        logger.info(
+            'Evidence in new nested samples: '
+            f'{state.logZ:3f} +/- {state.compute_uncertainty():.3f}'
+        )
+        logger.info(
+            'Effective number of posterior samples: '
+            f'{state.effective_n_posterior_samples:3f}'
+        )
         return samples
 
     def plot_state(
@@ -793,6 +822,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         colours = ['#4575b4', '#d73027', '#fad117']
         ls = ['-', '--', ':', '-.']
+
+        for a in ax:
+            a.vlines(self.checkpoint_iterations, 0, 1, color=colours[2])
 
         # Counter for each plot
         m = 0
@@ -973,6 +1005,36 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d['add_samples_time'] = self.add_samples_time.total_seconds()
         d['update_ns_time'] = self.update_ns_time.total_seconds()
         return d
+
+    @classmethod
+    def resume(cls, filename, model, flow_config={}, weights_path=None):
+        """
+        Resumes the interrupted state from a checkpoint pickle file.
+
+        Parameters
+        ----------
+        filename : str
+            Pickle pickle to resume from
+        model : :obj:`nessai.model.Model`
+            User-defined model
+        flow_config : dict, optional
+            Dictionary for configuring the flow
+        weights_path : str, optional
+            Path to the weights files that will override the value stored in
+            the proposal.
+
+        Returns
+        -------
+        obj
+            Instance of ImportanceNestedSampler
+        """
+        cls.add_fields()
+        obj = super().resume(filename, model)
+        obj.proposal.resume(model, flow_config, weights_path=weights_path)
+        obj.proposal.set_log_likelihood(obj.log_likelihood)
+        logger.debug(f'Resuming sampler at iteration {obj.iteration}')
+        logger.debug(f'Current number of samples: {obj.live_points.size}')
+        return obj
 
     def __getstate__(self):
         obj = super().__getstate__()
