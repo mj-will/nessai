@@ -3,6 +3,7 @@
 Object and functions to handle training the normalising flow.
 """
 import copy
+import glob
 import json
 import logging
 import numpy as np
@@ -138,10 +139,13 @@ class FlowModel:
     output : str, optional
         Path for output, this includes weights files and the loss plot.
     """
+    model_config = None
+
     def __init__(self, config=None, output='./'):
         self.model = None
         self.initialised = False
         self.output = output
+        os.makedirs(self.output, exist_ok=True)
         self.setup_from_input_dict(config)
         self.weights_file = None
 
@@ -332,8 +336,8 @@ class FlowModel:
         if not self.initialised:
             self.initialise()
 
-        if not np.isfinite(samples).any():
-            raise ValueError('Training data contains non-finite values!')
+        if not np.isfinite(samples).all():
+            raise ValueError('Cannot train with non-finite samples!')
 
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
@@ -834,5 +838,142 @@ class FlowModel:
         state['initialised'] = False
         del state['optimiser']
         del state['model']
+        del state['model_config']
+        return state
+
+
+class CombinedFlowModel(FlowModel):
+    """Flow Model that contains multiple flows for importance sampler."""
+
+    models = torch.nn.ModuleList()
+
+    def __init__(self, config=None, output='./'):
+        super().__init__(config=config, output=output)
+        self.weights_files = []
+
+    @property
+    def model(self):
+        return self.models[-1]
+
+    @model.setter
+    def model(self, model):
+        logger.info('In the setter')
+        if model is not None:
+            self.models.append(model)
+
+    @property
+    def n_models(self):
+        return len(self.models)
+
+    def initialise(self):
+        """Initialise things"""
+        self.initialised = True
+
+    def reset_optimiser(self):
+        """Reset the optimiser to point at current model."""
+        self._optimiser = self.get_optimiser()
+
+    def add_new_flow(self, reset=False):
+        """Add a new flow"""
+        logger.info('Add a new flow')
+        if reset or not self.models:
+            new_flow, self.device = configure_model(self.model_config)
+        else:
+            new_flow = copy.deepcopy(self.model)
+        logger.debug(f'Training device: {self.device}')
+        self.inference_device = torch.device(
+            self.model_config.get('inference_device_tag', self.device)
+            or self.device
+        )
+        logger.debug(f'Inference device: {self.inference_device}')
+        self.models.eval()
+        self.models.append(new_flow)
+        self.reset_optimiser()
+
+    def log_prob_ith(self, x, i):
+        """Compute the log-prob for the ith flow"""
+        x = (
+            torch.from_numpy(x).type(torch.get_default_dtype())
+            .to(self.model.device)
+        )
+        if self.models[i].training:
+            self.models[i].eval()
+        with torch.no_grad():
+            log_prob = self.models[i].log_prob(x)
+        log_prob = log_prob.cpu().numpy().astype(np.float64)
+        return log_prob
+
+    def log_prob_all(self, x, exclude_last=False):
+        """Compute the log probability using all of the stored models."""
+        x = (
+            torch.from_numpy(x).type(torch.get_default_dtype())
+            .to(self.model.device)
+        )
+        if self.model.training:
+            self.model.eval()
+        n = self.n_models
+        if exclude_last:
+            n -= 1
+        log_prob = torch.empty(x.shape[0], n)
+        with torch.no_grad():
+            for i, m in enumerate(self.models[:n]):
+                log_prob[:, i] = m.log_prob(x)
+        log_prob = log_prob.cpu().numpy().astype(np.float64)
+        return log_prob
+
+    def sample_ith(self, i, N=1):
+        """Draw samples from the ith flow"""
+        if self.models is None:
+            raise RuntimeError('Models are not initialised yet!')
+        if self.models[i].training:
+            self.models[i].eval()
+
+        with torch.no_grad():
+            x = self.models[i].sample(int(N))
+
+        x = x.detach().cpu().numpy().astype(np.float64)
+        return x
+
+    def save_weights(self, weights_file):
+        """Save the weights file."""
+        super().save_weights(weights_file)
+        self.weights_files.append(self.weights_file)
+
+    def load_all_weights(self):
+        """Load all of the weights files for each flow.
+
+        Resets any existing models.
+        """
+        if self.models:
+            logger.debug('Resetting model list')
+            self.models = torch.nn.ModuleList()
+        logger.debug(f'Loading weights from {self.weights_files}')
+        for wf in self.weights_files:
+            new_flow, self.device = configure_model(self.model_config)
+            new_flow.load_state_dict(torch.load(wf))
+            self.models.append(new_flow)
+        self.models.eval()
+
+    def update_weights_path(self, weights_path):
+        """Update the weights path.
+
+        Searches in the specified directory for weights files.
+        """
+        all_weights_files = glob.glob(
+            os.path.join(weights_path, '', 'level_*', 'model.pt')
+        )
+        if len(all_weights_files) != self.n_models:
+            raise RuntimeError(
+                f'Cannot use weights from: {weights_path}.'
+            )
+        self.weights_files = [
+            os.path.join(weights_path, f'level_{i}', 'model.pt')
+            for i in range(self.n_models)
+        ]
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['initialised'] = False
+        del state['optimiser']
         del state['model_config']
         return state
