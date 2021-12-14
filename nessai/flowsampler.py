@@ -52,7 +52,7 @@ class FlowSampler:
         output='./',
         resume=True,
         resume_file='nested_sampler_resume.pkl',
-        weights_file=None,
+        weights_path=None,
         exit_code=130,
         max_threads=1,
         importance_sampler=False,
@@ -88,22 +88,32 @@ class FlowSampler:
             else:
                 try:
                     self.ns = SamplerClass.resume(
-                        os.path.join(self.output, resume_file), model,
-                        kwargs['flow_config'], weights_file)
+                        os.path.join(self.output, resume_file),
+                        model,
+                        kwargs['flow_config'],
+                        weights_path,
+                    )
                 except (FileNotFoundError, RuntimeError) as e:
                     logger.error(
                         f'Could not load resume file from: {self.output} '
-                        f'with error {e}')
+                        f'with error {e}'
+                    )
                     try:
                         resume_file += '.old'
                         self.ns = SamplerClass.resume(
-                            os.path.join(self.output, resume_file), model,
-                            kwargs['flow_config'], weights_file)
+                            os.path.join(self.output, resume_file),
+                            model,
+                            kwargs['flow_config'],
+                            weights_path
+                        )
                     except RuntimeError as e:
-                        logger.error('Could not load old resume '
-                                     f'file from: {self.output}')
-                        raise RuntimeError('Could not resume sampler '
-                                           f'with error: {e}')
+                        logger.error(
+                            'Could not load old resume file from: '
+                            f'{self.output}'
+                        )
+                        raise RuntimeError(
+                            f'Could not resume sampler with error: {e}'
+                        )
         else:
             self.ns = SamplerClass(model, output=self.output,
                                    resume_file=resume_file, **kwargs)
