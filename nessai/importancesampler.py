@@ -159,7 +159,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         log_p = self.live_points['logL'] + self.live_points['logW']
         log_p -= logsumexp(log_p)
         p = np.exp(log_p)
-        return entropy(p)
+        return entropy(p) / np.log(p.size)
 
     @property
     def nested_samples_entropy(self):
