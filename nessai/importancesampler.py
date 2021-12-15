@@ -300,6 +300,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.history = dict(
                 min_logL=[],
                 max_logL=[],
+                median_logL=[],
                 logZ=[],
                 dZ=[],
                 alt_dZ=[],
@@ -328,6 +329,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """Update the history dictionary"""
         self.history['min_logL'].append(np.min(self.live_points['logL']))
         self.history['max_logL'].append(np.max(self.live_points['logL']))
+        self.history['median_logL'].append(np.median(self.live_points['logL']))
         self.history['logZ'].append(self.state.logZ)
         self.history['dZ'].append(self.dZ)
         self.history['alt_dZ'].append(self.alt_dZ)
@@ -833,6 +835,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
                    c=colours[0], ls=ls[0])
         ax[m].plot(its, self.history['max_logL'], label='Max logL',
                    c=colours[1], ls=ls[1])
+        ax[m].plot(its, self.history['median_logL'], label='Median logL',
+                   c=colours[2], ls=ls[2])
         ax[m].set_ylabel('Log-likelihood')
         ax[m].legend(frameon=False)
 
