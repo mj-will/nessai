@@ -328,7 +328,7 @@ class ImportanceFlowProposal(Proposal):
         if flow_number is None:
             flow_number = self.level_count
         if logL_min:
-            _p = 1.1
+            _p = 1.2
             n = int(n)
             n_draw = int(_p * n)
         else:
@@ -371,20 +371,24 @@ class ImportanceFlowProposal(Proposal):
                 continue
 
             x = x[accept]
-            if not np.isfinite(x['logP']).all():
-                raise RuntimeError('Prior value is inf!')
 
             if logL_min is not None:
                 self.log_likelihood(x)
+
             samples = np.concatenate([samples, x])
+
             if logL_min is not None:
                 m = (x['logL'] >= logL_min).sum()
                 n_accepted += m
+                logger.debug(f'Total accepted: {samples.size}')
+                logger.debug(f'Accepted above min logL: {n_accepted}')
             else:
-                n_accepted += accept.sum()
-            logger.debug(f'Accepted: {n_accepted}')
+                n_accepted += x.size
+                logger.debug(f'Accepted: {n_accepted}')
 
-        if logL_min is not None:
+        if logL_min is None:
+            samples = samples[:n]
+        else:
             possible_idx = np.cumsum(samples['logL'] >= logL_min)
             idx = np.argmax(possible_idx >= n)
             samples = samples[:(idx + 1)]
@@ -393,17 +397,22 @@ class ImportanceFlowProposal(Proposal):
                 f"Accepted {(samples['logL'] >= logL_min).sum()} "
                 f'with logL greater than {logL_min}'
             )
-        else:
-            entr = entropy(np.exp(samples['logG']))
-            samples = samples[:n]
+
+        self._history['poolsize'].append(samples.size)
+        self.n_draws[self.level_count] += samples.size
+
+        if logL_min is not None:
+            logger.debug('Recomputing log g')
+            prime_samples, log_j = self.rescale(samples)
+            samples['logG'] = self.compute_log_g(
+                prime_samples, log_j=log_j,
+            )
 
         entr = entropy(np.exp(samples['logG']))
         logger.info(f'Proposal self entropy: {entr:.3}')
         self._history['entropy'].append(entr)
-        self._history['poolsize'].append(samples.size)
 
         self.draw_count += 1
-        self.n_draws[self.level_count] += samples.size
         logger.debug(f'Returning {samples.size} samples')
         return samples
 
