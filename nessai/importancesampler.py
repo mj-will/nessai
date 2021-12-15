@@ -77,7 +77,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         min_samples: int = 1000,
         tolerance: float = 1.0,
         n_update: Optional[int] = None,
-        use_n_effective: bool = False,
         plot_pool: bool = False,
         replace_all: bool = False,
         update_nested_samples: bool = True,
@@ -119,7 +118,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.n_update = n_update
         self.plot_pool = plot_pool
         self.plotting_frequency = plotting_frequency
-        self.use_n_effective = use_n_effective
         self.replace_all = replace_all
         self._update_nested_samples = update_nested_samples
         self.leaky = leaky
