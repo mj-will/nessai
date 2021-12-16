@@ -58,6 +58,7 @@ class ImportanceFlowProposal(Proposal):
         flow_config: dict = None,
         combined_proposal: bool = True,
         clip: bool = False,
+        annealing: float = 0.05,
     ) -> None:
         self.level_count = -1
         self.draw_count = 0
@@ -71,6 +72,7 @@ class ImportanceFlowProposal(Proposal):
         self.reparam = reparam
         self.weighted_kl = weighted_kl
         self.clip = clip
+        self.annealing = annealing
 
         self.initial_draws = initial_draws
         self.initial_log_g = np.log(self.initial_draws)
@@ -209,7 +211,10 @@ class ImportanceFlowProposal(Proposal):
         if self.weighted_kl:
             logger.debug('Using weights in training')
             if self.weights_include_likelihood:
-                log_weights = training_data['logW'] + training_data['logL']
+                log_weights = (
+                    training_data['logW']
+                    + self.annealing * training_data['logL']
+                )
             else:
                 log_weights = training_data['logW']
             log_weights -= logsumexp(log_weights)
