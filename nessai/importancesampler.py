@@ -75,6 +75,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         min_iteration: Optional[int] = None,
         max_iteration: Optional[int] = None,
         min_samples: int = 1000,
+        min_remove: int = 1,
         tolerance: float = 1.0,
         n_update: Optional[int] = None,
         plot_pool: bool = False,
@@ -113,6 +114,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.tolerance = tolerance
         self.stopping_condition = stopping_condition
         self.min_samples = min_samples
+        self.min_remove = min_remove
         self.condition = np.inf
         self.stop = False
         self.n_update = n_update
@@ -705,6 +707,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
             if (self.live_points.size - n_remove) < self.min_samples:
                 n_remove = self.live_points.size - self.min_samples
                 logger.critical('Cannot remove all live points!')
+                logger.critical(f'Removing {n_remove}')
+            elif n_remove < self.min_remove:
+                logger.critical(
+                    f'Cannot remove less than {self.min_remove} samples'
+                )
+                n_remove = self.min_remove
                 logger.critical(f'Removing {n_remove}')
 
             self.min_logL = self.live_points[n_remove]['logL'].copy()
