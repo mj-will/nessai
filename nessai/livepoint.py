@@ -34,11 +34,9 @@ def add_extra_parameters_to_live_points(parameters, default_values=None):
             config.EXTRA_PARAMETERS.append(p)
             config.DEFAULT_VALUES_EXTRA.append(dv)
     config.NON_SAMPLING_PARAMETERS = \
-        config.NON_SAMPLING_PARAMETERS \
-        + config.EXTRA_PARAMETERS
+        config.CORE_PARAMETERS + config.EXTRA_PARAMETERS
     config.DEFAULT_VALUES = \
-        config.DEFAULT_VALUES \
-        + config.DEFAULT_VALUES_EXTRA
+        config.DEFAULT_VALUES_CORE + config.DEFAULT_VALUES_EXTRA
     logger.debug(
         f'Updated non-sampling parameters: {config.NON_SAMPLING_PARAMETERS}'
     )
