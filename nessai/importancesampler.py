@@ -129,7 +129,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.current_entropy = 0.0
         self.current_live_points_entropy = 0.0
         self.current_ns_entropy = 0.0
-        self.smc_dZ = np.inf
+        self.dZ_smc = np.inf
         self.current_log_evidence = -np.inf
 
         self.min_dZ = min_dZ if min_dZ is not None else np.inf
@@ -302,9 +302,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 max_logL=[],
                 median_logL=[],
                 logZ=[],
-                dZ=[],
-                alt_dZ=[],
-                smc_dZ=[],
                 n_added=[],
                 n_removed=[],
                 n_post=[],
@@ -317,10 +314,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 mean_log_g=[],
                 median_log_g=[],
                 min_log_g=[],
-                kl=[],
                 kl_g_live_points=[],
                 kl_g_nested_samples=[],
                 kl_proposals=[],
+                stopping_criteria=dict(
+                    dZ=[],
+                    dZ_ns=[],
+                    dZ_smc=[],
+                    dH_lp=[],
+                    dH_ns=[],
+                    dH_all=[],
+                    kl=[],
+                )
             )
         else:
             logger.debug('History dictionary already initialised')
@@ -331,9 +336,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['max_logL'].append(np.max(self.live_points['logL']))
         self.history['median_logL'].append(np.median(self.live_points['logL']))
         self.history['logZ'].append(self.state.logZ)
-        self.history['dZ'].append(self.dZ)
-        self.history['alt_dZ'].append(self.alt_dZ)
-        self.history['smc_dZ'].append(self.smc_dZ)
         self.history['n_post'].append(self.state.effective_n_posterior_samples)
         self.history['live_points_entropy'].append(
             entropy(np.exp(self.live_points['logW']))
@@ -352,7 +354,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
             np.median(self.live_points['logG'])
         )
         self.history['min_log_g'].append(np.min(self.live_points['logG']))
-        self.history['kl'].append(self.post_kl)
+
+        self.history['stopping_criteria']['dZ'].append(self.dZ)
+        self.history['stopping_criteria']['dZ_ns'].append(self.dZ_ns)
+        self.history['stopping_criteria']['dZ_smc'].append(self.dZ_smc)
+        self.history['stopping_criteria']['dH_all'].append(self.dH_all)
+        self.history['stopping_criteria']['dH_lp'].append(self.dH_lp)
+        self.history['stopping_criteria']['dH_ns'].append(self.dH_ns)
+        self.history['stopping_criteria']['kl'].append(self.post_kl)
 
     def determine_level_quantile(self, q: Optional[float] = None) -> int:
         """Determine where the next level should be located.
@@ -591,17 +600,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
         previous_log_evidence = self.current_log_evidence
         log_Z_with_live_points = self.state.compute_log_Z(self.live_points)
 
-        self.smc_dZ = np.abs(
+        self.dZ_smc = np.abs(
             log_Z_with_live_points - previous_log_evidence
         )
 
         current_ln_Z = self.state.logZ
-        self.alt_dZ = np.abs(current_ln_Z - self.initial_ln_Z)
+        self.dZ_ns = np.abs(current_ln_Z - self.initial_ln_Z)
         self.dZ = self.state.compute_condition(self.live_points)
         self.other = np.abs(current_ln_Z - previous_log_evidence)
         logger.debug(f'dZ: {self.dZ}')
-        logger.debug(f'Alt dZ: {self.alt_dZ}')
-        logger.debug(f'SMC dZ: {self.smc_dZ}')
+        logger.debug(f'dZ_NS: {self.dZ_ns}')
+        logger.debug(f'dZ_smc: {self.dZ_smc}')
         logger.debug(f'Other: {self.other}')
         self.post_kl = self.kl_divergence(include_live_points=True)
         log_p = np.concatenate([
@@ -616,14 +625,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.current_ns_entropy = entropy(
             np.exp(self.nested_samples['logL'] + self.nested_samples['logW'])
         )
-        self.d_entropy = np.abs(
+        self.dH_all = np.abs(
             (self.current_entropy - previous_entropy) / self.current_entropy
         )
-        self.d_lp_entropy = np.abs(
+        self.dH_lp = np.abs(
             (self.current_live_points_entropy - previous_live_points_entropy)
             / self.current_live_points_entropy
         )
-        self.d_ns_entropy = np.abs(
+        self.dH_ns = np.abs(
             (self.current_ns_entropy - previous_ns_entropy)
             / self.current_entropy
         )
@@ -631,35 +640,35 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.current_log_evidence = self.state.compute_log_Z(self.live_points)
 
         logger.debug(f'Current entropy: {self.current_entropy:.3f}')
-        logger.debug(f'Relative change in entropy: {self.d_entropy:.3f}')
+        logger.debug(f'Relative change in entropy: {self.dH_all:.3f}')
         logger.debug(
             f'Current LP entropy: {self.current_live_points_entropy:.3f}'
         )
         logger.debug(
-            f'Relative change in LP entropy: {self.d_lp_entropy:.3f}'
+            f'Relative change in LP entropy: {self.dH_lp:.3f}'
         )
         logger.debug(
             f'Current NS entropy: {self.current_ns_entropy:.3f}'
         )
         logger.debug(
-            f'Relative change in NS entropy: {self.d_ns_entropy:.3f}'
+            f'Relative change in NS entropy: {self.dH_ns:.3f}'
         )
-        if self.stopping_condition == 'evidence':
+        if self.stopping_condition in {'dZ', 'evidence'}:
             cond = self.dZ
-        elif self.stopping_condition == 'kl':
+        elif self.stopping_condition in {'kl'}:
             cond = self.post_kl
-        elif self.stopping_condition == 'alt_evidence':
-            cond = self.alt_dZ
-        elif self.stopping_condition == 'smc_evidence':
-            cond = self.smc_dZ
+        elif self.stopping_condition in {'dZ_ns', 'alt_evidence'}:
+            cond = self.dZ_ns
+        elif self.stopping_condition in {'dZ_smc', 'smc_evidence'}:
+            cond = self.dZ_smc
         elif self.stopping_condition == 'other':
             cond = self.other
-        elif self.stopping_condition == 'entropy':
-            cond = self.d_entropy
-        elif self.stopping_condition == 'lp_entropy':
-            cond = self.d_lp_entropy
-        elif self.stopping_condition == 'ns_entropy':
-            cond = self.d_ns_entropy
+        elif self.stopping_condition in {'dH', 'dH_all', 'entropy'}:
+            cond = self.dH_all
+        elif self.stopping_condition in {'dH_lp', 'lp_entropy'}:
+            cond = self.dH_lp
+        elif self.stopping_condition in {'dH_ns', 'ns_entropy'}:
+            cond = self.dH_ns
         else:
             raise ValueError(
                 f'Unknown stopping criterion: {self.stopping_condition}'
@@ -854,7 +863,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].legend(frameon=False)
 
         ax_dz = plt.twinx(ax[m])
-        ax_dz.plot(its, self.history['dZ'], label='dZ', c=colours[1], ls=ls[1])
+        ax_dz.plot(its, self.history['stopping_criteria']['dZ'], label='dZ',
+                   c=colours[1], ls=ls[1])
         ax_dz.set_ylabel('dZ')
         ax_dz.set_yscale('log')
         ax_dz.axhline(self.tolerance, label=f'dZ={self.tolerance}', ls=':',
@@ -882,8 +892,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
                    c=colours[0], ls=ls[0])
         ax[m].set_ylabel('KL divergence')
         ax_kl = plt.twinx(ax[m])
-        ax_kl.plot(its, self.history['kl'], label='(g||post)', c=colours[1],
-                   ls=ls[1])
+        ax_kl.plot(its, self.history['stopping_criteria']['kl'],
+                   label='(g||post)', c=colours[1], ls=ls[1])
         ax_kl.set_ylabel('KL divergence')
 
         m += 1
@@ -924,13 +934,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
-        ax[m].plot(its, self.history['dZ'], label='dZ', c=colours[0], ls=ls[0])
         ax[m].plot(
-            its, self.history['smc_dZ'], label='SMC dZ', c=colours[1], ls=ls[1]
+            its, self.history['stopping_criteria']['dZ'], label='dZ',
+            c=colours[0], ls=ls[0]
         )
         ax[m].plot(
-            its, self.history['alt_dZ'], label='Alt. dZ', c=colours[2],
-            ls=ls[2]
+            its, self.history['stopping_criteria']['dZ_smc'], label='SMC dZ',
+            c=colours[1], ls=ls[1]
+        )
+        ax[m].plot(
+            its, self.history['stopping_criteria']['dZ_ns'], label='Alt. dZ',
+            c=colours[2], ls=ls[2]
         )
         ax[m].axhline(self.tolerance, label='Threshold', ls='-', c='grey')
         ax[m].legend(frameon=False)
