@@ -1207,9 +1207,9 @@ class NestedSampler(BaseNestedSampler):
         obj.resumed = True
         return obj
 
-    def close_pool(self):
+    def close_pool(self, code=None):
         """Close the multiprocessing pool."""
-        self.proposal.close_pool()
+        self.proposal.close_pool(code=code)
 
     def __getstate__(self):
         state = self.__dict__.copy()
