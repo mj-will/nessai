@@ -32,6 +32,7 @@ The code is available at: https://github.com/mj-will/nessai.
    reparameterisations
    normalising-flows-configuration
    parallelisation
+   gravitational-wave-inference
    further-details
    API reference </autoapi/nessai/index>
 
