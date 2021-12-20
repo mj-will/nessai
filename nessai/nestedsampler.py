@@ -1210,11 +1210,3 @@ class NestedSampler(BaseNestedSampler):
     def close_pool(self, code=None):
         """Close the multiprocessing pool."""
         self.proposal.close_pool(code=code)
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        del state['model']
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__ = state
