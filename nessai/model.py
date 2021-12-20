@@ -33,29 +33,42 @@ class Model(ABC):
 
     The user can also define the reparemeterisations here instead of in
     the keyword arguments passed to the sampler.
-
-
-    Attributes
-    ----------
-    names : list of str
-        List of names of parameters, e.g. ['x', 'y']
-    bounds : dict
-        Dictionary of prior bounds, e.g. {'x': [-1, 1], 'y': [-1, 1]}
-    reparameterisations : dict
-        Dictionary of reparameterisations that overrides the values specified
-        with keyword arguments.
-    likelihood_evaluations : int
-        Number of likelihood evaluations
     """
 
     _names = None
     _bounds = None
     reparameterisations = None
+    """
+    dict
+        Dictionary of reparameterisations that overrides the values specified.
+    """
     likelihood_evaluations = 0
+    """
+    int
+        Number of likelihood evaluations.
+    """
     likelihood_evaluation_time = datetime.timedelta()
+    """
+    :py:obj:`datetime.timedelta()`
+        Time spent evaluating the likelihood.
+    """
     _lower = None
     _upper = None
     pool = None
+    """
+    obj
+        Multiprocessing pool for evaluating the log-likelihood.
+    """
+    allow_vectorised = True
+    """
+    bool
+        Allow the model to use a vectorised likelihood. If True, nessai will
+        try to check if the model is vectorised and use call the likelihood
+        as a vectorised function. If False, nessai won't check and, even if the
+        likelihood is vectorised, it will only evaluate the likelihood one
+        sample at a time.
+    """
+    __vectorised_likelihood = None
 
     @property
     def names(self):
@@ -130,6 +143,45 @@ class Model(ABC):
             self._lower = bounds_array[:, 0]
             self._upper = bounds_array[:, 1]
         return self._upper
+
+    @property
+    def vectorised_likelihood(self):
+        """Boolean to indicate if the likelihood is vectorised or not.
+
+        Checks that the values returned by computing the likelihood for
+        individual samples matches those return by evaluating the likelihood
+        in a batch. If a TypeError or ValueError are raised the likelihood is
+        assumed to be vectorised.
+
+        This check can be prevented by setting
+        :py:attr:`nessai.model.Model.allowed_vectorised` to ``False``.
+        """
+        if self.__vectorised_likelihood is None:
+            x = self.new_point(N=10)
+            target = np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
+            try:
+                batch = self.log_likelihood(x)
+            except (TypeError, ValueError):
+                logger.debug(
+                    'Evaluating a batch of points returned an error. '
+                    'Assuming the likelihood is not vectorised.'
+                )
+                self.__vectorised_likelihood = False
+            else:
+                if np.array_equal(batch, target) and self.allow_vectorised:
+                    logger.debug(
+                        'Individual and batch likelihoods are equal.'
+                    )
+                    logger.info('Likelihood is vectorised')
+                    self.__vectorised_likelihood = True
+                else:
+                    logger.debug(
+                        'Individual and batch likelihoods are not equal.'
+                    )
+                    logger.debug(target)
+                    logger.debug(batch)
+                    self.__vectorised_likelihood = False
+        return self.__vectorised_likelihood
 
     def configure_pool(self, pool=None, n_pool=None):
         """Configure a multiprocessing pool for the likelihood computation.
@@ -363,8 +415,11 @@ class Model(ABC):
         st = datetime.datetime.now()
         if self.pool is None:
             logger.debug('Not using pool to evaluate likelihood')
-            log_likelihood = \
-                np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
+            if self._vectorised_likelihood:
+                log_likelihood = self.log_likelihood(x)
+            else:
+                log_likelihood = \
+                    np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
         else:
             logger.debug('Using pool to evaluate likelihood')
             log_likelihood = \
