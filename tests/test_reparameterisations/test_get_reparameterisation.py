@@ -97,3 +97,11 @@ def test_get_reparameterisation_invalid_input():
     with pytest.raises(TypeError) as excinfo:
         get_reparameterisation(2)
     assert 'Reparameterisation must be' in str(excinfo.value)
+
+
+def test_get_reparameterisation_defaults():
+    """Test using an updated defaults dictionary."""
+    defaults = {'default': ('Class', {'x': 2})}
+    cls, kwargs = get_reparameterisation('default', defaults=defaults)
+    assert cls == 'Class'
+    assert kwargs == {'x': 2}
