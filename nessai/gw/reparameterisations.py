@@ -7,9 +7,9 @@ import logging
 
 from ..reparameterisations import (
     default_reparameterisations,
-    Reparameterisation,
     RescaleToBounds,
-    AnglePair
+    AnglePair,
+    get_reparameterisation,
 )
 
 from ..priors import log_uniform_prior
@@ -24,24 +24,22 @@ def get_gw_reparameterisation(reparameterisation):
     """
     Get a reparameterisation from the default list plus specific GW
     classes.
+
+    Parameters
+    ----------
+    reparameterisation : str, \
+            :obj:`nessai.reparameterisations.Reparameterisation`
+        Name of the reparameterisations to return or a class that inherits from
+        :obj:`~nessai.reparameterisations.Reparameterisation`
+
+    Returns
+    -------
+    :obj:`nessai.reparameteristaions.Reparameterisation`
+        Reparameterisation class.
+    dict
+        Keyword arguments for the specific reparameterisation.
     """
-    if isinstance(reparameterisation, str):
-        rc, kwargs = default_gw.get(reparameterisation, (None, None))
-        if rc is None:
-            raise ValueError(
-                f'Unknown GW reparameterisation: {reparameterisation}')
-        else:
-            if kwargs is None:
-                kwargs = {}
-            else:
-                kwargs = kwargs.copy()
-            return rc, kwargs
-    elif (isinstance(reparameterisation, type) and
-            issubclass(reparameterisation, Reparameterisation)):
-        return reparameterisation, {}
-    else:
-        raise RuntimeError('Reparmeterisation must a str or class that '
-                           'inherits from `Reparameterisation`')
+    return get_reparameterisation(reparameterisation, defaults=default_gw)
 
 
 class DistanceReparameterisation(RescaleToBounds):
