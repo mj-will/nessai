@@ -158,14 +158,7 @@ class FlowSampler:
         """
         d = kwargs.copy()
         with open(os.path.join(self.output, 'config.json'), 'w') as wf:
-            try:
-                json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
-            except TypeError:
-                if 'flow_class' in d:
-                    d['flow_class'] = str(d['flow_class'])
-                    json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
-            except Exception as e:
-                raise e
+            json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
 
     def save_results(self, filename):
         """
