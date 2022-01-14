@@ -100,7 +100,7 @@ vertical lines that can appear in the subplots.
 ### Fixed
 
 - Fixed an issue where `nessai.reparameterisations.AnglePair` would silently break when the prior range for RA or azimuth was set to a range that wasn't [0, 2pi]. It now correctly handles both [0, 2pi] and [-pi, pi] and raises an error for any other ranges. ([#114](https://github.com/mj-will/nessai/pull/114))
-- Fixed various spelling mistakes throughtout the source code and documentation. ([#116](htFlowSamplertps://github.com/mj-will/nessai/pull/116))
+- Fixed various spelling mistakes throughtout the source code and documentation. ([#116](https://github.com/mj-will/nessai/pull/116))
 
 
 ## [0.3.1] Minor improvements and bug fixes - 2021-08-23
