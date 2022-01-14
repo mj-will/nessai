@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `nessai.flows.utils.create_linear_transform` as a common function for creating linear transforms in the flows.
 - Add `nessai.flows.transforms.LULinear` to address a [bug in nflows](https://github.com/bayesiains/nflows/pull/38) that has not been patched and prevents the use of CUDA with `LULinear`.
 - Add `calibration_example.py` to the gravitational wave examples.
+- Add `defaults` keyword argument to `nessai.reparameterisations.get_reparameterisation` for overriding the dictionary of default reparameterisations.
 
 ### Changed
 
@@ -24,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The figure produced by `NestedSampler.plot_state` now includes a legend for the different
 vertical lines that can appear in the subplots.
 - Updated all of the examples to reflect the new defaults.
+- Rework `nessai.gw.reparameterisations.get_gw_reparameterisation` to use `get_reparameterisation` with the `defaults` keyword argument.
 
 ### Removed
 

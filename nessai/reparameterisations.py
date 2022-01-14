@@ -32,7 +32,7 @@ from .priors import (
 logger = logging.getLogger(__name__)
 
 
-def get_reparameterisation(reparameterisation):
+def get_reparameterisation(reparameterisation, defaults=None):
     """Function to get a reparameterisation class from a name
 
     Parameters
@@ -41,17 +41,20 @@ def get_reparameterisation(reparameterisation):
             :obj:`nessai.reparameterisations.Reparameterisation`
         Name of the reparameterisations to return or a class that inherits from
         :obj:`~nessai.reparameterisations.Reparameterisation`
+    defaults : dict, optional
+        Dictionary of known reparameterisations that overrides the defaults.
 
     Returns
     -------
     :obj:`nessai.reparameteristaions.Reparameterisation`
-        T
+        Reparameterisation class.
     dict
-        Keyword arguments for the specific reparameterisations.
+        Keyword arguments for the specific reparameterisation.
     """
+    if defaults is None:
+        defaults = default_reparameterisations
     if isinstance(reparameterisation, str):
-        rc, kwargs = default_reparameterisations.get(
-            reparameterisation, (None, None))
+        rc, kwargs = defaults.get(reparameterisation, (None, None))
         if rc is None:
             raise ValueError(
                 f'Unknown reparameterisation: {reparameterisation}'
