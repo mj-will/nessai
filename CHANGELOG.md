@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `nessai.flows.transforms.LULinear` to address a [bug in nflows](https://github.com/bayesiains/nflows/pull/38) that has not been patched and prevents the use of CUDA with `LULinear`.
 - Add `calibration_example.py` to the gravitational wave examples.
 - Add `defaults` keyword argument to `nessai.reparameterisations.get_reparameterisation` for overriding the dictionary of default reparameterisations.
+- Add explicit tests for `nessai.flowsampler`
 
 ### Changed
 
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 vertical lines that can appear in the subplots.
 - Updated all of the examples to reflect the new defaults.
 - Rework `nessai.gw.reparameterisations.get_gw_reparameterisation` to use `get_reparameterisation` with the `defaults` keyword argument.
+- Switch to `os.path.join` for joining paths in `nessai.flowsampler`.
 
 ### Removed
 
@@ -98,7 +100,7 @@ vertical lines that can appear in the subplots.
 ### Fixed
 
 - Fixed an issue where `nessai.reparameterisations.AnglePair` would silently break when the prior range for RA or azimuth was set to a range that wasn't [0, 2pi]. It now correctly handles both [0, 2pi] and [-pi, pi] and raises an error for any other ranges. ([#114](https://github.com/mj-will/nessai/pull/114))
-- Fixed various spelling mistakes throughtout the source code and documentation. ([#116](https://github.com/mj-will/nessai/pull/116))
+- Fixed various spelling mistakes throughtout the source code and documentation. ([#116](htFlowSamplertps://github.com/mj-will/nessai/pull/116))
 
 
 ## [0.3.1] Minor improvements and bug fixes - 2021-08-23
