@@ -31,6 +31,22 @@ def comoving_vol_converter():
     return create_autospec(ComovingDistanceConverter)
 
 
+def test_has_conversion():
+    """Assert the values for has_conversion are correct"""
+    assert DistanceConverter.has_conversion is False
+    assert NullDistanceConverter.has_conversion is False
+    assert PowerLawConverter.has_conversion is True
+    assert ComovingDistanceConverter.has_conversion is True
+
+
+def test_has_jacobian():
+    """Assert the values of has_jacobian are corrects"""
+    assert DistanceConverter.has_jacobian is False
+    assert NullDistanceConverter.has_jacobian is True
+    assert PowerLawConverter.has_jacobian is True
+    assert ComovingDistanceConverter.has_jacobian is False
+
+
 def test_converter_error():
     """Assert an error is raised if the methods are not implemented"""
     with pytest.raises(TypeError) as excinfo:
