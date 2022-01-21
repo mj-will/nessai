@@ -26,7 +26,17 @@ class DistanceConverter(ABC):
         for more details on how the distance converters are used.
     """
     has_conversion = False
-    has_Jacobian = False
+    """
+    Indicates if the converter class includes a conversion. This is used when
+    defining the prior in the X-prime space. For example, the
+    :code:`NullDistanceConverter` doesn't apply a conversion to a
+    uniform parameter, so the prime prior cannot be defined.
+    """
+    has_jacobian = False
+    """
+    Indicates if the transform applied by the converter has a tractable
+    jacobian.
+    """
 
     @abstractmethod
     def to_uniform_parameter(self, d):
@@ -66,7 +76,7 @@ class NullDistanceConverter(DistanceConverter):
 
     Used for cases where the prior on distance is not specified.
     """
-    has_Jacobian = True
+    has_jacobian = True
 
     def __init__(self, **kwargs):
         if kwargs:
