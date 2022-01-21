@@ -64,7 +64,7 @@ class DistanceReparameterisation(RescaleToBounds):
         Prior used for the distance parameter
     prior_bounds : tuple
         Tuple of lower and upper bounds on the prior
-    conveter_kwargs : dict, optional
+    converter_kwargs : dict, optional
         Keyword arguments parsed to converter object that converts the distance
         to a parameter with a uniform prior.
     allowed_bounds : list, optional
@@ -82,7 +82,9 @@ class DistanceReparameterisation(RescaleToBounds):
             parameters = [parameters]
 
         if len(parameters) > 1:
-            raise RuntimeError('Distance on supports one parameter')
+            raise RuntimeError(
+                'DistanceReparameterisation only supports one parameter'
+            )
 
         dc_class = get_distance_converter(prior)
 
