@@ -7,7 +7,11 @@ import pytest
 from unittest.mock import MagicMock, create_autospec
 
 from nessai.reparameterisations import AnglePair
-from nessai.livepoint import get_dtype, parameters_to_live_point
+from nessai.livepoint import (
+    get_dtype,
+    numpy_array_to_live_points,
+    parameters_to_live_point,
+)
 
 angle_pairs = [
     (['ra', 'dec'], [[0, 2 * np.pi], [-np.pi / 2, np.pi / 2]]),
@@ -21,6 +25,11 @@ angle_pairs = [
 @pytest.fixture(params=angle_pairs, scope='function')
 def angles(request):
     return request.param
+
+
+@pytest.fixture
+def reparam():
+    return create_autospec(AnglePair)
 
 
 @pytest.fixture(scope='function')
@@ -329,6 +338,17 @@ def test_unknown_convention():
         in str(excinfo.value)
 
 
+def test_no_convention():
+    """Assert an error is raised if the convention cannot be determined."""
+    with pytest.raises(RuntimeError) as excinfo:
+        AnglePair(
+            parameters=['az', 'zen'],
+            prior_bounds={'az': [0.0, 2 * np.pi], 'zen': [-np.pi, 0.0]},
+            convention=None,
+        )
+    assert "Could not determine convention" in str(excinfo.value)
+
+
 def test_log_prior():
     """Assert log_prior calls the log pdf of a chi distribution."""
     reparam = create_autospec(AnglePair)
@@ -387,3 +407,17 @@ def test_prime_prior_error():
     with pytest.raises(RuntimeError) as excinfo:
         AnglePair.x_prime_log_prior(reparam, 1)
     assert 'x prime prior is not defined' in str(excinfo.value)
+
+
+def test_reparameterise_negative_radius(reparam):
+    """Assert an error is radius if the radius is negative."""
+    x = numpy_array_to_live_points(
+        np.array([[1.0, 1.0, -1.0]]), ['theta', 'phi', 'radius']
+    )
+    x_prime = x.copy()
+    log_j = 0.0
+    reparam.radial = 'radius'
+    reparam.chi = None
+    with pytest.raises(RuntimeError) as excinfo:
+        AnglePair.reparameterise(reparam, x, x_prime, log_j)
+    assert 'Radius cannot be negative' in str(excinfo.value)
