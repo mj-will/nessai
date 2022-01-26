@@ -518,7 +518,9 @@ class RescaleToBounds(Reparameterisation):
             elif isinstance(rescale_bounds, dict):
                 s = set(parameters) - set(rescale_bounds.keys())
                 if s:
-                    raise RuntimeError(f'Missing bounds for parameters {s}')
+                    raise RuntimeError(
+                        f'Missing rescale bounds for parameters: {s}'
+                    )
                 self.rescale_bounds = rescale_bounds
             else:
                 raise TypeError(
@@ -536,8 +538,9 @@ class RescaleToBounds(Reparameterisation):
                     {p: inversion_type for p in self.parameters}
             else:
                 raise TypeError(
-                    'boundary_inversion must be an instance of list or dict. '
-                    f'Got type: {type(boundary_inversion).__name__}')
+                    'boundary_inversion must be a list, dict or bool. '
+                    f'Got type: {type(boundary_inversion).__name__}'
+                )
         else:
             self.boundary_inversion = []
 
@@ -554,7 +557,8 @@ class RescaleToBounds(Reparameterisation):
 
         if self.detect_edges and not self.boundary_inversion:
             raise RuntimeError(
-                'Must enable boundary inversion to detect edges')
+                'Must enable boundary inversion to use detect edges'
+            )
 
         if prior == 'uniform':
             self.prior = 'uniform'
