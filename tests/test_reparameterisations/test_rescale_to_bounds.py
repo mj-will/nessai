@@ -29,44 +29,29 @@ def assert_invertibility(model, n=100):
     def test_invertibility(reparam):
         x = model.new_point(N=n)
         x_prime = np.zeros([n], dtype=get_dtype(reparam.prime_parameters))
-        log_j = 0
-
+        log_j = np.zeros(n)
         assert x.size == x_prime.size
 
         x_re, x_prime_re, log_j_re = reparam.reparameterise(
             x, x_prime, log_j)
 
-        np.testing.assert_array_equal(x, x_re)
-
-        x_in = np.zeros([n], dtype=get_dtype(reparam.parameters))
+        x_in = np.zeros([x_re.size], dtype=get_dtype(reparam.parameters))
+        log_j = np.zeros(x_re.size)
 
         x_inv, x_prime_inv, log_j_inv = \
             reparam.inverse_reparameterise(x_in, x_prime_re, log_j)
 
-        np.testing.assert_array_equal(x, x_inv)
-        np.testing.assert_array_equal(x_prime_re, x_prime_inv)
-        np.testing.assert_array_equal(log_j_re, -log_j_inv)
+        m = x_re.size // n
+        for i in range(m):
+            start, end = (i * n), (i + 1) * n
+            np.testing.assert_array_equal(x, x_re[start:end])
+            np.testing.assert_array_equal(x, x_inv[start:end])
+            np.testing.assert_array_equal(x_prime_re, x_prime_inv)
+            np.testing.assert_array_equal(log_j_re, -log_j_inv)
 
         return True
 
     return test_invertibility
-
-
-@pytest.mark.parametrize(
-    'rescale_bounds',
-    [None, [0, 1], {'x': [0, 1], 'y': [-1, 1]}]
-)
-def test_rescale_bounds(reparameterisation, assert_invertibility,
-                        rescale_bounds):
-    """Test the different options for rescale to bounds"""
-    reparam = reparameterisation({'rescale_bounds': rescale_bounds})
-    if rescale_bounds is None:
-        rescale_bounds = {p: [-1, 1] for p in reparam.parameters}
-    elif isinstance(rescale_bounds, list):
-        rescale_bounds = {p: rescale_bounds for p in reparam.parameters}
-
-    assert reparam.rescale_bounds == rescale_bounds
-    assert assert_invertibility(reparam)
 
 
 def test_rescale_bounds_dict_missing_params(reparam):
@@ -93,18 +78,6 @@ def test_rescale_bounds_incorrect_type(reparam):
             rescale_bounds=1,
         )
     assert 'must be an instance of list or dict' in str(excinfo.value)
-
-
-@pytest.mark.parametrize(
-    'boundary_inversion',
-    [False, True, ['x'], {'x': 'split'}, {'x': 'inversion'}]
-)
-def test_boundary_inversion(reparameterisation, assert_invertibility,
-                            boundary_inversion):
-    """Test the different options for rescale to bounds"""
-    reparam = reparameterisation({'boundary_inversion': boundary_inversion})
-
-    assert assert_invertibility(reparam)
 
 
 def test_boundary_inversion_invalid_type(reparam):
@@ -319,6 +292,37 @@ def test_update_bounds(reparam):
         [call(-1), call(1), call(-2), call(2)]
     )
     assert reparam.bounds == {'x': [-1, 1], 'y': [-3, 1]}
+
+
+@pytest.mark.parametrize(
+    'rescale_bounds',
+    [None, [0, 1], {'x': [0, 1], 'y': [-1, 1]}]
+)
+@pytest.mark.integration_test
+def test_rescale_bounds(reparameterisation, assert_invertibility,
+                        rescale_bounds):
+    """Test the different options for rescale to bounds"""
+    reparam = reparameterisation({'rescale_bounds': rescale_bounds})
+    if rescale_bounds is None:
+        rescale_bounds = {p: [-1, 1] for p in reparam.parameters}
+    elif isinstance(rescale_bounds, list):
+        rescale_bounds = {p: rescale_bounds for p in reparam.parameters}
+
+    assert reparam.rescale_bounds == rescale_bounds
+    assert assert_invertibility(reparam)
+
+
+@pytest.mark.parametrize(
+    'boundary_inversion',
+    [False, True, ['x'], {'x': 'split'}, {'x': 'duplicate'}]
+)
+@pytest.mark.integration_test
+def test_boundary_inversion(reparameterisation, assert_invertibility,
+                            boundary_inversion):
+    """Test the different options for rescale to bounds"""
+    reparam = reparameterisation({'boundary_inversion': boundary_inversion})
+
+    assert assert_invertibility(reparam)
 
 
 @pytest.mark.integration_test
