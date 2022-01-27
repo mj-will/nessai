@@ -784,7 +784,7 @@ class RescaleToBounds(Reparameterisation):
                         x, x_prime, log_j, p, pp, compute_radius, **kwargs)
             else:
                 x_prime[pp], lj = \
-                    self._rescale_to_bounds(x[p] - self.offsets[p], p)
+                    self._rescale_to_bounds(x_prime[pp] - self.offsets[p], p)
                 log_j += lj
             if self.has_post_rescaling:
                 x_prime[pp], lj = self.post_rescaling(x_prime[pp])
