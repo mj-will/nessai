@@ -4,7 +4,7 @@ Test the RescaleToBound class.
 """
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, call, create_autospec
+from unittest.mock import MagicMock, call, create_autospec, patch
 
 from nessai.reparameterisations import RescaleToBounds
 from nessai.livepoint import get_dtype, numpy_array_to_live_points
@@ -54,6 +54,25 @@ def assert_invertibility(model, n=100):
     return test_invertibility
 
 
+@pytest.mark.parametrize(
+    "input, expected_value",
+    [
+        (None, {'x': [-1, 1], 'y': [-1, 1]}),
+        ([0, 1], {'x': [0, 1], 'y': [0, 1]}),
+        ({'x': [0, 1], 'y': [-1, 1]}, {'x': [0, 1], 'y': [-1, 1]}),
+    ]
+)
+def test_rescale_bounds_config(reparam, input, expected_value):
+    """Assert the rescale bounds are set correctly."""
+    RescaleToBounds.__init__(
+        reparam,
+        parameters=['x', 'y'],
+        prior_bounds={'x': [-1, 1], 'y': [0, 1]},
+        rescale_bounds=input,
+    )
+    assert reparam.rescale_bounds == expected_value
+
+
 def test_rescale_bounds_dict_missing_params(reparam):
     """Assert an error is raised if the rescale_bounds dict is missing a
     parameter.
@@ -78,6 +97,25 @@ def test_rescale_bounds_incorrect_type(reparam):
             rescale_bounds=1,
         )
     assert 'must be an instance of list or dict' in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "input, expected_value",
+    [
+        (True, {'x': 'split', 'y': 'split'}),
+        (['x'], {'x': 'split'}),
+        ({'x': 'split'}, {'x': 'split'}),
+    ]
+)
+def test_boundary_inversion_config(reparam, input, expected_value):
+    """Assert the boundary inversion dict is set correctly"""
+    RescaleToBounds.__init__(
+        reparam,
+        parameters=['x', 'y'],
+        prior_bounds={'x': [0, 1], 'y': [0, 1]},
+        boundary_inversion=input,
+    )
+    assert reparam.boundary_inversion == expected_value
 
 
 def test_boundary_inversion_invalid_type(reparam):
@@ -292,6 +330,478 @@ def test_update_bounds(reparam):
         [call(-1), call(1), call(-2), call(2)]
     )
     assert reparam.bounds == {'x': [-1, 1], 'y': [-3, 1]}
+
+
+def test_reparameterise(reparam):
+    """Test the reparameterise function"""
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 1.0}
+    reparam.boundary_inversion = {}
+    x = numpy_array_to_live_points(
+        np.array([(1.0,), (2.0,)]), reparam.parameters
+    )
+    x_prime_in = np.zeros([2, ], dtype=get_dtype(reparam.prime_parameters))
+    x_prime_val = np.array([0.0, 0.5])
+    log_j = np.zeros(x.size)
+
+    reparam._rescale_to_bounds = MagicMock(
+        return_value=(x_prime_val, np.array([0, 0.5]))
+    )
+
+    x_out, x_prime_out, log_j_out = \
+        RescaleToBounds.reparameterise(reparam, x, x_prime_in, log_j)
+
+    np.testing.assert_array_equal(
+        np.array([0.0, 1.0]),
+        reparam._rescale_to_bounds.call_args_list[0][0][0]
+    )
+
+    assert reparam._rescale_to_bounds.call_args_list[0][0][1] == 'x'
+
+    np.testing.assert_array_equal(x, x_out)
+    np.testing.assert_array_equal(x_prime_out['x_prime'], x_prime_val)
+    np.testing.assert_array_equal(log_j_out, np.array([0.0, 0.5]))
+
+
+def test_inverse_reparameterise(reparam):
+    """Test the inverse_reparameterise function"""
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 1.0}
+    reparam.boundary_inversion = {}
+    x_prime = numpy_array_to_live_points(
+        np.array([(1.0,), (2.0,)]), reparam.prime_parameters
+    )
+    x_in = np.zeros([2, ], dtype=get_dtype(reparam.parameters))
+    x_val = np.array([0.0, 0.5])
+    log_j = np.zeros(x_prime.size)
+
+    reparam._inverse_rescale_to_bounds = MagicMock(
+        return_value=(x_val, np.array([0, 0.5]))
+    )
+
+    x_out, x_prime_out, log_j_out = \
+        RescaleToBounds.inverse_reparameterise(reparam, x_in, x_prime, log_j)
+
+    # x[p] is updated in place, can't test inputs
+    reparam._inverse_rescale_to_bounds.assert_called_once()
+    assert \
+        reparam._inverse_rescale_to_bounds.call_args_list[0][0][1] == 'x'
+
+    np.testing.assert_array_equal(x_prime_out, x_prime)
+    np.testing.assert_array_equal(x_out['x'], x_val + 1.0)
+    np.testing.assert_array_equal(log_j_out, np.array([0.0, 0.5]))
+
+
+def test_reparameterise_boundary_inversion(reparam):
+    """Test the reparameterise function with boundary inversion"""
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 1.0}
+    reparam.boundary_inversion = {'x': 'split'}
+    x = numpy_array_to_live_points(
+        np.array([(1.0,), (2.0,)]), reparam.parameters
+    )
+    inversion_out = numpy_array_to_live_points(
+        np.array([(-1.0,), (-2.0,), (1.0,), (2.0,)]),
+        reparam.prime_parameters
+    )
+    x_prime_in = np.zeros([2, ], dtype=get_dtype(reparam.prime_parameters))
+    log_j = np.zeros(x.size)
+
+    x_ex = np.concatenate([x, x])
+    x_prime_ex = inversion_out
+    log_j_ex = np.array([0, 0.5, 0, 0.5])
+
+    reparam._apply_inversion = MagicMock(
+        return_value=(x_ex, x_prime_ex, log_j_ex)
+    )
+
+    x_out, x_prime_out, log_j_out = RescaleToBounds.reparameterise(
+        reparam, x, x_prime_in, log_j, compute_radius=True, test='test',
+    )
+
+    np.testing.assert_array_equal(
+        reparam._apply_inversion.call_args_list[0][0][0], x
+    )
+    np.testing.assert_array_equal(
+        reparam._apply_inversion.call_args_list[0][0][1], x_prime_in,
+    )
+    np.testing.assert_array_equal(
+        reparam._apply_inversion.call_args_list[0][0][2], log_j
+    )
+    assert reparam._apply_inversion.call_args_list[0][0][3] == 'x'
+    assert reparam._apply_inversion.call_args_list[0][0][4] == 'x_prime'
+    assert reparam._apply_inversion.call_args_list[0][0][5] is True
+    assert reparam._apply_inversion.call_args_list[0][1] == {'test': 'test'}
+
+    np.testing.assert_array_equal(x_out, x_ex)
+    np.testing.assert_array_equal(x_prime_out, x_prime_ex)
+    np.testing.assert_array_equal(log_j_out, log_j_ex)
+
+
+def test_inverse_reparameterise_boundary_inversion(reparam):
+    """Test the inverse_reparameterise function with boundary inversion"""
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x']
+    reparam.offsets = {'x': 1.0}
+    reparam.boundary_inversion = {'x': 'split'}
+    x_prime = numpy_array_to_live_points(
+        np.array([(-1.0,), (2.0,)]), reparam.prime_parameters
+    )
+    inversion_out = numpy_array_to_live_points(
+        np.array([(1.0,), (2.0,)]),
+        reparam.parameters
+    )
+    x_in = np.zeros([2, ], dtype=get_dtype(reparam.parameters))
+    log_j = np.zeros(x_prime.size)
+
+    x_ex = inversion_out
+    x_prime_ex = x_prime
+    log_j_ex = np.array([0, 0.5])
+
+    reparam._reverse_inversion = MagicMock(
+        return_value=(x_ex, x_prime_ex, log_j_ex)
+    )
+
+    x_out, x_prime_out, log_j_out = RescaleToBounds.inverse_reparameterise(
+        reparam, x_in, x_prime, log_j,
+    )
+
+    np.testing.assert_array_equal(
+        reparam._reverse_inversion.call_args_list[0][0][0], x_in
+    )
+    np.testing.assert_array_equal(
+        reparam._reverse_inversion.call_args_list[0][0][1], x_prime
+    )
+    np.testing.assert_array_equal(
+        reparam._reverse_inversion.call_args_list[0][0][2], log_j
+    )
+
+    np.testing.assert_array_equal(x_out, x_ex)
+    np.testing.assert_array_equal(x_prime_out, x_prime_ex)
+    np.testing.assert_array_equal(log_j_out, log_j_ex)
+
+
+def test_reparameterise_pre_post_rescaling(reparam):
+    """Test the reparameterise function with pre and post rescaling"""
+    reparam.has_pre_rescaling = True
+    reparam.has_post_rescaling = True
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 0.0}
+    reparam.boundary_inversion = {}
+    x = numpy_array_to_live_points(
+        np.array([(1.0,), (2.0,)]), reparam.parameters
+    )
+    x_prime_in = np.zeros([2, ], dtype=get_dtype(reparam.prime_parameters))
+    x_prime_val = np.array([4.0, 8.0])
+    log_j = np.zeros(x.size)
+
+    reparam._rescale_to_bounds = MagicMock(
+        return_value=(x_prime_val, np.array([0, 0.5]))
+    )
+    reparam.pre_rescaling = MagicMock(
+        return_value=(np.array([0.5, 1.0]), np.array([0.5, 0.5]))
+    )
+    reparam.post_rescaling = MagicMock(
+        return_value=(np.array([1.0, 1.5]), np.array([2.0, 3.0]))
+    )
+
+    x_out, x_prime_out, log_j_out = \
+        RescaleToBounds.reparameterise(reparam, x, x_prime_in, log_j)
+
+    np.testing.assert_array_equal(
+        np.array([0.5, 1.0]),
+        reparam._rescale_to_bounds.call_args_list[0][0][0]
+    )
+
+    assert reparam._rescale_to_bounds.call_args_list[0][0][1] == 'x'
+
+    np.testing.assert_array_equal(
+        reparam.pre_rescaling.call_args_list[0][0][0],
+        np.array([1.0, 2.0]),
+    )
+    # x_prime gets replaces so change check inputs to the function
+    reparam.post_rescaling.assert_called_once()
+
+    np.testing.assert_array_equal(x, x_out)
+    np.testing.assert_array_equal(x_prime_out['x_prime'], np.array([1.0, 1.5]))
+    np.testing.assert_array_equal(log_j_out, np.array([2.5, 4.0]))
+
+
+def test_inverse_reparameterise_pre_post_rescaling(reparam):
+    """Test the inverse_reparameterise function with pre and post rescaling"""
+    reparam.has_pre_rescaling = True
+    reparam.has_post_rescaling = True
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 0.0}
+    reparam.boundary_inversion = {}
+    x_prime = numpy_array_to_live_points(
+        np.array([(1.0,), (2.0,)]), reparam.prime_parameters
+    )
+    x_in = np.zeros([2, ], dtype=get_dtype(reparam.parameters))
+    x_val = np.array([4.0, 8.0])
+    log_j = np.zeros(x_prime.size)
+
+    reparam._inverse_rescale_to_bounds = MagicMock(
+        return_value=(x_val, np.array([0, 0.5]))
+    )
+    reparam.pre_rescaling_inv = MagicMock(
+        return_value=(np.array([0.5, 1.0]), np.array([0.5, 0.5]))
+    )
+    reparam.post_rescaling_inv = MagicMock(
+        return_value=(np.array([1.0, 1.5]), np.array([2.0, 3.0]))
+    )
+
+    x_out, x_prime_out, log_j_out = \
+        RescaleToBounds.inverse_reparameterise(reparam, x_in, x_prime, log_j)
+
+    np.testing.assert_array_equal(
+        np.array([0.5, 1.0]),
+        reparam._inverse_rescale_to_bounds.call_args_list[0][0][0]
+    )
+
+    assert reparam._inverse_rescale_to_bounds.call_args_list[0][0][1] == 'x'
+
+    np.testing.assert_array_equal(
+        reparam.post_rescaling_inv.call_args_list[0][0][0],
+        x_prime['x_prime'],
+    )
+    reparam.pre_rescaling_inv.assert_called_once()
+    # x_prime gets replaces so change check inputs to the function
+    reparam.post_rescaling_inv.assert_called_once()
+
+    np.testing.assert_array_equal(x_prime, x_prime_out)
+    np.testing.assert_array_equal(x_out['x'], np.array([0.5, 1.0]))
+    np.testing.assert_array_equal(log_j_out, np.array([2.5, 4.0]))
+
+
+def test_apply_inversion_detect_edge(reparam):
+    """Assert detect edge is called with the correct arguments"""
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 1.0}
+    reparam._edges = {'x': None}
+    reparam.detect_edges_kwargs = {'allowed_bounds': ['lower']}
+    reparam.bounds = {'x': [0, 5]}
+    reparam.rescale_bounds = {'x': [0, 1]}
+
+    x = numpy_array_to_live_points(np.array([1, 2]), ['x'])
+    x_prime = numpy_array_to_live_points(np.array([3, 4]), ['x_prime'])
+    log_j = np.zeros(2)
+
+    with patch(
+        'nessai.reparameterisations.detect_edge', return_value=False
+    ) as mock_fn:
+
+        _ = RescaleToBounds._apply_inversion(
+            reparam, x, x_prime, log_j, 'x', 'x_prime', False, test=True
+        )
+
+    reparam.update_prime_prior_bounds.assert_called_once()
+    mock_fn.assert_called_once_with(
+        x_prime['x_prime'],
+        test=True,
+        allowed_bounds=['lower'],
+    )
+
+    assert reparam._edges == {'x': False}
+
+
+def test_apply_inversion_not_applied(reparam):
+    """Assert the apply inversion works correctly"""
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 1.0}
+    reparam._edges = {'x': False}
+    reparam.bounds = {'x': [0, 5]}
+    reparam.rescale_bounds = {'x': [0, 1]}
+
+    x_val = np.array([[1], [2]])
+    x_prime = numpy_array_to_live_points(x_val, ['x_prime'])
+    x = numpy_array_to_live_points(np.array([3, 4]), ['x'])
+    log_j = np.zeros(2)
+
+    with patch(
+        'nessai.reparameterisations.rescale_minus_one_to_one',
+        side_effect=lambda x, *args, **kwargs: (x, np.array([5, 6]))
+    ) as f:
+        x_out, x_prime_out, log_j_out = RescaleToBounds._apply_inversion(
+            reparam, x, x_prime, log_j, 'x', 'x_prime', False,
+        )
+
+    assert f.call_args_list[0][1] == {'xmin': 0, 'xmax': 5}
+    # Should be output of rescaling minus offset
+    np.testing.assert_array_equal(x_prime_out['x_prime'], np.array([0, 1]))
+    # x_prime should be the same
+    assert x_out is x
+    # Jacobian should just include jacobian from rescaling
+    np.testing.assert_array_equal(log_j_out, np.array([5, 6]))
+
+
+def test_apply_inversion_split(reparam):
+    """Assert apply inversion with split works as intended.
+
+    Also tests "upper" setting.
+    """
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 1.0}
+    reparam._edges = {'x': 'upper'}
+    reparam.bounds = {'x': [0, 5]}
+    reparam.rescale_bounds = {'x': [0, 1]}
+    reparam.boundary_inversion = {'x': 'split'}
+
+    x_val = np.array([[1.2], [1.7]])
+    x_prime = numpy_array_to_live_points(x_val, ['x_prime'])
+    x = numpy_array_to_live_points(np.array([3, 4]), ['x'])
+    log_j = np.zeros(2)
+
+    with patch('numpy.random.choice', return_value=np.array([1])) as rnd, \
+         patch('nessai.reparameterisations.rescale_zero_to_one',
+               side_effect=lambda x, *args: (x, np.array([5, 6]))) as f:
+        x_out, x_prime_out, log_j_out = RescaleToBounds._apply_inversion(
+            reparam, x, x_prime, log_j, 'x', 'x_prime', False,
+        )
+
+    rnd.assert_called_once_with(2, 1, replace=False)
+    assert f.call_args_list[0][0][1] == 0.0
+    assert f.call_args_list[0][0][2] == 5.0
+    # Output should be x_val minus offset
+    # Then 1 - that for 'upper'
+    # Then *= -1 with the output of rnd
+    np.testing.assert_array_almost_equal(
+        x_prime_out['x_prime'], np.array([0.8, -0.3]),
+        decimal=10,
+    )
+    # x should be the same
+    assert x_out is x
+    # Jacobian should just include jacobian from rescaling
+    np.testing.assert_array_equal(log_j_out, np.array([5, 6]))
+
+
+@pytest.mark.parametrize(
+    "inv_type, compute_radius",
+    [('duplicate', False), ('duplicate', True), ('split', True)]
+)
+def test_apply_inversion_duplicate(reparam, inv_type, compute_radius):
+    """Assert apply inversion with duplicate works as intended.
+
+    This test also covers compute_radius=True
+    """
+    reparam.parameters = ['x', 'y']
+    reparam.prime_parameters = ['x_prime', 'y']
+    reparam.offsets = {'x': 1.0}
+    reparam._edges = {'x': 'lower'}
+    reparam.bounds = {'x': [0, 5]}
+    reparam.rescale_bounds = {'x': [0, 1]}
+    reparam.boundary_inversion = {'x': inv_type}
+
+    x_val = np.array([[1.2, 1.0], [1.7, 2.0]])
+    x_prime = numpy_array_to_live_points(x_val, ['x_prime', 'y'])
+    x = numpy_array_to_live_points(np.array([[1, 2], [3, 4]]), ['x', 'y'])
+    log_j = np.zeros(2)
+
+    with patch('numpy.random.choice') as rnd, \
+         patch('nessai.reparameterisations.rescale_zero_to_one',
+               side_effect=lambda x, *args: (x, np.array([5, 6]))) as f:
+        x_out, x_prime_out, log_j_out = RescaleToBounds._apply_inversion(
+            reparam, x, x_prime, log_j, 'x', 'x_prime', compute_radius,
+        )
+
+    rnd.assert_not_called()
+    assert f.call_args_list[0][0][1] == 0.0
+    assert f.call_args_list[0][0][2] == 5.0
+    # Output should be x_val minus offset
+    # Then duplicated
+    np.testing.assert_array_almost_equal(
+        x_prime_out['x_prime'], np.array([0.2, 0.7, -0.2, -0.7]),
+        decimal=10,
+    )
+    np.testing.assert_array_almost_equal(
+        x_prime_out['y'], np.array([1.0, 2.0, 1.0, 2.0]),
+        decimal=10,
+    )
+    # x should be the same but duplicated
+    np.testing.assert_array_equal(
+        x_out, np.concatenate([x, x])
+    )
+    # Jacobian should just include jacobian from rescaling but duplicated
+    np.testing.assert_array_equal(log_j_out, np.array([5, 6, 5, 6]))
+
+
+def test_reverse_inversion(reparam):
+    """Assert the reverse inversion works correctly"""
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 1.0}
+    reparam._edges = {'x': 'upper'}
+    reparam.bounds = {'x': [0, 5]}
+
+    x_val = np.array([[-0.7], [0.4]])
+    x = numpy_array_to_live_points(x_val, ['x'])
+    x_prime = numpy_array_to_live_points(np.array([3, 4]), ['x_prime'])
+    log_j = np.zeros(2)
+
+    # Return the same value to check that the negative values are handled
+    # correctly
+    with patch(
+        'nessai.reparameterisations.inverse_rescale_zero_to_one',
+        side_effect=lambda x, *args: (x, np.array([5, 6]))
+    ) as f:
+        x_out, x_prime_out, log_j_out = RescaleToBounds._reverse_inversion(
+            reparam, x, x_prime, log_j, 'x', 'x_prime',
+        )
+
+    assert f.call_args_list[0][0][1] == 0.0
+    assert f.call_args_list[0][0][2] == 5.0
+    # Should be output of rescaling minus offset
+    np.testing.assert_array_equal(x_out['x'], np.array([1.3, 1.6]))
+    # x_prime should be the same
+    assert x_prime_out is x_prime
+    # Jacobian should just include jacobian from rescaling
+    np.testing.assert_array_equal(log_j_out, np.array([5, 6]))
+
+
+def test_reverse_inversion_not_applied(reparam):
+    """Assert the reverse inversion works correctly"""
+    reparam.parameters = ['x']
+    reparam.prime_parameters = ['x_prime']
+    reparam.offsets = {'x': 1.0}
+    reparam._edges = {'x': False}
+    reparam.bounds = {'x': [0, 5]}
+
+    x_val = np.array([[1], [2]])
+    x = numpy_array_to_live_points(x_val, ['x'])
+    x_prime = numpy_array_to_live_points(np.array([3, 4]), ['x_prime'])
+    log_j = np.zeros(2)
+
+    with patch(
+        'nessai.reparameterisations.inverse_rescale_minus_one_to_one',
+        side_effect=lambda x, *args, **kwargs: (x, np.array([5, 6]))
+    ) as f:
+        x_out, x_prime_out, log_j_out = RescaleToBounds._reverse_inversion(
+            reparam, x, x_prime, log_j, 'x', 'x_prime',
+        )
+
+    assert f.call_args_list[0][1] == {'xmin': 0, 'xmax': 5}
+    # Should be output of rescaling minus offset
+    np.testing.assert_array_equal(x_out['x'], np.array([2, 3]))
+    # x_prime should be the same
+    assert x_prime_out is x_prime
+    # Jacobian should just include jacobian from rescaling
+    np.testing.assert_array_equal(log_j_out, np.array([5, 6]))
 
 
 @pytest.mark.parametrize(
