@@ -58,11 +58,12 @@ class ImportanceFlowProposal(Proposal):
         flow_config: dict = None,
         combined_proposal: bool = True,
         clip: bool = False,
-        annealing: float = 0.05,
+        beta: Optional[float] = None,
     ) -> None:
         self.level_count = -1
         self.draw_count = 0
         self._initialised = False
+        self.beta = 1.0 if beta is None else beta
 
         self.model = model
         self.output = output
@@ -72,7 +73,6 @@ class ImportanceFlowProposal(Proposal):
         self.reparam = reparam
         self.weighted_kl = weighted_kl
         self.clip = clip
-        self.annealing = annealing
 
         self.initial_draws = initial_draws
         self.initial_log_g = np.log(self.initial_draws)
@@ -163,11 +163,22 @@ class ImportanceFlowProposal(Proposal):
         x = self.model.from_unit_hypercube(x_hypercube)
         return x, log_j
 
+    def update_annealing(self, beta):
+        """Update the annealing value."""
+        if not beta:
+            logger.debug('Nothing to update')
+            return
+        if not (0. < beta < 1.0):
+            raise ValueError('Annealing must be between 0 and 1')
+        self.beta = beta
+
     def train(
         self,
         samples: np.ndarray,
         plot: bool = False,
         output: Union[str, None] = None,
+        beta: float = None,
+        weights: np.ndarray = None,
         **kwargs
     ) -> None:
         """Train the proposal with a set of samples.
@@ -208,17 +219,23 @@ class ImportanceFlowProposal(Proposal):
             f'Training data min and max: {x_prime.min()}, {x_prime.max()}'
         )
 
-        if self.weighted_kl:
+        if beta:
+            self.update_annealing(beta)
+
+        if self.weighted_kl or weights:
             logger.debug('Using weights in training')
-            if self.weights_include_likelihood:
-                log_weights = (
-                    training_data['logW']
-                    + self.annealing * training_data['logL']
-                )
+            if weights is not None:
+                weights = weights / np.sum(weights)
             else:
-                log_weights = training_data['logW']
-            log_weights -= logsumexp(log_weights)
-            weights = np.exp(log_weights)
+                if self.weights_include_likelihood:
+                    log_weights = (
+                        training_data['logW']
+                        + self.beta * training_data['logL']
+                    )
+                else:
+                    log_weights = training_data['logW']
+                log_weights -= logsumexp(log_weights)
+                weights = np.exp(log_weights)
             if plot:
                 plot_histogram(
                     weights, filename=level_output + 'training_weights.png'
