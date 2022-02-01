@@ -154,9 +154,43 @@ def reset_permutations(module):
 
 
 class MLP(NFlowsMLP):
+    """Wrapper for the MLP included in nflows.
+
+    Adds option to handle :code:`context=None` and using a different activation
+    function for the output layer.
+
+    See the implementation in nflows for details: \
+        https://github.com/bayesiains/nflows/blob/master/nflows/nn/nets/mlp.py#L9
     """
-    MLP which can be called with context.
-    """
+    def __init__(
+        self,
+        in_shape,
+        out_shape,
+        hidden_sizes,
+        activation=F.leaky_relu,
+        activate_output=False,
+    ):
+        super().__init__(
+            in_shape,
+            out_shape,
+            hidden_sizes,
+            activation,
+            False
+        )
+
+        if activate_output:
+            self.activate_output = True
+            if activate_output is True:
+                self._output_activation = self._activation
+            elif callable(activate_output):
+                self._output_activation = activate_output
+            else:
+                raise ValueError(
+                    'activate_output must be a boolean or a callable'
+                )
+        else:
+            self.activate_output = False
+
     def forward(self, inputs, context=None):
         """Forward method that allows for kwargs such as context.
 
@@ -177,7 +211,10 @@ class MLP(NFlowsMLP):
             raise NotImplementedError(
                 'MLP with conditional inputs is not implemented.'
             )
-        return super().forward(inputs)
+        out = super().forward(inputs)
+        if self.activate_output:
+            out = self._output_activation(out)
+        return out
 
 
 def create_linear_transform(linear_transform, features):
