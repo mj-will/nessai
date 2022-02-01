@@ -532,6 +532,11 @@ class FlowModel:
                 val_loss += loss_fn(val_data).item()
             return val_loss
 
+    def finalise(self):
+        """Method to finalise the flow before using it for inference."""
+        logger.debug('Finalising model before inference.')
+        self.model.finalise()
+
     def train(
         self,
         samples,
@@ -649,7 +654,10 @@ class FlowModel:
                 logger.info(f'Epoch {epoch}: Reached patience')
                 break
 
+        logger.debug('Finished training')
         self.model.load_state_dict(best_model)
+        self.finalise()
+
         self.save_weights(current_weights_file)
         self.move_to(self.inference_device)
         self.model.eval()
