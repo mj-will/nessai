@@ -121,6 +121,17 @@ class BaseFlow(Module, ABC):
         """
         raise NotImplementedError()
 
+    def finalise(self):
+        """Finalise the flow after training.
+
+        Will be called after training the flow and loading the best weights.
+        For example, can be used to finalise the Monte Carlo estimate of the
+        normalising constant used in a LARS based flow.
+
+        By default does nothing and should be implemented by the user.
+        """
+        pass
+
 
 class NFlow(BaseFlow):
     """
@@ -233,3 +244,15 @@ class NFlow(BaseFlow):
         samples, logabsdet = self._transform.inverse(z)
 
         return samples, log_prob - logabsdet
+
+    def finalise(self):
+        """Finalise the flow after training.
+
+        Checks if the base distribution or transform have finalise methods
+        and calls them.
+        """
+        super().finalise()
+        if hasattr(self._distribution, "finalise"):
+            self._distribution.finalise()
+        if hasattr(self._transform, "finalise"):
+            self._transform.finalise()
