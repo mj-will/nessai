@@ -609,12 +609,12 @@ class FlowModel:
         logger.info("Training parameters:")
         logger.info(f"Max. epochs: {max_epochs}")
         logger.info(f"Patience: {patience}")
+        logger.info(f'Training with {samples.shape[0]} samples')
 
         if plot:
             history = dict(loss=[], val_loss=[])
 
         current_weights_file = output + 'model.pt'
-        logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
             loss = self._train(
