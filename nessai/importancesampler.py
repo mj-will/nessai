@@ -87,6 +87,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         stopping_condition: Literal['evidence', 'kl'] = 'evidence',
         min_dZ: Optional[float] = None,
         level_kwargs=None,
+        annealing=False,
+        beta_min=0.01,
+        beta_max=1.0,
         **kwargs: Any
     ):
 
@@ -131,6 +134,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.current_ns_entropy = 0.0
         self.dZ_smc = np.inf
         self.current_log_evidence = -np.inf
+        self.annealing = annealing
+        self.beta_min = beta_min
+        self.beta_max = beta_max
+        self.beta = None
+        self._initial_dZ = None
 
         self.min_dZ = min_dZ if min_dZ is not None else np.inf
 
@@ -317,6 +325,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 kl_g_live_points=[],
                 kl_g_nested_samples=[],
                 kl_proposals=[],
+                beta=[],
                 stopping_criteria=dict(
                     dZ=[],
                     dZ_ns=[],
@@ -354,6 +363,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             np.median(self.live_points['logG'])
         )
         self.history['min_log_g'].append(np.min(self.live_points['logG']))
+        self.history['beta'].append(self.beta)
 
         self.history['stopping_criteria']['dZ'].append(self.dZ)
         self.history['stopping_criteria']['dZ_ns'].append(self.dZ_ns)
@@ -416,6 +426,28 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.info(f'Next level should remove {n} points')
         return n
 
+    def get_annealing_beta(self) -> float:
+        """Determine the current annealing value"""
+        if not self.annealing:
+            beta = None
+        if self.annealing in {'dZ', 'evidence', 'Z'}:
+            if not np.isfinite(self.dZ):
+                beta = self.beta_min
+            else:
+                if self._initial_dZ is None:
+                    self._initial_dZ = np.log(self.dZ)
+                beta = max(
+                    self.beta_min,
+                    (1.0 - self.beta_min)
+                    * (np.log(self.dZ) - self._initial_dZ)
+                    / (np.log(self.tolerance) - self._initial_dZ)
+                    + self.beta_min,
+                )
+        else:
+            beta = self.annealing
+        logger.debug(f'Annealing beta = {beta:.2f}')
+        return beta
+
     def update_level(self):
         """Update the current likelihood contour"""
         st = datetime.datetime.now()
@@ -424,9 +456,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
             "Training data ESS: "
             f"{effective_sample_size(self.training_points['logW'])}"
         )
+        self.beta = self.get_annealing_beta()
         self.proposal.train(
             self.training_points,
-            plot=self.proposal.plot_training
+            plot=self.proposal.plot_training,
+            beta=self.beta,
         )
         kl = self.proposal.compute_kl_between_proposals(
             self.training_points, p_it=self.iteration - 1, q_it=self.iteration,
