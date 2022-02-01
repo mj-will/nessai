@@ -429,6 +429,7 @@ class ImportanceFlowProposal(Proposal):
             samples['logG'] = self.compute_log_g(
                 prime_samples, log_j=log_j,
             )
+            samples['logW'] = -samples['logG']
 
         entr = entropy(np.exp(samples['logG']))
         logger.info(f'Proposal self entropy: {entr:.3}')
