@@ -8,12 +8,13 @@ import torch.nn.functional as F
 from unittest.mock import MagicMock, create_autospec, patch
 
 from nessai.flows.utils import (
+    MLP,
     configure_model,
     create_linear_transform,
+    get_base_distribution,
     silu,
     reset_weights,
     reset_permutations,
-    MLP
 )
 
 
@@ -87,10 +88,10 @@ def test_weight_reset_permutation():
 def test_mlp_forward():
     """Test the MLP implementation of forward"""
     mlp = create_autospec(MLP)
+    mlp.activate_output = False
     x = torch.tensor(1)
     y = torch.tensor(2)
-    with patch('nflows.nn.nets.MLP.forward',
-               return_value=y) as parent:
+    with patch('nflows.nn.nets.MLP.forward', return_value=y) as parent:
         out = MLP.forward(mlp, x, context=None)
     parent.assert_called_once_with(x)
     assert out == y
@@ -246,3 +247,23 @@ def test_create_linear_transform_unknown():
     with pytest.raises(ValueError) as excinfo:
         create_linear_transform('not_a_transform', 2)
     assert 'Unknown linear transform: not_a_transform' in str(excinfo.value)
+
+
+def test_get_base_distribution_none():
+    """Assert that if the distribution is None, None is returned"""
+    assert get_base_distribution(2, None) is None
+
+
+def test_get_base_distribution_class_instance():
+    """Assert that if the distribution is a class instance it is returned"""
+    dist = MagicMock()
+    assert get_base_distribution(2, dist) is dist
+
+
+def test_get_base_distribution_class():
+    """Assert that if the distribution is a class is it correctly called"""
+    from nessai.flows.distributions import MultivariateNormal
+    dist_cls = MultivariateNormal
+    dist = get_base_distribution(2, dist_cls, var=2)
+    assert isinstance(dist, MultivariateNormal)
+    assert dist._var == 2
