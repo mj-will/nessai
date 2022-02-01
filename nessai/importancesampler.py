@@ -24,7 +24,7 @@ from .livepoint import (
     live_points_to_dict,
     numpy_array_to_live_points,
 )
-from .utils.information import cumulative_entropy
+from .utils.information import cumulative_entropy, relative_entropy_from_log
 from .utils.stats import effective_sample_size, weighted_quantile
 
 
@@ -83,6 +83,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         update_nested_samples: bool = True,
         level_method: Literal['entropy', 'quantile'] = 'quantile',
         leaky: bool = True,
+        sorting: Literal['logL', 'rel_entr'] = 'logL',
         n_pool: Optional[int] = None,
         stopping_condition: Literal['evidence', 'kl'] = 'evidence',
         min_dZ: Optional[float] = None,
@@ -112,6 +113,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.pool = None
         self.dZ = np.inf
         self.live_points_ess = np.nan
+        self.sorting = sorting
 
         self.tolerance = tolerance
         self.stopping_condition = stopping_condition
@@ -157,6 +159,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         if self.replace_all:
             self._update_nested_samples = False
+
+        if not self.leaky and self.sorting == 'rel_entr':
+            raise ValueError('Invalid combination of arguments!')
 
     @property
     def log_evidence(self) -> float:
@@ -274,6 +279,19 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 list(map(self.model.evaluate_log_likelihood, samples))
         self.log_likelihood_time += (datetime.datetime.now() - st)
 
+    def _rel_entr(self, x):
+        return relative_entropy_from_log(x['logL'], x['logG'])
+
+    def sort_points(self, x: np.ndarray) -> np.ndarray:
+        """Correctly sort new live points."""
+        if self.sorting == 'logL':
+            x = np.sort(x, order='logL')
+        elif self.sorting == 'rel_entr':
+            x = x[np.argsort(self._rel_entr(x))]
+        else:
+            raise ValueError('Sorting much be logL or rel_entr')
+        return x
+
     def populate_live_points(self) -> None:
         """Draw the initial live points from the prior.
 
@@ -292,7 +310,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         live_points['logP'] = self.model.log_prior(live_points)
         live_points['logG'] = np.log(self.nlive)
         live_points['logW'] = - live_points['logG']
-        self.live_points = np.sort(live_points, order='logL')
+        self.live_points = self.sort_points(live_points)
 
     def initialise(self) -> None:
         """Initialise the nested sampler.
@@ -382,7 +400,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['stopping_criteria']['dH_ns'].append(self.dH_ns)
         self.history['stopping_criteria']['kl'].append(self.post_kl)
 
-    def determine_level_quantile(self, q: Optional[float] = None) -> int:
+    def determine_level_quantile(self, q: float = 0.8) -> int:
         """Determine where the next level should be located.
 
         Computes the q'th quantile based on log-likelihood and log-weights.
@@ -397,14 +415,31 @@ class ImportanceNestedSampler(BaseNestedSampler):
         int
             The number of live points to discard.
         """
-        if q is None:
-            q = 0.8
+        if self.sorting == 'logL':
+            return self._determine_level_quantile_log_likelihood(q)
+        elif self.sorting == 'rel_entr':
+            return self._determine_level_quantile_rel_entr(q)
+        else:
+            raise RuntimeError('Sorting not recognised')
+
+    def _determine_level_quantile_log_likelihood(self, q: float) -> int:
         logger.debug(f'Determining {q:.3f} quantile')
         a = self.live_points['logL']
         weights = np.exp(self.live_points['logW'], dtype=np.float64)
         cutoff = weighted_quantile(a, q, weights=weights, values_sorted=True)
         n = np.argmax(a >= cutoff)
-        logger.debug(f'{q:.3} quantile is logL + logW ={cutoff:.3}')
+        logger.debug(f'{q:.3} quantile is logL ={cutoff:.3}')
+        return int(n)
+
+    def _determine_level_quantile_rel_entr(self, q: float) -> int:
+        logger.debug(f'Determining {q:.3f} quantile')
+        ess = effective_sample_size(self.live_points['logW'])
+        scale = ess / self.live_points.size
+        scale = 1
+        logger.debug(f'Rel entr scale: {scale:.3f}')
+        a = self._rel_entr(self.live_points)
+        cutoff = np.quantile(a, q)
+        n = np.argmax(a >= cutoff) * scale
         return int(n)
 
     def determine_level_entropy(self, bits: float = 0.5) -> int:
@@ -519,7 +554,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         st = datetime.datetime.now()
         logger.debug(f'Adding {n} points')
         new_points = self.draw_n_samples(n)
-        new_points.sort(order='logL')
+        new_points = self.sort_points(new_points)
         new_points['it'] = self.iteration
         logger.info(
             "New samples ESS: "
@@ -549,10 +584,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
             if self.live_points is None:
                 self.live_points = new_points
             else:
-                idx = np.searchsorted(
-                    self.live_points['logL'], new_points['logL']
-                )
-                self.live_points = np.insert(self.live_points, idx, new_points)
+                if self.sorting == 'logL':
+                    idx = np.searchsorted(
+                        self.live_points['logL'], new_points['logL']
+                    )
+                    self.live_points = np.insert(
+                        self.live_points, idx, new_points
+                    )
+                elif self.sorting == 'rel_entr':
+                    live_points = \
+                        np.concatenate([self.live_points, new_points])
+                    self.live_points = self.sort_points(live_points)
+                else:
+                    raise RuntimeError(
+                        'Could not insert new points into existing live points'
+                        f'because of unknown sorting: {self.sorting}'
+                    )
         else:
             logger.debug(
                 f'Only add points above logL={self.min_logL:3f} to the '
