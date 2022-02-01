@@ -155,7 +155,7 @@ class _INSIntegralState:
     """
     Object to handle computing the evidence for importance nested sampling.
     """
-    def __init__(self) -> None:
+    def __init__(self, normalised: bool = True) -> None:
         self._n = 0
         self._logZ = -np.inf
         self.info = [np.nan]
@@ -163,6 +163,9 @@ class _INSIntegralState:
         self.logX = 0.
         self.effective_sample_size = 0
         self._logZ_history = np.empty(0)
+        # Constant to normalise the meta proposal
+        self.normalised = normalised
+        self._log_meta_constant = None
 
     def update_evidence(self, x: np.ndarray) -> None:
         """Update the evidence estimate with new samples (live points)"""
@@ -179,9 +182,46 @@ class _INSIntegralState:
         self._n = x.size
 
     @property
+    def renormalise(self):
+        """Indicates where the evidence needs renormalising"""
+        if self._log_meta_constant:
+            return True
+        else:
+            return False
+
+    @property
+    def log_meta_constant(self):
+        """Constant to normalise the meta proposal weights.
+
+        Should be set when the weights used to compute logW are not
+        normalised and are normalised using this constant.
+        """
+        if self._log_meta_constant is None:
+            if not self.normalised:
+                raise RuntimeError(
+                    'Samples are not correctly normliased and require '
+                    'renormalising but the constant has not been set!'
+                )
+            return np.log(self._n)
+        else:
+            return self._log_meta_constant
+
+    @log_meta_constant.setter
+    def log_meta_constant(self, value):
+        self._log_meta_constant = value
+
+    @property
+    def log_constant(self):
+        """Constant to renormalise the evidence"""
+        if self.renormalise:
+            return self._log_meta_constant + np.log(self._n)
+        else:
+            return 0.0
+
+    @property
     def logZ(self) -> float:
         """The current log-evidence."""
-        return self._logZ
+        return self._logZ + self.log_constant
 
     def compute_log_Z(self, samples: np.ndarray) -> float:
         """Compute the evidence if a set of samples were added.
@@ -189,7 +229,7 @@ class _INSIntegralState:
         Does not update the running estimate of log Z.
         """
         log_Z_s = logsumexp(samples['logL'] + samples['logW'])
-        logZ = np.logaddexp(self._logZ, log_Z_s)
+        logZ = np.logaddexp(self._logZ, log_Z_s) + self.log_constant
         return logZ
 
     def compute_condition(self, samples: np.ndarray) -> float:
@@ -200,7 +240,7 @@ class _INSIntegralState:
         if samples is None or not len(samples):
             return 0.0
         log_Z_s = logsumexp(samples['logL'] + samples['logW'])
-        logZ = np.logaddexp(self._logZ, log_Z_s)
+        logZ = np.logaddexp(self._logZ, log_Z_s) + self.log_constant
         logger.debug(f'Current log Z: {self._logZ}, expected: {logZ}')
         dZ = logZ - self.logZ
         return dZ
@@ -209,8 +249,12 @@ class _INSIntegralState:
         """Compute the uncertainty on the current estimate of the evidence."""
         n = self._n
         Z_hat = np.exp(self.logZ, dtype=np.float128)
-        # Include n since g does not include it
-        Z = n * np.exp(self._logZ_history.astype(np.float128))
+        # Need to include a constant to correctly normalise the meta proposal
+        # this should be log(N) if the weights are equal to the number of
+        # samples, but can be different if the weights were set differently.
+        Z = np.exp(
+            self._logZ_history.astype(np.float128) + self.log_meta_constant
+        )
         # Standard error sqrt(Var[Z] / n)
         u = np.sqrt(np.sum((Z - Z_hat) ** 2) / (n * (n - 1)))
         # sigma[ln Z] = |sigma[Z] / Z|
@@ -219,7 +263,11 @@ class _INSIntegralState:
     @property
     def log_posterior_weights(self) -> np.ndarray:
         """Compute the weights for all of the dead points."""
-        return np.asarray(self._logZ_history).copy() - self.logZ
+        return (
+            np.asarray(self._logZ_history).copy()
+            + self.log_constant
+            - self.logZ
+        )
 
     @property
     def effective_n_posterior_samples(self) -> float:

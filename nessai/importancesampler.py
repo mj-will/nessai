@@ -104,7 +104,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             resume_file=resume_file,
             plot=plot
         )
-        self.state = _INSIntegralState()
 
         self._posterior_samples = None
         self.initialised = False
@@ -141,6 +140,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._initial_dZ = None
 
         self.min_dZ = min_dZ if min_dZ is not None else np.inf
+
+        self._normalised_evidence = self._check_normalisation(kwargs)
+        self.state = _INSIntegralState(normalised=self._normalised_evidence)
 
         self.proposal = self.get_proposal(**kwargs)
         self.configure_iterations(min_iteration, max_iteration)
@@ -182,6 +184,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def add_fields():
         """Add extra fields logW and logG"""
         add_extra_parameters_to_live_points(['logW', 'logG'])
+
+    def _check_normalisation(self, kwargs):
+        """Check if the evidence will be correctly normalised."""
+        normalised = True
+        if (not self.leaky) and kwargs.get('reweight_draws', False):
+            normalised = False
+        return normalised
 
     def get_proposal(
         self,
@@ -516,6 +525,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
             "New samples ESS: "
             f"{effective_sample_size(new_points['logW'])}"
         )
+
+        if not self._normalised_evidence:
+            # Update the constant to make sure the evidence is correct
+            self.state.log_meta_constant = \
+                np.log(self.proposal.normalisation_constant)
 
         self.update_live_points()
         if self._update_nested_samples:
