@@ -48,6 +48,8 @@ def update_config(d):
         device_tag='cpu',
         flow=None,
         inference_device_tag=None,
+        distribution=None,
+        distribution_kwargs=None,
         kwargs={batch_norm_between_layers=True, linear_transform='lu'}
 
     The kwargs can contain any additional keyword arguments that are specific
@@ -72,6 +74,8 @@ def update_config(d):
         device_tag='cpu',
         flow=None,
         inference_device_tag=None,
+        distribution=None,
+        distribution_kwargs=None,
         kwargs=dict(
             batch_norm_between_layers=True,
             linear_transform='lu'
