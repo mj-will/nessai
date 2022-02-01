@@ -10,6 +10,7 @@ import torch
 from unittest.mock import create_autospec, MagicMock, patch
 
 from nessai.flowmodel import update_config, FlowModel
+from nessai.flows.base import BaseFlow
 
 
 @pytest.fixture()
@@ -19,7 +20,9 @@ def data_dim():
 
 @pytest.fixture()
 def model():
-    return create_autospec(FlowModel)
+    fm = create_autospec(FlowModel)
+    fm.model = MagicMock(spec=BaseFlow)
+    return fm
 
 
 @pytest.fixture(scope='function')
@@ -194,6 +197,12 @@ def test_incorrect_batch_size_type(flow_model, data_dim, batch_size):
     with pytest.raises(RuntimeError) as excinfo:
         flow_model.prep_data(x, 0.1, batch_size)
     assert 'Unknown batch size' in str(excinfo.value)
+
+
+def test_finalise(model):
+    """Assert finalise calls the correct method in the model"""
+    FlowModel.finalise(model)
+    model.model.finalise.assert_called_once()
 
 
 @pytest.mark.parametrize('dataloader', [False, True])
