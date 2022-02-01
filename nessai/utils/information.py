@@ -24,7 +24,7 @@ def efficiency(p: np.ndarray) -> float:
     Parameters
     ----------
     p : array_like
-        Arrray of probabilities
+        Array of probabilities
     """
     return self_entropy(p) / np.log(len(p))
 
@@ -49,3 +49,12 @@ def kl_divergence_from_log(log_p: np.ndarray, log_q: np.ndarray) -> float:
     log_p = log_p - logsumexp(log_p)
     log_q = log_q - logsumexp(log_q)
     return np.mean(log_p - log_q)
+
+
+def relative_entropy_from_log(
+    log_p: np.ndarray, log_q: np.ndarray
+) -> np.ndarray:
+    """Relative entropy between samples from log-probabilities."""
+    log_p = log_p - logsumexp(log_p)
+    log_q = log_q - logsumexp(log_q)
+    return log_p - log_q
