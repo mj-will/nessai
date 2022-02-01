@@ -44,6 +44,11 @@ class ImportanceFlowProposal(Proposal):
         being mapped back from the unit-hypercube. This is only needed when
         the mapping cannot be defined outside of [0, 1]. In cases where it
         can, these points will be rejected when the prior bounds are checked.
+    reweight_draws : bool
+        If true then the weights used to compute the meta proposal are based
+        on the number of samples accepted rather than the total number of
+        samples drawn. This feature is experimental and may change or be
+        removed in the future.
     """
     def __init__(
         self,
@@ -59,6 +64,7 @@ class ImportanceFlowProposal(Proposal):
         combined_proposal: bool = True,
         clip: bool = False,
         beta: Optional[float] = None,
+        reweight_draws: bool = False,
     ) -> None:
         self.level_count = -1
         self.draw_count = 0
@@ -74,19 +80,66 @@ class ImportanceFlowProposal(Proposal):
         self.weighted_kl = weighted_kl
         self.clip = clip
 
+        self.reweight_draws = reweight_draws
+        if self.reweight_draws:
+            logger.warning(
+                'Reweight draws is experimental produce biased results!'
+            )
         self.initial_draws = initial_draws
         self.initial_log_g = np.log(self.initial_draws)
         self.n_draws = {'initial': initial_draws}
+        self.n_requested = {'initial': initial_draws}
         self.levels = {'initial': None}
+        self.level_entropy = []
 
         logger.debug(f'Initial g: {np.exp(self.initial_log_g)}')
-        self._history = dict(poolsize=[], entropy=[])
         self.log_likelihood = None
 
         self.combined_proposal = combined_proposal
         self.weights_include_likelihood = weights_include_likelihood
 
         self.dtype = get_dtype(self.model.names)
+        self.update_annealing(beta)
+
+    @property
+    def total_samples_requested(self) -> float:
+        """Return the total number of samples requested"""
+        return np.sum(np.fromiter(self.n_requested.values(), int))
+
+    @property
+    def total_samples_drawn(self) -> float:
+        """Return the total number of samples requested"""
+        return np.sum(np.fromiter(self.n_draws.values(), int))
+
+    @property
+    def normalisation_constant(self) -> float:
+        """Normalisation constant for logG.
+
+        Value depends on :code:`reweight_draws`.
+        """
+        if self.reweight_draws:
+            return self.total_samples_requested
+        else:
+            return self.total_samples_drawn
+
+    @property
+    def unnormalised_weights(self) -> dict:
+        """Unnormalised weights.
+
+        Value depends on :code:`reweight_draws`
+        """
+        if self.reweight_draws:
+            return self.n_requested
+        else:
+            return self.n_draws
+
+    @property
+    def poolsize(self) -> np.ndarray:
+        """Returns an array of the pool size for each flow.
+
+        Does not include the value for the initial draws from the prior.
+        """
+        return np.fromiter(self.unnormalised_weights.values(), int)[1:]
 
     @property
     def flow_config(self) -> dict:
@@ -198,6 +251,7 @@ class ImportanceFlowProposal(Proposal):
         """
         self.level_count += 1
         self.n_draws[self.level_count] = 0
+        self.n_requested[self.level_count] = 0
         output = self.output if output is None else output
         level_output = os.path.join(
             output, f'level_{self.level_count}', ''
@@ -282,12 +336,12 @@ class ImportanceFlowProposal(Proposal):
             assert log_q_all.shape[0] == x_prime.shape[0]
             if exclude_last:
                 log_g = np.concatenate([
-                    log_q_all + np.log(self._history['poolsize'][:m]),
+                    log_q_all + np.log(self.poolsize[:m]),
                     log_q[:, np.newaxis] + np.log(n)
                 ], axis=1)
                 assert log_q_all.shape[1] == (len(self.flow.models) - 1)
             else:
-                log_g = log_q_all + np.log(self._history['poolsize'])
+                log_g = log_q_all + np.log(self.poolsize)
                 assert log_q_all.shape[1] == len(self.flow.models)
             log_g += log_j[:, np.newaxis]
 
@@ -357,6 +411,7 @@ class ImportanceFlowProposal(Proposal):
             n_draw = int(1.01 * n)
         logger.debug(f'Drawing {n} points')
         samples = np.zeros(0, dtype=self.dtype)
+        self.n_requested[self.level_count] += n
         n_accepted = 0
         while n_accepted < n and n_draw > 0:
             logger.debug(f'Drawing batch of {n_draw} samples')
@@ -420,7 +475,6 @@ class ImportanceFlowProposal(Proposal):
                 f'with logL greater than {logL_min}'
             )
 
-        self._history['poolsize'].append(samples.size)
         self.n_draws[self.level_count] += samples.size
 
         if logL_min is not None:
@@ -433,7 +487,7 @@ class ImportanceFlowProposal(Proposal):
 
         entr = entropy(np.exp(samples['logG']))
         logger.info(f'Proposal self entropy: {entr:.3}')
-        self._history['entropy'].append(entr)
+        self.level_entropy.append(entr)
 
         self.draw_count += 1
         logger.debug(f'Returning {samples.size} samples')
@@ -462,7 +516,7 @@ class ImportanceFlowProposal(Proposal):
         new_log_g = (
             log_q
             + log_j
-            + np.log(self.n_draws[self.level_count])
+            + np.log(self.unnormalised_weights[self.level_count])
             )
         samples['logG'] = np.logaddexp(samples['logG'], new_log_g)
         samples['logW'] = - samples['logG']
@@ -533,7 +587,7 @@ class ImportanceFlowProposal(Proposal):
             f'Drawing {n} samples from the combination of all the proposals'
         )
         if weights is None:
-            weights = np.fromiter(self.n_draws.values(), float)
+            weights = self.unnormalised_weights
         weights /= np.sum(weights)
         logger.debug(f'Proposal weights: {weights}')
         a = np.random.choice(weights.size, size=n, p=weights)
