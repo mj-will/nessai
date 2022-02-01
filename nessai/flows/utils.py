@@ -2,6 +2,7 @@
 """
 Various utilities for implementing normalising flows.
 """
+import inspect
 import logging
 import numpy as np
 import torch
@@ -10,7 +11,7 @@ import torch.nn.functional as F
 from nflows import transforms
 from nflows.nn.nets import MLP as NFlowsMLP
 
-from .distributions import MultivariateNormal
+from .distributions import MultivariateNormal, ResampledGaussian
 from .transforms import LULinear
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,60 @@ def silu(x):
     Elfwing et al 2017: https://arxiv.org/abs/1702.03118v3
     """
     return torch.mul(x, torch.sigmoid(x))
+
+
+def get_base_distribution(
+    n_inputs, distribution, **kwargs
+):
+    """Get the base distribution for a flow.
+
+    Includes special configuration for certain distributions.
+
+    Parameters
+    ----------
+    n_inputs : int
+        Number of inputs to the distribution.
+    """
+    distributions = {
+        'lars': ResampledGaussian,
+        'resampled_gaussian': ResampledGaussian,
+        'mvn': MultivariateNormal,
+    }
+
+    dist_class = None
+
+    if isinstance(distribution, str):
+        dist_class = distributions.get(distribution.lower())
+        if not dist_class:
+            raise ValueError(
+                f'Unknown distribution: {distribution}'
+            )
+    elif inspect.isclass(distribution):
+        logger.debug('Distribution is class. Creating an instance.')
+        dist_class = distribution
+
+    if dist_class:
+        logger.debug('Creating instance of the base distribution')
+        if dist_class is ResampledGaussian:
+            n_layers = kwargs.pop('n_layers', 2)
+            n_neurons = kwargs.pop('n_neurons', 128)
+            layers_list = n_layers * [n_neurons]
+            logger.debug(
+                f'LARS acceptance network will have {n_layers} layers with '
+                f'{n_neurons} neurons each.'
+            )
+            acc_fn = MLP(
+                [n_inputs], [1], layers_list, activate_output=torch.sigmoid
+            )
+            dist = dist_class([n_inputs], acc_fn, **kwargs)
+        else:
+            dist = dist_class([n_inputs], **kwargs)
+    elif distribution is None:
+        dist = None
+    else:
+        dist = distribution
+
+    return dist
 
 
 def configure_model(config):
@@ -49,6 +104,9 @@ def configure_model(config):
         'silu': silu
     }
 
+    if not isinstance(config['n_inputs'], int):
+        raise TypeError('Number of inputs (n_inputs) must be an int')
+
     k = config.get('kwargs', None)
     if k is not None:
         if 'activation' in k and isinstance(k['activation'], str):
@@ -57,15 +115,19 @@ def configure_model(config):
             except KeyError as e:
                 raise RuntimeError(f'Unknown activation function: {e}')
 
-        if 'var' in k and 'distribution' not in k:
-            k['distribution'] = MultivariateNormal([config['n_inputs']],
-                                                   var=k['var'])
-            k.pop('var')
-
         kwargs.update(k)
 
-    if not isinstance(config['n_inputs'], int):
-        raise TypeError('Number of inputs (n_inputs) must be an int')
+    dist_kwargs = config.pop('distribution_kwargs', None)
+    if dist_kwargs is None:
+        dist_kwargs = {}
+    distribution = get_base_distribution(
+        config['n_inputs'],
+        config.pop('distribution', None),
+        **dist_kwargs,
+    )
+    # Allows for classes that can't handle distribution as an input
+    if distribution:
+        kwargs['distribution'] = distribution
 
     fc = config.get('flow', None)
     ftype = config.get('ftype', None)
