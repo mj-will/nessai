@@ -223,6 +223,16 @@ class _INSIntegralState:
         """The current log-evidence."""
         return self._logZ + self.log_constant
 
+    @property
+    def log_evidence(self) -> float:
+        """Alias for logZ"""
+        return self.logZ
+
+    @property
+    def log_evidence_error(self) -> float:
+        """Alias for compute_uncertainty"""
+        return self.compute_uncertainty()
+
     def compute_log_Z(self, samples: np.ndarray) -> float:
         """Compute the evidence if a set of samples were added.
 
