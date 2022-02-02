@@ -104,6 +104,8 @@ def configure_model(config):
         'silu': silu
     }
 
+    config = config.copy()
+
     if not isinstance(config['n_inputs'], int):
         raise TypeError('Number of inputs (n_inputs) must be an int')
 
