@@ -132,9 +132,11 @@ class FlowSampler:
         plot=True,
         save=True,
         posterior_sampling_method=None,
+        **kwargs,
     ):
-        """
-        Run the nested samper
+        """Run the nested sampler.
+
+        Will pick the correct run method given the configuration used.
 
         Parameters
         ----------
@@ -144,24 +146,45 @@ class FlowSampler:
             Toggle automatic saving of results
         """
         if self.importance_sampler:
-            self._run_importance_sampler(
+            self.run_importance_sampler(
                 plot=plot,
                 save=save,
-                posterior_sampling_method=posterior_sampling_method
+                posterior_sampling_method=posterior_sampling_method,
+                **kwargs
             )
         else:
-            self._run_standard_sampler(
+            self.run_standard_sampler(
                 plot=plot,
                 save=save,
-                posterior_sampling_method=posterior_sampling_method
+                posterior_sampling_method=posterior_sampling_method,
+                **kwargs
             )
 
-    def _run_standard_sampler(
+    def run_standard_sampler(
         self,
         plot=True,
         save=True,
         posterior_sampling_method=None,
     ):
+        """Run the standard nested sampler.
+
+        Parameters
+        ----------
+        plot
+            Enable or disable plotting. Independent of the value passed
+            to the :code:`NestedSampler` object.
+        save
+            Enable or disable saving of a results file.
+        posterior_sampling_method
+            Method used for drawing posterior samples. Defaults to rejection
+            sampling.
+
+        """
+        if self.importance_sampler:
+            raise RuntimeError(
+                'Cannot run standard sampler when importance_sampler=True'
+            )
+
         if posterior_sampling_method is None:
             posterior_sampling_method = 'rejection_sampling'
         self.ns.initialise()
@@ -194,23 +217,83 @@ class FlowSampler:
 
             self.ns.state.plot(f'{self.output}/logXlogL.png')
 
-    def _run_importance_sampler(
+    def run_importance_sampler(
         self,
         plot=True,
         save=True,
         posterior_sampling_method=None,
+        redraw_samples=True,
+        n_posterior_samples=None,
+        compute_initial_posterior=True,
+        **kwargs
     ):
+        """Run the importance nested sampler.
+
+        Parameters
+        ----------
+        plot
+            Enable or disable plotting. Independent of the value passed
+            to the :code:`NestedSampler` object.
+        save
+            Enable or disable saving of a results file.
+        posterior_sampling_method
+            Method used for drawing posterior samples. Defaults to importance
+            sampling.
+        redraw_samples
+            If True after the sampling is finished, samples are redrawn from
+            the meta proposal and used to compute an updated evidence estimate
+            and posterior. This can reduce biases in the results.
+        n_posterior_samples
+            Number of posterior samples to draw when when redrawing samples.
+        compute_initial_posterior
+            Enables or disables computing the posterior before redrawing
+            samples. If :code:`redraw_samples` is False, then this flag is
+            ignored.
+        kwargs
+            Keyword arguments passed to \
+                :py:meth:`~nessai.importancesampler.ImportanceNestedSampler.draw_final_samples`
+        """
+
+        if not self.importance_sampler:
+            raise RuntimeError(
+                'Cannot run importance sampler when importance_sampler=False'
+            )
+
         if posterior_sampling_method is None:
             posterior_sampling_method = 'importance_sampling'
+
         self.logZ, self.nested_samples = \
             self.ns.nested_sampling_loop()
+        self.logZ_error = self.ns.state.log_evidence_error
         logger.info((f'Total sampling time: {self.ns.sampling_time}'))
 
         logger.info('Starting post processing')
+
+        if redraw_samples:
+            logger.info('Redrawing samples')
+            self.initial_logZ = self.logZ
+            self.initial_logZ_error = self.logZ_error
+            self.logZ, self.final_samples = \
+                self.ns.draw_final_samples(
+                    n=n_posterior_samples, **kwargs,
+                )
+            self.logZ_error = self.ns.final_log_evidence_error
+
         logger.info('Computing posterior samples')
-        self.posterior_samples = self.ns.draw_posterior_samples(
-            sampling_method=posterior_sampling_method,
-        )
+
+        if compute_initial_posterior or not redraw_samples:
+            logger.debug('Computing initial posterior samples')
+            self.initial_posterior_samples = self.ns.draw_posterior_samples(
+                sampling_method=posterior_sampling_method,
+                use_final_samples=False,
+            )
+        if redraw_samples:
+            self.posterior_samples = self.ns.draw_posterior_samples(
+                sampling_method=posterior_sampling_method,
+                use_final_samples=True,
+            )
+        else:
+            self.posterior_samples = self.initial_posterior_samples
         logger.info(
             f'Returned {self.posterior_samples.size} posterior samples'
         )
@@ -226,6 +309,23 @@ class FlowSampler:
                     self.output, 'posterior_distribution.png'
                 )
             )
+            if redraw_samples and compute_initial_posterior:
+                plot.plot_live_points(
+                    self.posterior_samples,
+                    filename=os.path.join(
+                        self.output, 'initial_posterior_distribution.png'
+                    )
+                )
+
+    @property
+    def log_evidence(self):
+        """Return the most recent log evidence"""
+        return self.logZ
+
+    @property
+    def log_evidence_error(self):
+        """Return the most recent log evidence error"""
+        return self.logZ_error
 
     def save_kwargs(self, kwargs):
         """
@@ -259,7 +359,10 @@ class FlowSampler:
             Name of file to save results to.
         """
         d = self.ns.get_result_dictionary()
+
         d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
+        if hasattr(self, 'initial_posterior_samples'):
+            d['initial_posterior_samples'] = self.initial_posterior_samples
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
