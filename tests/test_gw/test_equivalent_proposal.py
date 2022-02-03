@@ -98,6 +98,7 @@ def kwargs(legacy_kwargs):
     ]
 )
 @pytest.mark.parametrize('compute_radius', [False, True])
+@pytest.mark.integration_test
 def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
                    compute_radius, tmpdir):
     """

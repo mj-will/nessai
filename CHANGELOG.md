@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `defaults` keyword argument to `nessai.reparameterisations.get_reparameterisation` for overriding the dictionary of default reparameterisations.
 - Add explicit tests for `nessai.flowsampler`
 - Add more tests for `nessai.reparameterisations`
+- Add more tests for `nessai.gw`
 
 ### Changed
 
