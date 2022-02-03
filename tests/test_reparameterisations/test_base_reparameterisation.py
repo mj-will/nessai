@@ -87,6 +87,12 @@ def test_incorrect_bounds_type():
     assert 'Prior bounds must be' in str(excinfo.value)
 
 
+def test_incorrect_bounds_length():
+    with pytest.raises(RuntimeError) as excinfo:
+        Reparameterisation(parameters=['x', 'y'], prior_bounds=[1, 2, 3])
+    assert 'Prior bounds got a list of len > 2' in str(excinfo.value)
+
+
 def test_methods_not_implemented():
     """Test to ensure class fails if user does not define the methods"""
     reparam = Reparameterisation(parameters='x', prior_bounds=[0, 1])

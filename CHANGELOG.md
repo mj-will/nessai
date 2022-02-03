@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `calibration_example.py` to the gravitational wave examples.
 - Add `defaults` keyword argument to `nessai.reparameterisations.get_reparameterisation` for overriding the dictionary of default reparameterisations.
 - Add explicit tests for `nessai.flowsampler`
+- Add more tests for `nessai.reparameterisations`
 
 ### Changed
 
@@ -28,6 +29,11 @@ vertical lines that can appear in the subplots.
 - Updated all of the examples to reflect the new defaults.
 - Rework `nessai.gw.reparameterisations.get_gw_reparameterisation` to use `get_reparameterisation` with the `defaults` keyword argument.
 - Switch to `os.path.join` for joining paths in `nessai.flowsampler`.
+
+
+### Fixed
+
+- Fixed a bug in `RescaleToBounds` when using `pre_rescaling` without boundary inversion.
 
 ### Removed
 

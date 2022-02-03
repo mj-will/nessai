@@ -7,7 +7,11 @@ import pytest
 from unittest.mock import MagicMock, create_autospec
 
 from nessai.reparameterisations import Angle
-from nessai.livepoint import get_dtype, parameters_to_live_point
+from nessai.livepoint import (
+    get_dtype,
+    numpy_array_to_live_points,
+    parameters_to_live_point,
+)
 
 scales = [1.0, 2.0]
 
@@ -147,6 +151,27 @@ def test_log_prior(reparam):
 
 
 def test_x_prime_log_prior(reparam):
+    """"Assert the underlying functions is called correctly"""
+    x_prime = numpy_array_to_live_points(
+        np.array([[1.0, -1.0]]), ['x', 'y']
+    )
+
+    reparam._k = 0.5
+    reparam._prime_prior = MagicMock(return_value=0.5)
+    reparam.has_prior_prior = True
+    reparam.prime_parameters = ['x', 'y']
+
+    out = Angle.x_prime_log_prior(reparam, x_prime)
+
+    reparam._prime_prior.assert_called_once_with(
+        x_prime['x'],
+        x_prime['y'],
+        k=0.5,
+    )
+    assert out == 0.5
+
+
+def test_x_prime_log_prior_error(reparam):
     """
     Assert an error is raised when called the prime prior if is not enabled.
     """
@@ -233,3 +258,21 @@ def test_periodic_parameter(value, output_x, output_y):
         assert x_prime_out[reparam.x] == output_x
     if output_y:
         assert x_prime_out[reparam.y] == output_y
+
+
+def test_reparameterise_negative_radius(reparam):
+    """Assert an error is radius if the radius is negative."""
+    x = numpy_array_to_live_points(
+        np.array([[1.0, -1.0]]), ['theta', 'radius']
+    )
+    x_prime = x.copy()
+    log_j = 0.0
+    reparam.radial = 'radius'
+    reparam.chi = None
+
+    reparam._rescale_angle = lambda *args: (x['theta'], *args)
+    reparam._rescale_radial = lambda *args: (x['radius'], *args)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        Angle.reparameterise(reparam, x, x_prime, log_j)
+    assert 'Radius cannot be negative' in str(excinfo.value)
