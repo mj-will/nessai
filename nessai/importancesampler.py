@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import entropy
 from scipy.special import logsumexp
+from tqdm import tqdm
 
 from .evidence import _INSIntegralState
 from .basesampler import BaseNestedSampler
@@ -26,7 +27,6 @@ from .livepoint import (
 )
 from .utils.information import cumulative_entropy, relative_entropy_from_log
 from .utils.stats import effective_sample_size, weighted_quantile
-
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +146,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._normalised_evidence = self._check_normalisation(kwargs)
         self.state = _INSIntegralState(normalised=self._normalised_evidence)
 
+        self.final_state = None
+        self.final_samples = None
+
         self.proposal = self.get_proposal(**kwargs)
         self.configure_iterations(min_iteration, max_iteration)
 
@@ -154,6 +157,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.update_level_time = datetime.timedelta()
         self.log_likelihood_time = datetime.timedelta()
         self.draw_time = datetime.timedelta()
+        self.redraw_time = datetime.timedelta()
         self.update_ns_time = datetime.timedelta()
         self.add_samples_time = datetime.timedelta()
 
@@ -170,6 +174,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
     @property
     def log_evidence_error(self) -> float:
         return self.state.compute_uncertainty()
+
+    @property
+    def final_log_evidence(self) -> float:
+        if self.final_state:
+            return self.final_state.log_evidence
+        else:
+            return None
+
+    @property
+    def final_log_evidence_error(self) -> float:
+        if self.final_state:
+            return self.final_state.log_evidence_error
+        else:
+            return None
 
     @property
     def live_points_entropy(self):
@@ -865,12 +883,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def draw_posterior_samples(
         self,
         sampling_method: str = 'rejection_sampling',
-        n: Optional[int] = None
+        n: Optional[int] = None,
+        use_final_samples: bool = True,
     ) -> np.ndarray:
         """Draw posterior samples from the current nested samples."""
-        log_w = self.state.log_posterior_weights
+
+        if use_final_samples and self.final_samples is not None:
+            samples = self.final_samples
+            log_w = self.final_state.log_posterior_weights
+        else:
+            samples = self.nested_samples
+            log_w = self.state.log_posterior_weights
+
         posterior_samples = draw_posterior_samples(
-            self.nested_samples,
+            samples,
             log_w=log_w,
             method=sampling_method,
             n=n,
@@ -913,6 +939,103 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f'{state.effective_n_posterior_samples:3f}'
         )
         return samples
+
+    def draw_final_samples(
+        self, n: int = 5000, max_its: int = 100, max_batch_size: int = 50_000,
+    ):
+        """Draw final unbiased samples until a desired ESS is reached.
+
+        The number of samples drawn is based on the efficiency of the existing
+        nested samples up to a maximum size determined by
+        :code:`max_batch_size`.
+
+        Returns nested samples, NOT posterior samples.
+
+        Restarts the multiprocessing pool for evaluatins the likelihood.
+
+        Parameters
+        ----------
+        n
+            Target effective sample size for the posterior distribution. May
+            not be reached if max_its is reached first.
+        max_its
+            Maximum number of iterations before stopping.
+        max_batch_size
+            Maximum number of samples to draw in a single batch.
+
+        Returns
+        -------
+        log_evidence
+            The log evidence for the new samples
+        samples
+            Structured array with the new nested samples.
+        """
+        start_time = datetime.datetime.now()
+        if n is None:
+            n = self.state.effective_n_posterior_samples
+
+        if self.final_state:
+            logger.warning('Existing final state will be overriden')
+        self.final_state = _INSIntegralState()
+
+        self.configure_pool()
+
+        eff = (
+            self.state.effective_n_posterior_samples
+            / self.nested_samples.size
+        )
+        logger.debug(f'Expected efficiency: {eff:.3f}')
+        batch_size = min(int(1.05 * n / eff), max_batch_size)
+        logger.debug(f'Draw size: {batch_size}')
+        ess = 0
+        n_models = self.proposal.n_proposals
+        samples = np.empty([0], dtype=self.proposal.dtype)
+        log_q = np.empty([0, n_models])
+        counts = np.zeros(n_models)
+        it = 0
+        logger.info(f'Redrawing samples with target ESS: {n:.1f}')
+        logger.info(f'Expect to draw approximately {n / eff:.0f} samples')
+        with tqdm(
+            total=int(n),
+            desc='ESS',
+            unit='samples',
+            bar_format=("{desc}: {percentage:.1f}%|{bar}| {n:.1f}/{total_fmt}")
+        ) as pbar:
+            while (ess < n) and (it < max_its):
+                new_samples, new_log_q, new_counts = \
+                    self.proposal.draw_from_flows(batch_size)
+
+                self.log_likelihood(new_samples)
+
+                samples = np.concatenate([samples, new_samples])
+                log_q = np.concatenate([log_q, new_log_q], axis=0)
+                counts += new_counts
+
+                log_Q = logsumexp(log_q + np.log(counts), axis=1)
+
+                # Reject samples with infs
+                samples = samples[np.isfinite(log_Q)]
+
+                samples['logG'] = log_Q
+                samples['logW'] = -log_Q
+
+                self.final_state.update_evidence_from_nested_samples(samples)
+                tmp_ess = self.final_state.effective_n_posterior_samples
+                pbar.update(tmp_ess - ess)
+                ess = tmp_ess
+                logger.debug(f'Current ESS: {ess}')
+                it += 1
+            pbar.n = pbar.total
+
+        logger.info(
+            f'Final evidence: {self.final_state.logZ:.3f} '
+            f'+/- {self.final_state.compute_uncertainty():.3f}'
+        )
+        logger.info(f'Final ess: {ess:.1f}')
+        self.final_samples = samples
+        self.redraw_time += (datetime.datetime.now() - start_time)
+        self.close_pool()
+        return self.final_state.logZ, samples
 
     def plot_state(
         self,
@@ -1115,14 +1238,21 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d = super().get_result_dictionary()
         d['history'] = self.history
         d['nested_samples'] = live_points_to_dict(self.nested_samples)
-        d['likelihood_evaluations'] = self.model.likelihood_evaluations
         d['log_evidence'] = self.log_evidence
         d['log_evidence_error'] = self.log_evidence_error
+        # Will all be None if the final samples haven't been drawn
+        d['final_samples'] = self.final_samples
+        d['final_log_evidence'] = self.final_log_evidence
+        d['final_log_evidence_error'] = self.final_log_evidence_error
+
+        d['likelihood_evaluations'] = self.model.likelihood_evaluations
         d['sampling_time'] = self.sampling_time.total_seconds()
         d['update_level_time'] = self.update_level_time.total_seconds()
         d['log_likelihood_time'] = self.log_likelihood_time.total_seconds()
         d['add_samples_time'] = self.add_samples_time.total_seconds()
         d['update_ns_time'] = self.update_ns_time.total_seconds()
+        d['redraw_time'] = self.redraw_time.total_seconds()
+
         return d
 
     @classmethod
