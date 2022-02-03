@@ -941,7 +941,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         return samples
 
     def draw_final_samples(
-        self, n: int = 5000, max_its: int = 100, max_batch_size: int = 50_000,
+        self, n: Optional[int] = None,
+        max_its: int = 10,
+        max_batch_size: int = 50_000,
     ):
         """Draw final unbiased samples until a desired ESS is reached.
 
@@ -957,7 +959,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ----------
         n
             Target effective sample size for the posterior distribution. May
-            not be reached if max_its is reached first.
+            not be reached if max_its is reached first. If not specified then
+            the number of samples drawn will match the nested samples.
         max_its
             Maximum number of iterations before stopping.
         max_batch_size
@@ -973,6 +976,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         start_time = datetime.datetime.now()
         if n is None:
             n = self.state.effective_n_posterior_samples
+            n_draw = self.nested_samples.size
+        else:
+            n_draw = None
 
         if self.final_state:
             logger.warning('Existing final state will be overriden')
@@ -993,28 +999,37 @@ class ImportanceNestedSampler(BaseNestedSampler):
         log_q = np.empty([0, n_models])
         counts = np.zeros(n_models)
         it = 0
-        logger.info(f'Redrawing samples with target ESS: {n:.1f}')
-        logger.info(f'Expect to draw approximately {n / eff:.0f} samples')
+        if n_draw is None:
+            logger.info(f'Redrawing samples with target ESS: {n:.1f}')
+            logger.info(f'Expect to draw approximately {n / eff:.0f} samples')
+        else:
+            logger.info(f'Drawing at least {n_draw} final samples')
         with tqdm(
             total=int(n),
             desc='ESS',
             unit='samples',
             bar_format=("{desc}: {percentage:.1f}%|{bar}| {n:.1f}/{total_fmt}")
         ) as pbar:
-            while (ess < n) and (it < max_its):
-                new_samples, new_log_q, new_counts = \
-                    self.proposal.draw_from_flows(batch_size)
+            while (ess < n):
+                if it > max_its:
+                    logger.warning('Reached maximum number of iterations.')
+                    logger.warning('Stopping drawing final samples.')
+                    break
+                if n_draw and (samples.size > n_draw):
+                    break
 
-                self.log_likelihood(new_samples)
-
-                samples = np.concatenate([samples, new_samples])
-                log_q = np.concatenate([log_q, new_log_q], axis=0)
-                counts += new_counts
+                for _ in range(int(np.ceil(n / batch_size))):
+                    new_samples, new_log_q, new_counts = \
+                        self.proposal.draw_from_flows(batch_size)
+                    samples = np.concatenate([samples, new_samples])
+                    log_q = np.concatenate([log_q, new_log_q], axis=0)
+                    counts += new_counts
 
                 log_Q = logsumexp(log_q + np.log(counts), axis=1)
-
                 # Reject samples with infs
                 samples = samples[np.isfinite(log_Q)]
+
+                self.log_likelihood(samples)
 
                 samples['logG'] = log_Q
                 samples['logW'] = -log_Q
@@ -1023,10 +1038,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 tmp_ess = self.final_state.effective_n_posterior_samples
                 pbar.update(tmp_ess - ess)
                 ess = tmp_ess
+                logger.debug(f'Sample count: {samples.size}')
                 logger.debug(f'Current ESS: {ess}')
                 it += 1
             pbar.n = pbar.total
 
+        logger.info(f'Drew {samples.size} final samples')
         logger.info(
             f'Final evidence: {self.final_state.logZ:.3f} '
             f'+/- {self.final_state.compute_uncertainty():.3f}'
