@@ -25,8 +25,8 @@ def reparameterisation(model):
 
 
 @pytest.fixture(scope='function')
-def assert_invertibility(model, n=100):
-    def test_invertibility(reparam):
+def is_invertible(model, n=100):
+    def test_invertibility(reparam, model=model, decimal=16):
         x = model.new_point(N=n)
         x_prime = np.zeros([n], dtype=get_dtype(reparam.prime_parameters))
         log_j = np.zeros(n)
@@ -44,10 +44,20 @@ def assert_invertibility(model, n=100):
         m = x_re.size // n
         for i in range(m):
             start, end = (i * n), (i + 1) * n
-            np.testing.assert_array_equal(x, x_re[start:end])
-            np.testing.assert_array_equal(x, x_inv[start:end])
-            np.testing.assert_array_equal(x_prime_re, x_prime_inv)
-            np.testing.assert_array_equal(log_j_re, -log_j_inv)
+            for name in x.dtype.names:
+                np.testing.assert_array_almost_equal(
+                    x[name], x_re[name][start:end], decimal=decimal,
+                )
+                np.testing.assert_array_almost_equal(
+                    x[name], x_inv[name][start:end], decimal=decimal,
+                )
+            for name in x_prime.dtype.names:
+                np.testing.assert_array_almost_equal(
+                    x_prime_re[name], x_prime_inv[name], decimal=decimal,
+                )
+            np.testing.assert_array_almost_equal(
+                log_j_re, -log_j_inv, decimal=decimal
+            )
 
         return True
 
@@ -809,7 +819,7 @@ def test_reverse_inversion_not_applied(reparam):
     [None, [0, 1], {'x': [0, 1], 'y': [-1, 1]}]
 )
 @pytest.mark.integration_test
-def test_rescale_bounds(reparameterisation, assert_invertibility,
+def test_rescale_bounds(reparameterisation, is_invertible,
                         rescale_bounds):
     """Test the different options for rescale to bounds"""
     reparam = reparameterisation({'rescale_bounds': rescale_bounds})
@@ -819,7 +829,7 @@ def test_rescale_bounds(reparameterisation, assert_invertibility,
         rescale_bounds = {p: rescale_bounds for p in reparam.parameters}
 
     assert reparam.rescale_bounds == rescale_bounds
-    assert assert_invertibility(reparam)
+    assert is_invertible(reparam)
 
 
 @pytest.mark.parametrize(
@@ -827,12 +837,12 @@ def test_rescale_bounds(reparameterisation, assert_invertibility,
     [False, True, ['x'], {'x': 'split'}, {'x': 'duplicate'}]
 )
 @pytest.mark.integration_test
-def test_boundary_inversion(reparameterisation, assert_invertibility,
+def test_boundary_inversion(reparameterisation, is_invertible,
                             boundary_inversion):
     """Test the different options for rescale to bounds"""
     reparam = reparameterisation({'boundary_inversion': boundary_inversion})
 
-    assert assert_invertibility(reparam)
+    assert is_invertible(reparam)
 
 
 @pytest.mark.integration_test
@@ -860,3 +870,79 @@ def test_update_prime_prior_bounds_integration():
     log_prior = reparam.x_prime_log_prior(x_prime)
     expected = np.array([-np.inf, 0, 0, 0, -np.inf])
     np.testing.assert_equal(log_prior, expected)
+
+
+@pytest.mark.integration_test
+def test_pre_rescaling_integration(is_invertible, model):
+    """Test the pre-scaling feature"""
+
+    def forward(x):
+        return np.log(x), -np.log(x)
+
+    def inv(x):
+        return np.exp(x), x.copy()
+
+    reparam = RescaleToBounds(
+        parameters='x',
+        prior_bounds={'x': [1.0, np.e]},
+        pre_rescaling=(forward, inv),
+        rescale_bounds=[-1.0, 1.0],
+    )
+
+    x = numpy_array_to_live_points(
+        np.array([[1.0], [np.e ** 0.5], [2.0], [np.e]]), ['x']
+    )
+    x_prime = numpy_array_to_live_points(np.empty([x.size, 1]), ['x_prime'])
+    log_j = np.zeros(x.size)
+
+    x_out, x_prime_out, log_j_out = reparam.reparameterise(x, x_prime, log_j)
+
+    np.testing.assert_array_equal(x_out, x)
+    np.testing.assert_array_equal(
+        x_prime_out['x_prime'], np.array([-1, 0.0, 2 * np.log(2) - 1, 1])
+
+    )
+    np.testing.assert_array_equal(log_j_out, -np.log(x['x']) + np.log(2))
+
+    x_in = numpy_array_to_live_points(np.empty([x_prime_out.size, 1]), ['x'])
+    log_j = np.zeros(x.size)
+    x_out, x_prime_final, log_j_final = \
+        reparam.inverse_reparameterise(x_in, x_prime_out, log_j)
+
+    np.testing.assert_array_equal(log_j_final, np.log(x_out['x']) - np.log(2))
+
+    np.testing.assert_array_equal(x_out['x'], x['x'])
+    np.testing.assert_array_equal(x_prime_final, x_prime_out)
+    np.testing.assert_array_equal(log_j_final, -log_j_out)
+
+    # Trick to get a 1d model to test only x
+    model._names.remove('y')
+    model._bounds = {'x': [1.0, np.e]}
+    assert is_invertible(reparam, model=model)
+
+
+@pytest.mark.parametrize(
+    'kwargs, decimal',
+    [
+        (dict(post_rescaling='logit', update_bounds=False), 13),
+        (dict(update_bounds=False), None),
+        (dict(update_bounds=False, boundary_inversion=True), None),
+        (dict(boundary_inversion=['x']), None),
+    ]
+)
+@pytest.mark.integration_test
+def test_is_invertible_general_config(is_invertible, model, kwargs, decimal):
+    """Test the invertibility of the reparameterisation
+
+    General tests that don't check specific attributes but can check
+    combinations.
+    """
+    if decimal is None:
+        decimal = 16
+    default_kwargs = dict(
+        parameters=model.names,
+        prior_bounds=model.bounds,
+    )
+    default_kwargs.update(kwargs)
+    reparam = RescaleToBounds(**default_kwargs)
+    assert is_invertible(reparam, decimal=decimal)
