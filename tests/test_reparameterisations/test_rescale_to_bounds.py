@@ -918,13 +918,13 @@ def test_pre_rescaling_integration(is_invertible, model):
     # Trick to get a 1d model to test only x
     model._names.remove('y')
     model._bounds = {'x': [1.0, np.e]}
-    assert is_invertible(reparam, model=model)
+    assert is_invertible(reparam, model=model, decimal=12)
 
 
 @pytest.mark.parametrize(
     'kwargs, decimal',
     [
-        (dict(post_rescaling='logit', update_bounds=False), 13),
+        (dict(post_rescaling='logit', update_bounds=False), 10),
         (dict(update_bounds=False), None),
         (dict(update_bounds=False, boundary_inversion=True), None),
         (dict(boundary_inversion=['x']), None),
