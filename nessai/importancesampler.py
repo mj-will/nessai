@@ -362,6 +362,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 live_points_remaining_entropy=[],
                 live_points_ess=[],
                 pool_entropy=[],
+                nested_samples_entropy=[],
                 likelihood_evaluations=[],
                 max_log_g=[],
                 mean_log_g=[],
@@ -391,14 +392,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['median_logL'].append(np.median(self.live_points['logL']))
         self.history['logZ'].append(self.state.logZ)
         self.history['n_post'].append(self.state.effective_n_posterior_samples)
-        self.history['live_points_entropy'].append(
-            entropy(np.exp(self.live_points['logW']))
-        )
+        self.history['live_points_entropy'].append(self.live_points_entropy)
         self.history['live_points_ess'].append(self.live_points_ess)
         self.history['live_points_remaining_entropy'].append(
             self.entropy_remaining
         )
-        self.history['pool_entropy'] = self.proposal._history['entropy']
+        self.history['nested_samples_entropy'].append(
+            self.nested_samples_entropy
+        )
+        self.history['pool_entropy'] = self.proposal.level_entropy
         self.history['likelihood_evaluations'].append(
             self.model.likelihood_evaluations
         )
@@ -920,6 +922,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             log_p = np.concatenate([log_p, self.live_points['logG']])
         log_q -= logsumexp(log_q)
         log_p -= logsumexp(log_p)
+        # TODO: Think about if p and q are correct.
         kl = np.mean(log_p - log_q)
         logger.info(f'KL divergence between posterior and g: {kl:.3f}')
         return float(kl)
@@ -1068,7 +1071,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             If specifie the figure will be saved, otherwise the figure is
             returned.
         """
-        fig, ax = plt.subplots(7, 1, sharex=True, figsize=(15, 12))
+        fig, ax = plt.subplots(8, 1, sharex=True, figsize=(15, 15))
         ax = ax.ravel()
         its = np.arange(self.iteration)
 
@@ -1110,44 +1113,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
-        # ax[m].plot(its, self.history['live_points_entropy'],
-        #            label='Live points - combined', c=colours[0], ls=ls[0])
-        # ax[m].plot(its, self.history['pool_entropy'],
-        #            label='Pool', c=colours[1], ls=ls[0])
-        # ax[m].plot(its, self.history['live_points_remaining_entropy'],
-        #            label='Live points - remaining', c=colours[2], ls=ls[0])
-        # ax[m].axhline(np.log(self.nlive), label='Target', ls=ls[1],
-        #               c=colours[0])
-        # ax[m].set_ylabel('Entropy')
-        # ax[m].legend(frameon=False)
-
-        # m += 1
-
-        ax[m].plot(its, self.history['kl_proposals'], label='(q_i||q_i-1)',
-                   c=colours[0], ls=ls[0])
-        ax[m].set_ylabel('KL divergence')
-        ax_kl = plt.twinx(ax[m])
-        ax_kl.plot(its, self.history['stopping_criteria']['kl'],
-                   label='(g||post)', c=colours[1], ls=ls[1])
-        ax_kl.set_ylabel('KL divergence')
-
-        m += 1
-
-        ax[m].plot(its, self.history['n_removed'], ls=ls[0], c=colours[0],
-                   label='Removed')
-        ax[m].plot(its, self.history['n_added'], ls=ls[1], c=colours[1],
-                   label='Added')
-        ax[m].set_ylabel('# samples')
-        ax[m].legend(frameon=False)
-
-        m += 1
-
-        # ax[m].plot(its, self.history['max_log_g'], label='Max.')
-        # ax[m].plot(its, self.history['min_log_g'], label='Min.')
-        # ax[m].plot(its, self.history['mean_log_g'], label='Mean')
-        # ax[m].plot(its, self.history['median_log_g'], label='Median')
-        # ax[m].legend(frameon=False)
-        # ax[m].set_ylabel('Log g')
+        # if self.annealing:
+        #     ax[m].plot(its, self.history['beta'], c=colours[0])
+        # ax[m].set_ylabel('Beta')
 
         # m += 1
 
@@ -1169,18 +1137,79 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
+        ax[m].plot(its, self.history['n_removed'], ls=ls[0], c=colours[0],
+                   label='Removed')
+        ax[m].plot(its, self.history['n_added'], ls=ls[1], c=colours[1],
+                   label='Added')
+        ax[m].set_ylabel('# samples')
+        ax[m].legend(frameon=False)
+
+        m += 1
+
+        # ax[m].plot(its, self.history['max_log_g'], label='Max.')
+        # ax[m].plot(its, self.history['min_log_g'], label='Min.')
+        # ax[m].plot(its, self.history['mean_log_g'], label='Mean')
+        # ax[m].plot(its, self.history['median_log_g'], label='Median')
+        # ax[m].legend(frameon=False)
+        # ax[m].set_ylabel('Log g')
+
+        # m += 1
+
+        # ax[m].plot(its, self.history['live_points_entropy'],
+        #            label='Live points - combined', c=colours[0], ls=ls[0])
+        # ax[m].plot(its, self.history['pool_entropy'],
+        #            label='Pool', c=colours[1], ls=ls[0])
+        # ax[m].plot(its, self.history['live_points_remaining_entropy'],
+        #            label='Live points - remaining', c=colours[2], ls=ls[0])
+        # ax[m].axhline(np.log(self.nlive), label='Target', ls=ls[1],
+        #               c=colours[0])
+        # ax[m].set_ylabel('Entropy')
+        # ax[m].legend(frameon=False)
+
+        # m += 1
+
+        ax[m].plot(its, self.history['nested_samples_entropy'], c=colours[0],
+                   ls=ls[0], label='Nested samples')
+        ax[m].plot(its, self.history['live_points_entropy'], c=colours[1],
+                   ls=ls[1], label='Live points')
+        ax[m].legend(frameon=False)
+        ax[m].set_ylabel('Normalised entropy')
+
+        m += 1
+
+        # ax[m].plot(its, self.history['stopping_criteria']['dH_all'],
+        #            c=colours[0], ls=ls[0])
+        # ax[m].plot(its, self.history['stopping_criteria']['dH_ns'],
+        #            c=colours[1], ls=ls[1])
+        # ax[m].set_ylabel('dH')
+
+        # m += 1
+
+        ax[m].plot(its, self.history['kl_proposals'], label='(q_i||q_i-1)',
+                   c=colours[0], ls=ls[0])
+        ax[m].set_ylabel('KL divergence')
+        ax_kl = plt.twinx(ax[m])
+        ax_kl.plot(its, self.history['stopping_criteria']['kl'],
+                   label='(g||post)', c=colours[1], ls=ls[1])
+        ax_kl.set_ylabel('KL divergence')
+        handles, labels = ax[m].get_legend_handles_labels()
+        handles_kl, labels_kl = ax_kl.get_legend_handles_labels()
+        ax[m].legend(handles + handles_kl, labels + labels_kl, frameon=False)
+
+        m += 1
+
         ax[m].plot(
             its, self.history['stopping_criteria']['dZ'], label='dZ',
             c=colours[0], ls=ls[0]
         )
-        ax[m].plot(
-            its, self.history['stopping_criteria']['dZ_smc'], label='SMC dZ',
-            c=colours[1], ls=ls[1]
-        )
-        ax[m].plot(
-            its, self.history['stopping_criteria']['dZ_ns'], label='Alt. dZ',
-            c=colours[2], ls=ls[2]
-        )
+        # ax[m].plot(
+        #     its, self.history['stopping_criteria']['dZ_smc'], label='SMC dZ',
+        #     c=colours[1], ls=ls[1]
+        # )
+        # ax[m].plot(
+        #     its, self.history['stopping_criteria']['dZ_ns'], label='Alt. dZ',
+        #     c=colours[2], ls=ls[2]
+        # )
         ax[m].axhline(self.tolerance, label='Threshold', ls='-', c='grey')
         ax[m].legend(frameon=False)
         ax[m].set_ylabel('Stopping criteria')
