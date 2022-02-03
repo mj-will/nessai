@@ -146,6 +146,11 @@ class ImportanceFlowProposal(Proposal):
         """Return the configuration for the flow"""
         return self._flow_config
 
+    @property
+    def n_proposals(self) -> int:
+        """Current number of proposals in the meta proposal"""
+        return len(self.n_draws)
+
     @flow_config.setter
     def flow_config(self, config: dict) -> None:
         """Set configuration (includes checking defaults)"""
@@ -575,7 +580,9 @@ class ImportanceFlowProposal(Proposal):
         logger.info(f'KL between {p_it} and {q_it} is: {kl:.3}')
         return kl
 
-    def draw_from_flows(self, n: int, weights=None) -> np.ndarray:
+    def draw_from_flows(
+        self, n: int, weights=None
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Draw n points from all flows (g).
 
         Parameters
@@ -583,19 +590,20 @@ class ImportanceFlowProposal(Proposal):
         n : int
             Number of points
         """
-        logger.info(
+        logger.debug(
             f'Drawing {n} samples from the combination of all the proposals'
         )
         if weights is None:
-            weights = self.unnormalised_weights
+            weights = np.fromiter(self.unnormalised_weights.values(), float)
         weights /= np.sum(weights)
+        if not len(weights) == self.n_proposals:
+            ValueError('Size of weights does not match the number of levels')
         logger.debug(f'Proposal weights: {weights}')
         a = np.random.choice(weights.size, size=n, p=weights)
         proposal_id = np.arange(weights.size) - 1
         counts = np.bincount(a).astype(int)
         logger.debug(f'Counts: {counts}')
         prime_samples = np.empty([n, self.model.dims])
-        assert len(weights) == (self.flow.n_models + 1)
         count = 0
         # Draw from prior
         for i, m in zip(proposal_id, counts):
@@ -617,22 +625,19 @@ class ImportanceFlowProposal(Proposal):
         samples, prime_samples, log_j = \
             get_subset_arrays(finite, samples, prime_samples, log_j)
 
-        log_g = np.zeros((samples.size, len(weights)))
-        log_g[:, 1:] = \
+        log_q = np.zeros((samples.size, self.n_proposals))
+        log_q[:, 1:] = \
             self.flow.log_prob_all(prime_samples) - log_j[:, np.newaxis]
-        log_g += np.log(counts)
-        logger.debug(
-            f'Mean g for each each flow: {np.exp(log_g).mean(axis=0)}'
-        )
-        log_g = logsumexp(log_g, axis=1)
 
-        finite = np.isfinite(log_g)
-        samples, log_g = get_subset_arrays(finite, samples, log_g)
+        finite = np.isfinite(log_q).all(axis=1)
+        samples, log_q = get_subset_arrays(finite, samples, log_q)
+
+        logger.debug(
+            f'Mean g for each each flow: {np.exp(log_q).mean(axis=0)}'
+        )
 
         samples['logP'] = self.model.log_prior(samples)
-        samples['logG'] = log_g
-        samples['logW'] = - samples['logG']
-        return samples
+        return samples, log_q, counts
 
     def resume(self, model, flow_config, weights_path=None):
         """Resume the proposal"""
