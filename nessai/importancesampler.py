@@ -953,7 +953,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         The number of samples drawn is based on the efficiency of the existing
         nested samples up to a maximum size determined by
         :code:`max_batch_size` or on the value of :code:`n_draw. The number
-        is increased by 5% to account for samples being rejected.
+        is increased by 1% to account for samples being rejected.
 
         Returns nested samples, NOT posterior samples.
 
@@ -1010,7 +1010,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.info(f'Drawing at least {n_draw} final samples')
             total = n_draw
 
-        batch_size = min(int(1.05 * n_draw), max_batch_size)
+        batch_size = int(1.01 * n_draw)
+        while batch_size > max_batch_size:
+            if batch_size <= 1:
+                raise RuntimeError(
+                    'Could not determine a valid batch size. '
+                    'Consider changing the maximum batch size.'
+                )
+            batch_size //= 2
+
         logger.debug(f'Batch size: {batch_size}')
         n_models = self.proposal.n_proposals
         samples = np.empty([0], dtype=self.proposal.dtype)
