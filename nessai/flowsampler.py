@@ -275,7 +275,7 @@ class FlowSampler:
             self.initial_logZ_error = self.logZ_error
             self.logZ, self.final_samples = \
                 self.ns.draw_final_samples(
-                    n=n_posterior_samples, **kwargs,
+                    n_post=n_posterior_samples, **kwargs,
                 )
             self.logZ_error = self.ns.final_log_evidence_error
 
