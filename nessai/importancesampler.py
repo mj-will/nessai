@@ -66,10 +66,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self,
         model: Model,
         nlive: int = 3000,
-        output: str = None,
-        seed: int = None,
+        output: Optional[str] = None,
+        seed: Optional[int] = None,
         checkpointing: bool = True,
-        resume_file: str = None,
+        resume_file: Optional[str] = None,
         plot: bool = True,
         plotting_frequency: int = 5,
         min_iteration: Optional[int] = None,
@@ -87,10 +87,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n_pool: Optional[int] = None,
         stopping_condition: Literal['evidence', 'kl'] = 'evidence',
         min_dZ: Optional[float] = None,
-        level_kwargs=None,
-        annealing=False,
-        beta_min=0.01,
-        beta_max=1.0,
+        level_kwargs: Optional[dict] = None,
+        annealing: bool = False,
+        beta_min: float = 0.01,
+        beta_max: float = 1.0,
         **kwargs: Any
     ):
 
@@ -205,8 +205,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     @staticmethod
     def add_fields():
-        """Add extra fields logW and logG"""
-        add_extra_parameters_to_live_points(['logW', 'logG'])
+        """Add extra fields logW and logQ"""
+        add_extra_parameters_to_live_points(['logW', 'logQ'])
 
     def _check_normalisation(self, kwargs):
         """Check if the evidence will be correctly normalised."""
@@ -298,7 +298,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.log_likelihood_time += (datetime.datetime.now() - st)
 
     def _rel_entr(self, x):
-        return relative_entropy_from_log(x['logL'], x['logG'])
+        return relative_entropy_from_log(x['logL'], x['logQ'])
 
     def sort_points(self, x: np.ndarray) -> np.ndarray:
         """Correctly sort new live points."""
@@ -324,10 +324,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         self.log_likelihood(live_points)
         live_points['it'] = -np.ones(live_points.size)
-        # Since log_g is computed in the unit-cube
+        # Since log_Q is computed in the unit-cube
         live_points['logP'] = self.model.log_prior(live_points)
-        live_points['logG'] = np.log(self.nlive)
-        live_points['logW'] = - live_points['logG']
+        live_points['logQ'] = np.log(self.nlive)
+        live_points['logW'] = - live_points['logQ']
         self.live_points = self.sort_points(live_points)
 
     def initialise(self) -> None:
@@ -364,12 +364,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 pool_entropy=[],
                 nested_samples_entropy=[],
                 likelihood_evaluations=[],
-                max_log_g=[],
-                mean_log_g=[],
-                median_log_g=[],
-                min_log_g=[],
-                kl_g_live_points=[],
-                kl_g_nested_samples=[],
+                max_logQ=[],
+                mean_logQ=[],
+                median_logQ=[],
+                min_logQ=[],
                 kl_proposals=[],
                 beta=[],
                 stopping_criteria=dict(
@@ -404,12 +402,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['likelihood_evaluations'].append(
             self.model.likelihood_evaluations
         )
-        self.history['max_log_g'].append(np.max(self.live_points['logG']))
-        self.history['mean_log_g'].append(np.mean(self.live_points['logG']))
-        self.history['median_log_g'].append(
-            np.median(self.live_points['logG'])
+        self.history['max_logQ'].append(np.max(self.live_points['logQ']))
+        self.history['mean_logQ'].append(np.mean(self.live_points['logQ']))
+        self.history['median_logQ'].append(
+            np.median(self.live_points['logQ'])
         )
-        self.history['min_log_g'].append(np.min(self.live_points['logG']))
+        self.history['min_logQ'].append(np.min(self.live_points['logQ']))
         self.history['beta'].append(self.beta)
 
         self.history['stopping_criteria']['dZ'].append(self.dZ)
@@ -913,13 +911,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """Compute the KL divergence between the posterior and g"""
         if not len(self.nested_samples):
             return np.inf
-        # logG is computed on the unit hyper-cube where the prior is 1/1^n
+        # logQ is computed on the unit hyper-cube where the prior is 1/1^n
         # so logP = 0
         log_q = self.nested_samples['logL'].copy()
-        log_p = self.nested_samples['logG'].copy()
+        log_p = self.nested_samples['logQ'].copy()
         if include_live_points:
             log_q = np.concatenate([log_q, self.live_points['logL']])
-            log_p = np.concatenate([log_p, self.live_points['logG']])
+            log_p = np.concatenate([log_p, self.live_points['logQ']])
         log_q -= logsumexp(log_q)
         log_p -= logsumexp(log_p)
         # TODO: Think about if p and q are correct.
@@ -1053,7 +1051,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 # Reject samples with infs
                 samples = samples[np.isfinite(log_Q)]
 
-                samples['logG'] = log_Q
+                samples['logQ'] = log_Q
                 samples['logW'] = -log_Q
 
                 self.final_state.update_evidence_from_nested_samples(samples)
@@ -1168,15 +1166,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].legend(frameon=False)
 
         m += 1
-
-        # ax[m].plot(its, self.history['max_log_g'], label='Max.')
-        # ax[m].plot(its, self.history['min_log_g'], label='Min.')
-        # ax[m].plot(its, self.history['mean_log_g'], label='Mean')
-        # ax[m].plot(its, self.history['median_log_g'], label='Median')
-        # ax[m].legend(frameon=False)
-        # ax[m].set_ylabel('Log g')
-
-        # m += 1
 
         # ax[m].plot(its, self.history['live_points_entropy'],
         #            label='Live points - combined', c=colours[0], ls=ls[0])
