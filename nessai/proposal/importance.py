@@ -13,6 +13,7 @@ from scipy.stats import entropy
 from nessai.plot import plot_histogram, plot_live_points
 
 from .base import Proposal
+from .. import config
 from ..flowmodel import CombinedFlowModel, update_config
 from ..livepoint import (
     get_dtype,
@@ -159,7 +160,21 @@ class ImportanceFlowProposal(Proposal):
         config['model_config']['n_inputs'] = self.model.dims
         self._flow_config = update_config(config)
 
+    @staticmethod
+    def _check_fields():
+        """Check that the logQ and logW fields have been added."""
+        if 'logQ' not in config.NON_SAMPLING_PARAMETERS:
+            raise RuntimeError(
+                'logQ field missing in non-sampling parameters.'
+            )
+        if 'logW' not in config.NON_SAMPLING_PARAMETERS:
+            raise RuntimeError(
+                'logW field missing in the non-sampling parameters.'
+            )
+
     def initialise(self):
+        """Initialise the proposal"""
+        self._check_fields()
         if self.initialised:
             return
         self.flow = CombinedFlowModel(
