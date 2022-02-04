@@ -10,7 +10,7 @@ import numpy as np
 from scipy.special import logsumexp
 from scipy.stats import entropy
 
-from nessai.plot import plot_histogram, plot_live_points
+from nessai.plot import plot_1d_comparison, plot_histogram, plot_live_points
 
 from .base import Proposal
 from .. import config
@@ -281,14 +281,19 @@ class ImportanceFlowProposal(Proposal):
             os.makedirs(level_output, exist_ok=True)
 
         training_data = samples.copy()
+        x_prime, _ = self.rescale(training_data)
 
         if plot:
             plot_live_points(
                 training_data,
                 filename=os.path.join(level_output, 'training_data.png')
             )
+            plot_1d_comparison(
+                x_prime,
+                convert_to_live_points=True,
+                filename=os.path.join(level_output, 'prime_training_data.png'),
+            )
 
-        x_prime, _ = self.rescale(training_data)
         logger.debug(
             f'Training data min and max: {x_prime.min()}, {x_prime.max()}'
         )
@@ -307,7 +312,7 @@ class ImportanceFlowProposal(Proposal):
                         + self.beta * training_data['logL']
                     )
                 else:
-                    log_weights = training_data['logW']
+                    log_weights = training_data['logW'].copy()
                 log_weights -= logsumexp(log_weights)
                 weights = np.exp(log_weights)
             if plot:
