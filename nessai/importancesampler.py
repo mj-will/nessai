@@ -1327,8 +1327,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
         obj = super().resume(filename, model)
         obj.proposal.resume(model, flow_config, weights_path=weights_path)
         obj.proposal.set_log_likelihood(obj.log_likelihood)
-        logger.debug(f'Resuming sampler at iteration {obj.iteration}')
-        logger.debug(f'Current number of samples: {obj.live_points.size}')
+        logger.info(f'Resuming sampler at iteration {obj.iteration}')
+        logger.info(f'Current number of samples: {len(obj.nested_samples)}')
+        logger.info(
+            f'Current logZ: {obj.log_evidence:3f} '
+            f'+/- {obj.log_evidence_error:.3f}'
+        )
+        logger.info(f'Current dZ: {obj.dZ:.3f}')
         return obj
 
     def __getstate__(self):
