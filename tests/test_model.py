@@ -651,6 +651,8 @@ def test_evaluate_likelihoods_pool(model):
     samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
     logL = np.array([3, 4])
     model.pool = MagicMock(side_effect=True)
+    model.n_pool = 2
+    model.vectorised_likelihood = False
     model.pool.map = MagicMock(return_value=logL)
     model.samples = samples
     model.likelihood_evaluation_time = datetime.timedelta()
@@ -671,6 +673,7 @@ def test_evaluate_likelihoods_no_pool(model):
     logL = np.array([3, 4])
     model.pool = None
     model.samples = samples
+    model.vectorised_likelihood = False
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
     model.log_likelihood = MagicMock(side_effect=logL)
