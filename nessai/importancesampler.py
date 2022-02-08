@@ -69,6 +69,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         output: Optional[str] = None,
         seed: Optional[int] = None,
         checkpointing: bool = True,
+        checkpoint_frequency: int = 5,
         resume_file: Optional[str] = None,
         plot: bool = True,
         plotting_frequency: int = 5,
@@ -120,7 +121,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.min_samples = min_samples
         self.min_remove = min_remove
         self.condition = np.inf
-        self.stop = False
+        self.checkpoint_frequency = checkpoint_frequency
         self.n_update = n_update
         self.plot_pool = plot_pool
         self.plotting_frequency = plotting_frequency
@@ -202,6 +203,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         log_p -= logsumexp(log_p)
         p = np.exp(log_p)
         return entropy(p) / np.log(p.size)
+
+    @property
+    def is_checkpoint_iteration(self) -> bool:
+        """Check if the sampler should checkpoint at the current iteration"""
+        if self.iteration % self.checkpoint_frequency:
+            return False
+        else:
+            return True
 
     @staticmethod
     def add_fields():
@@ -862,7 +871,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.update_history()
             if not self.iteration % self.plotting_frequency:
                 self.produce_plots()
-            if self.checkpointing:
+            if self.checkpointing and self.is_checkpoint_iteration:
                 self.checkpoint(periodic=True)
             if self.iteration >= self.max_iteration:
                 break
