@@ -302,6 +302,7 @@ class FlowSampler:
             self.save_results(f'{self.output}/result.json')
 
         if plot:
+            logger.debug('Producing plots')
             from nessai import plot
             plot.plot_live_points(
                 self.posterior_samples,
@@ -311,7 +312,7 @@ class FlowSampler:
             )
             if redraw_samples and compute_initial_posterior:
                 plot.plot_live_points(
-                    self.posterior_samples,
+                    self.initial_posterior_samples,
                     filename=os.path.join(
                         self.output, 'initial_posterior_distribution.png'
                     )
