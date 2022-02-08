@@ -5,8 +5,9 @@ import pytest
 import torch
 
 from nessai.flows import (
+    MaskedAutoregressiveFlow,
+    NeuralSplineFlow,
     RealNVP,
-    NeuralSplineFlow
 )
 
 
@@ -66,6 +67,24 @@ def test_realnvp_value_errors(kwargs, string):
 def test_with_nsf_kwargs(kwargs):
     """Test NSF with specific kwargs"""
     flow = NeuralSplineFlow(2, 2, 2, 2, **kwargs)
+    x = torch.randn(10, 2)
+    z, _ = flow.forward(x)
+    assert z.shape == (10, 2)
+
+
+@pytest.mark.parametrize(
+    'kwargs',
+    [
+        dict(batch_norm_between_layers=True),
+        dict(batch_norm_within_layers=True),
+        dict(use_random_permutations=True),
+        dict(use_residual_blocks=True),
+        dict(use_random_masks=False)
+    ]
+)
+def test_with_maf_kwargs(kwargs, caplog):
+    """Test MAF with specific kwargs"""
+    flow = MaskedAutoregressiveFlow(2, 2, 2, 2, **kwargs)
     x = torch.randn(10, 2)
     z, _ = flow.forward(x)
     assert z.shape == (10, 2)
