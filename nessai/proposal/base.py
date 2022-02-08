@@ -56,7 +56,8 @@ class Proposal(ABC):
 
     def evaluate_likelihoods(self):
         """Evaluate the likelihoods for the pool of live points."""
-        self.model.batch_evaluate_log_likelihood(self.samples)
+        self.samples['logL'] = \
+            self.model.batch_evaluate_log_likelihood(self.samples)
 
     @abstractmethod
     def draw(self, old_param):
