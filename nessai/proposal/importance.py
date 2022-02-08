@@ -620,23 +620,28 @@ class ImportanceFlowProposal(Proposal):
             ValueError('Size of weights does not match the number of levels')
         logger.debug(f'Proposal weights: {weights}')
         a = np.random.choice(weights.size, size=n, p=weights)
-        proposal_id = np.arange(weights.size) - 1
         counts = np.bincount(a).astype(int)
-        logger.debug(f'Counts: {counts}')
+        logger.debug(f'Expected counts: {counts}')
+        proposal_id = np.arange(weights.size) - 1
         prime_samples = np.empty([n, self.model.dims])
+        sample_its = np.empty(n, dtype=config.IT_DTYPE)
         count = 0
         # Draw from prior
-        for i, m in zip(proposal_id, counts):
+        for id, m in zip(proposal_id, counts):
             if m == 0:
                 continue
-            logger.debug(f'Drawing {m} samples from the {i}th proposal.')
-            if i == -1:
+            logger.debug(f'Drawing {m} samples from the {id}th proposal.')
+            if id == -1:
                 prime_samples[count:(count + m)] = \
                     self.to_prime(np.random.rand(m, self.model.dims))[0]
             else:
-                prime_samples[count:(count + m)] = self.flow.sample_ith(i, N=m)
+                prime_samples[count:(count + m)] = \
+                    self.flow.sample_ith(id, N=m)
+            sample_its[count:(count + m)] = id
             count += m
+
         samples, log_j = self.inverse_rescale(prime_samples)
+        samples['it'] = sample_its
         finite = (
             np.isfinite(log_j)
             & isfinite_struct(samples)
@@ -646,10 +651,16 @@ class ImportanceFlowProposal(Proposal):
             get_subset_arrays(finite, samples, prime_samples, log_j)
 
         log_q = np.zeros((samples.size, self.n_proposals))
+        # Minus because log_j is compute from the inverse
+        logger.debug('Computing log_q')
         log_q[:, 1:] = \
             self.flow.log_prob_all(prime_samples) - log_j[:, np.newaxis]
 
-        finite = np.isfinite(log_q).all(axis=1)
+        # -inf is okay since this is just zero, so only remove +inf or NaN
+        finite = (
+            ~np.isnan(log_q).all(axis=1)
+            & ~np.isposinf(log_q).all(axis=1)
+        )
         samples, log_q = get_subset_arrays(finite, samples, log_q)
 
         logger.debug(
@@ -657,6 +668,12 @@ class ImportanceFlowProposal(Proposal):
         )
 
         samples['logP'] = self.model.log_prior(samples)
+        samples, log_q = get_subset_arrays(
+            np.isfinite(samples['logP']), samples, log_q
+        )
+        counts = np.bincount(samples['it'] + 1).astype(int)
+        logger.debug(f'Actual counts: {counts}')
+
         return samples, log_q, counts
 
     def resume(self, model, flow_config, weights_path=None):
