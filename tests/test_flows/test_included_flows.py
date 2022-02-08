@@ -24,6 +24,11 @@ def data_dim(request):
 
 
 @pytest.fixture()
+def conditional_features():
+    return 1
+
+
+@pytest.fixture()
 def n():
     return 1000
 
@@ -41,6 +46,13 @@ def z(n, data_dim):
 @pytest.fixture(params=flows)
 def flow(request, data_dim):
     return request.param(data_dim, 8, 2, 2).eval()
+
+
+@pytest.fixture(params=flows)
+def conditional_flow(request, data_dim, conditional_features):
+    return request.param(
+        data_dim, 8, 2, 2, context_features=conditional_features
+    ).eval()
 
 
 @pytest.fixture(params=flows)
@@ -138,3 +150,19 @@ def test_invertibility(flow, x):
     np.testing.assert_array_almost_equal(x.numpy(), x_out.numpy(), decimal=5)
     np.testing.assert_array_almost_equal(
         log_J.numpy(), -log_J_out.numpy(), decimal=5)
+
+
+@pytest.mark.flaky(run=5)
+@pytest.mark.integration_test
+def test_sample_and_log_prob_conditional(
+    conditional_flow, n, data_dim, conditional_features
+):
+    """Test method for conditional flows."""
+    c = torch.randn(n, conditional_features)
+    with torch.no_grad():
+        x, log_prob = conditional_flow.sample_and_log_prob(n, context=c)
+        log_prob_target = conditional_flow.log_prob(x, context=c)
+    assert x.shape == (n, data_dim)
+    np.testing.assert_array_almost_equal(
+        log_prob.numpy(), log_prob_target.numpy(), decimal=5
+    )

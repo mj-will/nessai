@@ -30,6 +30,9 @@ vertical lines that can appear in the subplots.
 - Updated all of the examples to reflect the new defaults.
 - Rework `nessai.gw.reparameterisations.get_gw_reparameterisation` to use `get_reparameterisation` with the `defaults` keyword argument.
 - Switch to `os.path.join` for joining paths in `nessai.flowsampler`.
+- Context is now passed to the transform in `nessai.flows.base.NFlow` enabling the use of flows with conditional transforms.
+- Add `context_features` to RealNVP and NeuralSplineFlows
+- Rework `MaskedAutoregressiveFlow` to add `context_features`
 
 
 ### Fixed
