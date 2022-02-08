@@ -68,7 +68,7 @@ class Model(ABC):
         likelihood is vectorised, it will only evaluate the likelihood one
         sample at a time.
     """
-    __vectorised_likelihood = None
+    _vectorised_likelihood = None
 
     @property
     def names(self):
@@ -156,7 +156,7 @@ class Model(ABC):
         This check can be prevented by setting
         :py:attr:`nessai.model.Model.allowed_vectorised` to ``False``.
         """
-        if self.__vectorised_likelihood is None:
+        if self._vectorised_likelihood is None:
             x = self.new_point(N=10)
             target = np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
             try:
@@ -166,22 +166,27 @@ class Model(ABC):
                     'Evaluating a batch of points returned an error. '
                     'Assuming the likelihood is not vectorised.'
                 )
-                self.__vectorised_likelihood = False
+                self._vectorised_likelihood = False
             else:
                 if np.array_equal(batch, target) and self.allow_vectorised:
                     logger.debug(
                         'Individual and batch likelihoods are equal.'
                     )
                     logger.info('Likelihood is vectorised')
-                    self.__vectorised_likelihood = True
+                    self._vectorised_likelihood = True
                 else:
                     logger.debug(
                         'Individual and batch likelihoods are not equal.'
                     )
                     logger.debug(target)
                     logger.debug(batch)
-                    self.__vectorised_likelihood = False
-        return self.__vectorised_likelihood
+                    self._vectorised_likelihood = False
+        return self._vectorised_likelihood
+
+    @vectorised_likelihood.setter
+    def vectorised_likelihood(self, value):
+        """Manually set the value for vectorised likelihood."""
+        self._vectorised_likelihood = value
 
     def configure_pool(self, pool=None, n_pool=None):
         """Configure a multiprocessing pool for the likelihood computation.
@@ -202,6 +207,7 @@ class Model(ABC):
             if self.n_pool:
                 logger.warning('`n_pool` is ignored when `pool` is specified')
             logger.info('Using user specified pool')
+            self.n_pool = self.pool._processes
         elif self.n_pool:
             logger.info(
                 f'Starting multiprocessing pool with {n_pool} processes'
@@ -415,15 +421,24 @@ class Model(ABC):
         st = datetime.datetime.now()
         if self.pool is None:
             logger.debug('Not using pool to evaluate likelihood')
-            if self._vectorised_likelihood:
+            if self.vectorised_likelihood:
                 log_likelihood = self.log_likelihood(x)
             else:
                 log_likelihood = \
                     np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
         else:
             logger.debug('Using pool to evaluate likelihood')
-            log_likelihood = \
-                np.asarray(self.pool.map(log_likelihood_wrapper, x)).flatten()
+            if self.vectorised_likelihood:
+                log_likelihood = np.concatenate(
+                    np.array(self.pool.map(
+                        log_likelihood_wrapper,
+                        np.array_split(x, self.n_pool)
+                    ))
+                ).flatten()
+            else:
+                log_likelihood = np.array(
+                    self.pool.map(log_likelihood_wrapper, x)
+                ).flatten()
         self.likelihood_evaluations += x.size
         self.likelihood_evaluation_time += (datetime.datetime.now() - st)
         return log_likelihood
