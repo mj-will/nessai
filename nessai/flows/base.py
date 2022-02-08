@@ -164,14 +164,14 @@ class NFlow(BaseFlow):
         Apply the forward transformation and return samples in the latent
         space and log-Jacobian determinant.
         """
-        return self._transform.forward(x)
+        return self._transform.forward(x, context=context)
 
     def inverse(self, z, context=None):
         """
         Apply the inverse transformation and return samples in the
         data space and log-Jacobian determinant (not log probability).
         """
-        return self._transform.inverse(z)
+        return self._transform.inverse(z, context=context)
 
     def sample(self, num_samples, context=None):
         """
@@ -182,7 +182,7 @@ class NFlow(BaseFlow):
         """
         noise = self._distribution.sample(num_samples)
 
-        samples, _ = self._transform.inverse(noise)
+        samples, _ = self._transform.inverse(noise, context=context)
 
         return samples
 
@@ -193,7 +193,7 @@ class NFlow(BaseFlow):
 
         Does NOT need to specified by the user
         """
-        noise, logabsdet = self._transform(inputs)
+        noise, logabsdet = self._transform(inputs, context=context)
         log_prob = self._distribution.log_prob(noise)
         return log_prob + logabsdet
 
@@ -216,7 +216,7 @@ class NFlow(BaseFlow):
         :obj:`torch.Tensor`
             Tensor of log probabilities of the samples
         """
-        z, log_J = self.forward(x)
+        z, log_J = self.forward(x, context=context)
         log_prob = self.base_distribution_log_prob(z)
         return z, log_prob + log_J
 
@@ -230,6 +230,6 @@ class NFlow(BaseFlow):
         """
         z, log_prob = self._distribution.sample_and_log_prob(N)
 
-        samples, logabsdet = self._transform.inverse(z)
+        samples, logabsdet = self._transform.inverse(z, context=context)
 
         return samples, log_prob - logabsdet
