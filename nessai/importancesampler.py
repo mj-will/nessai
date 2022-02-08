@@ -1072,12 +1072,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 samples['logW'] = -log_Q
 
                 self.final_state.update_evidence_from_nested_samples(samples)
-                tmp_ess = self.final_state.effective_n_posterior_samples
+                ess = self.final_state.effective_n_posterior_samples
                 if n_post:
-                    pbar.update(ess - tmp_ess)
+                    pbar.n = ess
+                    pbar.refresh()
                 else:
                     pbar.update(it_samples.size)
-                ess = tmp_ess
                 logger.debug(f'Sample count: {samples.size}')
                 logger.debug(f'Current ESS: {ess}')
                 it += 1
