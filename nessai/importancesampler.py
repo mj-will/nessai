@@ -59,11 +59,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Number of live points.
     tolerance
         Tolerance for determining when to stop the sampler.
-    stopping_condition
-        Choice of stopping condition to use.
+    stopping_criterion
+        Choice of stopping criterion to use.
     level_method
         Method for determining new levels.
     """
+
+    _stopping_criterion_aliases = dict(
+        dZ=['dZ', 'evidence'],
+        kl=['kl'],
+        dZ_ns=['dZ_ns', 'alt_evidence'],
+        dZ_smc=['dZ_smc', 'smc_evidence'],
+        dH=['dH', 'dH_all', 'entropy'],
+        dH_lp=['dH_lp', 'lp_entropy'],
+        dH_ns=['dH_ns', 'ns_entropy'],
+    )
+
     def __init__(
         self,
         model: Model,
@@ -88,7 +99,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         leaky: bool = True,
         sorting: Literal['logL', 'rel_entr'] = 'logL',
         n_pool: Optional[int] = None,
-        stopping_condition: Literal['evidence', 'kl'] = 'evidence',
+        stopping_criterion: Literal['evidence', 'kl'] = 'evidence',
         min_dZ: Optional[float] = None,
         level_kwargs: Optional[dict] = None,
         annealing: bool = False,
@@ -119,10 +130,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.sorting = sorting
 
         self.tolerance = tolerance
-        self.stopping_condition = stopping_condition
         self.min_samples = min_samples
         self.min_remove = min_remove
-        self.condition = np.inf
+        self.criterion = np.inf
         self.checkpoint_frequency = checkpoint_frequency
         self.n_update = n_update
         self.plot_pool = plot_pool
@@ -154,6 +164,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         self.proposal = self.get_proposal(**kwargs)
         self.configure_iterations(min_iteration, max_iteration)
+
+        self.configure_stopping_criterion(stopping_criterion)
 
         self.nested_samples = np.empty(0, dtype=get_dtype(self.model.names))
 
@@ -226,6 +238,23 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def add_fields():
         """Add extra fields logW and logQ"""
         add_extra_parameters_to_live_points(['logW', 'logQ'])
+
+    def configure_stopping_criterion(self, stopping_criterion):
+        """Configure the stopping criterion"""
+        sc = None
+        for criterion, aliases in self._stopping_criterion_aliases.items():
+            if stopping_criterion in aliases:
+                sc = criterion
+        if sc is None:
+            raise ValueError(
+                f'Unknown stopping criterion: {stopping_criterion}'
+            )
+        self.stopping_criterion = sc
+        if not stopping_criterion == sc:
+            logger.info(
+                f'Stopping criterion specified ({stopping_criterion}) is '
+                f'an alias for {sc}. Using {sc}.'
+            )
 
     def _check_normalisation(self, kwargs):
         """Check if the evidence will be correctly normalised."""
@@ -389,15 +418,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 min_logQ=[],
                 kl_proposals=[],
                 beta=[],
-                stopping_criteria=dict(
-                    dZ=[],
-                    dZ_ns=[],
-                    dZ_smc=[],
-                    dH_lp=[],
-                    dH_ns=[],
-                    dH_all=[],
-                    kl=[],
-                )
+                stopping_criteria={
+                    k: [] for k in self._stopping_criterion_aliases.keys()
+                },
             )
         else:
             logger.debug('History dictionary already initialised')
@@ -429,13 +452,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['min_logQ'].append(np.min(self.live_points['logQ']))
         self.history['beta'].append(self.beta)
 
-        self.history['stopping_criteria']['dZ'].append(self.dZ)
-        self.history['stopping_criteria']['dZ_ns'].append(self.dZ_ns)
-        self.history['stopping_criteria']['dZ_smc'].append(self.dZ_smc)
-        self.history['stopping_criteria']['dH_all'].append(self.dH_all)
-        self.history['stopping_criteria']['dH_lp'].append(self.dH_lp)
-        self.history['stopping_criteria']['dH_ns'].append(self.dH_ns)
-        self.history['stopping_criteria']['kl'].append(self.post_kl)
+        for k in self._stopping_criterion_aliases.keys():
+            self.history['stopping_criteria'][k].append(
+                getattr(self, k, np.nan)
+            )
 
     def determine_level_quantile(self, q: float = 0.8) -> int:
         """Determine where the next level should be located.
@@ -723,8 +743,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.add_to_nested_samples(new_samples)
         self.state.update_evidence_from_nested_samples(self.nested_samples)
 
-    def compute_stopping_condition(self) -> float:
-        """Compute the stopping condition.
+    def compute_stopping_criterion(self) -> float:
+        """Compute the stopping criterion.
 
         The method used will depend on how the sampler was configured.
         """
@@ -739,25 +759,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
         current_ln_Z = self.state.logZ
         self.dZ_ns = np.abs(current_ln_Z - self.initial_ln_Z)
         self.dZ = self.state.compute_condition(self.live_points)
-        self.other = np.abs(current_ln_Z - previous_log_evidence)
-        logger.debug(f'dZ: {self.dZ}')
         logger.debug(f'dZ_NS: {self.dZ_ns}')
         logger.debug(f'dZ_smc: {self.dZ_smc}')
-        logger.debug(f'Other: {self.other}')
-        self.post_kl = self.kl_divergence(include_live_points=True)
-        log_p = np.concatenate([
-            self.live_points['logL'] + self.live_points['logW'],
-            self.nested_samples['logL'] + self.nested_samples['logW']
-        ])
+        self.kl = self.kl_divergence(include_live_points=True)
+
         previous_entropy = self.current_entropy
         previous_live_points_entropy = self.current_live_points_entropy
         previous_ns_entropy = self.current_ns_entropy
-        self.current_entropy = entropy(np.exp(log_p))
+        self.current_entropy = self.all_samples_entropy
         self.current_live_points_entropy = self.live_points_entropy
-        self.current_ns_entropy = entropy(
-            np.exp(self.nested_samples['logL'] + self.nested_samples['logW'])
-        )
-        self.dH_all = np.abs(
+        self.current_ns_entropy = self.nested_samples_entropy
+        self.dH = np.abs(
             (self.current_entropy - previous_entropy) / self.current_entropy
         )
         self.dH_lp = np.abs(
@@ -772,7 +784,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.current_log_evidence = self.state.compute_log_Z(self.live_points)
 
         logger.debug(f'Current entropy: {self.current_entropy:.3f}')
-        logger.debug(f'Relative change in entropy: {self.dH_all:.3f}')
+        logger.debug(f'Relative change in entropy: {self.dH:.3f}')
         logger.debug(
             f'Current LP entropy: {self.current_live_points_entropy:.3f}'
         )
@@ -785,28 +797,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(
             f'Relative change in NS entropy: {self.dH_ns:.3f}'
         )
-        if self.stopping_condition in {'dZ', 'evidence'}:
-            cond = self.dZ
-        elif self.stopping_condition in {'kl'}:
-            cond = self.post_kl
-        elif self.stopping_condition in {'dZ_ns', 'alt_evidence'}:
-            cond = self.dZ_ns
-        elif self.stopping_condition in {'dZ_smc', 'smc_evidence'}:
-            cond = self.dZ_smc
-        elif self.stopping_condition == 'other':
-            cond = self.other
-        elif self.stopping_condition in {'dH', 'dH_all', 'entropy'}:
-            cond = self.dH_all
-        elif self.stopping_condition in {'dH_lp', 'lp_entropy'}:
-            cond = self.dH_lp
-        elif self.stopping_condition in {'dH_ns', 'ns_entropy'}:
-            cond = self.dH_ns
-        else:
-            raise ValueError(
-                f'Unknown stopping criterion: {self.stopping_condition}'
-            )
+
+        cond = getattr(self, self.stopping_criterion)
+
         logger.info(
-            f'Stopping condition: {cond:.3f} - Tolerance: {self.tolerance:.3f}'
+            f'Stopping criterion: {cond:.3f} - Tolerance: {self.tolerance:.3f}'
         )
         return cond
 
@@ -829,7 +824,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         while True:
             if (
-                self.condition <= self.tolerance
+                self.criterion <= self.tolerance
                 and self.iteration >= self.min_iteration
             ):
                 if self.dZ <= self.min_dZ:
@@ -865,7 +860,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 n_add = n_remove
             self.add_and_update_points(n_add)
             self.iteration += 1
-            self.condition = self.compute_stopping_condition()
+            self.criterion = self.compute_stopping_criterion()
             logger.info(f'Live points entropy: {self.live_points_entropy}')
             logger.info(f'NS entropy: {self.nested_samples_entropy}')
             logger.warning(
