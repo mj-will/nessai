@@ -122,6 +122,11 @@ def configure_model(config):
     dist_kwargs = config.pop('distribution_kwargs', None)
     if dist_kwargs is None:
         dist_kwargs = {}
+    if dist_kwargs.get('n_neurons', None) == 'auto':
+        logger.debug(
+            'Setting number of neurons in the latent distribution to 2 x dims'
+        )
+        dist_kwargs['n_neurons'] = 2 * config['n_inputs']
     distribution = get_base_distribution(
         config['n_inputs'],
         config.pop('distribution', None),
