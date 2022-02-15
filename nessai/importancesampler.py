@@ -7,6 +7,7 @@ import logging
 import os
 from typing import Any, Literal, Optional, Union
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import entropy
@@ -25,6 +26,7 @@ from .livepoint import (
     live_points_to_dict,
     numpy_array_to_live_points,
 )
+from .utils.hist import auto_bins
 from .utils.information import cumulative_entropy, relative_entropy_from_log
 from .utils.stats import effective_sample_size, weighted_quantile
 
@@ -211,6 +213,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
             return False
         else:
             return True
+
+    @property
+    def all_samples(self) -> np.ndarray:
+        """Return the live points + nested samples"""
+        if self.live_points is not None:
+            return np.concatenate([self.nested_samples, self.live_points])
+        else:
+            return self.nested_samples.copy()
 
     @staticmethod
     def add_fields():
@@ -1291,6 +1301,54 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return fig
 
+    def plot_likelihood_levels(
+        self,
+        filename: Optional[str] = None,
+        cmap: str = 'viridis',
+    ) -> Optional[matplotlib.figure.Figure]:
+        """Plot the distribution of the likelihood at each level.
+
+        Parameters
+        ----------
+        filename
+            Name of the file for saving the figure. If not specified, then
+            the figure is returned.
+        cmap
+            Name of colourmap to use. Must be a valid colourmap in matplotlib.
+        """
+        samples = self.all_samples
+        its = np.unique(samples['it'])
+        colours = plt.get_cmap(cmap)(np.linspace(0, 1, len(its)))
+        vmax = np.max(samples['logL'])
+        vmin = min(
+            vmax - 0.10 * np.ptp(samples['logL']),
+            samples['logL'][samples['it'] == its[-1]].min()
+        )
+
+        fig, axs = plt.subplots(1, 2)
+        for ax in axs:
+            for it, c in zip(its, colours):
+                data = samples['logL'][samples['it'] == it]
+                ax.hist(
+                    data,
+                    auto_bins(data, max_bins=50),
+                    histtype='step',
+                    color=c,
+                    density=True,
+                    cumulative=False,
+                )
+            ax.set_xlabel('Log-likelihood')
+
+        axs[0].set_ylabel('Density')
+        axs[1].set_xlim(vmin, vmax)
+        plt.tight_layout()
+
+        if filename is not None:
+            fig.savefig(filename)
+            plt.close(fig)
+        else:
+            return fig
+
     def produce_plots(self, override: bool = False) -> None:
         """Produce all of the relevant plots.
 
@@ -1305,6 +1363,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.debug('Producing plots')
             self.plot_state(os.path.join(self.output, 'state.png'))
             self.plot_trace(os.path.join(self.output, 'trace.png'))
+            self.plot_likelihood_levels(
+                os.path.join(self.output, 'likelihood_levels.png')
+            )
         else:
             logger.debug('Skipping plots')
 
