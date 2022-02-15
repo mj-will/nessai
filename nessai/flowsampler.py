@@ -224,7 +224,7 @@ class FlowSampler:
         posterior_sampling_method=None,
         redraw_samples=True,
         n_posterior_samples=None,
-        compute_initial_posterior=True,
+        compute_initial_posterior=False,
         **kwargs
     ):
         """Run the importance nested sampler.
