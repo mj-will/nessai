@@ -1189,35 +1189,16 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
-        # ax[m].plot(its, self.history['live_points_entropy'],
-        #            label='Live points - combined', c=colours[0], ls=ls[0])
-        # ax[m].plot(its, self.history['pool_entropy'],
-        #            label='Pool', c=colours[1], ls=ls[0])
-        # ax[m].plot(its, self.history['live_points_remaining_entropy'],
-        #            label='Live points - remaining', c=colours[2], ls=ls[0])
-        # ax[m].axhline(np.log(self.nlive), label='Target', ls=ls[1],
-        #               c=colours[0])
-        # ax[m].set_ylabel('Entropy')
-        # ax[m].legend(frameon=False)
-
-        # m += 1
-
         ax[m].plot(its, self.history['nested_samples_entropy'], c=colours[0],
                    ls=ls[0], label='Nested samples')
         ax[m].plot(its, self.history['live_points_entropy'], c=colours[1],
                    ls=ls[1], label='Live points')
+        ax[m].plot(its, self.history['all_samples_entropy'], c=colours[2],
+                   ls=ls[2], label='Combined')
         ax[m].legend(frameon=False)
         ax[m].set_ylabel('Normalised entropy')
 
         m += 1
-
-        # ax[m].plot(its, self.history['stopping_criteria']['dH_all'],
-        #            c=colours[0], ls=ls[0])
-        # ax[m].plot(its, self.history['stopping_criteria']['dH_ns'],
-        #            c=colours[1], ls=ls[1])
-        # ax[m].set_ylabel('dH')
-
-        # m += 1
 
         ax[m].plot(its, self.history['kl_proposals'], label='(q_i||q_i-1)',
                    c=colours[0], ls=ls[0])
@@ -1231,19 +1212,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].legend(handles + handles_kl, labels + labels_kl, frameon=False)
 
         m += 1
-
         ax[m].plot(
-            its, self.history['stopping_criteria']['dZ'], label='dZ',
-            c=colours[0], ls=ls[0]
+            its,
+            self.history['stopping_criteria'][self.stopping_criterion],
+            label=self.stopping_criterion,
+            c=colours[0],
+            ls=ls[0],
         )
-        # ax[m].plot(
-        #     its, self.history['stopping_criteria']['dZ_smc'], label='SMC dZ',
-        #     c=colours[1], ls=ls[1]
-        # )
-        # ax[m].plot(
-        #     its, self.history['stopping_criteria']['dZ_ns'], label='Alt. dZ',
-        #     c=colours[2], ls=ls[2]
-        # )
         ax[m].axhline(self.tolerance, label='Threshold', ls='-', c='grey')
         ax[m].legend(frameon=False)
         ax[m].set_ylabel('Stopping criteria')
