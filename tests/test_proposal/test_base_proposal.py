@@ -66,7 +66,8 @@ def test_evaluate_likelihoods(proposal):
     samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
     proposal.samples = samples
     proposal.model = MagicMock()
-    proposal.model.batch_evaluate_log_likelihood = MagicMock()
+    proposal.model.batch_evaluate_log_likelihood = \
+        MagicMock(return_value=[1, 2])
     Proposal.evaluate_likelihoods(proposal)
     proposal.model.batch_evaluate_log_likelihood.assert_called_once_with(
         samples
