@@ -219,6 +219,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
         return entropy(p) / np.log(p.size)
 
     @property
+    def all_samples_entropy(self):
+        log_p = self.all_samples['logL'] + self.all_samples['logW']
+        log_p -= logsumexp(log_p)
+        p = np.exp(log_p)
+        return entropy(p) / np.log(p.size)
+
+    @property
     def is_checkpoint_iteration(self) -> bool:
         """Check if the sampler should checkpoint at the current iteration"""
         if self.iteration % self.checkpoint_frequency:
@@ -411,6 +418,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 live_points_ess=[],
                 pool_entropy=[],
                 nested_samples_entropy=[],
+                all_samples_entropy=[],
                 likelihood_evaluations=[],
                 max_logQ=[],
                 mean_logQ=[],
@@ -433,6 +441,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['logZ'].append(self.state.logZ)
         self.history['n_post'].append(self.state.effective_n_posterior_samples)
         self.history['live_points_entropy'].append(self.live_points_entropy)
+        self.history['all_samples_entropy'].append(self.all_samples_entropy)
         self.history['live_points_ess'].append(self.live_points_ess)
         self.history['live_points_remaining_entropy'].append(
             self.entropy_remaining
