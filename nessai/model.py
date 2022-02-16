@@ -157,30 +157,33 @@ class Model(ABC):
         :py:attr:`nessai.model.Model.allowed_vectorised` to ``False``.
         """
         if self._vectorised_likelihood is None:
-            x = self.new_point(N=10)
-            target = np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
-            try:
-                batch = self.log_likelihood(x)
-            except (TypeError, ValueError):
-                logger.debug(
-                    'Evaluating a batch of points returned an error. '
-                    'Assuming the likelihood is not vectorised.'
-                )
-                self._vectorised_likelihood = False
-            else:
-                if np.array_equal(batch, target) and self.allow_vectorised:
+            if self.allow_vectorised:
+                x = self.new_point(N=10)
+                target = np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
+                try:
+                    batch = self.log_likelihood(x)
+                except (TypeError, ValueError):
                     logger.debug(
-                        'Individual and batch likelihoods are equal.'
+                        'Evaluating a batch of points returned an error. '
+                        'Assuming the likelihood is not vectorised.'
                     )
-                    logger.info('Likelihood is vectorised')
-                    self._vectorised_likelihood = True
-                else:
-                    logger.debug(
-                        'Individual and batch likelihoods are not equal.'
-                    )
-                    logger.debug(target)
-                    logger.debug(batch)
                     self._vectorised_likelihood = False
+                else:
+                    if np.array_equal(batch, target):
+                        logger.debug(
+                            'Individual and batch likelihoods are equal.'
+                        )
+                        logger.info('Likelihood is vectorised')
+                        self._vectorised_likelihood = True
+                    else:
+                        logger.debug(
+                            'Individual and batch likelihoods are not equal.'
+                        )
+                        logger.debug(target)
+                        logger.debug(batch)
+                        self._vectorised_likelihood = False
+            else:
+                self._vectorised_likelihood = False
         return self._vectorised_likelihood
 
     @vectorised_likelihood.setter
@@ -421,14 +424,14 @@ class Model(ABC):
         st = datetime.datetime.now()
         if self.pool is None:
             logger.debug('Not using pool to evaluate likelihood')
-            if self.vectorised_likelihood:
+            if self.allow_vectorised and self.vectorised_likelihood:
                 log_likelihood = self.log_likelihood(x)
             else:
                 log_likelihood = \
                     np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
         else:
             logger.debug('Using pool to evaluate likelihood')
-            if self.vectorised_likelihood:
+            if self.allow_vectorised and self.vectorised_likelihood:
                 log_likelihood = np.concatenate(
                     np.array(self.pool.map(
                         log_likelihood_wrapper,

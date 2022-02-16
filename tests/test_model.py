@@ -210,6 +210,16 @@ def test_vectorised_likelihood_not_vectorised_error(model, error):
     assert out is False
 
 
+def test_vectorised_likelihood_allow_vectorised_false(model):
+    """Assert vectorised_likelihood is False if allow_vectorised is False"""
+    model.allow_vectorised = False
+    model.log_likelihood = MagicMock()
+    model._vectorised_likelihood = False
+    out = Model.vectorised_likelihood.__get__(model)
+    model.log_likelihood.assert_not_called()
+    assert out is False
+
+
 def test_vectorised_likelihood_setter(model):
     """Assert the setter sets the correct variable."""
     Model.vectorised_likelihood.__set__(model, 'test')
@@ -733,6 +743,7 @@ def test_evaluate_likelihoods_pool_vectorised(model):
     model.pool = MagicMock(side_effect=True)
     model.n_pool = 2
     model.vectorised_likelihood = True
+    model.allow_vectorised = True
     model.pool.map = MagicMock(return_value=logL)
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
@@ -758,6 +769,7 @@ def test_evaluate_likelihoods_pool_not_vectorised(model):
     model.pool = MagicMock(side_effect=True)
     model.n_pool = 2
     model.vectorised_likelihood = False
+    model.allow_vectorised = True
     model.pool.map = MagicMock(return_value=logL)
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
@@ -777,6 +789,7 @@ def test_evaluate_likelihoods_no_pool_not_vectorised(model):
     logL = np.array([3, 4])
     model.pool = None
     model.vectorised_likelihood = False
+    model.allow_vectorised = True
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
     model.log_likelihood = MagicMock(side_effect=logL)
@@ -798,11 +811,50 @@ def test_evaluate_likelihoods_no_pool_vectorised(model):
     logL = np.array([3, 4])
     model.pool = None
     model.vectorised_likelihood = True
+    model.allow_vectorised = True
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
     model.log_likelihood = MagicMock(return_value=logL)
     out = Model.batch_evaluate_log_likelihood(model, samples)
     model.log_likelihood.assert_called_once_with(samples)
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 102
+    np.testing.assert_array_equal(out, logL)
+
+
+def test_evaluate_likelihoods_allow_vectorised_false(model):
+    """Assert that vectorisation isn't used if allow_vectorised is false"""
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    logL = [3, 4]
+    model.pool = None
+    model.vectorised_likelihood = True
+    model.allow_vectorised = False
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+    model.log_likelihood = MagicMock(side_effect=logL)
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    assert model.log_likelihood.call_count == 2
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 102
+    np.testing.assert_array_equal(out, logL)
+
+
+def test_evaluate_likelihoods_pool_allow_vectorised_false(model):
+    """Test evaluating the likelihood with a pool and allow_vectorised=False"""
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    logL = np.array([3, 4])
+    model.pool = MagicMock(side_effect=True)
+    model.n_pool = 2
+    model.vectorised_likelihood = True
+    model.allow_vectorised = False
+    model.pool.map = MagicMock(return_value=logL)
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    model.pool.map.assert_called_once_with(
+        log_likelihood_wrapper,
+        samples
+    )
     model.likelihood_evaluation_time.total_seconds() > 0
     assert model.likelihood_evaluations == 102
     np.testing.assert_array_equal(out, logL)
