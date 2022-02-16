@@ -1677,7 +1677,6 @@ class FlowProposal(RejectionProposal):
             state['mask'] = state['flow'].model_config['kwargs']['mask']
         else:
             state['mask'] = None
-        state['pool'] = None
         if state['populated'] and state['indices']:
             state['resume_populated'] = True
         else:
