@@ -4,7 +4,7 @@ Test the rejection proposal class.
 """
 import numpy as np
 import pytest
-from unittest.mock import Mock, create_autospec, patch
+from unittest.mock import MagicMock, Mock, create_autospec, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import RejectionProposal
@@ -65,27 +65,29 @@ def test_compute_weights(proposal):
     np.testing.assert_array_equal(out, log_w)
 
 
-@pytest.mark.parametrize('pool', [None, True])
 @pytest.mark.parametrize('N', [None, 4])
-def test_populate(proposal, pool, N):
+def test_populate(proposal,  N):
     """Test the populate method"""
     poolsize = 8
     if N is None:
         log_w = np.arange(poolsize)
     else:
         log_w = np.arange(N)
-    x = np.random.randn(log_w.size)
+    x = numpy_array_to_live_points(np.random.randn(log_w.size, 1), ['x'])
     u = np.exp(log_w.copy() + 1)
     # These points will have log_u ~ -inf so corresponding samples will be
     # accepted.
     u[::2] = 1e-10
     samples = x[::2]
+    log_l = np.log(np.random.rand(samples.size))
+    samples['logL'] = log_l
     proposal.poolsize = poolsize
     proposal.populated = False
     proposal.draw_proposal = Mock(return_value=x)
     proposal.compute_weights = Mock(return_value=log_w)
-    proposal.evaluate_likelihoods = Mock()
-    proposal.pool = pool
+    proposal.model = Mock()
+    proposal.model.batch_evaluate_log_likelihood = \
+        MagicMock(return_value=log_l)
 
     with patch('numpy.random.rand', return_value=u):
         RejectionProposal.populate(proposal, N=N)
@@ -98,11 +100,11 @@ def test_populate(proposal, pool, N):
         N = poolsize
     proposal.draw_proposal.assert_called_once_with(N=N)
 
-    if pool is not None:
-        proposal.evaluate_likelihoods.assert_called_once()
-    else:
-        proposal.evaluate_likelihoods.assert_not_called()
+    proposal.model.batch_evaluate_log_likelihood.assert_called_once_with(
+        proposal.samples
+    )
     assert sorted(proposal.indices) == list(range(samples.size))
+    np.testing.assert_array_equal(proposal.samples['logL'], log_l)
 
 
 @pytest.mark.integration_test

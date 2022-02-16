@@ -5,7 +5,7 @@ Test the analytic proposal method.
 import datetime
 import numpy as np
 import pytest
-from unittest.mock import Mock, create_autospec, patch
+from unittest.mock import MagicMock, Mock, create_autospec, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import AnalyticProposal
@@ -32,9 +32,8 @@ def test_poolsize(proposal):
     assert poolsize == 100
 
 
-@pytest.mark.parametrize('pool', [None, True])
 @pytest.mark.parametrize('N', [None, 5])
-def test_populate(proposal, pool, N):
+def test_populate(proposal, N):
     """Test the populate process"""
     poolsize = 10
     if N is None:
@@ -45,26 +44,27 @@ def test_populate(proposal, pool, N):
     else:
         samples = numpy_array_to_live_points(np.arange(N)[:, np.newaxis], 'x')
         log_p = np.arange(N, 2 * N)
-    proposal.pool = pool
+    log_l = np.random.rand(samples.size)
     proposal.poolsize = poolsize
     proposal.model = Mock()
     proposal.model.new_point = Mock(return_value=samples)
     proposal.model.log_prior = Mock(return_value=log_p)
-    proposal.evaluate_likelihoods = Mock()
+    proposal.model.batch_evaluate_log_likelihood = \
+        MagicMock(return_value=log_l)
     AnalyticProposal.populate(proposal, N=N)
 
     if N is None:
         N = poolsize
     proposal.model.new_point.assert_called_once_with(N=N)
     proposal.model.log_prior.assert_called_once_with(samples)
-    if pool is not None:
-        proposal.evaluate_likelihoods.assert_called_once()
-    else:
-        proposal.evaluate_likelihoods.assert_not_called()
+    proposal.model.batch_evaluate_log_likelihood.assert_called_once_with(
+        proposal.samples
+    )
 
     np.testing.assert_array_equal(proposal.samples['logP'], log_p)
     assert sorted(proposal.indices) == list(range(N))
     assert proposal.populated is True
+    np.testing.assert_array_equal(proposal.samples['logL'], log_l)
 
 
 @pytest.mark.parametrize('populated', [True, False])

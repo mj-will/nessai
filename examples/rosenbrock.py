@@ -33,10 +33,11 @@ class RosenbrockModel(Model):
 
     def log_likelihood(self, x):
         """Log-likelihood"""
-        x = live_points_to_array(x, self.names)[np.newaxis, :]
-        return -(np.sum(
-            100. * (x[:, 1:] - x[:, :-1] ** 2.) ** 2. + (1. - x[:, :-1]) ** 2.,
-            axis=1)
+        x = live_points_to_array(x, self.names)
+        return -np.sum(
+            100. * (x[..., 1:] - x[..., :-1] ** 2.) ** 2.
+            + (1. - x[..., :-1]) ** 2.,
+            axis=-1
         )
 
 

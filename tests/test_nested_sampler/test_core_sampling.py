@@ -49,7 +49,7 @@ def test_log_likelihood(sampler):
     sampler.model.log_likelihood.assert_called_once_with([0.1])
 
 
-def test_intialise(sampler):
+def test_initialise(sampler):
     """Test the initialise method when being used without resuming"""
     sampler._flow_proposal = MagicMock()
     sampler._uninformed_proposal = MagicMock()
@@ -72,10 +72,9 @@ def test_intialise(sampler):
     sampler.populate_live_points.assert_called_once()
     assert sampler.initialised is True
     assert sampler.proposal is sampler._uninformed_proposal
-    sampler.proposal.configure_pool.assert_called_once()
 
 
-def test_intialise_resume(sampler):
+def test_initialise_resume(sampler):
     """Test the initialise method when being used after resuming.
 
     In this case the live points are not None
@@ -100,7 +99,6 @@ def test_intialise_resume(sampler):
     sampler.populate_live_points.assert_not_called()
     assert sampler.initialised is False
     assert sampler.proposal is sampler._flow_proposal
-    sampler.proposal.configure_pool.assert_called_once()
 
 
 def test_finalise(sampler, live_points):
@@ -182,9 +180,9 @@ def test_consume_sample_reject(sampler, live_points):
     'config',
     [
         {'tolerance': 0.1, 'condition': 0.01, 'call_finalise': True,
-         'call_while': False},
+         'call_while': False, 'close_pool': True},
         {'iteration': 10, 'max_iteration': 10, 'call_finalise': False,
-         'call_while': True}
+         'call_while': True, 'close_pool': False}
     ]
 )
 def test_nested_sampling_loop(sampler, config):
@@ -196,6 +194,7 @@ def test_nested_sampling_loop(sampler, config):
     sampler.initialised = False
     sampler.condition = config.get('condition', 0.5)
     sampler.tolerance = config.get('tolerance', 0.1)
+    sampler.close_pool = config.get('close_pool', True)
     sampler.max_iteration = config.get('max_iteration')
     sampler.iteration = config.get('iteration', 0)
     sampler.sampling_time = 0.
@@ -204,8 +203,10 @@ def test_nested_sampling_loop(sampler, config):
     sampler.likelihood_calls = 1
     sampler.nested_samples = [1, 2]
 
+    sampler.model = MagicMock()
+    sampler.model.close_pool = MagicMock()
+
     sampler.proposal = MagicMock()
-    sampler.proposal.close_pool = MagicMock()
     sampler.proposal.pool = True
     sampler.proposal.logl_eval_time.total_seconds = MagicMock()
 
@@ -236,8 +237,6 @@ def test_nested_sampling_loop(sampler, config):
         sampler.consume_sample.assert_not_called()
         sampler.update_state.assert_not_called()
 
-    sampler.proposal.close_pool.assert_called_once()
-
     if config.get('call_finalise'):
         sampler.finalise.assert_called_once()
     else:
@@ -246,13 +245,25 @@ def test_nested_sampling_loop(sampler, config):
     sampler.check_insertion_indices.assert_called_once_with(rolling=False)
     sampler.checkpoint.assert_called_once_with(periodic=True)
 
+    if sampler.close_pool:
+        sampler.model.close_pool.assert_called_once()
+    else:
+        sampler.model.close_pool.assert_not_called()
 
-def test_nested_sampling_loop_prior_sampling(sampler):
+
+@pytest.mark.parametrize("close_pool", [False, True])
+def test_nested_sampling_loop_prior_sampling(sampler, close_pool):
     """Test the nested sampling loop for prior sampling"""
     sampler.initialised = False
     sampler.live_points = sampler.model.new_point(10)
     sampler.prior_sampling = True
+    sampler.close_pool = close_pool
+    sampler.model.close_pool = MagicMock()
 
     samples = NestedSampler.nested_sampling_loop(sampler)
     sampler.initialise.assert_called_once_with(live_points=True)
+    if close_pool:
+        sampler.model.close_pool.assert_called_once()
+    else:
+        sampler.model.close_pool.assert_not_called()
     np.testing.assert_array_equal(samples, sampler.live_points)

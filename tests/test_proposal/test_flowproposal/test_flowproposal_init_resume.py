@@ -127,7 +127,6 @@ def test_get_state(proposal, populated):
     proposal._reparameterisation = MagicMock()
     proposal.model = MagicMock()
     proposal._flow_config = {}
-    proposal.pool = MagicMock()
     proposal.initialised = True
     proposal.flow = MagicMock()
     proposal.flow.weights_file = 'file'
@@ -135,7 +134,6 @@ def test_get_state(proposal, populated):
     state = FlowProposal.__getstate__(proposal)
 
     assert state['resume_populated'] is populated
-    assert state['pool'] is None
     assert state['initialised'] is False
     assert state['weights_file'] == 'file'
     assert '_reparameterisation' not in state

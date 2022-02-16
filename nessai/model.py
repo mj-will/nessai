@@ -3,15 +3,18 @@
 Object for defining the use-defined model.
 """
 from abc import ABC, abstractmethod
+import datetime
 import logging
 import numpy as np
 
 from .livepoint import (
-        parameters_to_live_point,
-        numpy_array_to_live_points,
-        get_dtype,
-        DEFAULT_FLOAT_DTYPE
-        )
+    parameters_to_live_point,
+    numpy_array_to_live_points,
+    get_dtype,
+    DEFAULT_FLOAT_DTYPE,
+    LOGL_DTYPE,
+)
+from .utils.multiprocessing import log_likelihood_wrapper
 
 
 logger = logging.getLogger(__name__)
@@ -30,27 +33,42 @@ class Model(ABC):
 
     The user can also define the reparemeterisations here instead of in
     the keyword arguments passed to the sampler.
-
-
-    Attributes
-    ----------
-    names : list of str
-        List of names of parameters, e.g. ['x', 'y']
-    bounds : dict
-        Dictionary of prior bounds, e.g. {'x': [-1, 1], 'y': [-1, 1]}
-    reparameterisations : dict
-        Dictionary of reparameterisations that overrides the values specified
-        with keyword arguments.
-    likelihood_evaluations : int
-        Number of likelihood evaluations
     """
 
     _names = None
     _bounds = None
     reparameterisations = None
+    """
+    dict
+        Dictionary of reparameterisations that overrides the values specified.
+    """
     likelihood_evaluations = 0
+    """
+    int
+        Number of likelihood evaluations.
+    """
+    likelihood_evaluation_time = datetime.timedelta()
+    """
+    :py:obj:`datetime.timedelta()`
+        Time spent evaluating the likelihood.
+    """
     _lower = None
     _upper = None
+    pool = None
+    """
+    obj
+        Multiprocessing pool for evaluating the log-likelihood.
+    """
+    allow_vectorised = True
+    """
+    bool
+        Allow the model to use a vectorised likelihood. If True, nessai will
+        try to check if the model is vectorised and use call the likelihood
+        as a vectorised function. If False, nessai won't check and, even if the
+        likelihood is vectorised, it will only evaluate the likelihood one
+        sample at a time.
+    """
+    _vectorised_likelihood = None
 
     @property
     def names(self):
@@ -125,6 +143,99 @@ class Model(ABC):
             self._lower = bounds_array[:, 0]
             self._upper = bounds_array[:, 1]
         return self._upper
+
+    @property
+    def vectorised_likelihood(self):
+        """Boolean to indicate if the likelihood is vectorised or not.
+
+        Checks that the values returned by computing the likelihood for
+        individual samples matches those return by evaluating the likelihood
+        in a batch. If a TypeError or ValueError are raised the likelihood is
+        assumed to be vectorised.
+
+        This check can be prevented by setting
+        :py:attr:`nessai.model.Model.allowed_vectorised` to ``False``.
+        """
+        if self._vectorised_likelihood is None:
+            if self.allow_vectorised:
+                x = self.new_point(N=10)
+                target = np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
+                try:
+                    batch = self.log_likelihood(x)
+                except (TypeError, ValueError):
+                    logger.debug(
+                        'Evaluating a batch of points returned an error. '
+                        'Assuming the likelihood is not vectorised.'
+                    )
+                    self._vectorised_likelihood = False
+                else:
+                    if np.array_equal(batch, target):
+                        logger.debug(
+                            'Individual and batch likelihoods are equal.'
+                        )
+                        logger.info('Likelihood is vectorised')
+                        self._vectorised_likelihood = True
+                    else:
+                        logger.debug(
+                            'Individual and batch likelihoods are not equal.'
+                        )
+                        logger.debug(target)
+                        logger.debug(batch)
+                        self._vectorised_likelihood = False
+            else:
+                self._vectorised_likelihood = False
+        return self._vectorised_likelihood
+
+    @vectorised_likelihood.setter
+    def vectorised_likelihood(self, value):
+        """Manually set the value for vectorised likelihood."""
+        self._vectorised_likelihood = value
+
+    def configure_pool(self, pool=None, n_pool=None):
+        """Configure a multiprocessing pool for the likelihood computation.
+
+        Parameters
+        ----------
+        pool :
+            User provided pool. Must call
+            :py:func:`nessai.utils.multiprocessing.initialise_pool_variables`
+            before creating the pool.
+        n_pool : int
+            Number of threads to use to create an instance of
+            :py:obj:`multiprocessing.Pool`.
+        """
+        self.pool = pool
+        self.n_pool = n_pool
+        if self.pool:
+            if self.n_pool:
+                logger.warning('`n_pool` is ignored when `pool` is specified')
+            logger.info('Using user specified pool')
+            self.n_pool = self.pool._processes
+        elif self.n_pool:
+            logger.info(
+                f'Starting multiprocessing pool with {n_pool} processes'
+            )
+            import multiprocessing
+            from nessai.utils.multiprocessing import initialise_pool_variables
+            self.pool = multiprocessing.Pool(
+                processes=self.n_pool,
+                initializer=initialise_pool_variables,
+                initargs=(self,)
+            )
+        else:
+            logger.info('pool and n_pool are none, no multiprocessing pool')
+
+    def close_pool(self, code=None):
+        """Close the the multiprocessing pool"""
+        if getattr(self, "pool", None) is not None:
+            logger.info("Starting to close worker pool.")
+            if code == 2:
+                self.pool.terminate()
+            else:
+                self.pool.close()
+            self.pool.join()
+            self.pool = None
+            logger.info("Finished closing worker pool.")
 
     def new_point(self, N=1):
         """
@@ -295,6 +406,46 @@ class Model(ABC):
         self.likelihood_evaluations += 1
         return self.log_likelihood(x)
 
+    def batch_evaluate_log_likelihood(self, x):
+        """Evaluate the likelihood for a batch of samples.
+
+        Uses the pool if available.
+
+        Parameters
+        ----------
+        x : :obj:`numpy.ndarray`
+            Array of samples
+
+        Returns
+        -------
+        :obj:`numpy.ndarray`
+            Array of log-likelihood values
+        """
+        st = datetime.datetime.now()
+        if self.pool is None:
+            logger.debug('Not using pool to evaluate likelihood')
+            if self.allow_vectorised and self.vectorised_likelihood:
+                log_likelihood = self.log_likelihood(x)
+            else:
+                log_likelihood = \
+                    np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
+        else:
+            logger.debug('Using pool to evaluate likelihood')
+            if self.allow_vectorised and self.vectorised_likelihood:
+                log_likelihood = np.concatenate(
+                    np.array(self.pool.map(
+                        log_likelihood_wrapper,
+                        np.array_split(x, self.n_pool)
+                    ))
+                ).flatten()
+            else:
+                log_likelihood = np.array(
+                    self.pool.map(log_likelihood_wrapper, x)
+                ).flatten()
+        self.likelihood_evaluations += x.size
+        self.likelihood_evaluation_time += (datetime.datetime.now() - st)
+        return log_likelihood
+
     def verify_model(self):
         """
         Verify that the model is correctly setup. This includes checking
@@ -360,3 +511,8 @@ class Model(ABC):
         if self.log_likelihood(x) is None:
             raise RuntimeError('Log-likelihood function did not return '
                                'a likelihood value')
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['pool'] = None
+        return state

@@ -23,7 +23,7 @@ from .utils import (
     safe_file_dump,
     compute_indices_ks_test,
     rolling_mean,
-    )
+)
 
 sns.set()
 sns.set_style('ticks')
@@ -57,6 +57,14 @@ class NestedSampler:
         correct model.
     seed : int, optional
         seed for the initialisation of the pseudorandom chain
+    n_pool : int, optional
+        Number of threads to when for creating the multiprocessing pool.
+    pool : object
+        User defined multiprocessing pool that will be used when evaluating
+        the likelihood.
+    close_pool : bool
+        Boolean to indicated if the pool should be closed at the end of the
+        nested sampling loop. If False, the user must manually close the pool.
     plot : bool (True)
         Boolean to toggle plotting
     proposal_plots : bool (True)
@@ -131,6 +139,8 @@ class NestedSampler:
         checkpoint_on_training=False,
         resume_file=None,
         seed=None,
+        pool=None,
+        close_pool=True,
         n_pool=None,
         plot=True,
         proposal_plots=False,
@@ -161,8 +171,10 @@ class NestedSampler:
         model.verify_model()
 
         self.model = model
+        self.model.configure_pool(pool=pool, n_pool=n_pool)
+        self.close_pool = close_pool
+
         self.nlive = nlive
-        self.n_pool = n_pool
         self.live_points = None
         self.prior_sampling = prior_sampling
         self.setup_random_seed(seed)
@@ -261,9 +273,7 @@ class NestedSampler:
 
     @property
     def likelihood_evaluation_time(self):
-        t = self._uninformed_proposal.logl_eval_time
-        t += self._flow_proposal.logl_eval_time
-        return t
+        return self.model.likelihood_evaluation_time
 
     @property
     def proposal_population_time(self):
@@ -385,7 +395,8 @@ class NestedSampler:
         logger.debug(f'Using uninformed proposal: {uninformed_proposal}')
         logger.debug(f'Parsing kwargs to uninformed proposal: {kwargs}')
         self._uninformed_proposal = uninformed_proposal(
-            self.model, n_pool=self.n_pool, **kwargs)
+            self.model, **kwargs
+        )
 
     def configure_flow_proposal(self, flow_class, flow_config, proposal_plots,
                                 **kwargs):
@@ -437,8 +448,12 @@ class NestedSampler:
         logger.debug(f'Using flow class: {flow_class}')
         logger.info(f'Parsing kwargs to FlowProposal: {kwargs}')
         self._flow_proposal = flow_class(
-            self.model, flow_config=flow_config, output=proposal_output,
-            plot=proposal_plots, n_pool=self.n_pool, **kwargs)
+            self.model,
+            flow_config=flow_config,
+            output=proposal_output,
+            plot=proposal_plots,
+            **kwargs
+        )
 
     def setup_output(self, output, resume_file=None):
         """
@@ -691,8 +706,6 @@ class NestedSampler:
         else:
             self.proposal = self._flow_proposal
 
-        self.proposal.configure_pool()
-
         if live_points and self.live_points is None:
             self.populate_live_points()
             flags[2] = True
@@ -729,12 +742,7 @@ class NestedSampler:
                 logger.warning('Already using flowproposal')
                 return True
             logger.warning('Switching to FlowProposal')
-            # Make sure the pool is closed
-            if self.proposal.pool is not None:
-                self.proposal.close_pool()
             self.proposal = self._flow_proposal
-            if self.proposal.n_pool is not None:
-                self.proposal.configure_pool()
             self.proposal.ns_acceptance = self.mean_block_acceptance
             self.uninformed_sampling = False
             return True
@@ -1143,6 +1151,8 @@ class NestedSampler:
 
         if self.prior_sampling:
             self.nested_samples = self.live_points.copy()
+            if self.close_pool:
+                self.model.close_pool()
             return self.nested_samples
 
         self.check_resume()
@@ -1163,9 +1173,6 @@ class NestedSampler:
             if self.iteration >= self.max_iteration:
                 break
 
-        if self.proposal.pool is not None:
-            self.proposal.close_pool()
-
         # final adjustments
         # avoid repeating final adjustments if resuming a completed run.
         if not self.finalised and (self.condition <= self.tolerance):
@@ -1180,15 +1187,18 @@ class NestedSampler:
         # This includes updating the total sampling time
         self.checkpoint(periodic=True)
 
+        if self.close_pool:
+            self.model.close_pool()
+
         logger.info(f'Total sampling time: {self.sampling_time}')
         logger.info(f'Total training time: {self.training_time}')
         logger.info(f'Total population time: {self.proposal_population_time}')
         logger.info(
             f'Total likelihood evaluations: {self.likelihood_calls:3d}')
-        if self.proposal.logl_eval_time.total_seconds():
-            logger.info(
-                'Time spent evaluating likelihood: '
-                f'{self.likelihood_evaluation_time}')
+        logger.info(
+            'Time spent evaluating likelihood: '
+            f'{self.likelihood_evaluation_time}'
+        )
 
         return self.state.logZ, np.array(self.nested_samples)
 

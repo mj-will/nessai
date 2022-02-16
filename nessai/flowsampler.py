@@ -210,7 +210,7 @@ class FlowSampler:
         Safely exit. This includes closing the multiprocessing pool.
         """
         logger.warning(f'Trying to safely exit with code {signum}')
-        self.ns.proposal.close_pool(code=signum)
+        self.ns.model.close_pool(code=signum)
         self.ns.checkpoint()
 
         logger.warning(f'Exiting with code: {self.exit_code}')

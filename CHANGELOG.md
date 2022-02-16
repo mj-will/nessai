@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add explicit tests for `nessai.flowsampler`
 - Add more tests for `nessai.reparameterisations`
 - Add more tests for `nessai.gw`
+- Add support for vectorised likelihoods and automatically detect if the likelihood is vectorised.
+- Add support for passing a user-defined pool instead of using `n_pool`.
 
 ### Changed
 
@@ -33,6 +35,8 @@ vertical lines that can appear in the subplots.
 - Context is now passed to the transform in `nessai.flows.base.NFlow` enabling the use of flows with conditional transforms.
 - Add `context_features` to RealNVP and NeuralSplineFlows
 - Rework `MaskedAutoregressiveFlow` to add `context_features`
+- Rework how likelihood parallelisation is handled. The model now contains the pool instead of the sampler and proposals.
+- Update `parallelisation_example.py` to show use of `n_pool` and `pool` for parallelisation.
 
 
 ### Fixed
