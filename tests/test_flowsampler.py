@@ -310,12 +310,12 @@ def test_safe_exit(flow_sampler):
     flow_sampler.exit_code = 130
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.checkpoint = MagicMock()
-    flow_sampler.ns.proposal = MagicMock()
-    flow_sampler.ns.proposal.close_pool = MagicMock()
+    flow_sampler.ns.model = MagicMock()
+    flow_sampler.ns.model.close_pool = MagicMock()
 
     with patch('sys.exit') as mock_exit:
         FlowSampler.safe_exit(flow_sampler, signum=2)
 
     mock_exit.assert_called_once_with(130)
     flow_sampler.ns.checkpoint.assert_called_once()
-    flow_sampler.ns.proposal.close_pool.assert_called_once_with(code=2)
+    flow_sampler.ns.model.close_pool.assert_called_once_with(code=2)
