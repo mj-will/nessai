@@ -214,7 +214,7 @@ def test_vectorised_likelihood_allow_vectorised_false(model):
     """Assert vectorised_likelihood is False if allow_vectorised is False"""
     model.allow_vectorised = False
     model.log_likelihood = MagicMock()
-    model._vectorised_likelihood = False
+    model._vectorised_likelihood = None
     out = Model.vectorised_likelihood.__get__(model)
     model.log_likelihood.assert_not_called()
     assert out is False
