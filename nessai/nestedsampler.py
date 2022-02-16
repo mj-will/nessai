@@ -57,6 +57,14 @@ class NestedSampler:
         correct model.
     seed : int, optional
         seed for the initialisation of the pseudorandom chain
+    n_pool : int, optional
+        Number of threads to when for creating the multiprocessing pool.
+    pool : object
+        User defined multiprocessing pool that will be used when evaluating
+        the likelihood.
+    close_pool : bool
+        Boolean to indicated if the pool should be closed at the end of the
+        nested sampling loop. If False, the user must manually close the pool.
     plot : bool (True)
         Boolean to toggle plotting
     proposal_plots : bool (True)
@@ -132,6 +140,7 @@ class NestedSampler:
         resume_file=None,
         seed=None,
         pool=None,
+        close_pool=True,
         n_pool=None,
         plot=True,
         proposal_plots=False,
@@ -163,6 +172,7 @@ class NestedSampler:
 
         self.model = model
         self.model.configure_pool(pool=pool, n_pool=n_pool)
+        self.close_pool = close_pool
 
         self.nlive = nlive
         self.live_points = None
@@ -1141,6 +1151,8 @@ class NestedSampler:
 
         if self.prior_sampling:
             self.nested_samples = self.live_points.copy()
+            if self.close_pool:
+                self.model.close_pool()
             return self.nested_samples
 
         self.check_resume()
@@ -1161,8 +1173,6 @@ class NestedSampler:
             if self.iteration >= self.max_iteration:
                 break
 
-        self.model.close_pool()
-
         # final adjustments
         # avoid repeating final adjustments if resuming a completed run.
         if not self.finalised and (self.condition <= self.tolerance):
@@ -1176,6 +1186,9 @@ class NestedSampler:
 
         # This includes updating the total sampling time
         self.checkpoint(periodic=True)
+
+        if self.close_pool:
+            self.model.close_pool()
 
         logger.info(f'Total sampling time: {self.sampling_time}')
         logger.info(f'Total training time: {self.training_time}')
