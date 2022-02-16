@@ -83,6 +83,11 @@ class BaseNestedSampler(ABC):
             return self.sampling_time \
                     + (datetime.datetime.now() - self.sampling_start_time)
 
+    @property
+    def likelihood_evaluation_time(self):
+        """Current log-likelihood time"""
+        return self.model.likelihood_evaluation_time
+
     def configure_output(
         self,
         output: Union[str, None],
@@ -182,6 +187,8 @@ class BaseNestedSampler(ABC):
         d['version'] = version
         d['seed'] = self.seed
         d['sampling_time'] = self.sampling_time.total_seconds()
+        d['likelihood_evaluation_time'] = \
+            self.likelihood_evaluation_time.total_seconds()
         if hasattr(self.model, 'truth'):
             d['truth'] = self.model.truth
         return d

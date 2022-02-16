@@ -94,7 +94,6 @@ class ImportanceFlowProposal(Proposal):
         self.level_entropy = []
 
         logger.debug(f'Initial q: {np.exp(self.initial_log_q)}')
-        self.log_likelihood = None
 
         self.combined_proposal = combined_proposal
         self.weights_include_likelihood = weights_include_likelihood
@@ -182,10 +181,6 @@ class ImportanceFlowProposal(Proposal):
         )
         self.flow.initialise()
         return super().initialise()
-
-    def set_log_likelihood(self, func):
-        """Set the log-likelihood function"""
-        self.log_likelihood = func
 
     def to_prime(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Convert samples from the unit hypercube to samples in x'-space"""
@@ -475,7 +470,7 @@ class ImportanceFlowProposal(Proposal):
             x = x[accept]
 
             if logL_min is not None:
-                self.log_likelihood(x)
+                x['logl'] = self.model.batch_evaluate_log_likelihood(x)
 
             samples = np.concatenate([samples, x])
 
@@ -688,6 +683,5 @@ class ImportanceFlowProposal(Proposal):
 
     def __getstate__(self):
         obj = super().__getstate__()
-        del obj['log_likelihood']
         del obj['_flow_config']
         return obj

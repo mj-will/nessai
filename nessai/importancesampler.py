@@ -99,6 +99,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         leaky: bool = True,
         sorting: Literal['logL', 'rel_entr'] = 'logL',
         n_pool: Optional[int] = None,
+        pool: Optional[Any] = None,
         stopping_criterion: Literal['evidence', 'kl'] = 'evidence',
         min_dZ: Optional[float] = None,
         level_kwargs: Optional[dict] = None,
@@ -117,14 +118,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
             seed=seed,
             checkpointing=checkpointing,
             resume_file=resume_file,
-            plot=plot
+            plot=plot,
+            n_pool=n_pool,
+            pool=pool,
         )
 
         self._posterior_samples = None
         self.initialised = False
         self.finalised = False
         self.history = None
-        self.pool = None
         self.dZ = np.inf
         self.live_points_ess = np.nan
         self.sorting = sorting
@@ -140,7 +142,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.replace_all = replace_all
         self._update_nested_samples = update_nested_samples
         self.leaky = leaky
-        self.n_pool = n_pool
         self.level_method = level_method
         self.level_kwargs = {} if level_kwargs is None else level_kwargs
         self.current_entropy = 0.0
@@ -170,7 +171,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.nested_samples = np.empty(0, dtype=get_dtype(self.model.names))
 
         self.update_level_time = datetime.timedelta()
-        self.log_likelihood_time = datetime.timedelta()
         self.draw_time = datetime.timedelta()
         self.redraw_time = datetime.timedelta()
         self.update_ns_time = datetime.timedelta()
@@ -284,7 +284,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             combined_proposal=not self.replace_all,
             **kwargs
         )
-        proposal.set_log_likelihood(self.log_likelihood)
         return proposal
 
     def configure_iterations(
@@ -301,56 +300,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.max_iteration = np.inf
         else:
             self.max_iteration = int(max_iteration)
-
-    def configure_pool(self) -> None:
-        """
-        Configure the multiprocessing pool
-        """
-        if self.pool is None and self.n_pool is not None:
-            logger.info(
-                f'Starting multiprocessing pool with {self.n_pool} processes')
-            import multiprocessing
-            self.pool = multiprocessing.Pool(
-                processes=self.n_pool,
-                initializer=_initialize_global_variables,
-                initargs=(self.model,)
-            )
-        elif self.pool is not None:
-            logger.debug('Pool already initialised')
-        else:
-            logger.info('n_pool is none, no multiprocessing pool')
-
-    def close_pool(self, code: Optional[int] = None):
-        """
-        Close the the multiprocessing pool
-        """
-        if getattr(self, "pool", None) is not None:
-            logger.info("Starting to close worker pool.")
-            if code == 2:
-                self.pool.terminate()
-            else:
-                self.pool.close()
-            self.pool.join()
-            self.pool = None
-            logger.info("Finished closing worker pool.")
-
-    def log_likelihood(self, samples: np.ndarray) -> None:
-        """Update the log-likelihood in place."""
-        logger.debug('Evaluating likelihoods')
-        st = datetime.datetime.now()
-        if self.pool is not None:
-            samples['logL'] = self.pool.map(
-                _log_likelihood_wrapper,
-                samples,
-            )
-            self.model.likelihood_evaluations += samples.size
-        elif self.model.has_vectorised_likelihood:
-            samples['logL'] = \
-                self.model.evaluate_log_likelihood(samples)
-        else:
-            samples['logL'] = \
-                list(map(self.model.evaluate_log_likelihood, samples))
-        self.log_likelihood_time += (datetime.datetime.now() - st)
 
     def _rel_entr(self, x):
         return relative_entropy_from_log(x['logL'], x['logQ'])
@@ -377,7 +326,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 self.model.names
             )
         )
-        self.log_likelihood(live_points)
+        live_points['logL'] = \
+            self.model.batch_evaluate_log_likelihood(live_points)
         live_points['it'] = -np.ones(live_points.size)
         # Since log_Q is computed in the unit-cube
         live_points['logP'] = self.model.log_prior(live_points)
@@ -394,8 +344,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.warning('Nested sampler has already initialised!')
         if self.live_points is None:
             self.populate_live_points()
-
-        self.configure_pool()
 
         self.initialise_history()
         self.proposal.initialise()
@@ -606,7 +554,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.draw_time = (datetime.datetime.now() - st)
         if self.leaky:
             logger.info('Evaluating likelihood for new points')
-            self.log_likelihood(new_points)
+            new_points['logL'] = \
+                self.model.batch_evaluate_log_likelihood(new_points)
         return new_points
 
     def add_and_update_points(self, n: int):
@@ -897,7 +846,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.finalise()
         self.close_pool()
         logger.info(f'Level update time: {self.update_level_time}')
-        logger.info(f'Log-likelihood time: {self.log_likelihood_time}')
+        logger.info(f'Log-likelihood time: {self.likelihood_evaluation_time}')
         logger.info(f'Draw time: {self.draw_time}')
         logger.info(f'Update NS time: {self.update_ns_time}')
         logger.info(f'Add samples time: {self.add_samples_time}')
@@ -951,7 +900,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def draw_more_nested_samples(self, n: int) -> np.ndarray:
         """Draw more nested samples from g"""
         samples = self.proposal.draw_from_flows(n)
-        self.log_likelihood(samples)
+        samples['logL'] = self.model.batch_evaluate_log_likelihood(samples)
         state = _INSIntegralState()
         state.update_evidence_from_nested_samples(samples)
         logger.info(
@@ -1010,8 +959,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         if self.final_state:
             logger.warning('Existing final state will be overriden')
         self.final_state = _INSIntegralState()
-
-        self.configure_pool()
 
         eff = (
             self.state.effective_n_posterior_samples
@@ -1075,7 +1022,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     log_q = np.concatenate([log_q, new_log_q], axis=0)
                     counts += new_counts
 
-                self.log_likelihood(it_samples)
+                it_samples['logL'] = \
+                    self.model.batch_evaluate_log_likelihood(it_samples)
                 samples = np.concatenate([samples, it_samples])
 
                 log_Q = logsumexp(log_q + np.log(counts), axis=1)
@@ -1363,7 +1311,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d['likelihood_evaluations'] = self.model.likelihood_evaluations
         d['sampling_time'] = self.sampling_time.total_seconds()
         d['update_level_time'] = self.update_level_time.total_seconds()
-        d['log_likelihood_time'] = self.log_likelihood_time.total_seconds()
         d['add_samples_time'] = self.add_samples_time.total_seconds()
         d['update_ns_time'] = self.update_ns_time.total_seconds()
         d['redraw_time'] = self.redraw_time.total_seconds()
@@ -1395,7 +1342,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         cls.add_fields()
         obj = super().resume(filename, model)
         obj.proposal.resume(model, flow_config, weights_path=weights_path)
-        obj.proposal.set_log_likelihood(obj.log_likelihood)
         logger.info(f'Resuming sampler at iteration {obj.iteration}')
         logger.info(f'Current number of samples: {len(obj.nested_samples)}')
         logger.info(
@@ -1403,9 +1349,4 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f'+/- {obj.log_evidence_error:.3f}'
         )
         logger.info(f'Current dZ: {obj.dZ:.3f}')
-        return obj
-
-    def __getstate__(self):
-        obj = super().__getstate__()
-        obj['pool'] = None
         return obj
