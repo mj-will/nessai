@@ -813,7 +813,7 @@ def test_get_state(model):
     pool = True
     model.pool = pool
     d = Model.__getstate__(model)
-    assert 'pool' not in d
+    assert d['pool'] is None
     assert model.pool is pool
 
 
