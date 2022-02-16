@@ -3,6 +3,8 @@
 Utilities related to multiprocessing.
 """
 
+_model = None
+
 
 def initialise_pool_variables(model):
     """Prepare the model for use with a multiprocessing pool.
