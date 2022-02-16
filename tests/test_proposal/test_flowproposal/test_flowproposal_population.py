@@ -307,6 +307,7 @@ def test_populate(proposal, check_acceptance):
         numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
         numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
     ]
+    log_l = np.random.rand(poolsize)
 
     proposal.initialised = True
     proposal.max_radius = 50
@@ -336,7 +337,9 @@ def test_populate(proposal, check_acceptance):
         side_effect=[(a[:-1], b[:-1]) for a, b in zip(z, x)]
     )
     proposal.compute_acceptance = MagicMock(side_effect=[0.5, 0.8])
-    proposal.evaluate_likelihoods = MagicMock()
+    proposal.model = MagicMock()
+    proposal.model.batch_evaluate_log_likelihood = \
+        MagicMock(return_value=log_l)
 
     proposal.plot_pool = MagicMock()
     proposal.convert_to_samples = MagicMock(
@@ -377,13 +380,15 @@ def test_populate(proposal, check_acceptance):
 
     if check_acceptance:
         proposal.compute_acceptance.assert_called()
-        proposal.evaluate_likelihoods.assert_called_once()
         assert proposal.approx_acceptance == [0.4, 0.5]
         assert proposal.acceptance == [0.7, 0.8]
     else:
         proposal.compute_acceptance.assert_not_called()
-        proposal.evaluate_likelihoods.assert_not_called()
-        assert np.all(proposal.samples['logL'] == 0.0)
+
+    proposal.model.batch_evaluate_log_likelihood.assert_called_once_with(
+        proposal.samples
+    )
+    np.testing.assert_array_equal(proposal.samples['logL'], log_l)
 
 
 def test_populate_not_initialised(proposal):

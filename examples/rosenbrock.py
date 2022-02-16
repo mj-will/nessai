@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-# Example of using nessai for a Rosenbrock likelihood
+# Example of using nessai for a Rosenbrock likelihood.
+# Also shows how to configure the normalising flow.
 
 import numpy as np
 
@@ -10,7 +11,7 @@ from nessai.utils import setup_logger
 from nessai.livepoint import live_points_to_array
 
 output = './outdir/rosenbrock/'
-logger = setup_logger(output=output, log_level='WARNING')
+logger = setup_logger(output=output)
 
 
 class RosenbrockModel(Model):
@@ -26,43 +27,39 @@ class RosenbrockModel(Model):
     def log_prior(self, x):
         """Uniform prior"""
         log_p = np.log(self.in_bounds(x))
-        for n in self.names:
-            log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
+        for bounds in self.bounds.values():
+            log_p -= np.log(bounds[1] - bounds[0])
         return log_p
 
     def log_likelihood(self, x):
         """Log-likelihood"""
-        x = live_points_to_array(x, self.names)[np.newaxis, :]
-        return -(np.sum(
-            100. * (x[:, 1:] - x[:, :-1] ** 2.) ** 2. + (1. - x[:, :-1]) ** 2.,
-            axis=1)
+        x = live_points_to_array(x, self.names)
+        return -np.sum(
+            100. * (x[..., 1:] - x[..., :-1] ** 2.) ** 2.
+            + (1. - x[..., :-1]) ** 2.,
+            axis=-1
         )
 
 
-model = RosenbrockModel(2)
+model = RosenbrockModel(5)
 
-# Use a more complex flow compared to simpler examples.
+# The Rosenbrock likelihood is more complex, so we configure the normalsing
+# flow to improve nessai's performance.
 flow_config = dict(
-    batch_size=1000,
-    max_epochs=200,
-    patience=20,
-    model_config=dict(n_blocks=4, n_neurons=4, n_layers=1)
+    model_config=dict(
+        n_blocks=4,
+        n_neurons=10,
+        n_layers=3
+    )
 )
 
 # Configure the sampler.
-# We use the logit rescaling since parts of the likelihood are close to the
-# prior bounds
 fs = FlowSampler(
     model,
     output=output,
     flow_config=flow_config,
     resume=False,
-    seed=1234,
-    nlive=2000,
-    poolsize=2000,
-    maximum_uninformed=4000,
-    proposal_plots=False,
-    reparameterisations={'logit': {'parameters': model.names}}
+    seed=1451,
 )
 
 # And go!

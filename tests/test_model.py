@@ -2,13 +2,19 @@
 """
 Tests for `nessai.model`
 """
+import datetime
+import logging
 import numpy as np
 import pytest
 from scipy.stats import norm
-from unittest.mock import MagicMock, create_autospec
+from unittest.mock import MagicMock, call, create_autospec, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.model import Model, OneDimensionalModelError
+from nessai.utils.multiprocessing import (
+    initialise_pool_variables,
+    log_likelihood_wrapper,
+)
 
 
 class EmptyModel(Model):
@@ -141,6 +147,83 @@ def test_upper_bounds(model):
     model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     model._upper = None
     assert (Model.upper_bounds.__get__(model) == [1, 1]).all()
+
+
+def test_vectorised_likelihood_true(model):
+    """
+    Assert the value is True if the likelihood is vectorised and returns
+    the same values.
+    """
+
+    # Just return the input since this should always work
+    def dummy_likelihood(x):
+        return x
+
+    model._vectorised_likelihood = None
+    model.allow_vectorised = True
+    model.log_likelihood = MagicMock(side_effect=dummy_likelihood)
+    model.new_point = MagicMock(return_value=np.random.rand(10))
+
+    out = Model.vectorised_likelihood.__get__(model)
+    assert model._vectorised_likelihood is True
+    assert out is True
+
+
+def test_vectorised_likelihood_false(model):
+    """
+    Assert the value is False if allowed_vectorised but the values do not
+    agree.
+    """
+
+    def dummy_likelihood(x):
+        return np.log(np.random.rand(x.size))
+
+    model._vectorised_likelihood = None
+    model.allow_vectorised = True
+    model.log_likelihood = MagicMock(side_effect=dummy_likelihood)
+    model.new_point = MagicMock(return_value=np.random.rand(10))
+
+    out = Model.vectorised_likelihood.__get__(model)
+    assert model._vectorised_likelihood is False
+    assert out is False
+
+
+@pytest.mark.parametrize('error', [TypeError, ValueError])
+def test_vectorised_likelihood_not_vectorised_error(model, error):
+    """
+    Assert the value is False if the likelihood is not vectorised and raises
+    an error.
+    """
+
+    def dummy_likelihood(x):
+        if hasattr(x, '__len__'):
+            raise error
+        else:
+            return np.log(np.random.rand())
+
+    model._vectorised_likelihood = None
+    model.log_likelihood = MagicMock(side_effect=dummy_likelihood)
+    model.new_point = MagicMock(return_value=np.random.rand(10))
+
+    out = Model.vectorised_likelihood.__get__(model)
+    assert model._vectorised_likelihood is False
+    assert out is False
+
+
+def test_vectorised_likelihood_allow_vectorised_false(model):
+    """Assert vectorised_likelihood is False if allow_vectorised is False"""
+    model.allow_vectorised = False
+    model.log_likelihood = MagicMock()
+    model._vectorised_likelihood = None
+    out = Model.vectorised_likelihood.__get__(model)
+    model.log_likelihood.assert_not_called()
+    assert out is False
+
+
+def test_vectorised_likelihood_setter(model):
+    """Assert the setter sets the correct variable."""
+    Model.vectorised_likelihood.__set__(model, 'test')
+    assert model._vectorised_likelihood == 'test'
 
 
 def test_in_bounds(model):
@@ -596,3 +679,230 @@ def test_unbounded_priors_w_new_point():
 
     model = TestModel()
     model.verify_model()
+
+
+def test_configure_pool_with_pool(model):
+    """Test configuring the pool when pool is specified"""
+    n_pool = 2
+    pool = MagicMock()
+    pool._processes = n_pool
+    Model.configure_pool(model, pool=pool, n_pool=1)
+    assert model.pool is pool
+    assert model.n_pool == n_pool
+
+
+def test_configure_pool_n_pool(model):
+    """Test configuring the pool when n_pool is specified"""
+    n_pool = 1
+    pool = MagicMock()
+    with patch('multiprocessing.Pool', return_value=pool) as mock_pool:
+        Model.configure_pool(model, n_pool=n_pool)
+    assert model.pool is pool
+    mock_pool.assert_called_once_with(
+        processes=n_pool,
+        initializer=initialise_pool_variables,
+        initargs=(model,)
+    )
+
+
+def test_configure_pool_none(model, caplog):
+    """Test configuring the pool when pool and n_pool are None"""
+    caplog.set_level(logging.INFO)
+    Model.configure_pool(model, pool=None, n_pool=None)
+    assert model.pool is None
+    assert 'pool and n_pool are none, no multiprocessing pool' \
+        in str(caplog.text)
+
+
+@pytest.mark.parametrize('code', [10, 2])
+def test_close_pool(model, code):
+    """Test closing the pool"""
+    pool = MagicMock()
+    pool.close = MagicMock()
+    pool.terminate = MagicMock()
+    pool.join = MagicMock()
+    model.pool = pool
+    Model.close_pool(model, code=code)
+    pool.join.assert_called_once()
+    if code == 2:
+        pool.terminate.assert_called_once()
+        pool.pool.assert_not_called()
+    else:
+        pool.close.assert_called_once()
+        pool.terminate.assert_not_called()
+    assert model.pool is None
+
+
+def test_evaluate_likelihoods_pool_vectorised(model):
+    """Test evaluating a vectorised likelihood with a pool."""
+    samples = numpy_array_to_live_points(
+        np.array([1, 2, 3, 4])[:, np.newaxis], ['x']
+    )
+    logL = [np.array([-1, -2]), np.array([-3, -4])]
+    expected = np.array([-1, -2, -3, -4])
+    model.pool = MagicMock(side_effect=True)
+    model.n_pool = 2
+    model.vectorised_likelihood = True
+    model.allow_vectorised = True
+    model.pool.map = MagicMock(return_value=logL)
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+
+    assert model.pool.map.call_args_list[0][0][0] is log_likelihood_wrapper
+
+    input_array = model.pool.map.call_args_list[0][0][1]
+    assert len(input_array) == 2
+    np.testing.assert_array_equal(
+        input_array, np.array([samples[:2], samples[2:]])
+    )
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 104
+    np.testing.assert_array_equal(out, expected)
+
+
+def test_evaluate_likelihoods_pool_not_vectorised(model):
+    """Test evaluating the likelihood with a pool"""
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    logL = np.array([3, 4])
+    model.pool = MagicMock(side_effect=True)
+    model.n_pool = 2
+    model.vectorised_likelihood = False
+    model.allow_vectorised = True
+    model.pool.map = MagicMock(return_value=logL)
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    model.pool.map.assert_called_once_with(
+        log_likelihood_wrapper,
+        samples
+    )
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 102
+    np.testing.assert_array_equal(out, logL)
+
+
+def test_evaluate_likelihoods_no_pool_not_vectorised(model):
+    """Test evaluating the likelihood without a pool"""
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    logL = np.array([3, 4])
+    model.pool = None
+    model.vectorised_likelihood = False
+    model.allow_vectorised = True
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+    model.log_likelihood = MagicMock(side_effect=logL)
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    model.log_likelihood.assert_has_calls(
+        [call(samples[0]), call(samples[1])]
+    )
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 102
+    np.testing.assert_array_equal(out, logL)
+
+
+def test_evaluate_likelihoods_no_pool_vectorised(model):
+    """
+    Test evaluating the likelihood without a pool but with a vectorised
+    likelihood.
+    """
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    logL = np.array([3, 4])
+    model.pool = None
+    model.vectorised_likelihood = True
+    model.allow_vectorised = True
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+    model.log_likelihood = MagicMock(return_value=logL)
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    model.log_likelihood.assert_called_once_with(samples)
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 102
+    np.testing.assert_array_equal(out, logL)
+
+
+def test_evaluate_likelihoods_allow_vectorised_false(model):
+    """Assert that vectorisation isn't used if allow_vectorised is false"""
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    logL = [3, 4]
+    model.pool = None
+    model.vectorised_likelihood = True
+    model.allow_vectorised = False
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+    model.log_likelihood = MagicMock(side_effect=logL)
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    assert model.log_likelihood.call_count == 2
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 102
+    np.testing.assert_array_equal(out, logL)
+
+
+def test_evaluate_likelihoods_pool_allow_vectorised_false(model):
+    """Test evaluating the likelihood with a pool and allow_vectorised=False"""
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    logL = np.array([3, 4])
+    model.pool = MagicMock(side_effect=True)
+    model.n_pool = 2
+    model.vectorised_likelihood = True
+    model.allow_vectorised = False
+    model.pool.map = MagicMock(return_value=logL)
+    model.likelihood_evaluation_time = datetime.timedelta()
+    model.likelihood_evaluations = 100
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    model.pool.map.assert_called_once_with(
+        log_likelihood_wrapper,
+        samples
+    )
+    model.likelihood_evaluation_time.total_seconds() > 0
+    assert model.likelihood_evaluations == 102
+    np.testing.assert_array_equal(out, logL)
+
+
+def test_get_state(model):
+    """Assert pool is removed in __getstate__"""
+    pool = True
+    model.pool = pool
+    d = Model.__getstate__(model)
+    assert d['pool'] is None
+    assert model.pool is pool
+
+
+@pytest.mark.integration_test
+def test_pool(integration_model):
+    """Integration test for evaluating the likelihood with a pool"""
+    from multiprocessing import Pool
+    # Cannot pickle lambda functions
+    integration_model.fn = lambda x: x
+    initialise_pool_variables(integration_model)
+    pool = Pool(1)
+    integration_model.configure_pool(pool=pool)
+    assert integration_model.pool is pool
+    x = integration_model.new_point(10)
+    out = integration_model.batch_evaluate_log_likelihood(x)
+
+    target = np.fromiter(map(integration_model.log_likelihood, x), 'float')
+    np.testing.assert_array_equal(out, target)
+    assert integration_model.likelihood_evaluations == 10
+
+    integration_model.close_pool()
+    assert integration_model.pool is None
+
+
+@pytest.mark.integration_test
+def test_n_pool(integration_model):
+    """Integration test for evaluating the likelihood with n_pool"""
+    # Cannot pickle lambda functions
+    integration_model.fn = lambda x: x
+    integration_model.configure_pool(n_pool=1)
+    assert integration_model.n_pool == 1
+    x = integration_model.new_point(10)
+    out = integration_model.batch_evaluate_log_likelihood(x)
+
+    target = np.fromiter(map(integration_model.log_likelihood, x), 'float')
+    np.testing.assert_array_equal(out, target)
+    assert integration_model.likelihood_evaluations == 10
+
+    integration_model.close_pool()
+    assert integration_model.pool is None

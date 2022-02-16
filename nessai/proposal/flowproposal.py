@@ -6,7 +6,6 @@ import copy
 import datetime
 import logging
 import os
-import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -146,11 +145,6 @@ class FlowProposal(RejectionProposal):
         value of the attribute
         :py:attr:`~nessai.proposal.flowproposal.FlowProposal.use_default_reparameterisations`
         is used.
-    keep_samples : bool, optional
-        If true samples are stored when repopulating the proposal. Not
-        recommended.
-    n_pool : int, optional
-        Number of threads to use for evaluating the likelihood.
     draw_latent_kwargs : dict, optional
         Dictionary of kwargs passed to the function for drawing samples
         in the latent space. See the functions in utils for the possible
@@ -175,7 +169,6 @@ class FlowProposal(RejectionProposal):
         constant_volume_mode=True,
         volume_fraction=0.95,
         fuzz=1.0,
-        keep_samples=False,
         plot='min',
         fixed_radius=False,
         drawsize=None,
@@ -188,8 +181,6 @@ class FlowProposal(RejectionProposal):
         update_bounds=True,
         min_radius=False,
         max_radius=50.0,
-        pool=None,
-        n_pool=None,
         max_poolsize_scale=10,
         update_poolsize=True,
         save_training_data=False,
@@ -241,13 +232,6 @@ class FlowProposal(RejectionProposal):
                                   latent_prior)
 
         self.rescale_parameters = rescale_parameters
-        self.keep_samples = keep_samples
-        if self.keep_samples:
-            warnings.warn(
-                "`keep_samples` will be removed in nessai 0.4.0",
-                DeprecationWarning,
-                stacklevel=2
-            )
         self.update_bounds = update_bounds
         self.check_acceptance = check_acceptance
         self.rescale_bounds = rescale_bounds
@@ -265,9 +249,6 @@ class FlowProposal(RejectionProposal):
         self.compute_radius_with_all = compute_radius_with_all
         self.configure_fixed_radius(fixed_radius)
         self.configure_min_max_radius(min_radius, max_radius)
-
-        self.pool = pool
-        self.n_pool = n_pool
 
         self.configure_plotting(plot)
 
@@ -1424,7 +1405,7 @@ class FlowProposal(RejectionProposal):
 
         self.alt_dist = self.get_alt_distribution()
 
-        if not self.keep_samples or not self.indices:
+        if not self.indices:
             self.x = np.empty(N,  dtype=self.population_dtype)
             self.x['logP'] = np.nan * np.ones(N)
             self.indices = []
@@ -1466,6 +1447,9 @@ class FlowProposal(RejectionProposal):
         if self._plot_pool and plot:
             self.plot_pool(z_samples, self.samples)
 
+        logger.debug('Evaluating log-likelihoods')
+        self.samples['logL'] = \
+            self.model.batch_evaluate_log_likelihood(self.samples)
         if self.check_acceptance:
             if worst_q:
                 self.approx_acceptance.append(self.compute_acceptance(worst_q))
@@ -1473,13 +1457,9 @@ class FlowProposal(RejectionProposal):
                     'Current approximate acceptance '
                     f'{self.approx_acceptance[-1]}'
                 )
-            self.evaluate_likelihoods()
             self.acceptance.append(
                 self.compute_acceptance(worst_point['logL']))
             logger.debug(f'Current acceptance {self.acceptance[-1]}')
-        else:
-            self.samples['logL'] = np.zeros(self.samples.size,
-                                            dtype=self.samples['logL'].dtype)
 
         self.indices = np.random.permutation(self.samples.size).tolist()
         self.population_acceptance = self.x.size / proposed
@@ -1700,7 +1680,6 @@ class FlowProposal(RejectionProposal):
             state['mask'] = state['flow'].model_config['kwargs']['mask']
         else:
             state['mask'] = None
-        state['pool'] = None
         if state['populated'] and state['indices']:
             state['resume_populated'] = True
         else:

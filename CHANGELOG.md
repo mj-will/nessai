@@ -14,12 +14,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `rolling_mean` to `nessai.utils.stats`.
 - Add `nessai.flows.utils.create_linear_transform` as a common function for creating linear transforms in the flows.
 - Add `nessai.flows.transforms.LULinear` to address a [bug in nflows](https://github.com/bayesiains/nflows/pull/38) that has not been patched and prevents the use of CUDA with `LULinear`.
+- Add `calibration_example.py` to the gravitational wave examples.
+- Add `defaults` keyword argument to `nessai.reparameterisations.get_reparameterisation` for overriding the dictionary of default reparameterisations.
+- Add explicit tests for `nessai.flowsampler`
+- Add more tests for `nessai.reparameterisations`
+- Add more tests for `nessai.gw`
+- Add support for vectorised likelihoods and automatically detect if the likelihood is vectorised.
+- Add support for passing a user-defined pool instead of using `n_pool`.
 
 ### Changed
 
 - `NestedSampler.plot_state` now includes the log-prior volume in one of the subplots and the rolling mean of the gradient (|dlogL/dLogX|) is plotted instead of the gradient directly.
 - The figure produced by `NestedSampler.plot_state` now includes a legend for the different vertical lines that can appear in the subplots.
 - `RealNVP` and `NeuralSplineFlow` now use `nessai.flows.utils.create_linear_transform`.
+- The figure produced by `NestedSampler.plot_state` now includes a legend for the different
+vertical lines that can appear in the subplots.
+- Updated all of the examples to reflect the new defaults.
+- Rework `nessai.gw.reparameterisations.get_gw_reparameterisation` to use `get_reparameterisation` with the `defaults` keyword argument.
+- Switch to `os.path.join` for joining paths in `nessai.flowsampler`.
+- Context is now passed to the transform in `nessai.flows.base.NFlow` enabling the use of flows with conditional transforms.
+- Add `context_features` to RealNVP and NeuralSplineFlows
+- Rework `MaskedAutoregressiveFlow` to add `context_features`
+- Rework how likelihood parallelisation is handled. The model now contains the pool instead of the sampler and proposals.
+- Update `parallelisation_example.py` to show use of `n_pool` and `pool` for parallelisation.
+
+
+### Fixed
+
+- Fixed a bug in `RescaleToBounds` when using `pre_rescaling` without boundary inversion.
+
+### Removed
+
+- Removed `legacy_gw_example.py`
+- Removed `keep_samples` from `FlowProposal`.
 
 ## [0.4.0] - 2021-11-23
 

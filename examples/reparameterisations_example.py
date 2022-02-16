@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # Example of using nessai with `reparameterisations` dictionary. This example
-# uses the sample model as the half_gaussian example.
+# uses the same model as the half_gaussian example.
 
 import numpy as np
 from scipy.stats import norm
@@ -11,63 +11,46 @@ from nessai.model import Model
 from nessai.utils import setup_logger
 
 output = './outdir/reparameterisations_example/'
-logger = setup_logger(output=output, log_level='INFO')
+logger = setup_logger(output=output)
 
 
-class HalfGaussianModel(Model):
-    """
-    A simple two-dimensional Gaussian likelihood with a cut at x=0.
-    """
+class HalfGaussian(Model):
+    """Two-dimensional Gaussian with a bound at y=0."""
     def __init__(self):
-        # Names of parameters to sample
         self.names = ['x', 'y']
-        # Prior bounds for each parameter
-        self.bounds = {'x': [0, 10], 'y': [-10, 10]}
+        self.bounds = {'x': [-10, 10], 'y': [0, 10]}
 
     def log_prior(self, x):
-        """
-        Returns log of prior given a live point assuming uniform
-        priors on each parameter.
-        """
-        log_p = 0.
-        # Iterate through each parameter (x and y)
-        # since the live points are a structured array we can
-        # get each value using just the name
-        for n in self.names:
-            log_p += (np.log((x[n] >= self.bounds[n][0])
-                             & (x[n] <= self.bounds[n][1]))
-                      - np.log(self.bounds[n][1] - self.bounds[n][0]))
+        """Log-prior"""
+        log_p = np.log(self.in_bounds(x))
+        for bounds in self.bounds.values():
+            log_p -= np.log(bounds[1] - bounds[0])
         return log_p
 
     def log_likelihood(self, x):
-        """
-        Returns log likelihood of given live point assuming a Gaussian
-        likelihood.
-        """
-        log_l = 0
-        # Use a Gaussian logpdf and iterate through the parameters
-        for pn in self.names:
-            log_l += norm.logpdf(x[pn])
+        """Log-likelihood"""
+        log_l = np.zeros(x.size)
+        for n in self.names:
+            log_l += norm.logpdf(x[n])
         return log_l
 
 
-# Configure the normalising flow
-flow_config = dict(
-        max_epochs=50,
-        patience=10,
-        model_config=dict(n_blocks=2, n_neurons=4, n_layers=1,
-                          kwargs=dict(batch_norm_between_layers=True))
-        )
-
 # In this example we use the reparameterisation options to specify how each
 # parameter should be rescaled.
-fp = FlowSampler(HalfGaussianModel(), output=output, flow_config=flow_config,
-                 resume=False, expansion_fraction=1.0,
-                 reparameterisations={
-                     'x': {'reparameterisation': 'inversion',
-                           'detect_edges': True},
-                     'y': 'default'
-                }
+# In this case we'll tell nessai to use an inversion for y, but only at the
+# lower bound.
+fs = FlowSampler(
+    HalfGaussian(),
+    output=output,
+    resume=False,
+    seed=1234,
+    reparameterisations={
+        'x': 'default',
+        'y': {
+            'reparameterisation': 'inversion',
+            'detect_edges_kwargs': {'allowed_bounds': ['lower']},
+        },
+    }
 )
 
-fp.run()
+fs.run()

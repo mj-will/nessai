@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 # Example of using nessai with the eggbox function. Nessai is not well
 # suited to this sorted problem. The augmented proposal method is used to
 # to improve the results but ultimately likelihoods that this multi-modal
@@ -12,7 +13,7 @@ from nessai.utils import setup_logger
 
 
 output = './outdir/eggbox/'
-logger = setup_logger(output=output, log_level='INFO')
+logger = setup_logger(output=output)
 
 
 class EggboxModel(Model):
@@ -28,34 +29,40 @@ class EggboxModel(Model):
         self.bounds = {n: [0, 10 * np.pi] for n in self.names}
 
     def log_prior(self, x):
-        log_p = 0.
-        for n in self.names:
-            log_p += (np.log((x[n] >= self.bounds[n][0])
-                             & (x[n] <= self.bounds[n][1]))
-                      - np.log(self.bounds[n][1] - self.bounds[n][0]))
+        """Log-prior."""
+        log_p = np.log(self.in_bounds(x))
+        for bounds in self.bounds.values():
+            log_p -= np.log(bounds[1] - bounds[0])
         return log_p
 
     def log_likelihood(self, x):
-        log_l = 1.0
+        """Log-likelihood."""
+        log_l = np.ones(x.size)
         for n in self.names:
             log_l *= np.cos(x[n] / 2.)
         return (log_l + 2.0) ** 5.0
 
 
 flow_config = dict(
-        batch_size=1000,
-        max_epochs=200,
-        patience=50,
-        model_config=dict(n_blocks=4, n_neurons=8, n_layers=2, ftype='realnvp',
-                          kwargs=dict(batch_norm_between_layers=False,
-                                      linear_transform='lu'))
-        )
+    patience=50,     # Make sure the flow trains for longer
+    model_config=dict(n_blocks=6, n_neurons=8)
+)
 
-
-fs = FlowSampler(EggboxModel(2), output=output, flow_config=flow_config,
-                 resume=False, seed=1234, flow_class='AugmentedFlowProposal',
-                 augment_features=4, expansion_fraction=2.0, nlive=2000,
-                 poolsize=2000, maximum_uninformed=np.inf,
-                 update_poolsize=True, max_threads=2, n_pool=1)
+# Sampling the Eggbox will inefficient, so we increase the maximum size of
+# the pool of proposal points. We also allow the initial sampling without
+# the flow to run until it becomes inefficient rather than a fixed iteration.
+fs = FlowSampler(
+    EggboxModel(2),
+    output=output,
+    flow_config=flow_config,
+    resume=False,
+    seed=1234,
+    flow_class='AugmentedFlowProposal',
+    augment_features=2,          # Add two augment parameters
+    maximum_uninformed='inf',    # Run initial sampling until it's inefficient
+    max_poolsize_scale=50,       # Increase the maximum poolsize
+    max_threads=3,
+    n_pool=2
+)
 
 fs.run()

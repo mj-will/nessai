@@ -36,6 +36,8 @@ class NeuralSplineFlow(NFlow):
         each coupling transform
     num_bins : int, optional (8)
         Number of bins to use for each spline
+    context_features : int, optional
+        Number of context (conditional) parameters.
     activation : function
         Activation function implemented in torch
     dropout_probability : float, optional (0.0)
@@ -59,6 +61,7 @@ class NeuralSplineFlow(NFlow):
         num_layers,
         num_blocks_per_layer,
         num_bins=8,
+        context_features=None,
         activation=F.relu,
         dropout_probability=0.0,
         batch_norm_within_layers=False,
@@ -81,6 +84,7 @@ class NeuralSplineFlow(NFlow):
                 in_features,
                 out_features,
                 hidden_features=hidden_features,
+                context_features=context_features,
                 num_blocks=num_blocks_per_layer,
                 activation=activation,
                 dropout_probability=dropout_probability,

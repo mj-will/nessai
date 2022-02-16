@@ -5,7 +5,7 @@ import datetime
 import logging
 import os
 import pickle
-from typing import Union
+from typing import Any, Optional, Union
 
 import numpy as np
 import torch
@@ -36,6 +36,11 @@ class BaseNestedSampler(ABC):
         Name of the file the sampler will be saved to and resumed from.
     plot : bool, optional
         Boolean to enable or disable plotting.
+    n_pool : int, optional
+        Number of threads to when for creating the multiprocessing pool.
+    pool : object
+        User defined multiprocessing pool that will be used when evaluating
+        the likelihood.
     """
     def __init__(
         self,
@@ -46,12 +51,16 @@ class BaseNestedSampler(ABC):
         checkpointing: bool = True,
         resume_file: str = None,
         plot: bool = True,
+        n_pool: Optional[int] = None,
+        pool: Optional[Any] = None,
     ):
         logger.info('Initialising nested sampler')
 
         self.info_enabled = logger.isEnabledFor(logging.INFO)
         model.verify_model()
+        self.n_pool = n_pool
         self.model = model
+        self.model.configure_pool(pool=pool, n_pool=n_pool)
 
         self.nlive = nlive
         self.plot = plot
@@ -158,6 +167,10 @@ class BaseNestedSampler(ABC):
     @abstractmethod
     def nested_sampling_loop(self):
         raise NotImplementedError()
+
+    def close_pool(self, code=None):
+        """Close the multiprocessing pool."""
+        self.model.close_pool(code=code)
 
     def get_result_dictionary(self):
         """Return a dictionary that contains results.

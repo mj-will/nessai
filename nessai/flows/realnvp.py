@@ -43,6 +43,8 @@ class RealNVP(NFlow):
         a single array with the same length as the number of features or
         and two-dimensional array of shape (# features, # num_layers).
         Must use -1 and 1 to indicate no updated and updated.
+    context_features : int, optional
+        Number of context (conditional) parameters.
     net : {'resnet', 'mlp'}
         Type of neural network to use
     use_volume_preserving : bool, optional (False)
@@ -67,6 +69,7 @@ class RealNVP(NFlow):
         num_layers,
         num_blocks_per_layer,
         mask=None,
+        context_features=None,
         net='resnet',
         use_volume_preserving=False,
         activation=F.relu,
@@ -116,6 +119,7 @@ class RealNVP(NFlow):
                     in_features,
                     out_features,
                     hidden_features=hidden_features,
+                    context_features=context_features,
                     num_blocks=num_blocks_per_layer,
                     activation=activation,
                     dropout_probability=dropout_probability,

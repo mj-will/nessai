@@ -203,19 +203,25 @@ class FlowSampler:
                     'posterior samples')
 
         if save:
-            self.save_results(f'{self.output}/result.json')
+            self.save_results(os.path.join(self.output, 'result.json'))
 
         if plot:
             from nessai import plot
 
-            plot.plot_live_points(self.posterior_samples,
-                                  filename=(f'{self.output}/'
-                                            'posterior_distribution.png'))
+            plot.plot_live_points(
+                self.posterior_samples,
+                filename=os.path.join(
+                    self.output, 'posterior_distribution.png'
+                ),
+            )
 
-            plot.plot_indices(self.ns.insertion_indices, self.ns.nlive,
-                              filename=f'{self.output}/insertion_indices.png')
+            plot.plot_indices(
+                self.ns.insertion_indices,
+                self.ns.nlive,
+                filename=os.path.join(self.output, 'insertion_indices.png')
+            )
 
-            self.ns.state.plot(f'{self.output}/logXlogL.png')
+            self.ns.state.plot(os.path.join(self.output, 'logXlogL.png'))
 
     def run_importance_sampler(
         self,
@@ -340,15 +346,8 @@ class FlowSampler:
             Dictionary of kwargs to save.
         """
         d = kwargs.copy()
-        with open(f'{self.output}/config.json', 'w') as wf:
-            try:
-                json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
-            except TypeError:
-                if 'flow_class' in d:
-                    d['flow_class'] = str(d['flow_class'])
-                    json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
-            except Exception as e:
-                raise e
+        with open(os.path.join(self.output, 'config.json'), 'w') as wf:
+            json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
 
     def save_results(self, filename):
         """

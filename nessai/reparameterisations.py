@@ -32,7 +32,7 @@ from .priors import (
 logger = logging.getLogger(__name__)
 
 
-def get_reparameterisation(reparameterisation):
+def get_reparameterisation(reparameterisation, defaults=None):
     """Function to get a reparameterisation class from a name
 
     Parameters
@@ -41,17 +41,20 @@ def get_reparameterisation(reparameterisation):
             :obj:`nessai.reparameterisations.Reparameterisation`
         Name of the reparameterisations to return or a class that inherits from
         :obj:`~nessai.reparameterisations.Reparameterisation`
+    defaults : dict, optional
+        Dictionary of known reparameterisations that overrides the defaults.
 
     Returns
     -------
     :obj:`nessai.reparameteristaions.Reparameterisation`
-        T
+        Reparameterisation class.
     dict
-        Keyword arguments for the specific reparameterisations.
+        Keyword arguments for the specific reparameterisation.
     """
+    if defaults is None:
+        defaults = default_reparameterisations
     if isinstance(reparameterisation, str):
-        rc, kwargs = default_reparameterisations.get(
-            reparameterisation, (None, None))
+        rc, kwargs = defaults.get(reparameterisation, (None, None))
         if rc is None:
             raise ValueError(
                 f'Unknown reparameterisation: {reparameterisation}'
@@ -515,7 +518,9 @@ class RescaleToBounds(Reparameterisation):
             elif isinstance(rescale_bounds, dict):
                 s = set(parameters) - set(rescale_bounds.keys())
                 if s:
-                    raise RuntimeError(f'Missing bounds for parameters {s}')
+                    raise RuntimeError(
+                        f'Missing rescale bounds for parameters: {s}'
+                    )
                 self.rescale_bounds = rescale_bounds
             else:
                 raise TypeError(
@@ -533,8 +538,9 @@ class RescaleToBounds(Reparameterisation):
                     {p: inversion_type for p in self.parameters}
             else:
                 raise TypeError(
-                    'boundary_inversion must be an instance of list or dict. '
-                    f'Got type: {type(boundary_inversion).__name__}')
+                    'boundary_inversion must be a list, dict or bool. '
+                    f'Got type: {type(boundary_inversion).__name__}'
+                )
         else:
             self.boundary_inversion = []
 
@@ -551,7 +557,8 @@ class RescaleToBounds(Reparameterisation):
 
         if self.detect_edges and not self.boundary_inversion:
             raise RuntimeError(
-                'Must enable boundary inversion to detect edges')
+                'Must enable boundary inversion to use detect edges'
+            )
 
         if prior == 'uniform':
             self.prior = 'uniform'
@@ -578,6 +585,16 @@ class RescaleToBounds(Reparameterisation):
         self.set_bounds(self.prior_bounds)
 
     def configure_pre_rescaling(self, pre_rescaling):
+        """Configure the rescaling applied before the standard rescaling.
+
+        Used in :code:`DistanceReparameterisation`.
+
+        Parameters
+        ----------
+        pre_rescaling : str or Tuple[Callable, Callable]
+            Name of the pre-rescaling of tuple contain the forward and inverse
+            functions that should return the rescaled value and the Jacobian.
+        """
         if pre_rescaling is not None:
             if isinstance(pre_rescaling, str):
                 logger.debug(f'Getting pre-rescaling function {pre_rescaling}')
@@ -586,22 +603,31 @@ class RescaleToBounds(Reparameterisation):
                         pre_rescaling.lower(), (None, None))
                 if self.pre_rescaling is None:
                     raise RuntimeError(
-                        f'Unknown rescaling function: {pre_rescaling}')
+                        f'Unknown rescaling function: {pre_rescaling}'
+                    )
             elif len(pre_rescaling) == 2:
                 self.pre_rescaling = pre_rescaling[0]
                 self.pre_rescaling_inv = pre_rescaling[1]
             else:
                 raise RuntimeError(
-                    'Pre-rescaling must be str or tuple of two functions')
-            logger.debug('Disabling prime prior with pre-rescaling')
-            self.has_prior_prior = False
+                    'Pre-rescaling must be a str or tuple of two functions'
+                )
             self.has_pre_rescaling = True
         else:
             logger.debug('No pre-rescaling to configure')
             self.has_pre_rescaling = False
 
     def configure_post_rescaling(self, post_rescaling):
+        """Configure the rescaling applied after the standard rescaling.
 
+        Used to apply the logit/sigmoid transforms after rescaling to [0, 1]
+
+        Parameters
+        ----------
+        post_rescaling : str or Tuple[Callable, Callable]
+            Name of the post-rescaling of tuple contain the forward and inverse
+            functions that should return the rescaled value and the Jacobian.
+        """
         if post_rescaling is not None:
             if isinstance(post_rescaling, str):
                 logger.debug(
@@ -611,15 +637,17 @@ class RescaleToBounds(Reparameterisation):
                         post_rescaling.lower(), (None, None))
                 if self.post_rescaling is None:
                     raise RuntimeError(
-                        f'Unknown rescaling function: {post_rescaling}')
+                        f'Unknown rescaling function: {post_rescaling}'
+                    )
             elif len(post_rescaling) == 2:
                 self.post_rescaling = post_rescaling[0]
                 self.post_rescaling_inv = post_rescaling[1]
             else:
                 raise RuntimeError(
-                    'Post-rescaling must be str or tuple of two functions')
+                    'Post-rescaling must be a str or tuple of two functions'
+                )
             logger.debug('Disabling prime prior with post-rescaling')
-            self.has_prior_prior = False
+            self.has_prime_prior = False
 
             if post_rescaling == 'logit':
                 if self._update_bounds:
@@ -756,7 +784,7 @@ class RescaleToBounds(Reparameterisation):
                         x, x_prime, log_j, p, pp, compute_radius, **kwargs)
             else:
                 x_prime[pp], lj = \
-                    self._rescale_to_bounds(x[p] - self.offsets[p], p)
+                    self._rescale_to_bounds(x_prime[pp] - self.offsets[p], p)
                 log_j += lj
             if self.has_post_rescaling:
                 x_prime[pp], lj = self.post_rescaling(x_prime[pp])
