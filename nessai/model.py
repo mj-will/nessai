@@ -485,11 +485,11 @@ class Model(ABC):
             logger.debug('Using pool to evaluate likelihood')
             if self.allow_vectorised and self.vectorised_likelihood:
                 log_likelihood = np.concatenate(
-                    np.array(self.pool.map(
+                    self.pool.map(
                         log_likelihood_wrapper,
                         np.array_split(x, self.n_pool)
-                    ))
-                ).flatten()
+                    )
+                )
             else:
                 log_likelihood = np.array(
                     self.pool.map(log_likelihood_wrapper, x)
