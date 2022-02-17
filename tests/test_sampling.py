@@ -221,3 +221,22 @@ def test_constant_volume_mode(model, tmpdir):
         constant_volume_mode=True
     )
     fs.run(plot=False)
+
+
+@pytest.mark.parametrize(
+    'kwargs',
+    [
+        {'nlive': 100, 'var': 2, 'maxiumum_uniformed': 1, 'max_iteration': 11}
+    ]
+)
+@pytest.mark.slow_integration_test
+def test_sampling_with_kwargs(model, tmpdir, kwargs):
+    """Test sampling with specific combinations of kwargs"""
+    output = str(tmpdir.mkdir('test_kwargs'))
+    fs = FlowSampler(
+        model,
+        output=output,
+        plot=False,
+        **kwargs
+    )
+    fs.run(plot=False)
