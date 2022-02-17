@@ -27,7 +27,7 @@ from .livepoint import (
     numpy_array_to_live_points,
 )
 from .utils.hist import auto_bins
-from .utils.information import cumulative_entropy, relative_entropy_from_log
+from .utils.information import relative_entropy_from_log
 from .utils.stats import effective_sample_size, weighted_quantile
 
 logger = logging.getLogger(__name__)
@@ -93,6 +93,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         tolerance: float = 1.0,
         n_update: Optional[int] = None,
         plot_pool: bool = False,
+        plot_level_cdf: bool = False,
         replace_all: bool = False,
         update_nested_samples: bool = True,
         level_method: Literal['entropy', 'quantile'] = 'quantile',
@@ -138,6 +139,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.checkpoint_frequency = checkpoint_frequency
         self.n_update = n_update
         self.plot_pool = plot_pool
+        self.plot_level_cdf = plot_level_cdf
         self.plotting_frequency = plotting_frequency
         self.replace_all = replace_all
         self._update_nested_samples = update_nested_samples
@@ -414,7 +416,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 getattr(self, k, np.nan)
             )
 
-    def determine_level_quantile(self, q: float = 0.8) -> int:
+    def determine_level_quantile(self, q: float = 0.8, **kwargs) -> int:
         """Determine where the next level should be located.
 
         Computes the q'th quantile based on log-likelihood and log-weights.
@@ -430,16 +432,23 @@ class ImportanceNestedSampler(BaseNestedSampler):
             The number of live points to discard.
         """
         if self.sorting == 'logL':
-            return self._determine_level_quantile_log_likelihood(q)
+            return self._determine_level_quantile_log_likelihood(q, **kwargs)
         elif self.sorting == 'rel_entr':
-            return self._determine_level_quantile_rel_entr(q)
+            return self._determine_level_quantile_rel_entr(q, **kwargs)
         else:
             raise RuntimeError('Sorting not recognised')
 
-    def _determine_level_quantile_log_likelihood(self, q: float) -> int:
+    def _determine_level_quantile_log_likelihood(
+        self, q: float, include_likelihood: bool = False,
+    ) -> int:
         logger.debug(f'Determining {q:.3f} quantile')
         a = self.live_points['logL']
-        weights = np.exp(self.live_points['logW'], dtype=np.float64)
+        if include_likelihood:
+            log_weights = self.live_points['logW'] + self.live_points['logL']
+        else:
+            log_weights = self.live_points['logW'].copy()
+        log_weights -= logsumexp(log_weights)
+        weights = np.exp(log_weights, dtype=np.float64)
         cutoff = weighted_quantile(a, q, weights=weights, values_sorted=True)
         n = np.argmax(a >= cutoff)
         logger.debug(f'{q:.3} quantile is logL ={cutoff:.3}')
@@ -456,13 +465,46 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n = np.argmax(a >= cutoff) * scale
         return int(n)
 
-    def determine_level_entropy(self, bits: float = 0.5) -> int:
-        log_p = self.live_points['logL'] + self.live_points['logW']
-        log_p -= logsumexp(log_p)
-        p = np.exp(log_p)
-        h = cumulative_entropy(p[::-1])
-        logger.debug(f'Entropy in live points: {h[-1]}')
-        n = self.live_points.size - np.argmax(h > (h[-1] - bits))
+    def determine_level_entropy(
+        self, q: float = 0.5,
+        include_likelihood: bool = False,
+        use_log_weights: bool = True,
+    ) -> int:
+        """Determine how many points to remove based on the entropy.
+
+        Parameters
+        ----------
+        q
+            Fraction by which to shrink the current level.
+        include_likelihood
+            Boolean to indicate whether the likelihood is included in the
+            weights for each samples.
+        use_log_weights
+            Boolean to determine if the CDF is computed using the weights or
+            log-weights.
+        """
+        if include_likelihood:
+            log_weights = self.live_points['logW'] + self.live_points['logL']
+        else:
+            log_weights = self.live_points['logW'].copy()
+        if use_log_weights:
+            p = log_weights
+        else:
+            p = np.exp(log_weights)
+        cdf = np.cumsum(p)
+        cdf /= cdf[-1]
+        n = np.argmax(cdf >= q)
+        if self.plot_level_cdf:
+            fig = plt.figure()
+            plt.plot(self.live_points['logL'], cdf)
+            plt.xlabel('Log-likelihood')
+            plt.title('CDF')
+            plt.axhline(q, c='C1')
+            plt.axvline(self.live_points['logL'][n], c='C1')
+            fig.savefig(os.path.join(
+                self.output, 'levels', f'level_cdf_{self.iteration}.png'
+            ))
+            plt.close()
         return int(n)
 
     def determine_level(self, method='entropy', **kwargs) -> int:
@@ -1112,12 +1154,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].legend(handles + handles_dz, labels + labels_dz, frameon=False)
 
         m += 1
-
-        # if self.annealing:
-        #     ax[m].plot(its, self.history['beta'], c=colours[0])
-        # ax[m].set_ylabel('Beta')
-
-        # m += 1
 
         ax[m].plot(its, self.history['likelihood_evaluations'])
         ax[m].set_ylabel('# likelihood \n evaluations')
