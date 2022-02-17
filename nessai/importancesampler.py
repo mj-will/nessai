@@ -886,7 +886,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f'with dZ = {self.dZ:.3f}'
         )
         self.finalise()
-        self.close_pool()
         logger.info(f'Level update time: {self.update_level_time}')
         logger.info(f'Log-likelihood time: {self.likelihood_evaluation_time}')
         logger.info(f'Draw time: {self.draw_time}')
@@ -1096,7 +1095,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.info(f'Final ess: {ess:.1f}')
         self.final_samples = samples
         self.redraw_time += (datetime.datetime.now() - start_time)
-        self.close_pool()
         return self.final_state.logZ, samples
 
     def plot_state(

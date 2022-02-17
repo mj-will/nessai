@@ -63,9 +63,6 @@ class NestedSampler(BaseNestedSampler):
     pool : object
         User defined multiprocessing pool that will be used when evaluating
         the likelihood.
-    close_pool : bool
-        Boolean to indicated if the pool should be closed at the end of the
-        nested sampling loop. If False, the user must manually close the pool.
     plot : bool (True)
         Boolean to toggle plotting
     proposal_plots : bool (True)
@@ -141,7 +138,6 @@ class NestedSampler(BaseNestedSampler):
         resume_file=None,
         seed=None,
         pool=None,
-        close_pool=True,
         n_pool=None,
         plot=True,
         proposal_plots=False,
@@ -176,8 +172,6 @@ class NestedSampler(BaseNestedSampler):
             n_pool=n_pool,
             pool=pool,
         )
-
-        self._close_pool = close_pool
 
         self.prior_sampling = prior_sampling
         self.accepted = 0
@@ -1104,8 +1098,6 @@ class NestedSampler(BaseNestedSampler):
 
         if self.prior_sampling:
             self.nested_samples = self.live_points.copy()
-            if self._close_pool:
-                self.close_pool()
             return self.nested_samples
 
         self.check_resume()
@@ -1139,9 +1131,6 @@ class NestedSampler(BaseNestedSampler):
 
         # This includes updating the total sampling time
         self.checkpoint(periodic=True)
-
-        if self._close_pool:
-            self.close_pool()
 
         logger.info(f'Total sampling time: {self.sampling_time}')
         logger.info(f'Total training time: {self.training_time}')

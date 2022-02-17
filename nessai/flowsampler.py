@@ -43,6 +43,9 @@ class FlowSampler:
     importance_sampler : bool
         If True the importance based nested sampler is used. This is disabled
         by default.
+    close_pool : bool
+        Boolean to indicated if the pool should be closed at the end of the
+        run function. If False, the user must manually close the pool.
     kwargs :
         Keyword arguments passed to :obj:`~nessai.nestedsampler.NestedSampler`.
     """
@@ -56,6 +59,7 @@ class FlowSampler:
         exit_code=130,
         max_threads=1,
         importance_sampler=False,
+        close_pool=True,
         **kwargs
     ):
 
@@ -71,6 +75,7 @@ class FlowSampler:
             SamplerClass = NestedSampler
         self.importance_sampler = importance_sampler
 
+        self.close_pool = close_pool
         self.exit_code = exit_code
 
         self.output = os.path.join(output, '')
@@ -132,6 +137,7 @@ class FlowSampler:
         plot=True,
         save=True,
         posterior_sampling_method=None,
+        close_pool=None,
         **kwargs,
     ):
         """Run the nested sampler.
@@ -144,12 +150,18 @@ class FlowSampler:
             Toggle plots produced once the sampler has converged
         save : bool, optional
             Toggle automatic saving of results
+        close_pool : bool
+            Boolean to indicated if the pool should be closed at the end of the
+            run function. If False, the user must manually close the pool. If
+            specified, this value overrides the value passed when initialising
+            the class.
         """
         if self.importance_sampler:
             self.run_importance_sampler(
                 plot=plot,
                 save=save,
                 posterior_sampling_method=posterior_sampling_method,
+                close_pool=close_pool,
                 **kwargs
             )
         else:
@@ -157,6 +169,7 @@ class FlowSampler:
                 plot=plot,
                 save=save,
                 posterior_sampling_method=posterior_sampling_method,
+                close_pool=close_pool,
                 **kwargs
             )
 
@@ -165,6 +178,7 @@ class FlowSampler:
         plot=True,
         save=True,
         posterior_sampling_method=None,
+        close_pool=None,
     ):
         """Run the standard nested sampler.
 
@@ -178,13 +192,18 @@ class FlowSampler:
         posterior_sampling_method
             Method used for drawing posterior samples. Defaults to rejection
             sampling.
-
+        close_pool : bool
+            Boolean to indicated if the pool should be closed at the end of the
+            run function. If False, the user must manually close the pool. If
+            specified, this value overrides the value passed when initialising
+            the class.
         """
         if self.importance_sampler:
             raise RuntimeError(
                 'Cannot run standard sampler when importance_sampler=True'
             )
-
+        if close_pool is None:
+            close_pool = self.close_pool
         if posterior_sampling_method is None:
             posterior_sampling_method = 'rejection_sampling'
         self.ns.initialise()
@@ -222,6 +241,8 @@ class FlowSampler:
             )
 
             self.ns.state.plot(os.path.join(self.output, 'logXlogL.png'))
+        if close_pool:
+            self.ns.close_pool()
 
     def run_importance_sampler(
         self,
@@ -231,6 +252,7 @@ class FlowSampler:
         redraw_samples=True,
         n_posterior_samples=None,
         compute_initial_posterior=False,
+        close_pool=None,
         **kwargs
     ):
         """Run the importance nested sampler.
@@ -255,16 +277,21 @@ class FlowSampler:
             Enables or disables computing the posterior before redrawing
             samples. If :code:`redraw_samples` is False, then this flag is
             ignored.
+        close_pool : bool
+            Boolean to indicated if the pool should be closed at the end of the
+            run function. If False, the user must manually close the pool. If
+            specified, this value overrides the value passed when initialising
+            the class.
         kwargs
             Keyword arguments passed to \
                 :py:meth:`~nessai.importancesampler.ImportanceNestedSampler.draw_final_samples`
         """
-
         if not self.importance_sampler:
             raise RuntimeError(
                 'Cannot run importance sampler when importance_sampler=False'
             )
-
+        if close_pool is None:
+            close_pool = self.close_pool
         if posterior_sampling_method is None:
             posterior_sampling_method = 'importance_sampling'
 
@@ -323,6 +350,8 @@ class FlowSampler:
                         self.output, 'initial_posterior_distribution.png'
                     )
                 )
+        if close_pool:
+            self.ns.close_pool()
 
     @property
     def log_evidence(self):
