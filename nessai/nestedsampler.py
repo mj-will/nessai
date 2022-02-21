@@ -255,6 +255,10 @@ class NestedSampler(BaseNestedSampler):
         return self.state.logZ
 
     @property
+    def log_evidence_error(self):
+        return np.sqrt(self.state.info[-1] / self.nlive)
+
+    @property
     def information(self):
         return self.state.info[-1]
 
