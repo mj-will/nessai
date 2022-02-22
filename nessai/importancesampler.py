@@ -1342,7 +1342,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d['final_log_evidence'] = self.final_log_evidence
         d['final_log_evidence_error'] = self.final_log_evidence_error
 
-        d['likelihood_evaluations'] = self.model.likelihood_evaluations
         d['sampling_time'] = self.sampling_time.total_seconds()
         d['update_level_time'] = self.update_level_time.total_seconds()
         d['add_samples_time'] = self.add_samples_time.total_seconds()
