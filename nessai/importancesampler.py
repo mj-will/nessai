@@ -94,6 +94,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n_update: Optional[int] = None,
         plot_pool: bool = False,
         plot_level_cdf: bool = False,
+        plot_trace: bool = True,
         replace_all: bool = False,
         update_nested_samples: bool = True,
         level_method: Literal['entropy', 'quantile'] = 'quantile',
@@ -140,6 +141,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.n_update = n_update
         self.plot_pool = plot_pool
         self.plot_level_cdf = plot_level_cdf
+        self._plot_trace = plot_trace
         self.plotting_frequency = plotting_frequency
         self.replace_all = replace_all
         self._update_nested_samples = update_nested_samples
@@ -1323,7 +1325,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         if self.plot or override:
             logger.debug('Producing plots')
             self.plot_state(os.path.join(self.output, 'state.png'))
-            self.plot_trace(os.path.join(self.output, 'trace.png'))
+            if self._plot_trace:
+                self.plot_trace(os.path.join(self.output, 'trace.png'))
             self.plot_likelihood_levels(
                 os.path.join(self.output, 'likelihood_levels.png')
             )
