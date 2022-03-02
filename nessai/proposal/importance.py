@@ -60,7 +60,7 @@ class ImportanceFlowProposal(Proposal):
         plot_training: bool = False,
         weighted_kl: bool = True,
         weights_include_likelihood: bool = False,
-        reset_flows: bool = False,
+        reset_flows: Union[bool, int] = False,
         flow_config: dict = None,
         combined_proposal: bool = True,
         clip: bool = False,
@@ -76,7 +76,7 @@ class ImportanceFlowProposal(Proposal):
         self.output = output
         self.flow_config = flow_config
         self.plot_training = plot_training
-        self.reset_flows = reset_flows
+        self.reset_flows = int(reset_flows)
         self.reparam = reparam
         self.weighted_kl = weighted_kl
         self.clip = clip
@@ -158,6 +158,14 @@ class ImportanceFlowProposal(Proposal):
             config = dict(model_config=dict())
         config['model_config']['n_inputs'] = self.model.dims
         self._flow_config = update_config(config)
+
+    @property
+    def _reset_flow(self) -> bool:
+        """Boolean to indicate if the flow should be reset"""
+        if not self.reset_flows or self.level_count % self.reset_flows:
+            return False
+        else:
+            return True
 
     @staticmethod
     def _check_fields():
@@ -317,7 +325,7 @@ class ImportanceFlowProposal(Proposal):
         else:
             weights = None
 
-        self.flow.add_new_flow(reset=self.reset_flows)
+        self.flow.add_new_flow(reset=self._reset_flow)
         assert len(self.flow.models) == (self.level_count + 1)
         self.flow.train(
             x_prime,
