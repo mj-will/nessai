@@ -69,6 +69,7 @@ class BaseNestedSampler(ABC):
         self.sampling_start_time = datetime.datetime.now()
         self.iteration = 0
         self.checkpoint_iterations = []
+        self.finalised = False
 
         self.configure_random_seed(seed)
         self.configure_output(output, resume_file=resume_file)
