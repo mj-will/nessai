@@ -1563,7 +1563,10 @@ class FlowProposal(RejectionProposal):
                                       f'pool_{self.populated_count}.png')
             )
 
-            z_tensor = torch.from_numpy(z).to(self.flow.device)
+            z_tensor = (
+                torch.from_numpy(z).type(torch.get_default_dtype())
+                .to(self.flow.device)
+            )
             with torch.no_grad():
                 if self.alt_dist is not None:
                     log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
