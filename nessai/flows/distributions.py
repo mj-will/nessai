@@ -225,6 +225,13 @@ class ResampledGaussian(Distribution):
                 norm_batch = torch.mean(acc_)
                 self.norm = self.norm + norm_batch / n_batches
 
+    end_iteration = estimate_normalisation_constant
+    """Function to be called at the end of an iteration.
+
+    For LARS this updates the estimate of the normalisation constant
+    independently of the other parameters in the flow.
+    """
+
     def finalise(self, n_samples: int = 10_000, n_batches: int = 10) -> None:
         """Finalise the estimate of the normalisation constant."""
         logger.debug('Computing final estimate of the normalisation constant')

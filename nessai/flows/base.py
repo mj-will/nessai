@@ -132,6 +132,16 @@ class BaseFlow(Module, ABC):
         """
         pass
 
+    def end_iteration(self):
+        """Update the model at the end of an iteration.
+
+        Will be called between training and validation.
+
+        By default does nothing and should be overridden by an class that
+        inherit from this class.
+        """
+        pass
+
 
 class NFlow(BaseFlow):
     """
@@ -256,3 +266,13 @@ class NFlow(BaseFlow):
             self._distribution.finalise()
         if hasattr(self._transform, "finalise"):
             self._transform.finalise()
+
+    def end_iteration(self):
+        """Update the model at the end of an iteration.
+
+        Will be called between training and validation.
+        """
+        if hasattr(self._distribution, "end_iteration"):
+            self._distribution.end_iteration()
+        if hasattr(self._transform, "end_iteration"):
+            self._transform.end_iteration()

@@ -423,6 +423,17 @@ class FlowModel:
 
         return train_data, val_data, batch_size
 
+    def end_iteration(self):
+        """Calls any functions that should be applied at the end of the \
+            iteration.
+
+        This functions is called after the flow has been updated on all batches
+        of data but before the validation step.
+
+        Calls :py:meth:`nessai.flows.base.BaseFlow.end_iteration`
+        """
+        self.model.end_iteration()
+
     def _train(
         self,
         train_data,
@@ -492,6 +503,8 @@ class FlowModel:
                 clip_grad_norm_(model.parameters(), self.clip_grad_norm)
             self._optimiser.step()
             n += 1
+
+        self.end_iteration()
 
         if self.annealing:
             self.scheduler.step()
