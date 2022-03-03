@@ -549,6 +549,25 @@ class ImportanceFlowProposal(Proposal):
         samples['logQ'] = np.logaddexp(samples['logQ'], new_log_Q)
         samples['logW'] = - samples['logQ']
 
+    def compute_meta_proposal_samples(self, samples: np.ndarray) -> None:
+        """Compute the meta proposal Q for a set of samples.
+
+        Includes the transform to the unit hypercube.
+        """
+        if self.level_count < 0:
+            raise RuntimeError(
+                'Cannot update samples unless a level has been constructed!'
+            )
+        if self.level_count not in self.n_draws:
+            raise RuntimeError(
+                'Must draw samples from the new level before updating any '
+                'existing samples!'
+            )
+        x, log_j = self.rescale(samples.copy())
+        log_Q = self.compute_log_Q(x, log_j=log_j)
+        samples['logQ'] = log_Q
+        samples['logW'] = - samples['logQ']
+
     def _log_prior(self, x: np.ndarray) -> np.ndarray:
         """Helper function that returns the prior in the unit hyper-cube."""
         return np.zeros(x.shape[0])
