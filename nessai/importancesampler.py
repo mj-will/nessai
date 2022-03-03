@@ -33,21 +33,6 @@ from .utils.stats import effective_sample_size, weighted_quantile
 logger = logging.getLogger(__name__)
 
 
-def _initialize_global_variables(model):
-    """
-    Store a global copy of the model for multiprocessing.
-    """
-    global _model
-    _model = model
-
-
-def _log_likelihood_wrapper(x):
-    """
-    Wrapper for the log likelihood
-    """
-    return _model.evaluate_log_likelihood(x)
-
-
 class ImportanceNestedSampler(BaseNestedSampler):
     """
 
