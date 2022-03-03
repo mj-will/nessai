@@ -32,18 +32,35 @@ def add_extra_parameters_to_live_points(parameters, default_values=None):
     for p, dv in zip(parameters, default_values):
         if p not in config.EXTRA_PARAMETERS:
             config.EXTRA_PARAMETERS.append(p)
-            config.DEFAULT_VALUES_EXTRA.append(dv)
+            config.EXTRA_PARAMETERS_DEFAULTS.append(dv)
+            config.EXTRA_PARAMETERS_DTYPE.append(config.DEFAULT_FLOAT_DTYPE)
     config.NON_SAMPLING_PARAMETERS = \
         config.CORE_PARAMETERS + config.EXTRA_PARAMETERS
-    config.DEFAULT_VALUES = \
-        config.DEFAULT_VALUES_CORE + config.DEFAULT_VALUES_EXTRA
+    config.NON_SAMPLING_DEFAULTS = \
+        config.CORE_PARAMETERS_DEFAULTS + config.EXTRA_PARAMETERS_DEFAULTS
+    config.NON_SAMPLING_DEFAULT_DTYPE = \
+        config.CORE_PARAMETERS_DTYPE + config.EXTRA_PARAMETERS_DTYPE
     logger.debug(
         f'Updated non-sampling parameters: {config.NON_SAMPLING_PARAMETERS}'
     )
     logger.debug(
         'Updated defaults for non-sampling parameters: '
-        f'{config.DEFAULT_VALUES}'
+        f'{config.NON_SAMPLING_DEFAULTS}'
     )
+
+
+def reset_extra_live_points_parameters():
+    """Reset the extra live points parameters."""
+    logger.debug('Resetting extra parameters')
+    config.EXTRA_PARAMETERS = []
+    config.EXTRA_PARAMETERS_DEFAULTS = []
+    config.EXTRA_PARAMETERS_DTYPE = []
+    config.NON_SAMPLING_PARAMETERS = \
+        config.CORE_PARAMETERS + config.EXTRA_PARAMETERS
+    config.NON_SAMPLING_DEFAULTS = \
+        config.CORE_PARAMETERS_DEFAULTS + config.EXTRA_PARAMETERS_DEFAULTS
+    config.NON_SAMPLING_DEFAULT_DTYPE = \
+        config.CORE_PARAMETERS_DTYPE + config.EXTRA_PARAMETERS_DTYPE
 
 
 def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
@@ -64,9 +81,10 @@ def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
     """
     return (
         [(n, array_dtype) for n in names]
-        + [('logP', array_dtype), ('logL', config.LOGL_DTYPE),
-           ('it', config.IT_DTYPE)]
-        + [(ep, array_dtype) for ep in config.EXTRA_PARAMETERS]
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS,
+            config.NON_SAMPLING_DEFAULT_DTYPE,
+        ))
     )
 
 
@@ -114,7 +132,7 @@ def parameters_to_live_point(parameters, names):
     if not len(parameters):
         return np.empty(0, dtype=get_dtype(names, config.DEFAULT_FLOAT_DTYPE))
     else:
-        return np.array((*parameters, *config.DEFAULT_VALUES),
+        return np.array((*parameters, *config.NON_SAMPLING_DEFAULTS),
                         dtype=get_dtype(names, config.DEFAULT_FLOAT_DTYPE))
 
 
@@ -168,7 +186,7 @@ def dict_to_live_points(d):
     else:
         N = 1
     if N == 1:
-        return np.array([(*a, *config.DEFAULT_VALUES)],
+        return np.array([(*a, *config.NON_SAMPLING_DEFAULTS)],
                         dtype=get_dtype(d.keys(), config.DEFAULT_FLOAT_DTYPE))
     else:
         array = np.zeros(N, dtype=get_dtype(list(d.keys())))
@@ -220,6 +238,6 @@ def dataframe_to_live_points(df):
         logL.
     """
     return np.array(
-        [tuple(x) + (0.0, 0.0,) for x in df.values],
+        [tuple(x) + tuple(config.NON_SAMPLING_DEFAULTS) for x in df.values],
         dtype=get_dtype(list(df.dtypes.index))
     )
