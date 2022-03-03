@@ -7,7 +7,13 @@ from .base import BaseFlow, NFlow
 from .maf import MaskedAutoregressiveFlow
 from .nsf import NeuralSplineFlow
 from .realnvp import RealNVP
-from .utils import configure_model, reset_weights, reset_permutations
+from .utils import (
+    configure_model,
+    set_affine_parameters,
+    reset_weights,
+    reset_permutations,
+)
+
 
 __all__ = ["BaseFlow",
            "NFlow",
@@ -15,5 +21,6 @@ __all__ = ["BaseFlow",
            "NeuralSplineFlow",
            "RealNVP",
            "configure_model",
+           "set_affine_parameters",
            "reset_weights",
            "reset_permutations"]

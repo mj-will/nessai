@@ -12,7 +12,12 @@ import shutil
 import torch
 from torch.nn.utils import clip_grad_norm_
 
-from .flows import configure_model, reset_weights, reset_permutations
+from .flows import (
+    configure_model,
+    set_affine_parameters,
+    reset_weights,
+    reset_permutations,
+)
 from .plot import plot_loss
 from .utils import NessaiJSONEncoder, compute_minimum_distances
 
@@ -156,6 +161,22 @@ class FlowModel:
         self.device = None
         self.inference_device = None
         self.use_dataloader = False
+        self.__has_affine = None
+
+    @property
+    def _has_affine(self):
+        """Check if the flow contains a pointwise affine transform."""
+        if self.__has_affine is None:
+            if self.model is None:
+                return None
+            from nflows.transforms import PointwiseAffineTransform
+            for module in self.model.modules():
+                if isinstance(module, PointwiseAffineTransform):
+                    self.__has_affine = True
+                    break
+            if self.__has_affine is None:
+                self.__has_affine = False
+        return self.__has_affine
 
     def save_input(self, config, output_file=None):
         """
@@ -537,6 +558,14 @@ class FlowModel:
         logger.debug('Finalising model before inference.')
         self.model.finalise()
 
+    def prep_model(self, samples):
+        """Prepare the model"""
+        if self._has_affine:
+            shift = -np.mean(samples, axis=0)
+            scale = 1 / np.std(samples, axis=0)
+            logger.debug(f'Setting scale and shift to: {scale}, {shift}')
+            set_affine_parameters(self.model, scale, shift)
+
     def train(
         self,
         samples,
@@ -603,6 +632,8 @@ class FlowModel:
             weights=weights,
             use_dataloader=use_dataloader
         )
+
+        self.prep_model(samples)
 
         if max_epochs is None:
             max_epochs = self.max_epochs

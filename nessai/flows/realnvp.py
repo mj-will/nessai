@@ -155,6 +155,10 @@ class RealNVP(NFlow):
             layers.append(
                 Logit(temperature=np.ones(features), learn_temperature=True)
             )
+        elif pre_transform == 'batch_norm':
+            layers.append(transforms.BatchNorm(features=features))
+        elif pre_transform == 'affine':
+            layers.append(transforms.PointwiseAffineTransform())
         elif pre_transform is not None:
             raise ValueError(pre_transform)
 

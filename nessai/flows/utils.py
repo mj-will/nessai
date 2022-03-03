@@ -7,6 +7,7 @@ import logging
 import numpy as np
 import torch
 import torch.nn.functional as F
+from typing import Union
 
 from nflows import transforms
 from nflows.nn.nets import MLP as NFlowsMLP
@@ -315,3 +316,31 @@ def create_linear_transform(linear_transform, features):
             f'Unknown linear transform: {linear_transform}. '
             'Choose from: {permutation, lu, svd}.'
         )
+
+
+def set_affine_parameters(
+    model: torch.nn.Module,
+    scale: Union[float, list, torch.tensor, np.ndarray],
+    shift: Union[float, list, torch.tensor, np.ndarray],
+) -> None:
+    """Set the affine parameters in a model.
+
+    Parameters
+    ----------
+    model
+        Model that contains an instance of \
+            :py:obj:`nflows.transforms.standard.AffineTransform`
+    scale
+        Value for scale
+    shift
+        Value for shift
+    """
+
+    scale, shift = map(torch.as_tensor, (scale, shift))
+
+    def fn(module):
+        if isinstance(module, transforms.PointwiseAffineTransform):
+            module._scale = scale.type_as(module._scale)
+            module._shift = shift.type_as(module._shift)
+
+    model.apply(fn)
