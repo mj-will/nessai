@@ -191,10 +191,26 @@ def test_early_optimiser_init(flow_model):
 
 @pytest.mark.parametrize('weights', [False, True])
 @pytest.mark.parametrize('perms', [False, True])
-def test_reset_model(flow_model, weights, perms):
+def test_reset_model(model, weights, perms):
     """Test resetting the model"""
-    flow_model.initialise()
-    flow_model.reset_model(weights=weights, permutations=perms)
+    model.model = MagicMock()
+    model.apply = MagicMock()
+    model.get_optimiser = MagicMock()
+    model.optimiser = MagicMock()
+    model.optimiser_kwargs = {'lr': 0.01}
+
+    with patch(
+        'nessai.flowmodel.configure_model',
+        return_value=(MagicMock, 'cpu'),
+    ) as mock:
+        FlowModel.reset_model(model, weights=weights, permutations=perms)
+
+    if weights and perms:
+        mock.assert_called_once()
+    if any([weights, perms]):
+        model.get_optimiser.assert_called_once_with(model.optimiser, lr=0.01)
+    else:
+        model.get_optimiser.assert_not_called()
 
 
 def test_sample_and_log_prob_not_initialised(flow_model, data_dim):

@@ -37,6 +37,7 @@ vertical lines that can appear in the subplots.
 - Rework `MaskedAutoregressiveFlow` to add `context_features`
 - Rework how likelihood parallelisation is handled. The model now contains the pool instead of the sampler and proposals.
 - Update `parallelisation_example.py` to show use of `n_pool` and `pool` for parallelisation.
+- Simplify how the normalising flow is reset in `FlowModel` and `NestedSampler`.
 
 
 ### Fixed

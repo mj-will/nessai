@@ -6,7 +6,7 @@ training itself.
 import datetime
 import numpy as np
 import pytest
-from unittest.mock import call, MagicMock
+from unittest.mock import MagicMock
 from nessai.nestedsampler import NestedSampler
 
 
@@ -148,7 +148,9 @@ def test_check_flow_model_reset_weights(sampler, training_count):
 
     NestedSampler.check_flow_model_reset(sampler)
 
-    sampler.proposal.reset_model_weights.assert_called_once_with(weights=True)
+    sampler.proposal.reset_model_weights.assert_called_once_with(
+        weights=True, permutations=False,
+    )
 
 
 @pytest.mark.parametrize('training_count', [10, 100])
@@ -164,7 +166,8 @@ def test_check_flow_model_reset_permutations(sampler, training_count):
     NestedSampler.check_flow_model_reset(sampler)
 
     sampler.proposal.reset_model_weights.assert_called_once_with(
-        weights=False, permutations=True)
+        weights=False, permutations=True
+    )
 
 
 @pytest.mark.parametrize('training_count', [10, 100])
@@ -179,8 +182,9 @@ def test_check_flow_model_reset_both(sampler, training_count):
 
     NestedSampler.check_flow_model_reset(sampler)
 
-    calls = [call(weights=True), call(weights=False, permutations=True)]
-    sampler.proposal.reset_model_weights.assert_has_calls(calls)
+    sampler.proposal.reset_model_weights.assert_called_once_with(
+        weights=True, permutations=True,
+    )
 
 
 def test_check_flow_model_reset_acceptance(sampler):

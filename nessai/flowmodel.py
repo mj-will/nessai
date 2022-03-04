@@ -138,6 +138,8 @@ class FlowModel:
     output : str, optional
         Path for output, this includes weights files and the loss plot.
     """
+    model_config = None
+
     def __init__(self, config=None, output='./'):
         self.model = None
         self.initialised = False
@@ -593,7 +595,10 @@ class FlowModel:
         if not any([weights, permutations]):
             logger.debug('Nothing to reset')
             return
-        if weights:
+        if weights and permutations:
+            logger.debug('Complete reset of model')
+            self.model, self.device = configure_model(self.model_config)
+        elif weights:
             self.model.apply(reset_weights)
             logger.debug('Reset weights')
         elif permutations:
