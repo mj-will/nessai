@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test the flow utilities"""
 import logging
+from nflows.transforms import PointwiseAffineTransform
 import numpy as np
 import pytest
 import torch
@@ -12,6 +13,7 @@ from nessai.flows.utils import (
     configure_model,
     create_linear_transform,
     get_base_distribution,
+    set_affine_parameters,
     silu,
     reset_weights,
     reset_permutations,
@@ -267,3 +269,18 @@ def test_get_base_distribution_class():
     dist = get_base_distribution(2, dist_cls, var=2)
     assert isinstance(dist, MultivariateNormal)
     assert dist._var == 2
+
+
+@pytest.mark.parametrize(
+    "scale, shift",
+    [(2.0, 1.0), (torch.tensor([1.0, 2.0]), torch.tensor([3.0, 4.0]))]
+)
+def test_set_affine_parameters(scale, shift):
+    """Assert the parameters are set correctly"""
+    transform = PointwiseAffineTransform()
+    set_affine_parameters(transform, scale, shift)
+    assert torch.equal(transform._scale, torch.as_tensor(scale))
+    assert torch.equal(transform._shift, torch.as_tensor(shift))
+    x = torch.randn(5, 2)
+    _ = transform.forward(x)
+    _ = transform.inverse(x)
