@@ -773,7 +773,10 @@ class FlowModel:
         if not any([weights, permutations]):
             logger.debug('Nothing to reset')
             return
-        if weights:
+        if weights and permutations:
+            logger.debug('Complete reset of model')
+            self.model, self.device = configure_model(self.model_config)
+        elif weights:
             self.model.apply(reset_weights)
             logger.debug('Reset weights')
         elif permutations:

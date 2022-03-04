@@ -775,13 +775,16 @@ class NestedSampler(BaseNestedSampler):
             self.proposal.reset_model_weights(weights=True, permutations=True)
             return
 
-        if (self.reset_weights and
-                not (self.proposal.training_count % self.reset_weights)):
-            self.proposal.reset_model_weights(weights=True)
-
-        if (self.reset_permutations and
-                not (self.proposal.training_count % self.reset_permutations)):
-            self.proposal.reset_model_weights(weights=False, permutations=True)
+        self.proposal.reset_model_weights(
+            weights=(
+                self.reset_weights and
+                not (self.proposal.training_count % self.reset_weights)
+            ),
+            permutations=(
+                self.reset_permutations and
+                not (self.proposal.training_count % self.reset_permutations)
+            ),
+        )
 
     def train_proposal(self, force=False):
         """
