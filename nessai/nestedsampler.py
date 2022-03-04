@@ -453,16 +453,10 @@ class NestedSampler(BaseNestedSampler):
         resume_file : str, optional
             Specific file to use for checkpointing. If not specified the
             default is used (nested_sampler_resume.pkl)
-
-        Returns
-        -------
-        resume_file : str
-            File used for checkpointing
         """
-        resume_file = super().configure_output(output, resume_file)
+        super().configure_output(output, resume_file)
         if self.plot:
             os.makedirs(output + '/diagnostics/', exist_ok=True)
-        return resume_file
 
     def configure_flow_reset(self, reset_weights, reset_permutations):
         """Configure how often the flow parameters are reset.
