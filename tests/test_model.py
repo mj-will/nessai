@@ -343,7 +343,7 @@ def test_likelihood_evaluations(model):
     """
     Test `evaluate_log_likelihood` and ensure the counter increases.
     """
-    x = 1
+    x = np.array([1])
     model.likelihood_evaluations = 0
     model.log_likelihood = MagicMock(return_value=2)
     log_l = Model.evaluate_log_likelihood(model, x)

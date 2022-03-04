@@ -84,7 +84,7 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
     exit_code = 131
     max_threads = 2
     resume_file = 'test.pkl'
-    weights_file = 'model.pt'
+    weights_path = 'model.pt'
     flow_config = dict(lr=0.1)
 
     if test_old:
@@ -117,7 +117,7 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
             exit_code=exit_code,
             max_threads=max_threads,
             resume_file=resume_file,
-            weights_file=weights_file,
+            weights_path=weights_path,
             **kwargs,
         )
 
@@ -128,7 +128,7 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
     )
 
     mock_resume.assert_called_with(
-        expected_rf, model, flow_config, weights_file,
+        expected_rf, model, flow_config, weights_path,
     )
 
     assert flow_sampler.ns == 'ns'
@@ -191,20 +191,24 @@ def test_init_resume_error_no_file(flow_sampler, tmp_path):
 
 @pytest.mark.parametrize('save', [False, True])
 @pytest.mark.parametrize('plot', [False, True])
+@pytest.mark.parametrize('close_pool', [False, True])
 @patch(
     'nessai.flowsampler.draw_posterior_samples', return_value=np.array([0.1])
 )
 @patch('nessai.plot.plot_live_points')
 @patch('nessai.plot.plot_indices')
-def test_run(
-    mock_plot_indices, mock_plot_post, mock_draw_post, flow_sampler, save, plot
+def test_run_standard_sampler(
+    mock_plot_indices, mock_plot_post, mock_draw_post, flow_sampler, save,
+    plot, close_pool,
 ):
-    """Test the run method"""
+    """Test the run method for the standard sampler"""
     nlive = 10
     log_Z = -5.0
     nested_samples = [0.1, 1.0, 10.0]
     insertion_indices = [1, 2, 3]
     output = './'
+    flow_sampler.importance_sampler = False
+    flow_sampler.close_pool = True
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.nlive = nlive
     flow_sampler.ns.insertion_indices = insertion_indices
@@ -215,12 +219,17 @@ def test_run(
     )
     flow_sampler.ns.state = MagicMock()
     flow_sampler.ns.state.plot_state = MagicMock()
+    flow_sampler.ns.close_pool = MagicMock()
     flow_sampler.save_results = MagicMock()
 
-    FlowSampler.run(flow_sampler, save=save, plot=plot)
+    FlowSampler.run_standard_sampler(
+        flow_sampler, save=save, plot=plot, close_pool=close_pool,
+    )
 
     flow_sampler.ns.initialise.assert_called_once()
-    mock_draw_post.assert_called_once_with(nested_samples, nlive)
+    mock_draw_post.assert_called_once_with(
+        nested_samples, nlive=nlive, method='rejection_sampling',
+    )
     if save:
         flow_sampler.save_results.assert_called_once()
     else:
@@ -246,6 +255,7 @@ def test_run(
 
     assert flow_sampler.logZ == log_Z
     assert flow_sampler.nested_samples == nested_samples
+    assert flow_sampler.ns.close_pool.called == close_pool
     np.testing.assert_array_equal(
         flow_sampler.posterior_samples, np.array([0.1])
     )
@@ -310,12 +320,11 @@ def test_safe_exit(flow_sampler):
     flow_sampler.exit_code = 130
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.checkpoint = MagicMock()
-    flow_sampler.ns.model = MagicMock()
-    flow_sampler.ns.model.close_pool = MagicMock()
+    flow_sampler.ns.close_pool = MagicMock()
 
     with patch('sys.exit') as mock_exit:
         FlowSampler.safe_exit(flow_sampler, signum=2)
 
     mock_exit.assert_called_once_with(130)
     flow_sampler.ns.checkpoint.assert_called_once()
-    flow_sampler.ns.model.close_pool.assert_called_once_with(code=2)
+    flow_sampler.ns.close_pool.assert_called_once_with(code=2)

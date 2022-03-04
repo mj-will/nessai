@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test different properties in FlowProposal"""
+from nessai import config
 from nessai.proposal import FlowProposal
 
 
@@ -27,7 +28,10 @@ def test_dtype(proposal):
     proposal.names = ['x', 'y']
     proposal._x_dtype = None
     assert FlowProposal.x_dtype.__get__(proposal) == \
-        [('x', 'f8'), ('y', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x', 'f8'), ('y', 'f8')] \
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        ))
 
 
 def test_prime_dtype(proposal):
@@ -35,7 +39,10 @@ def test_prime_dtype(proposal):
     proposal.rescaled_names = ['x', 'y']
     proposal._x_prime_dtype = None
     assert FlowProposal.x_prime_dtype.__get__(proposal) == \
-        [('x', 'f8'), ('y', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x', 'f8'), ('y', 'f8')] \
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        ))
 
 
 def test_population_dtype(proposal):

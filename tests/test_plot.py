@@ -9,6 +9,7 @@ import pytest
 from unittest.mock import patch
 
 from nessai import plot
+from nessai import config
 
 
 @pytest.fixture()
@@ -286,7 +287,9 @@ def test_trace_plot_unstructured():
     assert 'structured array' in str(excinfo.value)
 
 
-@pytest.mark.parametrize('labels', [None, ['x', 'y', 'logL', 'logP']])
+@pytest.mark.parametrize(
+    'labels', [None, ['x', 'y', *config.NON_SAMPLING_PARAMETERS]]
+)
 def test_trace_plot_labels(nested_samples, labels):
     """Test trace plot generation with labels."""
     log_x = np.linspace(-10, 0, nested_samples.size)

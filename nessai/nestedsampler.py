@@ -1171,7 +1171,8 @@ class NestedSampler(BaseNestedSampler):
 
                 )
         d['insertion_indices'] = self.insertion_indices
-        d['nested_samples'] = live_points_to_dict(self.nested_samples)
+        d['nested_samples'] = \
+            live_points_to_dict(np.array(self.nested_samples))
         d['log_evidence'] = self.log_evidence
         d['log_evidence_error'] = self.log_evidence_error
         d['information'] = self.information

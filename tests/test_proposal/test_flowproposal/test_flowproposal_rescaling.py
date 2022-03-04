@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test methods related to reparameterisations"""
 import numpy as np
+from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import FlowProposal
 from nessai.reparameterisations import (
@@ -484,8 +485,10 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
     x_prime_expected['z'] = x['z']
 
     proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('z', 'f8'), ('logP', 'f8'),
-         ('logL', 'f8')]
+        [('x_prime', 'f8'), ('y_prime', 'f8'), ('z', 'f8')] \
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        ))
 
     proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
@@ -533,7 +536,10 @@ def test_rescale_to_bounds_w_inversion_duplicate(
         x_prime_expected['x_prime'][n:] *= -1
 
     proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x_prime', 'f8'), ('y_prime', 'f8')] \
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        ))
 
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
@@ -591,7 +597,10 @@ def test_rescale_to_bounds_w_inversion_split(
         x_prime_expected['x_prime'][inv] *= -1
 
     proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x_prime', 'f8'), ('y_prime', 'f8')] \
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        ))
 
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
@@ -644,7 +653,10 @@ def test_rescale_to_bounds_w_inversion_false(
     x_prime_expected['y_prime'] = (x['y'] + 4) / 8
 
     proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x_prime', 'f8'), ('y_prime', 'f8')] \
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        ))
 
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
@@ -692,7 +704,10 @@ def test_inverse_rescale_to_bounds(proposal, model, n):
     x_expected['z'] = x_prime['z']
 
     proposal.x_dtype = \
-        [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x', 'f8'), ('y', 'f8'), ('z', 'f8')] \
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        ))
 
     proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
@@ -738,7 +753,10 @@ def test_inverse_rescale_to_bounds_w_inversion(proposal, model, n, itype):
     x_expected['z'] = x_prime['z']
 
     proposal.x_dtype = \
-        [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x', 'f8'), ('y', 'f8'), ('z', 'f8')] \
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        ))
 
     proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']

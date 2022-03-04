@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, Mock, patch, call
 
+from nessai import config
 from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
 
@@ -179,7 +180,7 @@ def test_convert_to_samples(proposal):
 
     out_samples = FlowProposal.convert_to_samples(proposal, samples, plot=True)
 
-    assert out_samples.dtype.names == ('x', 'logP', 'logL')
+    assert out_samples.dtype.names == ('x', *config.NON_SAMPLING_PARAMETERS)
 
 
 @patch('nessai.proposal.flowproposal.plot_1d_comparison')
@@ -202,7 +203,7 @@ def test_convert_to_samples_with_prime(mock_plot, proposal):
         'data', samples, labels=['live points', 'pool'],
         filename='.//pool_prime_1.png')
     proposal.inverse_rescale.assert_called_once()
-    assert out_samples.dtype.names == ('x', 'logP', 'logL')
+    assert out_samples.dtype.names == ('x', *config.NON_SAMPLING_PARAMETERS)
 
 
 def test_get_alt_distribution_truncated_gaussian(proposal):
@@ -326,7 +327,10 @@ def test_populate(proposal, check_acceptance):
     proposal._plot_pool = True
     proposal.populated_count = 1
     proposal.population_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x_prime', 'f8'), ('y_prime', 'f8')] \
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        ))
     proposal.draw_latent_kwargs = {'var': 2.0}
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, worst_q))
