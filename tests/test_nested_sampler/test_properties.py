@@ -3,8 +3,6 @@
 Test the properties in NestedSampler
 """
 from collections import deque
-import time
-import datetime
 import numpy as np
 import pytest
 from unittest.mock import MagicMock
@@ -58,23 +56,6 @@ def test_acceptance(sampler):
     sampler.iteration = 10
     sampler.likelihood_calls = 100
     assert NestedSampler.acceptance.__get__(sampler) == 0.1
-
-
-def test_current_sampling_time(sampler):
-    """Test the current sampling time"""
-    sampler.finalised = False
-    sampler.sampling_time = datetime.timedelta(seconds=10)
-    sampler.sampling_start_time = datetime.datetime.now()
-    time.sleep(0.01)
-    t = NestedSampler.current_sampling_time.__get__(sampler)
-    assert t.total_seconds() > 10.
-
-
-def test_current_sampling_time_finalised(sampler):
-    """Test the current sampling time if the sampling has been finalised"""
-    sampler.finalised = True
-    sampler.sampling_time = 10
-    assert NestedSampler.current_sampling_time.__get__(sampler) == 10
 
 
 def test_last_updated(sampler):

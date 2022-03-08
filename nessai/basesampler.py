@@ -167,6 +167,9 @@ class BaseNestedSampler(ABC):
         with open(filename, 'rb') as f:
             obj = pickle.load(f)
         model.likelihood_evaluations += obj._previous_likelihood_evaluations
+        model.likelihood_evaluation_time += datetime.timedelta(
+            seconds=obj._previous_likelihood_evaluation_time
+        )
         obj.model = model
         return obj
 
@@ -199,5 +202,7 @@ class BaseNestedSampler(ABC):
         state = self.__dict__.copy()
         state['_previous_likelihood_evaluations'] = \
             state['model'].likelihood_evaluations
+        state['_previous_likelihood_evaluation_time'] = \
+            state['model'].likelihood_evaluation_time.total_seconds()
         del state['model']
         return state
