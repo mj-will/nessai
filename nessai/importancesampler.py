@@ -346,6 +346,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 min_logL=[],
                 max_logL=[],
                 median_logL=[],
+                leakage_live_points=[],
+                leakage_new_points=[],
                 logZ=[],
                 n_added=[],
                 n_removed=[],
@@ -585,7 +587,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.info('Evaluating likelihood for new points')
             new_points['logL'] = \
                 self.model.batch_evaluate_log_likelihood(new_points)
+        self.history['leakage_new_points'].append(
+            self.compute_leakage(new_points)
+        )
         return new_points
+
+    def compute_leakage(self, samples: np.ndarray) -> float:
+        return (samples['logL'] < self.min_logL).sum() / samples.size
 
     def add_and_update_points(self, n: int):
         """Add new points to the current set of live points.
@@ -659,6 +667,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             )
         self.live_points_ess = effective_sample_size(
             self.live_points['logW']
+        )
+        self.history['leakage_live_points'].append(
+            self.compute_leakage(self.live_points)
         )
         logger.info(f'Current live points ESS: {self.live_points_ess:.2f}')
         self.add_samples_time += (datetime.datetime.now() - st)
@@ -1102,7 +1113,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax = ax.ravel()
         its = np.arange(self.iteration)
 
-        colours = ['#4575b4', '#d73027', '#fad117']
+        colours = ['#4575b4', '#d73027', '#fad117', '#FF8C00']
         ls = ['-', '--', ':', '-.']
 
         for a in ax:
@@ -1164,6 +1175,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
                    label='Added')
         ax[m].set_ylabel('# samples')
         ax[m].legend(frameon=False)
+
+        ax_leak = plt.twinx(ax[m])
+        ax_leak.plot(its, self.history['leakage_live_points'], ls=ls[2],
+                     c=colours[2])
+        ax_leak.plot(its, self.history['leakage_new_points'], ls=ls[3],
+                     c=colours[3])
+        ax_leak.set_ylabel('Leakage')
 
         m += 1
 
