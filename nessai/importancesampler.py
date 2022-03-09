@@ -143,6 +143,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.beta_max = beta_max
         self.beta = None
         self._initial_dZ = None
+        self.logX = 0.0
+        self.min_logL = -np.inf
+        self.logL_pre = -np.inf
+        self.logL = -np.inf
 
         self.min_dZ = min_dZ if min_dZ is not None else np.inf
 
@@ -345,6 +349,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.history = dict(
                 min_logL=[],
                 max_logL=[],
+                logX=[],
+                gradients=[],
                 median_logL=[],
                 leakage_live_points=[],
                 leakage_new_points=[],
@@ -377,6 +383,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['min_logL'].append(np.min(self.live_points['logL']))
         self.history['max_logL'].append(np.max(self.live_points['logL']))
         self.history['median_logL'].append(np.median(self.live_points['logL']))
+        self.history['logX'].append(self.logX)
+        self.history['gradients'].append(self.gradient)
         self.history['logZ'].append(self.state.logZ)
         self.history['n_post'].append(self.state.effective_n_posterior_samples)
         self.history['live_points_entropy'].append(self.live_points_entropy)
@@ -812,6 +820,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
             return
         super().checkpoint(periodic=periodic)
 
+    def _compute_gradient(self) -> None:
+        self.logX_pre = self.logX
+        self.logX = logsumexp(self.live_points['logW'])
+        self.logL_pre = self.logL
+        self.logL = logsumexp(
+            self.live_points['logL'] - self.live_points['logQ']
+        )
+        self.dlogX = (self.logX - self.logX_pre)
+        self.dlogL = (self.logL - self.logL_pre)
+        self.gradient = self.dlogL / self.dlogX
+
     def nested_sampling_loop(self):
         """Main nested sampling loop."""
         self.initialise()
@@ -828,6 +847,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 if self.dZ <= self.min_dZ:
                     logger.debug('Stopping')
                     break
+
+            self._compute_gradient()
+
             self.initial_ln_Z = self.state.logZ
             if self.n_update is None:
                 n_remove = self.determine_level(
@@ -1109,7 +1131,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             If specifie the figure will be saved, otherwise the figure is
             returned.
         """
-        fig, ax = plt.subplots(8, 1, sharex=True, figsize=(15, 15))
+        fig, ax = plt.subplots(9, 1, sharex=True, figsize=(15, 15))
         ax = ax.ravel()
         its = np.arange(self.iteration)
 
@@ -1130,6 +1152,16 @@ class ImportanceNestedSampler(BaseNestedSampler):
                    c=colours[2], ls=ls[2])
         ax[m].set_ylabel('Log-likelihood')
         ax[m].legend(frameon=False)
+
+        m += 1
+
+        ax[m].plot(its, self.history['logX'])
+        ax[m].set_ylabel('log X')
+        ax_gradients = plt.twinx(ax[m])
+        ax_gradients.plot(
+            its, self.history['gradients'], ls=ls[1], c=colours[1]
+        )
+        ax_gradients.set_ylabel('dlogL/dlogX')
 
         m += 1
 
