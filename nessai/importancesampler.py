@@ -2,9 +2,9 @@
 """
 Importance nested sampler.
 """
-import datetime
 import logging
 import os
+from timeit import default_timer as timer
 from typing import Any, Literal, Optional, Union
 
 import matplotlib
@@ -163,11 +163,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         self.nested_samples = np.empty(0, dtype=get_dtype(self.model.names))
 
-        self.update_level_time = datetime.timedelta()
-        self.draw_time = datetime.timedelta()
-        self.redraw_time = datetime.timedelta()
-        self.update_ns_time = datetime.timedelta()
-        self.add_samples_time = datetime.timedelta()
+        self.update_level_time = 0.0
+        self.draw_time = 0.0
+        self.redraw_time = 0.0
+        self.update_ns_time = 0.0
+        self.update_live_points_time = 0.0
+        self.add_samples_time = 0.0
 
         if self.replace_all:
             self._update_nested_samples = False
@@ -547,7 +548,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def update_level(self):
         """Update the current likelihood contour"""
-        st = datetime.datetime.now()
+        st = timer()
         logger.debug('Updating the contour')
         logger.info(
             "Training data ESS: "
@@ -563,9 +564,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.training_points, p_it=self.iteration - 1, q_it=self.iteration,
         )
         self.history['kl_proposals'].append(kl)
-        self.update_level_time += (datetime.datetime.now() - st)
+        self.update_level_time += (timer() - st)
 
     def update_live_points(self, live_points: np.ndarray = None):
+        st = timer()
         if live_points is None:
             logger.debug('Updating existing live points')
             if self.live_points is None:
@@ -574,23 +576,23 @@ class ImportanceNestedSampler(BaseNestedSampler):
             else:
                 live_points = self.live_points
         self.proposal.update_samples(live_points)
+        self.update_live_points_time += (timer() - st)
 
     def update_nested_samples(self) -> None:
         """Update the nested samples to reflect the current g."""
-        st = datetime.datetime.now()
+        st = timer()
         logger.debug('Updating all nested samples')
         self.proposal.update_samples(self.nested_samples)
-        self.update_ns_time += (datetime.datetime.now() - st)
+        self.update_ns_time += (timer() - st)
 
     def draw_n_samples(self, n: int):
         """Draw n points from the proposal"""
+        st = timer()
         if not self.leaky:
             logL_min = self.min_logL
         else:
             logL_min = None
-        st = datetime.datetime.now()
         new_points = self.proposal.draw(n, logL_min=logL_min)
-        self.draw_time = (datetime.datetime.now() - st)
         if self.leaky:
             logger.info('Evaluating likelihood for new points')
             new_points['logL'] = \
@@ -598,6 +600,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['leakage_new_points'].append(
             self.compute_leakage(new_points)
         )
+        self.draw_time += (timer() - st)
         return new_points
 
     def compute_leakage(self, samples: np.ndarray) -> float:
@@ -611,7 +614,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n : int
             The number of points to add.
         """
-        st = datetime.datetime.now()
+        st = timer()
         logger.debug(f'Adding {n} points')
         new_points = self.draw_n_samples(n)
         new_points = self.sort_points(new_points)
@@ -680,7 +683,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.compute_leakage(self.live_points)
         )
         logger.info(f'Current live points ESS: {self.live_points_ess:.2f}')
-        self.add_samples_time += (datetime.datetime.now() - st)
+        self.add_samples_time += (timer() - st)
 
     def add_to_nested_samples(self, samples: np.ndarray) -> None:
         """Add an array of samples to the nested samples."""
@@ -910,6 +913,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.info(f'Log-likelihood time: {self.likelihood_evaluation_time}')
         logger.info(f'Draw time: {self.draw_time}')
         logger.info(f'Update NS time: {self.update_ns_time}')
+        logger.info(f'Update live points time: {self.update_live_points_time}')
         logger.info(f'Add samples time: {self.add_samples_time}')
         return self.log_evidence, self.nested_samples
 
@@ -1015,7 +1019,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         if n_post and n_draw:
             raise RuntimeError('Specify either `n_post` or `n_draw`')
-        start_time = datetime.datetime.now()
+        start_time = timer()
 
         if self.final_state:
             logger.warning('Existing final state will be overriden')
@@ -1114,7 +1118,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         logger.info(f'Final ess: {ess:.1f}')
         self.final_samples = samples
-        self.redraw_time += (datetime.datetime.now() - start_time)
+        self.redraw_time += (timer() - start_time)
         return self.final_state.logZ, samples
 
     def plot_state(
@@ -1380,11 +1384,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d['final_log_evidence'] = self.final_log_evidence
         d['final_log_evidence_error'] = self.final_log_evidence_error
 
-        d['sampling_time'] = self.sampling_time.total_seconds()
-        d['update_level_time'] = self.update_level_time.total_seconds()
-        d['add_samples_time'] = self.add_samples_time.total_seconds()
-        d['update_ns_time'] = self.update_ns_time.total_seconds()
-        d['redraw_time'] = self.redraw_time.total_seconds()
+        d['sampling_time'] = self.sampling_time
+        d['update_level_time'] = self.update_level_time
+        d['add_samples_time'] = self.add_samples_time
+        d['update_ns_time'] = self.update_ns_time
+        d['update_live_points_time'] = self.update_live_points_time
+        d['redraw_time'] = self.redraw_time
 
         return d
 
