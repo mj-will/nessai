@@ -154,14 +154,19 @@ class _NSIntegralState:
 class _INSIntegralState:
     """
     Object to handle computing the evidence for importance nested sampling.
+
+    Parameters
+    ----------
+    normalised
+        Indicates if the samples being added are correctly normalised. That is,
+        computing logsumexp(logL + logW) is normalised by default. If not, then
+        this should false and the normalisation constant for logQ should set
+        using :code:`log_meta_constant`.
     """
+
     def __init__(self, normalised: bool = True) -> None:
         self._n = 0
         self._logZ = -np.inf
-        self.info = [np.nan]
-        self.log_vols = [0.]
-        self.logX = 0.
-        self.effective_sample_size = 0
         self._logZ_history = np.empty(0)
         # Constant to normalise the meta proposal
         self.normalised = normalised
@@ -182,16 +187,25 @@ class _INSIntegralState:
         self._n = x.size
 
     @property
-    def renormalise(self):
+    def renormalise(self) -> bool:
         """Indicates where the evidence needs renormalising"""
-        if self._log_meta_constant:
+        # Value can only be set if normalised=False
+        if self._log_meta_constant is not None:
             return True
+        elif not self.normalised:
+            raise RuntimeError(
+                '`normalised=False` but the constant is not set'
+            )
         else:
             return False
 
     @property
-    def log_meta_constant(self):
+    def log_meta_constant(self) -> float:
         """Constant to normalise the meta proposal weights.
+
+        This should be the log of the value by which Q should be divided to
+        normalise it. For example, in the case the normlisation should be
+        Q/N, then the constant should log(N).
 
         Should be set when the weights used to compute logW are not
         normalised and are normalised using this constant.
@@ -199,7 +213,7 @@ class _INSIntegralState:
         if self._log_meta_constant is None:
             if not self.normalised:
                 raise RuntimeError(
-                    'Samples are not correctly normliased and require '
+                    'Samples are not correctly normalised and require '
                     'renormalising but the constant has not been set!'
                 )
             return np.log(self._n)
@@ -207,14 +221,18 @@ class _INSIntegralState:
             return self._log_meta_constant
 
     @log_meta_constant.setter
-    def log_meta_constant(self, value):
+    def log_meta_constant(self, value) -> None:
+        if self.normalised:
+            raise RuntimeError(
+                'Weights are normalised. Cannot set the meta constant!'
+            )
         self._log_meta_constant = value
 
     @property
-    def log_constant(self):
+    def log_constant(self) -> float:
         """Constant to renormalise the evidence"""
         if self.renormalise:
-            return self._log_meta_constant + np.log(self._n)
+            return self._log_meta_constant - np.log(self._n)
         else:
             return 0.0
 
@@ -223,23 +241,23 @@ class _INSIntegralState:
         """The current log-evidence."""
         return self._logZ + self.log_constant
 
-    @property
-    def log_evidence(self) -> float:
-        """Alias for logZ"""
-        return self.logZ
+    log_evidence = logZ
+    """Alias for logZ"""
 
     @property
     def log_evidence_error(self) -> float:
         """Alias for compute_uncertainty"""
         return self.compute_uncertainty()
 
-    def compute_log_Z(self, samples: np.ndarray) -> float:
+    def compute_updated_log_Z(self, samples: np.ndarray) -> float:
         """Compute the evidence if a set of samples were added.
 
         Does not update the running estimate of log Z.
         """
         log_Z_s = logsumexp(samples['logL'] + samples['logW'])
-        logZ = np.logaddexp(self._logZ, log_Z_s) + self.log_constant
+        logZ = np.logaddexp(self._logZ, log_Z_s)
+        if self.renormalise:
+            logZ += (self._log_meta_constant - np.log(self._n + samples.size))
         return logZ
 
     def compute_condition(self, samples: np.ndarray) -> float:
@@ -249,9 +267,8 @@ class _INSIntegralState:
         """
         if samples is None or not len(samples):
             return 0.0
-        log_Z_s = logsumexp(samples['logL'] + samples['logW'])
-        logZ = np.logaddexp(self._logZ, log_Z_s) + self.log_constant
-        logger.debug(f'Current log Z: {self._logZ}, expected: {logZ}')
+        logZ = self.compute_updated_log_Z(samples)
+        logger.debug(f'Current log Z: {self.logZ}, expected: {logZ}')
         dZ = logZ - self.logZ
         return dZ
 
@@ -263,7 +280,8 @@ class _INSIntegralState:
         # this should be log(N) if the weights are equal to the number of
         # samples, but can be different if the weights were set differently.
         Z = np.exp(
-            self._logZ_history.astype(np.float128) + self.log_meta_constant
+            self._logZ_history + self.log_meta_constant,
+            dtype=np.float128,
         )
         # Standard error sqrt(Var[Z] / n)
         u = np.sqrt(np.sum((Z - Z_hat) ** 2) / (n * (n - 1)))
@@ -273,11 +291,7 @@ class _INSIntegralState:
     @property
     def log_posterior_weights(self) -> np.ndarray:
         """Compute the weights for all of the dead points."""
-        return (
-            np.asarray(self._logZ_history).copy()
-            + self.log_constant
-            - self.logZ
-        )
+        return self._logZ_history + self.log_meta_constant - self.logZ
 
     @property
     def effective_n_posterior_samples(self) -> float:

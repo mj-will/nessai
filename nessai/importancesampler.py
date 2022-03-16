@@ -759,7 +759,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         # Version for SMC_NS
         previous_log_evidence = self.current_log_evidence
-        log_Z_with_live_points = self.state.compute_log_Z(self.live_points)
+        log_Z_with_live_points = \
+            self.state.compute_updated_log_Z(self.live_points)
 
         self.dZ_smc = np.abs(
             log_Z_with_live_points - previous_log_evidence
@@ -790,7 +791,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             / self.current_entropy
         )
 
-        self.current_log_evidence = self.state.compute_log_Z(self.live_points)
+        self.current_log_evidence = \
+            self.state.compute_updated_log_Z(self.live_points)
 
         logger.debug(f'Current entropy: {self.current_entropy:.3f}')
         logger.debug(f'Relative change in entropy: {self.dH:.3f}')
