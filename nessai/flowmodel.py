@@ -968,8 +968,8 @@ class CombinedFlowModel(FlowModel):
             torch.from_numpy(x).type(torch.get_default_dtype())
             .to(self.model.device)
         )
-        if self.model.training:
-            self.model.eval()
+        if self.models.training:
+            self.models.eval()
         n = self.n_models
         if exclude_last:
             n -= 1
@@ -990,7 +990,7 @@ class CombinedFlowModel(FlowModel):
         with torch.no_grad():
             x = self.models[i].sample(int(N))
 
-        x = x.detach().cpu().numpy().astype(np.float64)
+        x = x.cpu().numpy().astype(np.float64)
         return x
 
     def save_weights(self, weights_file):
