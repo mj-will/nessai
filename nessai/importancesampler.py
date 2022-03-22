@@ -940,8 +940,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             method=sampling_method,
             n=n,
         )
-        log_p = posterior_samples['logL'] + posterior_samples['logW']
-        H = entropy(np.exp(log_p))
+        H = entropy(np.exp(log_w))
         logger.info(f'Information in the posterior: {H:.3f} nats')
         logger.info(f'Produced {posterior_samples.size} posterior samples.')
         return posterior_samples
@@ -985,7 +984,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n_post: Optional[int] = None,
         n_draw: Optional[int] = None,
         max_its: int = 10,
-        max_batch_size: int = 50_000,
+        max_batch_size: int = 100_000,
     ):
         """Draw final unbiased samples until a desired ESS is reached.
 
@@ -1057,6 +1056,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
             batch_size //= 2
 
         logger.debug(f'Batch size: {batch_size}')
+        target_counts = np.array(
+            np.fromiter(self.proposal.unnormalised_weights.values(), int)
+            * (batch_size / self.proposal.normalisation_constant),
+            dtype=int
+        )
+        batch_size = target_counts.sum()
         n_models = self.proposal.n_proposals
         samples = np.empty([0], dtype=self.proposal.dtype)
         log_q = np.empty([0, n_models])
@@ -1073,7 +1078,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             while True:
                 if n_post and (ess > n_post):
                     break
-                if it > max_its:
+                if it >= max_its:
                     logger.warning('Reached maximum number of iterations.')
                     logger.warning('Stopping drawing final samples.')
                     break
@@ -1084,7 +1089,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 it_samples = np.empty([0], dtype=self.proposal.dtype)
                 for _ in range(int(np.ceil(n_draw / batch_size))):
                     new_samples, new_log_q, new_counts = \
-                        self.proposal.draw_from_flows(batch_size)
+                        self.proposal.draw_from_flows(
+                            batch_size, counts=target_counts
+                        )
                     it_samples = np.concatenate([it_samples, new_samples])
                     log_q = np.concatenate([log_q, new_log_q], axis=0)
                     counts += new_counts
@@ -1112,6 +1119,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 it += 1
 
             pbar.n = pbar.total
+
+        logger.debug(f'Original weights: {self.proposal.unnormalised_weights}')
+        logger.debug(f'New weights: {counts}')
 
         logger.info(f'Drew {samples.size} final samples')
         logger.info(
@@ -1382,7 +1392,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d['log_evidence'] = self.log_evidence
         d['log_evidence_error'] = self.log_evidence_error
         # Will all be None if the final samples haven't been drawn
-        d['final_samples'] = self.final_samples
+        d['final_samples'] = (
+            live_points_to_dict(self.final_samples)
+            if self.final_samples is not None else None
+        )
         d['final_log_evidence'] = self.final_log_evidence
         d['final_log_evidence_error'] = self.final_log_evidence_error
 
