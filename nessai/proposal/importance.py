@@ -623,7 +623,7 @@ class ImportanceFlowProposal(Proposal):
         return kl
 
     def draw_from_flows(
-        self, n: int, weights=None
+        self, n: int, weights=None, counts=None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Draw n points from all flows (g).
 
@@ -635,15 +635,27 @@ class ImportanceFlowProposal(Proposal):
         logger.debug(
             f'Drawing {n} samples from the combination of all the proposals'
         )
-        if weights is None:
-            weights = np.fromiter(self.unnormalised_weights.values(), float)
-        weights /= np.sum(weights)
-        if not len(weights) == self.n_proposals:
-            ValueError('Size of weights does not match the number of levels')
-        logger.debug(f'Proposal weights: {weights}')
-        a = np.random.choice(weights.size, size=n, p=weights)
-        counts = np.bincount(a).astype(int)
+        if counts is None:
+            if weights is None:
+                weights = np.fromiter(
+                    self.unnormalised_weights.values(), float
+                )
+            weights /= np.sum(weights)
+            if not len(weights) == self.n_proposals:
+                ValueError(
+                    'Size of weights does not match the number of levels'
+                )
+            logger.debug(f'Proposal weights: {weights}')
+            a = np.random.choice(weights.size, size=n, p=weights)
+            counts = np.bincount(a).astype(int)
+        else:
+            counts = np.array(counts, dtype=int)
+            weights = counts / counts.sum()
         logger.debug(f'Expected counts: {counts}')
+        if np.any(counts) < 0:
+            raise ValueError('Cannot have negative counts')
+        if np.sum(counts) == 0:
+            raise ValueError('Total counts is zero')
         proposal_id = np.arange(weights.size) - 1
         prime_samples = np.empty([n, self.model.dims])
         sample_its = np.empty(n, dtype=config.IT_DTYPE)
@@ -662,21 +674,22 @@ class ImportanceFlowProposal(Proposal):
             sample_its[count:(count + m)] = id
             count += m
 
-        samples, log_j = self.inverse_rescale(prime_samples)
+        samples, log_j_inv = self.inverse_rescale(prime_samples)
         samples['it'] = sample_its
         finite = (
-            np.isfinite(log_j)
+            np.isfinite(log_j_inv)
+            & np.isfinite(log_j_inv)
             & isfinite_struct(samples)
             & np.isfinite(prime_samples).all(axis=1)
         )
-        samples, prime_samples, log_j = \
-            get_subset_arrays(finite, samples, prime_samples, log_j)
+        samples, prime_samples, log_j_inv = \
+            get_subset_arrays(finite, samples, prime_samples, log_j_inv)
 
         log_q = np.zeros((samples.size, self.n_proposals))
         # Minus because log_j is compute from the inverse
         logger.debug('Computing log_q')
         log_q[:, 1:] = \
-            self.flow.log_prob_all(prime_samples) - log_j[:, np.newaxis]
+            self.flow.log_prob_all(prime_samples) - log_j_inv[:, np.newaxis]
 
         # -inf is okay since this is just zero, so only remove +inf or NaN
         finite = (
