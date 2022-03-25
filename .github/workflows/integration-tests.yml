@@ -24,6 +24,9 @@ jobs:
         pip install -r requirements.txt
         pip install -r dev_requirements.txt
         pip install -e .
-    - name: Run integration tests with pytest
+    - name: Run (quick) integration tests
       run: |
-        pytest tests/ -m "integration_test or slow_integration_test"
+        pytest tests/ -m "integration_test"
+    - name: Run slow integration tests
+      run: |
+        pytest tests/ -m "slow_integration_test"
