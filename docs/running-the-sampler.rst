@@ -44,7 +44,7 @@ Once a modelled is defined, create an instance of :py:class:`nessai.flowsampler.
     from nessai.flowsampler import FlowSampler
 
     # Initialise sampler with the model
-    sampler = FlowSampler(Gaussian(), output='./', nlive=1000)
+    sampler = FlowSampler(GaussianModel(), output='./', nlive=1000)
     # Run the sampler
     sampler.run()
 
