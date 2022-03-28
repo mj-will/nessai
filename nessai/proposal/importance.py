@@ -62,7 +62,6 @@ class ImportanceFlowProposal(Proposal):
         weights_include_likelihood: bool = False,
         reset_flows: Union[bool, int] = False,
         flow_config: dict = None,
-        combined_proposal: bool = True,
         clip: bool = False,
         beta: Optional[float] = None,
         reweight_draws: bool = False,
@@ -95,7 +94,6 @@ class ImportanceFlowProposal(Proposal):
 
         logger.debug(f'Initial q: {np.exp(self.initial_log_q)}')
 
-        self.combined_proposal = combined_proposal
         self.weights_include_likelihood = weights_include_likelihood
 
         self.dtype = get_dtype(self.model.names)
@@ -135,21 +133,18 @@ class ImportanceFlowProposal(Proposal):
 
     @property
     def poolsize(self) -> np.ndarray:
-        """Returns an array of the pool size for each flow.
-
-        Does not include the value for the initial draws from the prior.
-        """
-        return np.fromiter(self.unnormalised_weights.values(), int)[1:]
-
-    @property
-    def flow_config(self) -> dict:
-        """Return the configuration for the flow"""
-        return self._flow_config
+        """Returns an array of the pool size for each flow."""
+        return np.fromiter(self.unnormalised_weights.values(), int)
 
     @property
     def n_proposals(self) -> int:
         """Current number of proposals in the meta proposal"""
         return len(self.n_draws)
+
+    @property
+    def flow_config(self) -> dict:
+        """Return the configuration for the flow"""
+        return self._flow_config
 
     @flow_config.setter
     def flow_config(self, config: dict) -> None:
@@ -345,7 +340,37 @@ class ImportanceFlowProposal(Proposal):
                 filename=os.path.join(level_output, 'generated_samples.png')
             )
 
-    def _compute_log_Q_combined(self, x_prime, log_q_j, n, log_j):
+    def compute_log_Q(
+        self,
+        x_prime: np.ndarray,
+        log_q_current: Optional[np.ndarray] = None,
+        n: int = None,
+        log_j=None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """Compute the log meta proposal (log Q) for an array of points.
+
+        Parameters
+        ----------
+        x_prime : numpy.ndarray
+            Array of samples in the unit hypercube.
+        log_q_current : Optional[numpy.ndarray]
+            Log q value of the current flow for the prime samples. Used when
+            prime samples have just been drawn and log q is computed.
+        n : Optional[int]
+            Number of samples that have been drawn from the current flow.
+            Should be specified when new samples are being drawn and the number
+            of samples is not final.
+        log_j : Optional[numpy.ndarray]
+            Log-Jacobian determinant of the prime samples.
+
+        Returns
+        -------
+        log_Q : numpy.ndarray
+            Value of the meta-proposal in the prime space.
+        log_q : numpy.ndarray
+            Array of values for flow in the flow in the proposal. Array will
+            have shape (# samples, # flows)
+        """
         if np.isnan(x_prime).any():
             logger.warning('NaNs in samples when computing log_Q')
         if not np.isfinite(x_prime).all():
@@ -353,63 +378,38 @@ class ImportanceFlowProposal(Proposal):
                 'Infinite values in the samples when computing log_Q'
             )
 
-        exclude_last = log_q_j is not None
-        if exclude_last and len(self.flow.models) == 1:
-            log_Q = log_q_j + np.log(n) + log_j
-        else:
-            log_q_all = self.flow.log_prob_all(
-                x_prime, exclude_last=exclude_last
-            )
-            m = log_q_all.shape[1]
-            assert log_q_all.shape[0] == x_prime.shape[0]
-            if exclude_last:
-                log_q = np.concatenate([
-                    log_q_all + np.log(self.poolsize[:m]),
-                    log_q_j[:, np.newaxis] + np.log(n)
-                ], axis=1)
-                assert log_q_all.shape[1] == (len(self.flow.models) - 1)
-            else:
-                log_q = log_q_all + np.log(self.poolsize)
-                assert log_q_all.shape[1] == len(self.flow.models)
-            log_q += log_j[:, np.newaxis]
+        log_q_all = np.zeros([x_prime.shape[0], self.n_proposals])
+        n_samples = self.poolsize
+        exclude_last = log_q_current is not None
+        n_flows = self.flow.n_models
 
-            logger.debug(f'log_q is nan: {np.isnan(log_q).any()}')
-            logger.debug(f'Initial log g: {self.initial_log_q:.2f}')
-            logger.debug(
-                f'Mean log q for each each flow: {log_q.mean(axis=0)}'
-            )
-            # Could move Jacobian here
-            log_Q = logsumexp(log_q, axis=1)
+        assert len(log_q_all) > 1
 
-        if np.isnan(log_Q).any():
-            raise ValueError('There is a NaN in log q before initial!')
-        log_Q = np.logaddexp(self.initial_log_q, log_Q)
+        if exclude_last:
+            log_q_all[:, -1] = log_q_current + log_j
+            n_samples[-1] = n
+            n_flows -= 1
+        elif n is not None:
+            n_samples[-1] = n
+
+        if n_flows >= 1:
+            log_q_all[:, 1: (n_flows + 1)] = (
+                self.flow.log_prob_all(x_prime, exclude_last=exclude_last)
+                + log_j[:, np.newaxis]
+            )
+        assert log_q_all.shape[0] == x_prime.shape[0]
+
+        logger.debug(f'log_q is nan: {np.isnan(log_q_all).any()}')
+        logger.debug(
+            f'Mean log q for each each flow: {log_q_all.mean(axis=0)}'
+        )
+
+        log_Q = logsumexp(log_q_all + np.log(n_samples), axis=1)
+
         if np.isnan(log_Q).any():
             raise ValueError('There is a NaN in log g!')
-        return log_Q
 
-    def _compute_log_Q_independent(self, x, log_q, n, log_j):
-        log_Q = log_q + log_j + np.log(n)
-        return log_Q
-
-    def compute_log_Q(
-        self,
-        x: np.ndarray,
-        log_q: np.ndarray = None,
-        n: int = None,
-        log_j=None,
-    ) -> np.ndarray:
-        """Compute the log meta proposal (log Q) for an array of points.
-
-        Parameters
-        ----------
-        x : np.ndarray
-            Array of samples in the unit hypercube.
-        """
-        if self.combined_proposal:
-            return self._compute_log_Q_combined(x, log_q, n, log_j)
-        else:
-            return self._compute_log_Q_independent(x, log_q, n, log_j)
+        return log_Q, log_q_all
 
     def draw(
         self,
@@ -439,11 +439,22 @@ class ImportanceFlowProposal(Proposal):
             n_draw = int(1.01 * n)
         logger.debug(f'Drawing {n} points')
         samples = np.zeros(0, dtype=self.dtype)
-        self.n_requested[self.level_count] += n
+        log_q_samples = np.empty([0, self.n_proposals])
+
+        self.n_requested[flow_number] += n
+
+        # Make sure correct weight is used for computing log Q
+        if self.reweight_draws:
+            n_weight = self.n_requested[flow_number]
+        else:
+            n_weight = self.n_draws[flow_number] + n
+
         n_accepted = 0
         while n_accepted < n and n_draw > 0:
             logger.debug(f'Drawing batch of {n_draw} samples')
-            x_prime, log_q = self.flow.sample_and_log_prob(N=n_draw)
+            # x_prime, log_q = self.flow.sample_and_log_prob(N=n_draw)
+            x_prime = self.flow.sample(n_draw)
+            log_q = np.ones(n_draw)
             x, log_j_inv = self.inverse_rescale(x_prime)
             # Rescaling can sometimes produce infs that don't appear in samples
             x_check, log_j = self.rescale(x)
@@ -463,8 +474,8 @@ class ImportanceFlowProposal(Proposal):
             x, x_prime, log_j, log_q = \
                 get_subset_arrays(acc, x, x_prime, log_j, log_q)
 
-            x['logQ'] = self.compute_log_Q(
-                x_prime, log_q=log_q, n=n, log_j=log_j
+            x['logQ'], log_q_all = self.compute_log_Q(
+                x_prime, log_q_current=None, n=n_weight, log_j=log_j
             )
             x['logP'] = self.model.log_prior(x)
             x['logW'] = - x['logQ']
@@ -475,12 +486,13 @@ class ImportanceFlowProposal(Proposal):
             if not np.any(accept):
                 continue
 
-            x = x[accept]
+            x, log_q_all = get_subset_arrays(accept, x, log_q_all)
 
             if logL_min is not None:
                 x['logl'] = self.model.batch_evaluate_log_likelihood(x)
 
             samples = np.concatenate([samples, x])
+            log_q_samples = np.concatenate([log_q_samples, log_q_all], axis=0)
 
             if logL_min is not None:
                 m = (x['logL'] >= logL_min).sum()
@@ -493,10 +505,12 @@ class ImportanceFlowProposal(Proposal):
 
         if logL_min is None:
             samples = samples[:n]
+            log_q_samples = log_q_samples[:n]
         else:
             possible_idx = np.cumsum(samples['logL'] >= logL_min)
             idx = np.argmax(possible_idx >= n)
             samples = samples[:(idx + 1)]
+            log_q_samples = log_q_samples[:(idx + 1)]
             assert len(samples) >= n
             logger.debug(
                 f"Accepted {(samples['logL'] >= logL_min).sum()} "
@@ -508,7 +522,7 @@ class ImportanceFlowProposal(Proposal):
         if logL_min is not None:
             logger.debug('Recomputing log g')
             prime_samples, log_j = self.rescale(samples)
-            samples['logQ'] = self.compute_log_Q(
+            samples['logQ'], log_q_samples = self.compute_log_Q(
                 prime_samples, log_j=log_j,
             )
             samples['logW'] = -samples['logQ']
@@ -519,15 +533,29 @@ class ImportanceFlowProposal(Proposal):
 
         self.draw_count += 1
         logger.debug(f'Returning {samples.size} samples')
-        return samples
+        return samples, log_q_samples
 
-    def update_samples(self, samples: np.ndarray) -> None:
+    def update_samples(
+        self,
+        samples: np.ndarray,
+        log_q: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
         """Update log W and log Q in place for a set of samples.
 
         Parameters
         ----------
         samples : numpy.ndarray
             Array of samples to update.
+        log_q : Optional[numpy.ndarray]
+            Array of log q values for each flow. If provided these are used
+            to compute log Q. This is more accurate and less prone to
+            cumulative errors.
+
+        Returns
+        -------
+        log_q : Optional[numpy.ndarray]
+            Returns the updated :code:`log_q` if it was specified, otherwise
+            returns None.
         """
         if self.level_count < 0:
             raise RuntimeError(
@@ -540,19 +568,43 @@ class ImportanceFlowProposal(Proposal):
             )
         x, log_j = self.rescale(samples.copy())
         log_prob_fn = self.get_proposal_log_prob(self.level_count)
-        log_q = log_prob_fn(x)
-        new_log_Q = (
-            log_q
-            + log_j
-            + np.log(self.unnormalised_weights[self.level_count])
+        log_q_current = log_prob_fn(x)
+
+        if log_q is None:
+            logger.warning(
+                'Updating points with method prone to numerical errors'
             )
-        samples['logQ'] = np.logaddexp(samples['logQ'], new_log_Q)
+            new_log_Q = (
+                log_q_current
+                + log_j
+                + np.log(self.unnormalised_weights[self.level_count])
+            )
+            log_Q = np.logaddexp(samples['logQ'], new_log_Q)
+        else:
+            log_q = np.concatenate([
+                log_q,
+                log_q_current[:, np.newaxis] + log_j[:, np.newaxis]
+            ], axis=1)
+
+            log_Q = logsumexp(
+                log_q + np.log(self.poolsize),
+                axis=1
+            )
+
+        samples['logQ'] = log_Q
         samples['logW'] = - samples['logQ']
 
-    def compute_meta_proposal_samples(self, samples: np.ndarray) -> None:
+        return log_q
+
+    def compute_meta_proposal_samples(self, samples: np.ndarray) -> np.ndarray:
         """Compute the meta proposal Q for a set of samples.
 
         Includes the transform to the unit hypercube.
+
+        Returns
+        -------
+        log_q : numpy.ndarray
+            Array of log q for each flow.
         """
         if self.level_count < 0:
             raise RuntimeError(
@@ -564,9 +616,10 @@ class ImportanceFlowProposal(Proposal):
                 'existing samples!'
             )
         x, log_j = self.rescale(samples.copy())
-        log_Q = self.compute_log_Q(x, log_j=log_j)
+        log_Q, log_q = self.compute_log_Q(x, log_j=log_j)
         samples['logQ'] = log_Q
         samples['logW'] = - samples['logQ']
+        return log_q
 
     def _log_prior(self, x: np.ndarray) -> np.ndarray:
         """Helper function that returns the prior in the unit hyper-cube."""
@@ -676,20 +729,25 @@ class ImportanceFlowProposal(Proposal):
 
         samples, log_j_inv = self.inverse_rescale(prime_samples)
         samples['it'] = sample_its
+        x_check, log_j = self.rescale(samples)
+        # Probably don't need all these checks.
         finite = (
-            np.isfinite(log_j_inv)
-            & np.isfinite(log_j_inv)
+            self.model.in_bounds(samples)
             & isfinite_struct(samples)
+            & np.isfinite(x_check).all(axis=1)
             & np.isfinite(prime_samples).all(axis=1)
+            & np.isfinite(log_j)
+            & np.isfinite(log_j_inv)
         )
-        samples, prime_samples, log_j_inv = \
-            get_subset_arrays(finite, samples, prime_samples, log_j_inv)
+
+        samples, prime_samples, log_j = \
+            get_subset_arrays(finite, samples, prime_samples, log_j)
 
         log_q = np.zeros((samples.size, self.n_proposals))
         # Minus because log_j is compute from the inverse
         logger.debug('Computing log_q')
         log_q[:, 1:] = \
-            self.flow.log_prob_all(prime_samples) - log_j_inv[:, np.newaxis]
+            self.flow.log_prob_all(prime_samples) + log_j[:, np.newaxis]
 
         # -inf is okay since this is just zero, so only remove +inf or NaN
         finite = (
