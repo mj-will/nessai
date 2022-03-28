@@ -8,6 +8,7 @@ import os
 import signal
 import sys
 
+from . import config
 from .nestedsampler import NestedSampler
 from .importancesampler import ImportanceNestedSampler
 from .livepoint import live_points_to_dict
@@ -46,6 +47,9 @@ class FlowSampler:
     close_pool : bool
         Boolean to indicated if the pool should be closed at the end of the
         run function. If False, the user must manually close the pool.
+    eps : float
+        Set the eps that will be used by nessai. If not set the default from
+        :code:`nessai.config` will be used instead.
     kwargs :
         Keyword arguments passed to :obj:`~nessai.nestedsampler.NestedSampler`.
     """
@@ -60,6 +64,7 @@ class FlowSampler:
         max_threads=1,
         importance_sampler=False,
         close_pool=True,
+        eps=None,
         **kwargs
     ):
 
@@ -68,6 +73,11 @@ class FlowSampler:
             pytorch_threads=kwargs.get('pytorch_threads', None),
             n_pool=kwargs.get('n_pool', None)
             )
+
+        self.eps = eps
+        if self.eps is not None:
+            logger.info(f'Setting eps to {self.eps}')
+            config.eps = self.eps
 
         if importance_sampler:
             SamplerClass = ImportanceNestedSampler
@@ -375,6 +385,8 @@ class FlowSampler:
             Dictionary of kwargs to save.
         """
         d = kwargs.copy()
+        d['eps'] = self.eps
+        d['importance_sampler'] = self.importance_sampler
         with open(os.path.join(self.output, 'config.json'), 'w') as wf:
             json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
 
