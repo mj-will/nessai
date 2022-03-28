@@ -839,6 +839,23 @@ class FlowModel:
         log_prob = log_prob.cpu().numpy().astype(np.float64)
         return log_prob
 
+    def sample(self, n: int = 1) -> np.ndarray:
+        """Sample from the flow.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples to draw
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of samples
+        """
+        with torch.no_grad():
+            x = self.model.sample(int(n))
+        return x.cpu().numpy().astype(np.float64)
+
     def sample_and_log_prob(self, N=1, z=None, alt_dist=None):
         """
         Generate samples from samples drawn from the base distribution or
@@ -973,6 +990,10 @@ class CombinedFlowModel(FlowModel):
         n = self.n_models
         if exclude_last:
             n -= 1
+        if n <= 0:
+            raise RuntimeError(
+                'Cannot exclude last when flow there is only one flow'
+            )
         log_prob = torch.empty(x.shape[0], n)
         with torch.no_grad():
             for i, m in enumerate(self.models[:n]):
