@@ -72,6 +72,7 @@ def get_base_distribution(
             acc_fn = MLP(
                 [n_inputs], [1], layers_list, activate_output=torch.sigmoid
             )
+            logger.debug(f'Other LARs kwargs: {kwargs}')
             dist = dist_class([n_inputs], acc_fn, **kwargs)
         else:
             dist = dist_class([n_inputs], **kwargs)
