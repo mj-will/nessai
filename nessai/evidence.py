@@ -297,6 +297,8 @@ class _INSIntegralState:
     def effective_n_posterior_samples(self) -> float:
         """Kish's effective sample size"""
         log_p = self.log_posterior_weights
+        if not len(log_p):
+            return 0
         log_p -= logsumexp(log_p)
         n = np.exp(-logsumexp(2 * log_p))
         return n
