@@ -255,15 +255,19 @@ def test_nested_sampling_loop(sampler, config):
 def test_nested_sampling_loop_prior_sampling(sampler, close_pool):
     """Test the nested sampling loop for prior sampling"""
     sampler.initialised = False
-    sampler.live_points = sampler.model.new_point(10)
+    sampler.nested_samples = sampler.model.new_point(10)
     sampler.prior_sampling = True
     sampler.close_pool = close_pool
     sampler.model.close_pool = MagicMock()
+    sampler.finalise = MagicMock()
+    sampler.log_evidence = -5.99
 
-    samples = NestedSampler.nested_sampling_loop(sampler)
+    evidence, samples = NestedSampler.nested_sampling_loop(sampler)
     sampler.initialise.assert_called_once_with(live_points=True)
     if close_pool:
         sampler.model.close_pool.assert_called_once()
     else:
         sampler.model.close_pool.assert_not_called()
-    np.testing.assert_array_equal(samples, sampler.live_points)
+    sampler.finalise.assert_called_once()
+    np.testing.assert_array_equal(samples, sampler.nested_samples)
+    assert evidence == -5.99
