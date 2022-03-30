@@ -44,6 +44,7 @@ vertical lines that can appear in the subplots.
 
 - Fixed a bug in `RescaleToBounds` when using `pre_rescaling` without boundary inversion.
 - Fixed slow integration tests not running if a quick integration test is reran after failing.
+- Fixed a bug that prevented the use of `prior_sampling=True` with `FlowSampler`.
 
 ### Removed
 
