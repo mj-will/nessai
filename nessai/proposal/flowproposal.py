@@ -12,7 +12,7 @@ import numpy as np
 import numpy.lib.recfunctions as rfn
 import torch
 
-from ..flowmodel import FlowModel, update_config
+from ..flowmodel import FlowModel
 from ..livepoint import (
     live_points_to_array,
     numpy_array_to_live_points,
@@ -279,8 +279,16 @@ class FlowProposal(RejectionProposal):
 
     @flow_config.setter
     def flow_config(self, config):
-        """Set configuration (includes checking defaults)"""
-        self._flow_config = update_config(config)
+        """Set configuration.
+
+        Does not update with the defaults because the number of inputs
+        has not been determined yet.
+        """
+        if config is None:
+            config = {}
+        if 'model_config' not in config:
+            config['model_config'] = {}
+        self._flow_config = config
 
     @property
     def dims(self):
@@ -1601,7 +1609,7 @@ class FlowProposal(RejectionProposal):
             Weights file to try and load. If not provided the proposal
             tries to load the last weights file.
         """
-        self.model = model
+        super().resume(model)
         self.flow_config = flow_config
         self._reparameterisation = None
 
