@@ -131,7 +131,7 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
     )
 
     mock_resume.assert_called_with(
-        expected_rf, model, flow_config, weights_file,
+        expected_rf, model, flow_config=flow_config, weights_file=weights_file,
     )
 
     assert flow_sampler.ns == 'ns'

@@ -238,3 +238,26 @@ def test_prior_sampling(model, tmpdir):
 
     assert len(fs.nested_samples) == 100
     assert np.isfinite(fs.logZ)
+
+
+@pytest.mark.slow_integration_test
+def test_sampler_resume(model, tmp_path):
+    """Test resuming the sampler"""
+    output = tmp_path / "output"
+    output.mkdir()
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+    )
+    fs.run(save=False, plot=False)
+
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+    )
+
+    fs.run(save=False, plot=False)
