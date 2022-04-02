@@ -221,3 +221,26 @@ def test_constant_volume_mode(model, tmpdir):
         constant_volume_mode=True
     )
     fs.run(plot=False)
+
+
+@pytest.mark.slow_integration_test
+def test_sampler_resume(model, tmp_path):
+    """Test resuming the sampler"""
+    output = tmp_path / "output"
+    output.mkdir()
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+    )
+    fs.run(save=False, plot=False)
+
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+    )
+
+    fs.run(save=False, plot=False)
