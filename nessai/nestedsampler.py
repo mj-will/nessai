@@ -1206,7 +1206,7 @@ class NestedSampler:
         return self.state.logZ, np.array(self.nested_samples)
 
     @classmethod
-    def resume(cls, filename, model, flow_config={}, weights_file=None):
+    def resume(cls, filename, model, flow_config=None, weights_file=None):
         """
         Resumes the interrupted state from a checkpoint pickle file.
 
@@ -1233,6 +1233,8 @@ class NestedSampler:
         model.likelihood_evaluations += obj.likelihood_evaluations[-1]
         obj.model = model
         obj._uninformed_proposal.resume(model)
+        if flow_config is None:
+            flow_config = {}
         obj._flow_proposal.resume(model, flow_config, weights_file)
 
         obj.resumed = True
