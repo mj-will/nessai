@@ -72,8 +72,11 @@ class FlowSampler:
             else:
                 try:
                     self.ns = NestedSampler.resume(
-                        os.path.join(self.output, resume_file), model,
-                        kwargs['flow_config'], weights_file)
+                        os.path.join(self.output, resume_file),
+                        model,
+                        flow_config=kwargs.get('flow_config'),
+                        weights_file=weights_file,
+                    )
                 except (FileNotFoundError, RuntimeError) as e:
                     logger.error(
                         f'Could not load resume file from: {self.output} '
@@ -81,8 +84,11 @@ class FlowSampler:
                     try:
                         resume_file += '.old'
                         self.ns = NestedSampler.resume(
-                            os.path.join(self.output, resume_file), model,
-                            kwargs['flow_config'], weights_file)
+                            os.path.join(self.output, resume_file),
+                            model,
+                            flow_config=kwargs.get('flow_config'),
+                            weights_file=weights_file,
+                        )
                     except RuntimeError as e:
                         logger.error('Could not load old resume '
                                      f'file from: {self.output}')
