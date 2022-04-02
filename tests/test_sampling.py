@@ -224,6 +224,23 @@ def test_constant_volume_mode(model, tmpdir):
 
 
 @pytest.mark.slow_integration_test
+def test_prior_sampling(model, tmpdir):
+    """Test prior sampling"""
+    output = str(tmpdir.mkdir('prior_sampling'))
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+        prior_sampling=True,
+    )
+    fs.run(plot=False)
+
+    assert len(fs.nested_samples) == 100
+    assert np.isfinite(fs.logZ)
+   
+  
+pytest.mark.slow_integration_test
 def test_sampler_resume(model, tmp_path):
     """Test resuming the sampler"""
     output = tmp_path / "output"

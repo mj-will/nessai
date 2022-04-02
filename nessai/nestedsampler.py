@@ -1145,18 +1145,29 @@ class NestedSampler:
         self.finalised = True
 
     def nested_sampling_loop(self):
-        """
-        Main nested sampling loop
+        """Main nested sampling loop.
+
+        Notes
+        -----
+        If :code:`prior_sampling=True` then sampling will stop after drawing
+        the initial live points.
+
+        Returns
+        -------
+        log_evidence : float
+            The final log evidence.
+        nested_samples : numpy.ndarray
+            Array of nested samples.
         """
         self.sampling_start_time = datetime.datetime.now()
         if not self.initialised:
             self.initialise(live_points=True)
 
         if self.prior_sampling:
-            self.nested_samples = self.live_points.copy()
             if self.close_pool:
                 self.model.close_pool()
-            return self.nested_samples
+            self.finalise()
+            return self.log_evidence, np.array(self.nested_samples)
 
         self.check_resume()
 

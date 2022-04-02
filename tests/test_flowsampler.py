@@ -3,6 +3,9 @@
 Tests for the FlowSampler class.
 """
 import os
+from signal import SIGINT
+import time
+from threading import Thread
 
 import pytest
 from nessai.flowsampler import FlowSampler
@@ -319,3 +322,43 @@ def test_safe_exit(flow_sampler):
     mock_exit.assert_called_once_with(130)
     flow_sampler.ns.checkpoint.assert_called_once()
     flow_sampler.ns.model.close_pool.assert_called_once_with(code=2)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [dict(n_pool=None), dict(max_threads=3, n_pool=2)]
+)
+@pytest.mark.integration_test
+@pytest.mark.timeout(30)
+def test_signal_handling(tmp_path, caplog, model, kwargs):
+    """Test the signal handling in nessai.
+
+    Test is based on a similar test in bilby which is in turn based on: \
+        https://stackoverflow.com/a/49615525/18400311
+    """
+    output = tmp_path / "output"
+    output.mkdir()
+
+    fs = FlowSampler(
+        model, output=output, nlive=500, poolsize=1000, exit_code=5, **kwargs
+    )
+
+    pid = os.getpid()
+
+    def trigger_signal():
+        time.sleep(4)
+        os.kill(pid, SIGINT)
+
+    thread = Thread(target=trigger_signal)
+    thread.daemon = True
+    thread.start()
+
+    with pytest.raises(SystemExit):
+        try:
+            while True:
+                fs.run(save=False, plot=False)
+        except SystemExit as error:
+            assert error.code == 5
+            raise
+
+    assert f"Trying to safely exit with code {SIGINT}" in str(caplog.text)
