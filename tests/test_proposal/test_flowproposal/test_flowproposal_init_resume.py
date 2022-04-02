@@ -73,21 +73,28 @@ def test_resume(proposal):
     proposal.mask = [1, 0]
     proposal.update_bounds = False
     proposal.weights_file = None
-    FlowProposal.resume(proposal, None, {'model_config': {'kwargs': {}}})
+    model = MagicMock()
+    with patch('nessai.proposal.base.Proposal.resume') as mock:
+        FlowProposal.resume(proposal, model, {'model_config': {'kwargs': {}}})
+    mock.assert_called_once_with(model)
     proposal.initialise.assert_called_once()
     assert array_equal(proposal.flow_config['model_config']['kwargs']['mask'],
                        array([1, 0]))
 
 
 @patch('os.path.exists', return_value=True)
-def test_resume_w_weights(proposal):
+def test_resume_w_weights(osexist, proposal):
     """Test the resume method with weights"""
     proposal.initialise = MagicMock()
     proposal.flow = MagicMock()
     proposal.mask = None
     proposal.update_bounds = False
     proposal.weights_file = None
-    FlowProposal.resume(proposal, None, {}, 'weights.pt')
+    model = MagicMock()
+    with patch('nessai.proposal.base.Proposal.resume') as mock:
+        FlowProposal.resume(proposal, model, {}, weights_file='weights.pt')
+    mock.assert_called_once_with(model)
+    osexist.assert_called_once_with('weights.pt')
     proposal.initialise.assert_called_once()
     proposal.flow.reload_weights.assert_called_once_with('weights.pt')
 
@@ -104,15 +111,18 @@ def test_resume_w_update_bounds(proposal, data, count):
     proposal.training_data = data
     proposal.training_count = count
     proposal.check_state = MagicMock()
-
+    model = MagicMock()
     if count and data is None:
-        with pytest.raises(RuntimeError) as excinfo:
-            FlowProposal.resume(proposal, None, {})
+        with pytest.raises(RuntimeError) as excinfo, \
+             patch('nessai.proposal.base.Proposal.resume') as mock:
+            FlowProposal.resume(proposal, model, {})
         assert 'Could not resume' in str(excinfo.value)
     else:
-        FlowProposal.resume(proposal, None, {})
+        with patch('nessai.proposal.base.Proposal.resume') as mock:
+            FlowProposal.resume(proposal, model, {})
         if data:
             proposal.check_state.assert_called_once_with(data)
+    mock.assert_called_once_with(model)
 
 
 @pytest.mark.parametrize('populated', [False, True])
