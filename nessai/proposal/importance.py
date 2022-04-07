@@ -179,11 +179,47 @@ class ImportanceFlowProposal(Proposal):
         self._check_fields()
         if self.initialised:
             return
+
+        self.verify_rescaling()
+
         self.flow = CombinedFlowModel(
             config=self.flow_config, output=self.output
         )
         self.flow.initialise()
         return super().initialise()
+
+    def verify_rescaling(
+        self, n: int = 1000, rtol: float = 1e-08, atol: float = 1e-08
+    ) -> None:
+        """Verify the rescaling is invertible.
+
+        Uses :code:`numpy.allclose`, see numpy documentation for more details.
+
+        Parameters
+        -----------
+        n : int
+            Number of samples to test.
+        atol : float
+            The absolute tolerance.
+        rtol : float
+            The relative tolerance.
+        """
+        logger.debug('Verifying rescaling')
+        x_in = self.model.new_point(n)
+
+        x_prime, log_j = self.rescale(x_in)
+        x_re, log_j_inv = self.inverse_rescale(x_prime)
+
+        for f in x_in.dtype.names:
+            eq = np.allclose(x_re[f], x_in[f], atol=atol, rtol=rtol)
+            if not eq:
+                raise RuntimeError(f'Rescaling is not invertible for: {f}')
+
+        if not np.allclose(log_j, -log_j_inv, atol=atol, rtol=rtol):
+            raise RuntimeError(
+                'Forward and inverse Jacobian determinants are not equal'
+            )
+        logger.debug('Rescaling functions are invertible')
 
     def to_prime(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Convert samples from the unit hypercube to samples in x'-space"""
