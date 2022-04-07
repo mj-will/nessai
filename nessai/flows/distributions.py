@@ -2,6 +2,7 @@
 """
 Distributions to use as the 'base distribution' for normalising flows.
 """
+import math
 
 from nflows.distributions import Distribution
 from nflows.utils import torchutils
@@ -26,6 +27,7 @@ class MultivariateNormal(Distribution):
         super().__init__()
         self._shape = torch.Size(shape)
         self._var = var
+        self._std = math.sqrt(var)
 
         self.register_buffer(
             "_log_z",
@@ -47,7 +49,7 @@ class MultivariateNormal(Distribution):
 
     def _sample(self, num_samples, context):
         if context is None:
-            return torch.normal(0, self._var,
+            return torch.normal(0, self._std,
                                 size=(num_samples, *self._shape),
                                 device=self._log_z.device)
         else:

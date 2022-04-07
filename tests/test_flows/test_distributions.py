@@ -52,14 +52,15 @@ def test_log_prob_invalid_shape(dist, dims):
 
 
 @pytest.mark.flaky(run=5)
-def test_sample(dist, scipy_dist):
+def test_sample(dist, var):
     """
     Test the sample method and check if the resulting samples pass a
-    KS test using the scipy distribution
+    KS test using the scipy distribution. Tests each dimensions one at a time.
     """
     samples = dist._sample(1000, None).numpy()
-    p, _ = stats.kstest(samples, scipy_dist.cdf)
-    assert p > 0.05
+    for s in samples.T:
+        _, p = stats.kstest(s, stats.norm(scale=np.sqrt(var)).cdf)
+        assert p > 0.05
 
 
 def test_sample_context(dist):
