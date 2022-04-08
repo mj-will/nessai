@@ -415,18 +415,20 @@ class ImportanceFlowProposal(Proposal):
             )
 
         log_q_all = np.zeros([x_prime.shape[0], self.n_proposals])
-        n_samples = self.poolsize
+        # Values are used for log Q, so make sure they're floats
+        n_samples = self.poolsize.astype(float)
         exclude_last = log_q_current is not None
         n_flows = self.flow.n_models
 
-        assert len(log_q_all) > 1
-
         if exclude_last:
             log_q_all[:, -1] = log_q_current + log_j
-            n_samples[-1] = n
+            n_samples[-1] = float(n)
             n_flows -= 1
         elif n is not None:
-            n_samples[-1] = n
+            n_samples[-1] = float(n)
+
+        for flow in self.flow.models:
+            assert flow.training is False
 
         if n_flows >= 1:
             log_q_all[:, 1: (n_flows + 1)] = (
@@ -440,7 +442,7 @@ class ImportanceFlowProposal(Proposal):
             f'Mean log q for each each flow: {log_q_all.mean(axis=0)}'
         )
 
-        log_Q = logsumexp(log_q_all + np.log(n_samples), axis=1)
+        log_Q = logsumexp(log_q_all, b=n_samples, axis=1)
 
         if np.isnan(log_Q).any():
             raise ValueError('There is a NaN in log g!')
@@ -450,8 +452,9 @@ class ImportanceFlowProposal(Proposal):
     def draw(
         self,
         n: int,
-        logL_min=None,
-        flow_number=None
+        logL_min: Optional[float] = None,
+        flow_number: Optional[int] = None,
+        update_counts: bool = True,
     ) -> np.ndarray:
         """Draw n new points.
 
@@ -459,6 +462,12 @@ class ImportanceFlowProposal(Proposal):
         ----------
         n : int
             Number of points to draw.
+        flow_number : Optional[int]
+            Specifies which flow to use. If not specified the last flow will
+            be used.
+        update_counts : bool
+            If True then counts (weight) for the specified flow will be
+            increased by n.
 
         Returns
         -------
@@ -467,6 +476,8 @@ class ImportanceFlowProposal(Proposal):
         """
         if flow_number is None:
             flow_number = self.level_count
+        elif flow_number not in self.n_requested:
+            raise RuntimeError('Cannot sample from prior with `draw`')
         if logL_min:
             _p = 1.2
             n = int(n)
@@ -477,19 +488,22 @@ class ImportanceFlowProposal(Proposal):
         samples = np.zeros(0, dtype=self.dtype)
         log_q_samples = np.empty([0, self.n_proposals])
 
-        self.n_requested[flow_number] += n
+        if update_counts:
+            self.n_requested[flow_number] += n
 
         # Make sure correct weight is used for computing log Q
         if self.reweight_draws:
             n_weight = self.n_requested[flow_number]
         else:
-            n_weight = self.n_draws[flow_number] + n
+            n_weight = self.n_draws[flow_number]
+            if update_counts:
+                n_weight += n
 
         n_accepted = 0
         while n_accepted < n and n_draw > 0:
             logger.debug(f'Drawing batch of {n_draw} samples')
             # x_prime, log_q = self.flow.sample_and_log_prob(N=n_draw)
-            x_prime = self.flow.sample(n_draw)
+            x_prime = self.flow.sample_ith(i=flow_number, N=n_draw)
             log_q = np.ones(n_draw)
             x, log_j_inv = self.inverse_rescale(x_prime)
             # Rescaling can sometimes produce infs that don't appear in samples
@@ -504,7 +518,7 @@ class ImportanceFlowProposal(Proposal):
                 & np.isfinite(log_j_inv)
                 & np.isfinite(log_q)
             )
-            logger.debug(f'Rejected {n_draw - acc.size} points')
+            logger.debug(f'Rejected {n_draw - acc.sum()} points')
             if not np.any(acc):
                 continue
             x, x_prime, log_j, log_q = \
@@ -517,7 +531,10 @@ class ImportanceFlowProposal(Proposal):
             x['logW'] = - x['logQ']
             accept = (
                 np.isfinite(x['logP'])
-                & np.isfinite(x['logW'])
+                & ~np.isposinf(x['logW'])
+                & ~np.isnan(log_q_all).all(axis=1)
+                & ~np.isposinf(log_q_all).all(axis=1)
+
             )
             if not np.any(accept):
                 continue
@@ -553,7 +570,8 @@ class ImportanceFlowProposal(Proposal):
                 f'with logL greater than {logL_min}'
             )
 
-        self.n_draws[self.level_count] += samples.size
+        if update_counts:
+            self.n_draws[flow_number] += samples.size
 
         if logL_min is not None:
             logger.debug('Recomputing log g')
@@ -564,7 +582,7 @@ class ImportanceFlowProposal(Proposal):
             samples['logW'] = -samples['logQ']
 
         entr = entropy(np.exp(samples['logQ']))
-        logger.info(f'Proposal self entropy: {entr:.3}')
+        logger.debug(f'Proposal self entropy: {entr:.3}')
         self.level_entropy.append(entr)
 
         self.draw_count += 1
@@ -623,7 +641,8 @@ class ImportanceFlowProposal(Proposal):
             ], axis=1)
 
             log_Q = logsumexp(
-                log_q + np.log(self.poolsize),
+                log_q,
+                b=self.poolsize,
                 axis=1
             )
 
@@ -711,6 +730,16 @@ class ImportanceFlowProposal(Proposal):
         logger.info(f'KL between {p_it} and {q_it} is: {kl:.3}')
         return kl
 
+    def draw_from_prior(self, n: int) -> Tuple[np.ndarray, np.ndarray]:
+        """Draw from the prior"""
+        cube_samples = np.random.rand(n, self.model.dims)
+        prime_samples, log_j = self.to_prime(cube_samples)
+        samples = self.inverse_rescale(prime_samples)[0]
+        log_Q, log_q = self.compute_log_Q(prime_samples, log_j=log_j)
+        samples['logQ'] = log_Q
+        samples['logW'] = - log_Q
+        return samples, log_q
+
     def draw_from_flows(
         self, n: int, weights=None, counts=None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -729,7 +758,7 @@ class ImportanceFlowProposal(Proposal):
                 weights = np.fromiter(
                     self.unnormalised_weights.values(), float
                 )
-            weights /= np.sum(weights)
+            weights = weights / np.sum(weights)
             if not len(weights) == self.n_proposals:
                 ValueError(
                     'Size of weights does not match the number of levels'
@@ -782,8 +811,9 @@ class ImportanceFlowProposal(Proposal):
         log_q = np.zeros((samples.size, self.n_proposals))
         # Minus because log_j is compute from the inverse
         logger.debug('Computing log_q')
-        log_q[:, 1:] = \
-            self.flow.log_prob_all(prime_samples) + log_j[:, np.newaxis]
+        if self.n_proposals > 1:
+            log_q[:, 1:] = \
+                self.flow.log_prob_all(prime_samples) + log_j[:, np.newaxis]
 
         # -inf is okay since this is just zero, so only remove +inf or NaN
         finite = (
@@ -794,6 +824,9 @@ class ImportanceFlowProposal(Proposal):
 
         logger.debug(
             f'Mean g for each each flow: {np.exp(log_q).mean(axis=0)}'
+        )
+        logger.debug(
+            f'Mean log_q for each each flow: {log_q.mean(axis=0)}'
         )
 
         samples['logP'] = self.model.log_prior(samples)
