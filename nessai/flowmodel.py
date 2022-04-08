@@ -6,9 +6,11 @@ import copy
 import glob
 import json
 import logging
-import numpy as np
 import os
 import shutil
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from torch.nn.utils import clip_grad_norm_
 
@@ -19,7 +21,7 @@ from .flows import (
     reset_permutations,
 )
 from .plot import plot_loss
-from .utils import NessaiJSONEncoder, compute_minimum_distances
+from .utils import NessaiJSONEncoder, auto_bins, compute_minimum_distances
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +97,8 @@ def update_config(d):
         val_size=0.1,
         max_epochs=500,
         patience=20,
-        noise_scale=0.0,
+        noise_type=None,
+        noise_scale=None,
         use_dataloader=False,
         optimiser='adamw',
         optimiser_kwargs={}
@@ -119,12 +122,14 @@ def update_config(d):
             default['model_config'] = default_model
 
     if (
-        not isinstance(default['noise_scale'], float) and
-        not default['noise_scale'] == 'adaptive'
+        isinstance(default['noise_scale'], float)
+        and default['noise_type'] is None
     ):
+        default['noise_type'] = 'constant'
+
+    if default['noise_type'] is not None and default['noise_scale'] is None:
         raise ValueError(
-            "noise_scale must be a float or 'adaptive'. "
-            f"Received: {default['noise_scale']}"
+            "`noise_scale` must be specified when `noise_type` is given."
         )
 
     return default
@@ -149,6 +154,8 @@ class FlowModel:
         Path for output, this includes weights files and the loss plot.
     """
     model_config = None
+    noise_scale = None
+    noise_type = None
 
     def __init__(self, config=None, output='./'):
         self.model = None
@@ -489,7 +496,7 @@ class FlowModel:
             else:
                 x = data
             if noise_scale:
-                x += noise_scale * torch.randn_like(x)
+                x = x + noise_scale * torch.randn_like(x)
             for param in model.parameters():
                 param.grad = None
             if weighted:
@@ -627,11 +634,15 @@ class FlowModel:
         if val_size is None:
             val_size = self.val_size
 
-        if self.noise_scale == 'adaptive':
-            noise_scale = 0.2 * np.mean(compute_minimum_distances(samples))
+        if self.noise_type == 'adaptive':
+            noise_scale = \
+                self.noise_scale * np.mean(compute_minimum_distances(samples))
             logger.debug(f'Using adaptive scale: {noise_scale:.3f}')
-        else:
+        elif self.noise_type == 'constant':
             noise_scale = self.noise_scale
+        else:
+            logger.debug('No noise will be added in training')
+            noise_scale = None
 
         self.move_to(self.device)
 
@@ -699,6 +710,7 @@ class FlowModel:
                 break
 
         logger.debug('Finished training')
+        logger.debug(f'Loading best model from epoch {best_epoch}')
         self.model.load_state_dict(best_model)
         self.finalise()
 
@@ -707,7 +719,95 @@ class FlowModel:
         self.model.eval()
 
         if plot:
-            plot_loss(epoch, history, filename=output + '/loss.png')
+            plot_loss(
+                epoch,
+                history,
+                filename=os.path.join(output, 'loss.png')
+            )
+            self.plot_log_prob_dist(
+                train_data,
+                val_data,
+                filename=os.path.join(output, 'log_prob_dist.png'),
+                is_dataloader=use_dataloader,
+                weighted=weighted,
+            )
+
+        return train_data, val_data
+
+    def plot_log_prob_dist(
+        self,
+        train_data,
+        val_data,
+        n_gen=None,
+        filename=None,
+        is_dataloader=False,
+        weighted=False,
+        hist_kwargs=None,
+    ):
+        """Plot a comparison of the distribution of log-probabilities"""
+
+        if is_dataloader:
+            log_probs = []
+            for data in [train_data, val_data]:
+                log_prob = []
+                for batch in data:
+                    if weighted:
+                        batch = batch[0]
+                    with torch.no_grad():
+                        log_prob.append(
+                            self.model.log_prob(batch).cpu().numpy()
+                        )
+                log_probs.append(np.concatenate(log_prob))
+            log_prob_train, log_prob_val = log_probs
+        else:
+            with torch.no_grad():
+                log_prob_train = self.model.log_prob(train_data).cpu().numpy()
+                log_prob_val = self.model.log_prob(val_data).cpu().numpy()
+
+        if n_gen is None:
+            n_gen = len(log_prob_train)
+
+        with torch.no_grad():
+            log_prob_gen = \
+                self.model.sample_and_log_prob(n_gen)[1].cpu().numpy()
+
+        default_kwargs = dict(
+            density=True,
+            histtype='step',
+            lw=3.0,
+        )
+        if hist_kwargs:
+            default_kwargs.update(default_kwargs)
+
+        assert self.model.training is False
+
+        fig = plt.figure()
+        plt.hist(
+            log_prob_train,
+            bins=auto_bins(log_prob_train),
+            label='Train',
+            **default_kwargs
+        )
+        plt.hist(
+            log_prob_val,
+            bins=auto_bins(log_prob_val),
+            label='Validation',
+            **default_kwargs
+        )
+        plt.hist(
+            log_prob_gen,
+            bins=auto_bins(log_prob_gen),
+            label='Generated',
+            **default_kwargs
+        )
+        plt.legend()
+        plt.tight_layout()
+
+        if filename is not None:
+            fig.savefig(filename)
+            plt.close()
+        else:
+            return fig
 
     def save_weights(self, weights_file):
         """
