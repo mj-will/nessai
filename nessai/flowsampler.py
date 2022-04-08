@@ -403,7 +403,8 @@ class FlowSampler:
 
         d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
         if hasattr(self, 'initial_posterior_samples'):
-            d['initial_posterior_samples'] = self.initial_posterior_samples
+            d['initial_posterior_samples'] = \
+                live_points_to_dict(self.initial_posterior_samples)
 
         with open(filename, 'w') as wf:
             json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
