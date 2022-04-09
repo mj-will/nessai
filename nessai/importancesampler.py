@@ -11,7 +11,6 @@ from typing import Any, Literal, Optional, Union
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import entropy
 from scipy.special import logsumexp
 from tqdm import tqdm
 
@@ -28,7 +27,10 @@ from .livepoint import (
     numpy_array_to_live_points,
 )
 from .utils.hist import auto_bins
-from .utils.information import relative_entropy_from_log
+from .utils.information import (
+    differential_entropy,
+    relative_entropy_from_log,
+)
 from .utils.stats import effective_sample_size, weighted_quantile
 from .utils.structures import get_subset_arrays
 
@@ -64,8 +66,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         dZ_ns=['dZ_ns', 'alt_evidence'],
         dZ_smc=['dZ_smc', 'smc_evidence'],
         dH=['dH', 'dH_all', 'entropy'],
-        dH_lp=['dH_lp', 'lp_entropy'],
-        dH_ns=['dH_ns', 'ns_entropy'],
     )
 
     def __init__(
@@ -143,8 +143,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.level_method = level_method
         self.level_kwargs = {} if level_kwargs is None else level_kwargs
         self.current_entropy = 0.0
-        self.current_live_points_entropy = 0.0
-        self.current_ns_entropy = 0.0
         self.dZ_smc = np.inf
         self.current_log_evidence = -np.inf
         self.annealing = annealing
@@ -211,25 +209,24 @@ class ImportanceNestedSampler(BaseNestedSampler):
             return None
 
     @property
-    def live_points_entropy(self):
-        log_p = self.live_points['logL'] + self.live_points['logW']
-        log_p -= logsumexp(log_p)
-        p = np.exp(log_p)
-        return entropy(p) / np.log(p.size)
+    def samples_entropy(self) -> float:
+        """Differential entropy of all of the samples (nested + live).
 
-    @property
-    def nested_samples_entropy(self):
-        log_p = self.nested_samples['logL'] + self.nested_samples['logW']
-        log_p -= logsumexp(log_p)
-        p = np.exp(log_p)
-        return entropy(p) / np.log(p.size)
+        Notes
+        -----
+        Compute the Monte Carlo approximation of
 
-    @property
-    def all_samples_entropy(self):
-        """Differential entropy of all of the samples (nested + live)"""
-        log_p = self.all_samples['logQ']
-        log_p -= log_p.size
-        return -np.mean(log_p)
+        .. math::
+            -\\int W(x) \\log W(x) dx
+
+        where :math:`W(x) = \\pi(x)/Q(x)`.
+        """
+        # Q is not normalised, so must normalise weight use meta constant
+        log_p = (
+            self.all_samples['logW']
+            + np.log(self.proposal.normalisation_constant)
+        )
+        return differential_entropy(log_p)
 
     @property
     def is_checkpoint_iteration(self) -> bool:
@@ -396,12 +393,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 n_added=[],
                 n_removed=[],
                 n_post=[],
-                live_points_entropy=[],
                 live_points_remaining_entropy=[],
                 live_points_ess=[],
                 pool_entropy=[],
-                nested_samples_entropy=[],
-                all_samples_entropy=[],
+                samples_entropy=[],
                 likelihood_evaluations=[],
                 max_logQ=[],
                 mean_logQ=[],
@@ -425,16 +420,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['gradients'].append(self.gradient)
         self.history['logZ'].append(self.state.logZ)
         self.history['n_post'].append(self.state.effective_n_posterior_samples)
-        self.history['live_points_entropy'].append(self.live_points_entropy)
-        self.history['all_samples_entropy'].append(self.all_samples_entropy)
+        self.history['samples_entropy'].append(self.samples_entropy)
         self.history['live_points_ess'].append(self.live_points_ess)
-        self.history['live_points_remaining_entropy'].append(
-            self.entropy_remaining
-        )
-        self.history['nested_samples_entropy'].append(
-            self.nested_samples_entropy
-        )
-        self.history['pool_entropy'] = self.proposal.level_entropy
         self.history['likelihood_evaluations'].append(
             self.model.likelihood_evaluations
         )
@@ -773,9 +760,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.live_points = np.delete(self.live_points, np.s_[:n])
             self._log_q_lp = np.delete(self._log_q_lp, np.s_[:n], axis=0)
             self.training_points = self.live_points.copy()
-        self.entropy_remaining = entropy(
-            np.exp(self.training_points['logW'])
-        )
 
     def adjust_final_samples(self, n_batches=5):
         """Adjust the final samples"""
@@ -923,21 +907,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.kl = self.kl_divergence(include_live_points=True)
 
         previous_entropy = self.current_entropy
-        previous_live_points_entropy = self.current_live_points_entropy
-        previous_ns_entropy = self.current_ns_entropy
-        self.current_entropy = self.all_samples_entropy
-        self.current_live_points_entropy = self.live_points_entropy
-        self.current_ns_entropy = self.nested_samples_entropy
+        self.current_entropy = self.samples_entropy
         self.dH = np.abs(
             (self.current_entropy - previous_entropy) / self.current_entropy
-        )
-        self.dH_lp = np.abs(
-            (self.current_live_points_entropy - previous_live_points_entropy)
-            / self.current_live_points_entropy
-        )
-        self.dH_ns = np.abs(
-            (self.current_ns_entropy - previous_ns_entropy)
-            / self.current_entropy
         )
 
         self.current_log_evidence = \
@@ -945,18 +917,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         logger.debug(f'Current entropy: {self.current_entropy:.3f}')
         logger.debug(f'Relative change in entropy: {self.dH:.3f}')
-        logger.debug(
-            f'Current LP entropy: {self.current_live_points_entropy:.3f}'
-        )
-        logger.debug(
-            f'Relative change in LP entropy: {self.dH_lp:.3f}'
-        )
-        logger.debug(
-            f'Current NS entropy: {self.current_ns_entropy:.3f}'
-        )
-        logger.debug(
-            f'Relative change in NS entropy: {self.dH_ns:.3f}'
-        )
 
         cond = getattr(self, self.stopping_criterion)
 
@@ -1035,14 +995,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.add_and_update_points(n_add)
             self.iteration += 1
             self.criterion = self.compute_stopping_criterion()
-            logger.info(f'Live points entropy: {self.live_points_entropy}')
-            logger.info(f'NS entropy: {self.nested_samples_entropy}')
             logger.warning(
                 f'Update {self.iteration} - '
                 f'log Z: {self.state.logZ:.3f} +/- '
                 f'{self.state.compute_uncertainty():.3f} '
                 f'dZ: {self.state.compute_condition(self.live_points):.3f} '
-                f'H: {self.entropy_remaining:.3f} '
                 f'ESS: {self.state.effective_n_posterior_samples:.1f} '
                 f"logL min: {self.live_points['logL'].min():.3f} "
                 f"logL max: {self.live_points['logL'].max():.3f}"
@@ -1083,14 +1040,16 @@ class ImportanceNestedSampler(BaseNestedSampler):
             samples = self.nested_samples
             log_w = self.state.log_posterior_weights
 
-        posterior_samples = draw_posterior_samples(
+        posterior_samples, indices = draw_posterior_samples(
             samples,
             log_w=log_w,
             method=sampling_method,
             n=n,
+            return_indices=True,
         )
-        H = entropy(np.exp(log_w))
-        logger.info(f'Information in the posterior: {H:.3f} nats')
+        log_p = log_w[indices] - log_w[indices].max()
+        h = differential_entropy(log_p)
+        logger.info(f'Information in the posterior: {h:.3f} nats')
         logger.info(f'Produced {posterior_samples.size} posterior samples.')
         return posterior_samples
 
@@ -1409,9 +1368,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
-        ax[m].plot(its, self.history['all_samples_entropy'], c=colours[0],
+        ax[m].plot(its, self.history['samples_entropy'], c=colours[0],
                    ls=ls[0])
-        ax[m].set_ylabel('Entropy')
+        ax[m].set_ylabel('Differential entropy')
 
         m += 1
 
@@ -1540,7 +1499,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Checks if plotting is enabled.
 
         Parameters
-        ---------
+        ----------
         force : bool
             Override the plotting setting and force the plots to be produced.
         """

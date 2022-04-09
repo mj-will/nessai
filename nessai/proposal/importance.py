@@ -8,7 +8,6 @@ from typing import Callable, Optional, Tuple, Union
 
 import numpy as np
 from scipy.special import logsumexp
-from scipy.stats import entropy
 
 from nessai.plot import plot_1d_comparison, plot_histogram, plot_live_points
 
@@ -90,7 +89,6 @@ class ImportanceFlowProposal(Proposal):
         self.n_draws = {'initial': initial_draws}
         self.n_requested = {'initial': initial_draws}
         self.levels = {'initial': None}
-        self.level_entropy = []
 
         logger.debug(f'Initial q: {np.exp(self.initial_log_q)}')
 
@@ -196,7 +194,7 @@ class ImportanceFlowProposal(Proposal):
         Uses :code:`numpy.allclose`, see numpy documentation for more details.
 
         Parameters
-        -----------
+        ----------
         n : int
             Number of samples to test.
         atol : float
@@ -580,10 +578,6 @@ class ImportanceFlowProposal(Proposal):
                 prime_samples, log_j=log_j,
             )
             samples['logW'] = -samples['logQ']
-
-        entr = entropy(np.exp(samples['logQ']))
-        logger.debug(f'Proposal self entropy: {entr:.3}')
-        self.level_entropy.append(entr)
 
         self.draw_count += 1
         logger.debug(f'Returning {samples.size} samples')

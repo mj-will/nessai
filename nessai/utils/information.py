@@ -1,47 +1,32 @@
 # -*- coding: utf-8 -*-
-"""Utitilies for computing information and entropy"""
+"""Utilities for computing information and entropy"""
 import numpy as np
 from scipy.special import logsumexp
 
 
-def self_entropy(p: np.ndarray) -> float:
-    """Compute the self entropy of an array of probabilties.
+def differential_entropy(log_p: np.ndarray) -> float:
+    """Approximate the differential entropy from samples.
+
+    Notes
+    -----
+    Assumes samples are drawn from :math:`p(x)` such that
+
+    .. math::
+        h(x) = -\\int p(x) \\log p(x) dx
+
+    can be approximated via Monte Carlo integration.
 
     Parameters
     ----------
-    p : array_like
-        Array of probabilities.
+    log_p : numpy.ndarray
+        Array of log-probabilities.
+
+    Returns
+    -------
+    float
+        The differential entropy
     """
-    p = np.array(p)
-    p /= np.sum(p)
-    return - np.sum(p * np.log(p))
-
-
-def efficiency(p: np.ndarray) -> float:
-    """Compute the efficiency (normalised entropy) for an array of \
-        probabilities.
-
-    Parameters
-    ----------
-    p : array_like
-        Array of probabilities
-    """
-    return self_entropy(p) / np.log(len(p))
-
-
-def cumulative_entropy(p: np.ndarray, base: float = np.e) -> np.ndarray:
-    """Compute the entropy assuming a fraction of the points are discarded.
-
-    Starts with a single point and adds a point each time until all
-    of the points have been added.
-    """
-    assert p.size <= 10_000
-    p = np.array(p, dtype=np.float128)
-    norm = np.cumsum(p)
-    q = p / norm[np.newaxis, :].T
-    q[np.triu_indices(p.size, k=1)] = np.nan
-    h = -np.nansum(q * np.log(q) / np.log(base), axis=1)
-    return h
+    return -np.mean(log_p)
 
 
 def kl_divergence_from_log(log_p: np.ndarray, log_q: np.ndarray) -> float:
