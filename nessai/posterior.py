@@ -67,6 +67,7 @@ def draw_posterior_samples(
     n=None,
     log_w=None,
     method='rejection_sampling',
+    return_indices=False,
 ):
     """Draw posterior samples given the nested samples.
 
@@ -90,6 +91,8 @@ def draw_posterior_samples(
         and these weights are used instead.
     method : str, {'rejection_sampling', 'importance_sampling'}
         Method for drawing the posterior samples.
+    return_indices : bool
+        If true return the indices of the accepted samples.
 
     Returns
     -------
@@ -107,7 +110,9 @@ def draw_posterior_samples(
             logger.warning(
                 'Number of samples cannot be specified for rejection sampling')
         log_u = np.log(np.random.rand(nested_samples.size))
-        return nested_samples[log_w > log_u]
+        samples = nested_samples[log_w > log_u]
+        if return_indices:
+            indices = np.where(log_w > log_u)[0]
     elif method == 'importance_sampling':
         logger.info('Producing posterior samplies using importance sampling')
         p = np.exp(log_w - logsumexp(log_w))
@@ -115,7 +120,15 @@ def draw_posterior_samples(
             n = int(1 / np.sum(p ** 2.0))
             logger.info(
                 f'Computed effective sample size for importance sampling: {n}')
-        return np.random.choice(nested_samples, size=n, p=p, replace=True)
+        indices = np.random.choice(
+            nested_samples.size, size=n, p=p, replace=True
+        )
+        samples = nested_samples[indices]
     else:
         raise ValueError(
             f'Unknown method of drawing posterior sampling: {method}')
+
+    if return_indices:
+        return samples, indices
+    else:
+        return samples
