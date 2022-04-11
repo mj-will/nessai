@@ -16,6 +16,7 @@ from torch.nn.utils import clip_grad_norm_
 
 from .flows import (
     configure_model,
+    get_n_neurons,
     set_affine_parameters,
     reset_weights,
     reset_permutations,
@@ -113,12 +114,10 @@ def update_config(d):
         else:
             default.update(d)
             default_model.update(d.get('model_config', {}))
-            if default_model['n_neurons'] is None:
-                if default_model['n_inputs'] is not None:
-                    default_model['n_neurons'] = 2 * default_model['n_inputs']
-                else:
-                    default_model['n_neurons'] = 8
-
+            default_model['n_neurons'] = get_n_neurons(
+                n_neurons=default_model.get('n_neurons'),
+                n_inputs=default_model.get('n_inputs'),
+            )
             default['model_config'] = default_model
 
     if (

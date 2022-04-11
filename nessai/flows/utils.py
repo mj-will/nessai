@@ -7,7 +7,7 @@ import logging
 import numpy as np
 import torch
 import torch.nn.functional as F
-from typing import Union
+from typing import Optional, Union
 
 from nflows import transforms
 from nflows.nn.nets import MLP as NFlowsMLP
@@ -84,6 +84,64 @@ def get_base_distribution(
     return dist
 
 
+def get_n_neurons(
+    n_neurons: Optional[int] = None,
+    n_inputs: Optional[int] = None,
+    default: int = 8
+) -> int:
+    """Get the number of neurons.
+
+    Notes
+    -----
+    If :code:`n_inputs` is also specified then the options for
+    :code:`n_neurons` are either a value that can be converted to an
+    :code:`int` or one of the following:
+
+        - :code:`'auto'` or :code:`'double'`: uses twice the number of inputs
+        - :code:`'equal'`: uses the number of inputs
+        - :code:`'half'`: uses half the number of inputs
+        - :code:`None`: falls back to :code:`'auto'`
+
+    Parameters
+    ----------
+    n_neurons : Optional[int]
+        Number of neurons.
+    n_inputs: Optional[int]
+        Number of inputs.
+    default : int
+        Default value if :code:`n_neurons` and :code:`n_inputs` are not given.
+
+    Returns
+    -------
+    int
+        Number of neurons.
+    """
+    if n_inputs is None:
+        if n_neurons is None:
+            n = default
+        else:
+            n = n_neurons
+    else:
+        if n_neurons is None or n_neurons in {'auto', 'double'}:
+            n = (2 * n_inputs)
+        elif n_neurons == 'equal':
+            n = n_inputs
+        elif n_neurons == 'half':
+            n = n_inputs // 2
+        else:
+            n = n_neurons
+    try:
+        n = int(n)
+    except ValueError:
+        raise ValueError(
+            'Could not get number of neurons. `n_neurons` was set to '
+            f'`{n_neurons}` which could not be translated to a valid int. If '
+            'using `auto`, `double`, `equal` or `half`, check that `n_inputs` '
+            'is set.'
+        )
+    return n
+
+
 def configure_model(config):
     """
     Setup the flow form a configuration dictionary.
@@ -124,11 +182,10 @@ def configure_model(config):
     dist_kwargs = config.pop('distribution_kwargs', None)
     if dist_kwargs is None:
         dist_kwargs = {}
-    if dist_kwargs.get('n_neurons', None) == 'auto':
-        logger.debug(
-            'Setting number of neurons in the latent distribution to 2 x dims'
-        )
-        dist_kwargs['n_neurons'] = 2 * config['n_inputs']
+    dist_kwargs['n_neurons'] = get_n_neurons(
+        n_neurons=dist_kwargs.get('n_neurons'),
+        n_inputs=config.get('n_inputs'),
+    )
     distribution = get_base_distribution(
         config['n_inputs'],
         config.pop('distribution', None),
