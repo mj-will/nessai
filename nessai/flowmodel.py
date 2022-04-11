@@ -120,15 +120,17 @@ def update_config(d):
             )
             default['model_config'] = default_model
 
-    if (
-        isinstance(default['noise_scale'], float)
-        and default['noise_type'] is None
-    ):
-        default['noise_type'] = 'constant'
-
     if default['noise_type'] is not None and default['noise_scale'] is None:
         raise ValueError(
             "`noise_scale` must be specified when `noise_type` is given."
+        )
+    if isinstance(default['noise_scale'], float):
+        if default['noise_type'] is None:
+            default['noise_type'] = 'constant'
+    elif default['noise_scale'] is not None:
+        raise TypeError(
+            '`noise_scale` must be a float. '
+            "'Got type: {type(default['noise_scale'])}"
         )
 
     return default
@@ -750,11 +752,9 @@ class FlowModel:
             for data in [train_data, val_data]:
                 log_prob = []
                 for batch in data:
-                    if weighted:
-                        batch = batch[0]
                     with torch.no_grad():
                         log_prob.append(
-                            self.model.log_prob(batch).cpu().numpy()
+                            self.model.log_prob(batch[0]).cpu().numpy()
                         )
                 log_probs.append(np.concatenate(log_prob))
             log_prob_train, log_prob_val = log_probs

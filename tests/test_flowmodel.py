@@ -47,11 +47,11 @@ def test_update_config_invalid_type():
 
 @pytest.mark.parametrize('noise_scale', ['auto', 4])
 def test_update_config_invalid_noise_scale(noise_scale):
-    """Assert an error is raised if noise_scale is not a float or adapative."""
+    """Assert an error is raised if noise_scale is not a float"""
     config = {'noise_scale': noise_scale}
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(TypeError) as excinfo:
         update_config(config)
-    assert 'noise_scale must be a float or' in str(excinfo.value)
+    assert '`noise_scale` must be a float' in str(excinfo.value)
 
 
 def test_update_config_n_neurons():
@@ -214,22 +214,29 @@ def test_training(flow_model, data_dim, dataloader):
     assert flow_model.weights_file is not None
 
 
-@pytest.mark.parametrize('key, value', [('annealing', True),
-                                        ('noise_scale', 0.1),
-                                        ('noise_scale', 'adaptive'),
-                                        ('max_epochs', 51)])
-def test_training_additional_config_args(flow_config, data_dim, tmpdir,
-                                         key, value):
+@pytest.mark.parametrize(
+    "config",
+    [
+        {'annealing': True},
+        {'noise_scale': 0.1},
+        {'noise_type': 'adaptive', 'noise_scale': 0.1},
+        {'max_epochs': 51},
+    ]
+)
+def test_training_additional_config_args(
+    flow_config, data_dim, tmpdir, config
+):
     """
     Test training with different config args
     """
     flow_config['model_config']['n_inputs'] = data_dim
-    flow_config[key] = value
+    flow_config.update(config)
 
     output = str(tmpdir.mkdir('flowmodel'))
     flow_model = FlowModel(flow_config, output=output)
 
-    assert getattr(flow_model, key) == value
+    for k, v in config.items():
+        assert getattr(flow_model, k) == v
 
     x = np.random.randn(100, data_dim)
     flow_model.train(x)
