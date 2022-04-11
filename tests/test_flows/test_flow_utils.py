@@ -13,6 +13,7 @@ from nessai.flows.utils import (
     configure_model,
     create_linear_transform,
     get_base_distribution,
+    get_n_neurons,
     set_affine_parameters,
     silu,
     reset_weights,
@@ -284,3 +285,45 @@ def test_set_affine_parameters(scale, shift):
     x = torch.randn(5, 2)
     _ = transform.forward(x)
     _ = transform.inverse(x)
+
+
+@pytest.mark.parametrize(
+    "n_neurons, n_inputs, expected",
+    [
+        (16, 2, 16),
+        ('auto', 2, 4),
+        ('double', 2, 4),
+        (None, 2, 4),
+        ('equal', 2, 2),
+        ('half', 4, 2),
+        (None, None, 8),
+    ]
+)
+def test_get_n_neurons(n_neurons, n_inputs, expected):
+    """Assert the correct values are returned"""
+    out = get_n_neurons(
+        n_neurons=n_neurons,
+        n_inputs=n_inputs
+    )
+    assert isinstance(out, int)
+    assert out == expected
+
+
+@pytest.mark.parametrize(
+    "n_neurons, n_inputs",
+    [
+        ('auto', None),
+        ('half', None),
+        ('equal', None),
+        ('double', None),
+        ('invalid', 4)
+    ]
+)
+def test_get_n_neurons_value_error(n_neurons, n_inputs):
+    """Assert a ValueError is raised if invalid inputs are given"""
+    with pytest.raises(ValueError) as excinfo:
+        get_n_neurons(
+            n_neurons=n_neurons,
+            n_inputs=n_inputs
+        )
+    assert 'Could not get number of neurons' in str(excinfo.value)
