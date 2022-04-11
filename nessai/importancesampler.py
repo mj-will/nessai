@@ -58,6 +58,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         the number will depend on the level method chosen. Note that this will
         override the choice of live points. The number of points draw is set
         by the live points.
+    trace_plot_kwargs
+        Keyword arguments for the trace plot.
     """
 
     _stopping_criterion_aliases = dict(
@@ -89,6 +91,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         plot_level_cdf: bool = False,
         plot_trace: bool = True,
         plot_training_data: bool = False,
+        trace_plot_kwargs: Optional[dict] = None,
         replace_all: bool = False,
         level_method: Literal['entropy', 'quantile'] = 'entropy',
         leaky: bool = True,
@@ -136,6 +139,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.plot_pool = plot_pool
         self.plot_level_cdf = plot_level_cdf
         self._plot_trace = plot_trace
+        self.trace_plot_kwargs = \
+            {} if trace_plot_kwargs is None else trace_plot_kwargs
         self.plot_training_data = plot_training_data
         self.plotting_frequency = plotting_frequency
         self.replace_all = replace_all
@@ -1412,9 +1417,27 @@ class ImportanceNestedSampler(BaseNestedSampler):
             return fig
 
     def plot_trace(
-        self, filename: Optional[str] = None
-    ) -> Union[plt.figure, None]:
-        """Produce a trace-like plot of the nested samples."""
+        self,
+        enable_colours: bool = True,
+        filename: Optional[str] = None,
+    ) -> Union[matplotlib.figure.Figure, None]:
+        """Produce a trace-like plot of the nested samples.
+
+        Parameters
+        ----------
+        enable_colours : bool
+            If True, the iteration will be plotted on the colour axis. If
+            False, the points will be plotted with a single colour.
+        filename : Optional[str]
+            Filename for saving the figure. If not specified the figure will
+            be returned instead.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            Trace plot figure. Only returned when the filename is not
+            specified.
+        """
 
         parameters = list(self.nested_samples.dtype.names)
         for p in ['logW', 'it']:
@@ -1425,14 +1448,21 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         log_w = self.nested_samples['logW']
 
+        if enable_colours:
+            colour_kwargs = dict(
+                c=self.nested_samples['it'],
+                vmin=-1,
+                vmax=self.nested_samples['it'].max(),
+            )
+        else:
+            colour_kwargs = {}
+
         for ax, p in zip(axs, parameters):
             ax.scatter(
                 log_w,
                 self.nested_samples[p],
-                c=self.nested_samples['it'],
                 s=1.0,
-                vmin=-1,
-                vmax=self.nested_samples['it'].max(),
+                **colour_kwargs,
             )
             ax.set_ylabel(p)
         axs[-1].set_xlabel('Log W')
@@ -1507,7 +1537,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.debug('Producing plots')
             self.plot_state(os.path.join(self.output, 'state.png'))
             if self._plot_trace:
-                self.plot_trace(os.path.join(self.output, 'trace.png'))
+                self.plot_trace(
+                    filename=os.path.join(self.output, 'trace.png'),
+                    **self.trace_plot_kwargs,
+                )
             self.plot_likelihood_levels(
                 os.path.join(self.output, 'likelihood_levels.png')
             )
