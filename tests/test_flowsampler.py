@@ -276,6 +276,8 @@ def test_save_kwargs(flow_sampler, tmpdir, test_class):
         kwargs['flow_class'] = 'flowproposal'
 
     flow_sampler.output = str(tmpdir.mkdir('test'))
+    flow_sampler.eps = 1e-10
+    flow_sampler.importance_sampler = False
 
     FlowSampler.save_kwargs(flow_sampler, kwargs)
 
