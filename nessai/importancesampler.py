@@ -1276,7 +1276,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def plot_state(
         self,
         filename: Optional[str] = None
-    ) -> Optional[plt.figure]:
+    ) -> Optional[matplotlib.figure.Figure]:
         """
         Produce plots with the current state of the nested sampling run.
         Plots are saved to the output directory specified at initialisation.
@@ -1300,28 +1300,34 @@ class ImportanceNestedSampler(BaseNestedSampler):
         # Counter for each plot
         m = 0
 
-        ax[m].plot(its, self.history['min_logL'], label='Min logL',
+        ax[m].plot(its, self.history['min_logL'], label='Min. Log L',
                    c=colours[0], ls=ls[0])
-        ax[m].plot(its, self.history['max_logL'], label='Max logL',
+        ax[m].plot(its, self.history['max_logL'], label='Max. Log L',
                    c=colours[1], ls=ls[1])
-        ax[m].plot(its, self.history['median_logL'], label='Median logL',
+        ax[m].plot(its, self.history['median_logL'], label='Median Log L',
                    c=colours[2], ls=ls[2])
         ax[m].set_ylabel('Log-likelihood')
         ax[m].legend(frameon=False)
 
         m += 1
 
-        ax[m].plot(its, self.history['logX'])
-        ax[m].set_ylabel('log X')
+        ax[m].plot(its, self.history['logX'], label='Log X')
+        ax[m].set_ylabel('Log X')
         ax_gradients = plt.twinx(ax[m])
         ax_gradients.plot(
-            its, self.history['gradients'], ls=ls[1], c=colours[1]
+            its, self.history['gradients'], ls=ls[1], c=colours[1],
+            label='Gradient'
         )
         ax_gradients.set_ylabel('dlogL/dlogX')
+        handles, labels = ax[m].get_legend_handles_labels()
+        handles_grad, labels_grad = ax_gradients.get_legend_handles_labels()
+        ax[m].legend(
+            handles + handles_grad, labels + labels_grad, frameon=False
+        )
 
         m += 1
 
-        ax[m].plot(its, self.history['logZ'], label='logZ', c=colours[0],
+        ax[m].plot(its, self.history['logZ'], label='Log Z', c=colours[0],
                    ls=ls[0])
         ax[m].set_ylabel('Log-evidence')
         ax[m].legend(frameon=False)
@@ -1366,16 +1372,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         ax_leak = plt.twinx(ax[m])
         ax_leak.plot(its, self.history['leakage_live_points'], ls=ls[2],
-                     c=colours[2])
+                     c=colours[2], label='Total leakage')
         ax_leak.plot(its, self.history['leakage_new_points'], ls=ls[3],
-                     c=colours[3])
+                     c=colours[3], label='New leakage')
         ax_leak.set_ylabel('Leakage')
+        handles, labels = ax[m].get_legend_handles_labels()
+        handles_leak, labels_leak = ax_leak.get_legend_handles_labels()
+        ax[m].legend(
+            handles + handles_leak, labels + labels_leak, frameon=False
+        )
 
         m += 1
 
-        ax[m].plot(its, self.history['samples_entropy'], c=colours[0],
-                   ls=ls[0])
-        ax[m].set_ylabel('Differential entropy')
+        ax[m].plot(
+            its, self.history['samples_entropy'], c=colours[0], ls=ls[0]
+        )
+        ax[m].set_ylabel('Differential\n entropy')
 
         m += 1
 
@@ -1384,7 +1396,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].set_ylabel('KL divergence')
         ax_kl = plt.twinx(ax[m])
         ax_kl.plot(its, self.history['stopping_criteria']['kl'],
-                   label='(g||post)', c=colours[1], ls=ls[1])
+                   label='(Q||post)', c=colours[1], ls=ls[1])
         ax_kl.set_ylabel('KL divergence')
         handles, labels = ax[m].get_legend_handles_labels()
         handles_kl, labels_kl = ax_kl.get_legend_handles_labels()
