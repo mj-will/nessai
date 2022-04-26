@@ -68,6 +68,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         dZ_ns=['dZ_ns', 'alt_evidence'],
         dZ_smc=['dZ_smc', 'smc_evidence'],
         dH=['dH', 'dH_all', 'entropy'],
+        ratio=['ratio', 'ratio_all'],
+        ratio_ns=['ratio_ns'],
     )
 
     def __init__(
@@ -126,7 +128,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.initialised = False
         self.finalised = False
         self.history = None
-        self.dZ = np.inf
         self.live_points_ess = np.nan
         self.sorting = sorting
 
@@ -147,19 +148,25 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.leaky = leaky
         self.level_method = level_method
         self.level_kwargs = {} if level_kwargs is None else level_kwargs
-        self.current_entropy = 0.0
-        self.dZ_smc = np.inf
-        self.current_log_evidence = -np.inf
         self.annealing = annealing
         self.beta_min = beta_min
         self.beta_max = beta_max
         self.beta = None
-        self._initial_dZ = None
         self.logX = 0.0
         self.min_logL = -np.inf
         self.logL_pre = -np.inf
         self.logL = -np.inf
         self.draw_constant = draw_constant
+
+        self.dZ = np.inf
+        self.dZ_ns = np.inf
+        self.dZ_lp = np.inf
+        self.ratio = np.inf
+        self.ratio_ns = np.inf
+        self._logZ = -np.inf
+        self._logZ_ns = -np.inf
+        self._logZ_lp = -np.inf
+        self._current_entropy = 0.0
 
         self.min_dZ = min_dZ if min_dZ is not None else np.inf
 
@@ -395,6 +402,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 leakage_live_points=[],
                 leakage_new_points=[],
                 logZ=[],
+                logZ_ns=[],
+                logZ_lp=[],
                 n_added=[],
                 n_removed=[],
                 n_post=[],
@@ -424,6 +433,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['logX'].append(self.logX)
         self.history['gradients'].append(self.gradient)
         self.history['logZ'].append(self.state.logZ)
+        self.history['logZ_ns'].append(self._logZ_ns)
+        self.history['logZ_lp'].append(self._logZ_lp)
         self.history['n_post'].append(self.state.effective_n_posterior_samples)
         self.history['samples_entropy'].append(self.samples_entropy)
         self.history['live_points_ess'].append(self.live_points_ess)
@@ -662,10 +673,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f"{effective_sample_size(new_points['logW'])}"
         )
 
-        if not self._normalised_evidence:
-            # Update the constant to make sure the evidence is correct
-            self.state.log_meta_constant = \
-                np.log(self.proposal.normalisation_constant)
+        # Update the constant for computing stopping criterion or when N
+        # doesn't cancel
+        self.state.log_meta_constant = \
+            np.log(self.proposal.normalisation_constant)
 
         self._log_q_lp = self.update_live_points()
         self.update_nested_samples()
@@ -756,9 +767,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['n_removed'].append(n)
         logger.debug(f'Removing {n} points')
         self.add_to_nested_samples(self.live_points[:n], self._log_q_lp[:n])
-        self.state.update_evidence_from_nested_samples(
-            self.nested_samples
-        )
+
         if self.replace_all:
             raise NotImplementedError('Replace all is not implemented')
         else:
@@ -843,7 +852,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             batch_samples['logQ'] = log_Q
             batch_samples['logW'] = -log_Q
             state = _INSIntegralState()
-            state.update_evidence_from_nested_samples(batch_samples)
+            state.update_evidence(batch_samples)
             log_evidences[i] = state.log_evidence
             log_evidence_errors[i] = state.log_evidence_error
             logger.debug(f'Log-evidence batch {i} = {log_evidences[i]:.3f}')
@@ -861,11 +870,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.info('Finalising')
 
         self.add_to_nested_samples(self.live_points, self._log_q_lp)
-        self.state.update_evidence_from_nested_samples(self.nested_samples)
+        self.live_points = None
+        self.state.update_evidence(
+            self.nested_samples,
+            live_points=self.live_points,
+        )
 
         self.adjust_final_samples()
 
-        self.live_points = None
         final_kl = self.kl_divergence()
         logger.warning(
             f'Final log Z: {self.state.logZ:.3f} '
@@ -895,32 +907,31 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         The method used will depend on how the sampler was configured.
         """
-        # Version for SMC_NS
-        previous_log_evidence = self.current_log_evidence
-        log_Z_with_live_points = \
-            self.state.compute_updated_log_Z(self.live_points)
 
-        self.dZ_smc = np.abs(
-            log_Z_with_live_points - previous_log_evidence
-        )
+        pre_logZ_ns = self._logZ_ns
+        self._logZ_ns = self.state.log_evidence_nested_samples
+        self.dZ_ns = np.abs(self._logZ_ns - pre_logZ_ns)
 
-        current_ln_Z = self.state.logZ
-        self.dZ_ns = np.abs(current_ln_Z - self.initial_ln_Z)
-        self.dZ = self.state.compute_condition(self.live_points)
-        logger.debug(f'dZ_NS: {self.dZ_ns}')
-        logger.debug(f'dZ_smc: {self.dZ_smc}')
+        pre_logZ_lp = self._logZ_lp
+        self._logZ_lp = self.state.log_evidence_live_points
+        self.dZ_lp = np.abs(self._logZ_lp - pre_logZ_lp)
+
+        pre_logZ = self._logZ
+        self._logZ = self.state.logZ
+        self.dZ = np.abs(self._logZ - pre_logZ)
+
+        self.ratio = self.state.compute_evidence_ratio(ns_only=False)
+        self.ratio_ns = self.state.compute_evidence_ratio(ns_only=True)
+
         self.kl = self.kl_divergence(include_live_points=True)
 
-        previous_entropy = self.current_entropy
-        self.current_entropy = self.samples_entropy
+        previous_entropy = self._current_entropy
+        self._current_entropy = self.samples_entropy
         self.dH = np.abs(
-            (self.current_entropy - previous_entropy) / self.current_entropy
+            (self._current_entropy - previous_entropy) / self._current_entropy
         )
 
-        self.current_log_evidence = \
-            self.state.compute_updated_log_Z(self.live_points)
-
-        logger.debug(f'Current entropy: {self.current_entropy:.3f}')
+        logger.debug(f'Current entropy: {self._current_entropy:.3f}')
         logger.debug(f'Relative change in entropy: {self.dH:.3f}')
 
         cond = getattr(self, self.stopping_criterion)
@@ -969,7 +980,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
             self._compute_gradient()
 
-            self.initial_ln_Z = self.state.logZ
             if self.n_update is None:
                 n_remove = self.determine_level(
                     method=self.level_method, **self.level_kwargs
@@ -998,13 +1008,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
             else:
                 n_add = n_remove
             self.add_and_update_points(n_add)
+            self.state.update_evidence(self.nested_samples, self.live_points)
             self.iteration += 1
             self.criterion = self.compute_stopping_criterion()
+
             logger.warning(
                 f'Update {self.iteration} - '
                 f'log Z: {self.state.logZ:.3f} +/- '
                 f'{self.state.compute_uncertainty():.3f} '
-                f'dZ: {self.state.compute_condition(self.live_points):.3f} '
+                f'dZ: {self.dZ:.3f} '
                 f'ESS: {self.state.effective_n_posterior_samples:.1f} '
                 f"logL min: {self.live_points['logL'].min():.3f} "
                 f"logL max: {self.live_points['logL'].max():.3f}"
@@ -1081,7 +1093,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         samples = self.proposal.draw_from_flows(n)
         samples['logL'] = self.model.batch_evaluate_log_likelihood(samples)
         state = _INSIntegralState()
-        state.update_evidence_from_nested_samples(samples)
+        state.update_evidence(samples)
         logger.info(
             'Evidence in new nested samples: '
             f'{state.logZ:3f} +/- {state.compute_uncertainty():.3f}'
@@ -1247,7 +1259,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 samples['logQ'] = log_Q
                 samples['logW'] = -log_Q
 
-                self.final_state.update_evidence_from_nested_samples(samples)
+                self.final_state.update_evidence(samples)
                 ess = self.final_state.effective_n_posterior_samples
                 if n_post:
                     pbar.n = ess
@@ -1327,18 +1339,25 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
-        ax[m].plot(its, self.history['logZ'], label='Log Z', c=colours[0],
-                   ls=ls[0])
+        ax[m].plot(
+            its, self.history['logZ'], label='Log Z', c=colours[0], ls=ls[0]
+        )
+        ax[m].plot(
+            its, self.history['logZ_ns'], label='Log Z (NS)', c=colours[1],
+            ls=ls[1]
+        )
+        ax[m].plot(
+            its, self.history['logZ_lp'], label='Log Z (LP)', c=colours[2],
+            ls=ls[2]
+        )
         ax[m].set_ylabel('Log-evidence')
         ax[m].legend(frameon=False)
 
         ax_dz = plt.twinx(ax[m])
         ax_dz.plot(its, self.history['stopping_criteria']['dZ'], label='dZ',
-                   c=colours[1], ls=ls[1])
-        ax_dz.set_ylabel('dZ')
+                   c=colours[3], ls=ls[3])
+        ax_dz.set_ylabel('|dZ|')
         ax_dz.set_yscale('log')
-        ax_dz.axhline(self.tolerance, label=f'dZ={self.tolerance}', ls=':',
-                      c=colours[2])
         handles, labels = ax[m].get_legend_handles_labels()
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
         ax[m].legend(handles + handles_dz, labels + labels_dz, frameon=False)
@@ -1412,7 +1431,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         ax[m].axhline(self.tolerance, label='Threshold', ls='-', c='grey')
         ax[m].legend(frameon=False)
-        ax[m].set_ylabel('Stopping criteria')
+        ax[m].set_ylabel('Stopping criterion')
         ax[m].set_yscale('log')
 
         ax[-1].set_xlabel('Iteration')
