@@ -3,6 +3,7 @@
 Functions related to computing the evidence.
 """
 import logging
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -165,37 +166,54 @@ class _INSIntegralState:
     """
 
     def __init__(self, normalised: bool = True) -> None:
-        self._n = 0
+        self._n_ns = 0
+        self._n_lp = 0
         self._logZ = -np.inf
-        self._logZ_history = np.empty(0)
+        self._weights_ns = None
+        self._weights_lp = None
+        self._weights = None
         # Constant to normalise the meta proposal
         self.normalised = normalised
         self._log_meta_constant = None
 
-    def update_evidence(self, x: np.ndarray) -> None:
-        """Update the evidence estimate with new samples (live points)"""
-        log_Z_k = x['logL'] + x['logW']
-        self._logZ_history = np.concatenate([self._logZ_history, log_Z_k])
-        self._logZ = logsumexp(self._logZ_history)
-        self._n += x.size
+    def update_evidence(
+        self,
+        nested_samples: np.ndarray,
+        live_points: Optional[np.ndarray] = None,
+    ) -> None:
+        """Update the evidence.
 
-    def update_evidence_from_nested_samples(self, x: np.ndarray) -> None:
-        """Update the evidence from a set of nested samples"""
-        log_Z_k = x['logL'] + x['logW']
-        self._logZ_history = log_Z_k
-        self._logZ = logsumexp(log_Z_k)
-        self._n = x.size
+        Parameters
+        ----------
+        nested_samples
+            Array of nested samples.
+        live_points
+            Optional array of live points, if included the evidence will
+            include both live points and nested samples. If not, the evidence
+            will only include the nested samples.
+        """
+        self._weights_ns = nested_samples['logL'] + nested_samples['logW']
+        if live_points is not None:
+            self._weights_lp = live_points['logL'] + live_points['logW']
+            self._weights = np.concatenate([
+                self._weights_ns, self._weights_lp,
+            ])
+        else:
+            self._weights = self._weights_ns
+            self._weights_lp = None
+        self._logZ = logsumexp(self._weights)
+        self._n = self._weights.size
 
     @property
     def renormalise(self) -> bool:
         """Indicates where the evidence needs renormalising"""
-        # Value can only be set if normalised=False
-        if self._log_meta_constant is not None:
-            return True
-        elif not self.normalised:
-            raise RuntimeError(
-                '`normalised=False` but the constant is not set'
-            )
+        if not self.normalised:
+            if self._log_meta_constant is not None:
+                return True
+            else:
+                raise RuntimeError(
+                    '`normalised=False` but the constant is not set'
+                )
         else:
             return False
 
@@ -204,7 +222,7 @@ class _INSIntegralState:
         """Constant to normalise the meta proposal weights.
 
         This should be the log of the value by which Q should be divided to
-        normalise it. For example, in the case the normlisation should be
+        normalise it. For example, in the case the normalisation should be
         Q/N, then the constant should log(N).
 
         Should be set when the weights used to compute logW are not
@@ -222,15 +240,14 @@ class _INSIntegralState:
 
     @log_meta_constant.setter
     def log_meta_constant(self, value) -> None:
-        if self.normalised:
-            raise RuntimeError(
-                'Weights are normalised. Cannot set the meta constant!'
-            )
         self._log_meta_constant = value
 
     @property
     def log_constant(self) -> float:
-        """Constant to renormalise the evidence"""
+        """Constant to renormalise the evidence.
+
+        If :code:`renormalise` is :code:`False` returns zero.
+        """
         if self.renormalise:
             return self._log_meta_constant - np.log(self._n)
         else:
@@ -248,6 +265,56 @@ class _INSIntegralState:
     def log_evidence_error(self) -> float:
         """Alias for compute_uncertainty"""
         return self.compute_uncertainty()
+
+    @property
+    def log_evidence_live_points(self) -> float:
+        """Log-evidence in the live points
+
+        Requires that the log-meta constant is set.
+        """
+        if self._weights_lp is None:
+            raise RuntimeError('Live points are not set')
+        return (
+            logsumexp(self._weights_lp)
+            + self._log_meta_constant
+            - np.log(self._weights_lp.size)
+        )
+
+    @property
+    def log_evidence_nested_samples(self):
+        """Log-evidence in the nested samples
+
+        Requires that the log-meta constant is set.
+        """
+        return (
+            logsumexp(self._weights_ns)
+            + self._log_meta_constant
+            - np.log(self._weights_ns.size)
+        )
+
+    def compute_evidence_ratio(self, ns_only: bool = False) -> float:
+        """
+        Compute the ratio of the evidence in the live points to the nested
+        samples.
+
+        Parameters
+        ----------
+        ns_only
+            If True only the evidence from the nested samples is used in the
+            denominator of the ratio.
+
+        Returns
+        -------
+        float
+            Log ratio of the evidence
+        """
+        if ns_only:
+            return (
+                self.log_evidence_live_points
+                - self.log_evidence_nested_samples
+            )
+        else:
+            return self.log_evidence_live_points - self.logZ
 
     def compute_updated_log_Z(self, samples: np.ndarray) -> float:
         """Compute the evidence if a set of samples were added.
@@ -280,7 +347,7 @@ class _INSIntegralState:
         # this should be log(N) if the weights are equal to the number of
         # samples, but can be different if the weights were set differently.
         Z = np.exp(
-            self._logZ_history + self.log_meta_constant,
+            self._weights + self.log_meta_constant,
             dtype=np.float128,
         )
         # Standard error sqrt(Var[Z] / n)
@@ -290,12 +357,26 @@ class _INSIntegralState:
 
     @property
     def log_posterior_weights(self) -> np.ndarray:
-        """Compute the weights for all of the dead points."""
-        return self._logZ_history + self.log_meta_constant - self.logZ
+        """Compute the log posterior weights.
+
+        If the live points have been specified, then weights will be computed
+        for these as well.
+        """
+        return self._weights + self.log_meta_constant - self.logZ
 
     @property
     def effective_n_posterior_samples(self) -> float:
-        """Kish's effective sample size"""
+        """Kish's effective sample size.
+
+        If the live points have been specified, then their weights will be
+        included when computing the ESS.
+
+        Returns
+        -------
+        float
+            The effective samples size. Returns zero if the posterior weights
+            are empty.
+        """
         log_p = self.log_posterior_weights
         if not len(log_p):
             return 0
