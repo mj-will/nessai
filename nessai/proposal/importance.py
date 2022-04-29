@@ -743,6 +743,10 @@ class ImportanceFlowProposal(Proposal):
         ----------
         n : int
             Number of points
+        weights
+            Array of (normalised) weights. Ignored if counts is specified.
+        counts
+            Number of samples to draw from each proposal.
         """
         logger.debug(
             f'Drawing {n} samples from the combination of all the proposals'
@@ -752,14 +756,14 @@ class ImportanceFlowProposal(Proposal):
                 weights = np.fromiter(
                     self.unnormalised_weights.values(), float
                 )
-            weights = weights / np.sum(weights)
+            if not np.sum(weights) == 1:
+                weights = weights / np.sum(weights)
             if not len(weights) == self.n_proposals:
                 ValueError(
                     'Size of weights does not match the number of levels'
                 )
             logger.debug(f'Proposal weights: {weights}')
-            a = np.random.choice(weights.size, size=n, p=weights)
-            counts = np.bincount(a).astype(int)
+            counts = np.random.multinomial(n, weights)
         else:
             counts = np.array(counts, dtype=int)
             weights = counts / counts.sum()
