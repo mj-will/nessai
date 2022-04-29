@@ -5,6 +5,7 @@ Test rescaling for the importance proposal.
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
+from nessai.livepoint import numpy_array_to_live_points
 
 from nessai.proposal.importance import ImportanceFlowProposal
 
@@ -78,3 +79,57 @@ def test_inverse_rescale(proposal):
     proposal.model.from_unit_hypercube.assert_called_once_with(x_unit)
     mock_conv.assert_called_once_with(x_array, ['x'])
     assert out == (x, log_j)
+
+
+def test_verify_rescaling(proposal):
+    """Assert the checks pass"""
+    x_in = numpy_array_to_live_points(np.array([1, 2, 3]), ['x'])
+    x_prime = numpy_array_to_live_points(np.array([0.5, 1, 1.5]), ['x_prime'])
+    x_re = x_in.copy()
+    log_j = np.ones(3)
+    log_j_inv = -log_j
+
+    proposal.model.new_point = MagicMock(return_value=x_in)
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.inverse_rescale = MagicMock(return_value=(x_re, log_j_inv))
+
+    ImportanceFlowProposal.verify_rescaling(proposal)
+
+    proposal.model.new_point.assert_called_once()
+    proposal.rescale.assert_called_once_with(x_in)
+    proposal.inverse_rescale.assert_called_once_with(x_prime)
+
+
+def test_verify_rescaling_rescaling_error(proposal):
+    """Assert an error is raised if the rescaling is not invertible"""
+    x_in = numpy_array_to_live_points(np.array([1, 2, 3]), ['x'])
+    x_prime = numpy_array_to_live_points(np.array([0.5, 1, 1.5]), ['x_prime'])
+    x_re = x_in.copy()
+    x_re['x'] = 1.1 * x_in['x']
+    log_j = np.ones(3)
+    log_j_inv = -log_j
+
+    proposal.model.new_point = MagicMock(return_value=x_in)
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.inverse_rescale = MagicMock(return_value=(x_re, log_j_inv))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        ImportanceFlowProposal.verify_rescaling(proposal)
+    assert 'Rescaling is not invertible' in str(excinfo.value)
+
+
+def test_verify_rescaling_jacobian_error(proposal):
+    """Assert an error is raised if the Jacobian is not invertible"""
+    x_in = numpy_array_to_live_points(np.array([1, 2, 3]), ['x'])
+    x_prime = numpy_array_to_live_points(np.array([0.5, 1, 1.5]), ['x_prime'])
+    x_re = x_in
+    log_j = np.ones(3)
+    log_j_inv = -1.1 * log_j
+
+    proposal.model.new_point = MagicMock(return_value=x_in)
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.inverse_rescale = MagicMock(return_value=(x_re, log_j_inv))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        ImportanceFlowProposal.verify_rescaling(proposal)
+    assert 'Forward and inverse Jacobian' in str(excinfo.value)

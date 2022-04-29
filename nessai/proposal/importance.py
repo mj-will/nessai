@@ -78,6 +78,7 @@ class ImportanceFlowProposal(Proposal):
         self.reparam = reparam
         self.weighted_kl = weighted_kl
         self.clip = clip
+        self.weights_include_likelihood = weights_include_likelihood
 
         self.reweight_draws = reweight_draws
         if self.reweight_draws:
@@ -91,8 +92,6 @@ class ImportanceFlowProposal(Proposal):
         self.levels = {'initial': None}
 
         logger.debug(f'Initial q: {np.exp(self.initial_log_q)}')
-
-        self.weights_include_likelihood = weights_include_likelihood
 
         self.dtype = get_dtype(self.model.names)
         self.update_annealing(beta)
@@ -169,7 +168,7 @@ class ImportanceFlowProposal(Proposal):
             )
         if 'logW' not in config.NON_SAMPLING_PARAMETERS:
             raise RuntimeError(
-                'logW field missing in the non-sampling parameters.'
+                'logW field missing in non-sampling parameters.'
             )
 
     def initialise(self):
@@ -378,8 +377,8 @@ class ImportanceFlowProposal(Proposal):
         self,
         x_prime: np.ndarray,
         log_q_current: Optional[np.ndarray] = None,
-        n: int = None,
-        log_j=None,
+        n: Optional[int] = None,
+        log_j: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute the log meta proposal (log Q) for an array of points.
 
@@ -395,7 +394,8 @@ class ImportanceFlowProposal(Proposal):
             Should be specified when new samples are being drawn and the number
             of samples is not final.
         log_j : Optional[numpy.ndarray]
-            Log-Jacobian determinant of the prime samples.
+            Log-Jacobian determinant of the prime samples. Must be supplied if
+            proposal includes flows.
 
         Returns
         -------
@@ -841,7 +841,6 @@ class ImportanceFlowProposal(Proposal):
         super().resume(model)
         self.flow_config = flow_config
         self.initialise()
-        self.flow.setup_from_input_dict(self.flow_config)
         if weights_path:
             self.flow.update_weights_path(weights_path)
         self.flow.load_all_weights()
