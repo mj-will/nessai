@@ -4,6 +4,7 @@ Tests for the FlowSampler class.
 """
 import os
 import signal
+import sys
 import time
 from threading import Thread
 
@@ -448,12 +449,18 @@ def test_signal_handling_disabled(tmp_path, caplog, model):
     thread.daemon = True
     thread.start()
 
+    # Need to catch SIGINT to prevent tests for exiting
+    def handler(signum=None, frame=None):
+        sys.exit(10)
+
+    signal.signal(signal.SIGINT, handler)
+
     with pytest.raises(SystemExit):
         try:
             while True:
                 fs.run(save=False, plot=False)
         except SystemExit as error:
-            assert error.code == signal.SIGINT.value
+            assert error.code == 10
             raise
 
-    assert "Signal handing is disabled" in str(caplog.text)
+    assert "Signal handling is disabled" in str(caplog.text)
