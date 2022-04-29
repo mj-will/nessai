@@ -223,7 +223,7 @@ class ImportanceFlowProposal(Proposal):
         """Convert samples from the unit hypercube to samples in x'-space"""
         x = np.atleast_2d(x)
         if self.reparam == 'logit':
-            x_prime, log_j = logit(x.copy())
+            x_prime, log_j = logit(x.copy(), fuzz=config.eps)
             log_j = log_j.sum(axis=1)
         elif self.reparam == 'gaussian_cdf':
             logger.debug('Rescaling with inverse Gaussian CDF')
@@ -240,7 +240,7 @@ class ImportanceFlowProposal(Proposal):
         """Convert samples the x'-space to samples in the unit hypercube."""
         x_prime = np.atleast_2d(x_prime)
         if self.reparam == 'logit':
-            x, log_j = sigmoid(x_prime.copy())
+            x, log_j = sigmoid(x_prime.copy(), fuzz=config.eps)
             log_j = log_j.sum(axis=1)
         elif self.reparam == 'gaussian_cdf':
             logger.debug('Rescaling with Gaussian CDF')
