@@ -117,7 +117,7 @@ class FlowSampler:
                 signal.signal(signal.SIGINT, self.safe_exit)
                 signal.signal(signal.SIGALRM, self.safe_exit)
             except AttributeError:
-                logger.critical('Can not set signal attributes on this system')
+                logger.critical('Cannot set signal attributes on this system')
         else:
             logger.warning(
                 'Signal handling is disabled. nessai will not automatically '

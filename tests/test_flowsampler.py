@@ -240,6 +240,23 @@ def test_init_signal_handling_disabled(flow_sampler, tmp_path):
     mocked_fn.assert_not_called()
 
 
+def test_init_signal_handling_error(flow_sampler, tmp_path, caplog):
+    """Assert signal handling is skipped if an error is raised."""
+    model = MagicMock()
+    output = tmp_path / "test"
+    output.mkdir()
+    output = str(output)
+
+    with patch("signal.signal", side_effect=AttributeError):
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            signal_handling=True
+        )
+    assert 'Cannot set signal attributes' in str(caplog.text)
+
+
 @pytest.mark.parametrize('save', [False, True])
 @pytest.mark.parametrize('plot', [False, True])
 @patch(
