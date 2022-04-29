@@ -1,5 +1,6 @@
 
 from numpy.random import seed
+import numpy as np
 import pytest
 from scipy.stats import norm
 import torch
@@ -34,6 +35,24 @@ def model():
             for pn in self.names:
                 log_l += norm.logpdf(x[pn])
             return log_l
+
+        def to_unit_hypercube(self, x: np.ndarray) -> np.ndarray:
+            x_out = x.copy()
+            for n in self.names:
+                x_out[n] = (
+                    (x[n] - self.bounds[n][0])
+                    / (self.bounds[n][1] - self.bounds[n][0])
+                )
+            return x_out
+
+        def from_unit_hypercube(self, x: np.ndarray) -> np.ndarray:
+            x_out = x.copy()
+            for n in self.names:
+                x_out[n] = (
+                    (self.bounds[n][1] - self.bounds[n][0])
+                    * x[n] + self.bounds[n][0]
+                )
+            return x_out
 
     return TestModel()
 

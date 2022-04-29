@@ -50,6 +50,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Tolerance for determining when to stop the sampler.
     stopping_criterion
         Choice of stopping criterion to use.
+    check_criteria
+        If using multiple stopping criteria determines whether any or all
+        criteria must be met.
     level_method
         Method for determining new levels.
     draw_constant
@@ -61,16 +64,16 @@ class ImportanceNestedSampler(BaseNestedSampler):
     trace_plot_kwargs
         Keyword arguments for the trace plot.
     """
-
-    _stopping_criterion_aliases = dict(
+    stopping_criterion_aliases = dict(
         dZ=['dZ', 'evidence'],
         kl=['kl'],
         dZ_ns=['dZ_ns', 'alt_evidence'],
-        dZ_smc=['dZ_smc', 'smc_evidence'],
+        dZ_lp=['dZ_lp', 'evidence_lp'],
         dH=['dH', 'dH_all', 'entropy'],
         ratio=['ratio', 'ratio_all'],
         ratio_ns=['ratio_ns'],
     )
+    """Dictionary of available stopping criteria and their aliases."""
 
     def __init__(
         self,
@@ -87,7 +90,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         max_iteration: Optional[int] = None,
         min_samples: int = 1000,
         min_remove: int = 1,
-        tolerance: float = 1.0,
+        tolerance: float = np.e,
         n_update: Optional[int] = None,
         plot_pool: bool = False,
         plot_level_cdf: bool = False,
@@ -100,8 +103,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         sorting: Literal['logL', 'rel_entr'] = 'logL',
         n_pool: Optional[int] = None,
         pool: Optional[Any] = None,
-        stopping_criterion: Literal['evidence', 'kl'] = 'evidence',
-        min_dZ: Optional[float] = None,
+        stopping_criterion: str = 'ratio_ns',
+        check_criteria: Literal['any', 'all'] = 'any',
         level_kwargs: Optional[dict] = None,
         annealing: bool = False,
         beta_min: float = 0.01,
@@ -130,11 +133,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history = None
         self.live_points_ess = np.nan
         self.sorting = sorting
+        self.tolerance = None
+        self.criterion = None
+        self._stop_any = None
 
-        self.tolerance = tolerance
         self.min_samples = min_samples
         self.min_remove = min_remove
-        self.criterion = np.inf
         self.checkpoint_frequency = checkpoint_frequency
         self.n_update = n_update
         self.plot_pool = plot_pool
@@ -168,8 +172,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._logZ_lp = -np.inf
         self._current_entropy = 0.0
 
-        self.min_dZ = min_dZ if min_dZ is not None else np.inf
-
         self._normalised_evidence = self._check_normalisation(kwargs)
         self.state = _INSIntegralState(normalised=self._normalised_evidence)
 
@@ -179,7 +181,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.proposal = self.get_proposal(**kwargs)
         self.configure_iterations(min_iteration, max_iteration)
 
-        self.configure_stopping_criterion(stopping_criterion)
+        self.configure_stopping_criterion(
+            stopping_criterion,
+            tolerance,
+            check_criteria,
+        )
 
         self.nested_samples = np.empty(0, dtype=get_dtype(self.model.names))
         self._log_q_ns = None
@@ -256,27 +262,72 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return self.nested_samples.copy()
 
+    @property
+    def reached_tolerance(self) -> bool:
+        """Indicates if tolerance has been reached.
+
+        Checks if any or all of the criteria have been met, this depends on the
+        value of :code:`check_criteria`.
+        """
+        if self._stop_any:
+            return any(
+                [c <= t for c, t in zip(self.criterion, self.tolerance)]
+            )
+        else:
+            return all(
+                [c <= t for c, t in zip(self.criterion, self.tolerance)]
+            )
+
     @staticmethod
     def add_fields():
         """Add extra fields logW and logQ"""
         add_extra_parameters_to_live_points(['logW', 'logQ'])
 
-    def configure_stopping_criterion(self, stopping_criterion):
+    def configure_stopping_criterion(
+        self,
+        stopping_criterion: Union[str, list[str]],
+        tolerance: Union[float, list[float]],
+        check_criteria: Literal['any', 'all'],
+    ) -> None:
         """Configure the stopping criterion"""
-        sc = None
-        for criterion, aliases in self._stopping_criterion_aliases.items():
-            if stopping_criterion in aliases:
-                sc = criterion
-        if sc is None:
+        if isinstance(stopping_criterion, str):
+            stopping_criterion = [stopping_criterion]
+
+        if isinstance(tolerance, list):
+            self.tolerance = [float(t) for t in tolerance]
+        else:
+            self.tolerance = [float(tolerance)]
+
+        self.stopping_criterion = []
+        for c in stopping_criterion:
+            for criterion, aliases in self.stopping_criterion_aliases.items():
+                if c in aliases:
+                    self.stopping_criterion.append(criterion)
+        if not self.stopping_criterion:
             raise ValueError(
                 f'Unknown stopping criterion: {stopping_criterion}'
             )
-        self.stopping_criterion = sc
-        if not stopping_criterion == sc:
-            logger.info(
-                f'Stopping criterion specified ({stopping_criterion}) is '
-                f'an alias for {sc}. Using {sc}.'
+        for c, c_use in zip(stopping_criterion, self.stopping_criterion):
+            if c != c_use:
+                logger.info(
+                    f'Stopping criterion specified ({c}) is '
+                    f'an alias for {c_use}. Using {c_use}.'
+                )
+        if len(self.stopping_criterion) != len(self.tolerance):
+            raise ValueError(
+                'Number of stopping criteria must match tolerances'
             )
+        self.criterion = len(self.tolerance) * [np.inf]
+
+        logger.debug(f'Stopping criteria: {self.stopping_criterion}')
+        logger.debug(f'Tolerance: {self.tolerance}')
+
+        if check_criteria not in {'any', 'all'}:
+            raise ValueError('check_criteria must be any or all')
+        if check_criteria == 'any':
+            self._stop_any = True
+        else:
+            self._stop_any = False
 
     def _check_normalisation(self, kwargs):
         """Check if the evidence will be correctly normalised."""
@@ -419,7 +470,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 kl_proposals=[],
                 beta=[],
                 stopping_criteria={
-                    k: [] for k in self._stopping_criterion_aliases.keys()
+                    k: [] for k in self.stopping_criterion_aliases.keys()
                 },
             )
         else:
@@ -449,7 +500,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['min_logQ'].append(np.min(self.live_points['logQ']))
         self.history['beta'].append(self.beta)
 
-        for k in self._stopping_criterion_aliases.keys():
+        for k in self.stopping_criterion_aliases.keys():
             self.history['stopping_criteria'][k].append(
                 getattr(self, k, np.nan)
             )
@@ -902,7 +953,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.add_to_nested_samples(new_samples)
         self.state.update_evidence_from_nested_samples(self.nested_samples)
 
-    def compute_stopping_criterion(self) -> float:
+    def compute_stopping_criterion(self) -> list[float]:
         """Compute the stopping criterion.
 
         The method used will depend on how the sampler was configured.
@@ -934,10 +985,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(f'Current entropy: {self._current_entropy:.3f}')
         logger.debug(f'Relative change in entropy: {self.dH:.3f}')
 
-        cond = getattr(self, self.stopping_criterion)
+        cond = [getattr(self, sc) for sc in self.stopping_criterion]
 
         logger.info(
-            f'Stopping criterion: {cond:.3f} - Tolerance: {self.tolerance:.3f}'
+            f'Stopping criteria ({self.stopping_criterion}): {cond} '
+            f'- Tolerance: {self.tolerance}'
         )
         return cond
 
@@ -971,12 +1023,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         while True:
             if (
-                self.criterion <= self.tolerance
+                self.reached_tolerance
                 and self.iteration >= self.min_iteration
             ):
-                if self.dZ <= self.min_dZ:
-                    logger.debug('Stopping')
-                    break
+                break
 
             self._compute_gradient()
 
@@ -1031,7 +1081,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         logger.warning(
             f'Finished nested sampling loop after {self.iteration} iterations '
-            f'with dZ = {self.dZ:.3f}'
+            f'with {self.stopping_criterion} = {self.criterion}'
         )
         self.finalise()
         logger.info(f'Level update time: {self.update_level_time}')
@@ -1422,14 +1472,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].legend(handles + handles_kl, labels + labels_kl, frameon=False)
 
         m += 1
-        ax[m].plot(
-            its,
-            self.history['stopping_criteria'][self.stopping_criterion],
-            label=self.stopping_criterion,
-            c=colours[0],
-            ls=ls[0],
-        )
-        ax[m].axhline(self.tolerance, label='Threshold', ls='-', c='grey')
+
+        for (i, sc), tol in zip(
+            enumerate(self.stopping_criterion), self.tolerance
+        ):
+            ax[m].plot(
+                its,
+                self.history['stopping_criteria'][sc],
+                label=sc,
+                c=colours[i],
+                ls=ls[i],
+            )
+            ax[m].axhline(tol, ls=':', c=colours[i])
         ax[m].legend(frameon=False)
         ax[m].set_ylabel('Stopping criterion')
         ax[m].set_yscale('log')
