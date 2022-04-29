@@ -1019,16 +1019,24 @@ class FlowModel:
 
 class CombinedFlowModel(FlowModel):
     """Flow Model that contains multiple flows for importance sampler."""
-
-    models = torch.nn.ModuleList()
+    models: torch.nn.ModuleList = None
 
     def __init__(self, config=None, output='./'):
         super().__init__(config=config, output=output)
         self.weights_files = []
+        self.models = torch.nn.ModuleList()
 
     @property
     def model(self):
-        return self.models[-1]
+        """The current flow (model).
+
+        Returns None if the no models have been added.
+        """
+        if self.models:
+            return self.models[-1]
+        else:
+            logger.warning('Model not defined yet!')
+            return None
 
     @model.setter
     def model(self, model):
@@ -1038,9 +1046,10 @@ class CombinedFlowModel(FlowModel):
 
     @property
     def n_models(self):
+        """Number of models (flows)"""
         return len(self.models)
 
-    def initialise(self):
+    def initialise(self) -> None:
         """Initialise things"""
         self.initialised = True
 
