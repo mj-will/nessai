@@ -40,14 +40,25 @@ class FlowSampler:
     max_threads : int, optional
         Maximum number of threads to use. If ``None`` torch uses all available
         threads.
+    signal_handling : bool
+        Enable or disable signal handling.
     exit_code : int, optional
         Exit code to use when forceably exiting the sampler.
     kwargs :
         Keyword arguments passed to :obj:`~nessai.nestedsampler.NestedSampler`.
     """
-    def __init__(self, model, output='./', resume=True,
-                 resume_file='nested_sampler_resume.pkl', weights_file=None,
-                 exit_code=130, max_threads=1, **kwargs):
+    def __init__(
+        self,
+        model,
+        output='./',
+        resume=True,
+        resume_file='nested_sampler_resume.pkl',
+        weights_file=None,
+        signal_handling=True,
+        exit_code=130,
+        max_threads=1,
+        **kwargs
+    ):
 
         configure_threads(
             max_threads=max_threads,
@@ -100,12 +111,18 @@ class FlowSampler:
 
         self.save_kwargs(kwargs)
 
-        try:
-            signal.signal(signal.SIGTERM, self.safe_exit)
-            signal.signal(signal.SIGINT, self.safe_exit)
-            signal.signal(signal.SIGALRM, self.safe_exit)
-        except AttributeError:
-            logger.critical('Can not set signal attributes on this system')
+        if signal_handling:
+            try:
+                signal.signal(signal.SIGTERM, self.safe_exit)
+                signal.signal(signal.SIGINT, self.safe_exit)
+                signal.signal(signal.SIGALRM, self.safe_exit)
+            except AttributeError:
+                logger.critical('Cannot set signal attributes on this system')
+        else:
+            logger.warning(
+                'Signal handling is disabled. nessai will not automatically '
+                'checkpoint when exitted.'
+            )
 
     def run(self, plot=True, save=True):
         """

@@ -3,7 +3,8 @@
 Tests for the FlowSampler class.
 """
 import os
-from signal import SIGINT
+import signal
+import sys
 import time
 from threading import Thread
 
@@ -16,6 +17,19 @@ from unittest.mock import MagicMock, create_autospec, patch
 @pytest.fixture()
 def flow_sampler():
     return create_autospec(FlowSampler)
+
+
+@pytest.fixture(autouse=True)
+def reset_handlers():
+    """Reset signal handling after each test"""
+    yield
+    # Just in case the tests were ran on Windows
+    try:
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+    except AttributeError:
+        print('Cannot set signal attributes on this system.')
 
 
 @pytest.mark.parametrize('resume', [False, True])
@@ -192,6 +206,57 @@ def test_init_resume_error_no_file(flow_sampler, tmp_path):
     assert '`resume_file` must be specified' in str(excinfo.value)
 
 
+def test_init_signal_handling_enabled(flow_sampler, tmp_path):
+    """Assert signal.signal is called when signal handling is enabled."""
+    model = MagicMock()
+    output = tmp_path / "test"
+    output.mkdir()
+    output = str(output)
+
+    with patch("signal.signal") as mocked_fn:
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            signal_handling=True
+        )
+    mocked_fn.assert_called()
+
+
+def test_init_signal_handling_disabled(flow_sampler, tmp_path):
+    """Assert signal handling is not configure when disabled"""
+    model = MagicMock()
+    output = tmp_path / "test"
+    output.mkdir()
+    output = str(output)
+
+    with patch("signal.signal") as mocked_fn:
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            signal_handling=False
+        )
+    mocked_fn.assert_not_called()
+
+
+def test_init_signal_handling_error(flow_sampler, tmp_path, caplog):
+    """Assert signal handling is skipped if an error is raised."""
+    model = MagicMock()
+    output = tmp_path / "test"
+    output.mkdir()
+    output = str(output)
+
+    with patch("signal.signal", side_effect=AttributeError):
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            signal_handling=True
+        )
+    assert 'Cannot set signal attributes' in str(caplog.text)
+
+
 @pytest.mark.parametrize('save', [False, True])
 @pytest.mark.parametrize('plot', [False, True])
 @patch(
@@ -340,14 +405,20 @@ def test_signal_handling(tmp_path, caplog, model, kwargs):
     output.mkdir()
 
     fs = FlowSampler(
-        model, output=output, nlive=500, poolsize=1000, exit_code=5, **kwargs
+        model,
+        output=output,
+        nlive=500,
+        poolsize=1000,
+        exit_code=5,
+        signal_handling=True,
+        **kwargs
     )
 
     pid = os.getpid()
 
     def trigger_signal():
         time.sleep(4)
-        os.kill(pid, SIGINT)
+        os.kill(pid, signal.SIGINT)
 
     thread = Thread(target=trigger_signal)
     thread.daemon = True
@@ -361,4 +432,52 @@ def test_signal_handling(tmp_path, caplog, model, kwargs):
             assert error.code == 5
             raise
 
-    assert f"Trying to safely exit with code {SIGINT}" in str(caplog.text)
+    assert f"Trying to safely exit with code {signal.SIGINT}" \
+        in str(caplog.text)
+
+
+@pytest.mark.integration_test
+@pytest.mark.timeout(30)
+def test_signal_handling_disabled(tmp_path, caplog, model):
+    """Assert signal handling is correctly disabled.
+
+    Test is based on a similar test in bilby which is in turn based on: \
+        https://stackoverflow.com/a/49615525/18400311
+    """
+    output = tmp_path / "output"
+    output.mkdir()
+
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=500,
+        poolsize=1000,
+        exit_code=4,
+        signal_handling=False,
+    )
+
+    pid = os.getpid()
+
+    def trigger_signal():
+        time.sleep(4)
+        os.kill(pid, signal.SIGINT)
+
+    thread = Thread(target=trigger_signal)
+    thread.daemon = True
+    thread.start()
+
+    # Need to catch SIGINT to prevent tests for exiting
+    def handler(signum=None, frame=None):
+        sys.exit(10)
+
+    signal.signal(signal.SIGINT, handler)
+
+    with pytest.raises(SystemExit):
+        try:
+            while True:
+                fs.run(save=False, plot=False)
+        except SystemExit as error:
+            assert error.code == 10
+            raise
+
+    assert "Signal handling is disabled" in str(caplog.text)
