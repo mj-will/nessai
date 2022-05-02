@@ -6,7 +6,7 @@ from copy import deepcopy
 import logging
 import os
 from timeit import default_timer as timer
-from typing import Any, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -285,8 +285,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def configure_stopping_criterion(
         self,
-        stopping_criterion: Union[str, list[str]],
-        tolerance: Union[float, list[float]],
+        stopping_criterion: Union[str, List[str]],
+        tolerance: Union[float, List[float]],
         check_criteria: Literal['any', 'all'],
     ) -> None:
         """Configure the stopping criterion"""
@@ -953,7 +953,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.add_to_nested_samples(new_samples)
         self.state.update_evidence_from_nested_samples(self.nested_samples)
 
-    def compute_stopping_criterion(self) -> list[float]:
+    def compute_stopping_criterion(self) -> List[float]:
         """Compute the stopping criterion.
 
         The method used will depend on how the sampler was configured.
