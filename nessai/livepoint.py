@@ -11,7 +11,11 @@ LOGL_DTYPE = 'f8'
 DEFAULT_FLOAT_DTYPE = 'f8'
 
 
-def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
+def get_dtype(
+    names,
+    array_dtype=DEFAULT_FLOAT_DTYPE,
+    non_sampling_parameters=True,
+):
     """
     Get a list of tuples containing the dtypes for the structured array
 
@@ -21,14 +25,18 @@ def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
         Names of parameters
     array_dtype : optional
         dtype to use
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
     list of tuple
         Dtypes as tuples with (field, dtype)
     """
-    return [(n, array_dtype) for n in names] \
-        + [('logP', array_dtype), ('logL', LOGL_DTYPE)]
+    dtype = [(n, array_dtype) for n in names]
+    if non_sampling_parameters:
+        dtype += [('logP', array_dtype), ('logL', LOGL_DTYPE)]
+    return dtype
 
 
 def live_points_to_array(live_points, names=None):
@@ -53,7 +61,7 @@ def live_points_to_array(live_points, names=None):
     return rfn.structured_to_unstructured(live_points[names])
 
 
-def parameters_to_live_point(parameters, names):
+def parameters_to_live_point(parameters, names, **kwargs):
     """
     Take a list or array of parameters for a single live point
     and converts them to a live point.
@@ -66,6 +74,8 @@ def parameters_to_live_point(parameters, names):
         Float point values for each parameter
     names : tuple
         Names for each parameter as strings
+    **kwargs
+        Keyword arguments passed to :py:func:`~nessai.livepoint.get_dtype`
 
     Returns
     -------
@@ -73,13 +83,14 @@ def parameters_to_live_point(parameters, names):
         Numpy structured array with fields given by names plus logP and logL
     """
     if not len(parameters):
-        return np.empty(0, dtype=get_dtype(names, DEFAULT_FLOAT_DTYPE))
+        return np.empty(0, dtype=get_dtype(names, **kwargs))
     else:
-        return np.array((*parameters, 0., 0.),
-                        dtype=get_dtype(names, DEFAULT_FLOAT_DTYPE))
+        return np.array(
+            (*parameters, 0., 0.), dtype=get_dtype(names, **kwargs)
+        )
 
 
-def numpy_array_to_live_points(array, names):
+def numpy_array_to_live_points(array, names, **kwargs):
     """
     Convert a numpy array to a numpy structure array with the correct fields
 
@@ -89,6 +100,8 @@ def numpy_array_to_live_points(array, names):
         Instance of np.ndarray to convert to a structured array
     names : tuple
         Names for each parameter as strings
+    **kwargs
+        Keyword arguments passed to :py:func:`~nessai.livepoint.get_dtype`
 
     Returns
     -------
@@ -96,16 +109,16 @@ def numpy_array_to_live_points(array, names):
         Numpy structured array with fields given by names plus logP and logL
     """
     if array.size == 0:
-        return np.empty(0, dtype=get_dtype(names))
+        return np.empty(0, dtype=get_dtype(names, **kwargs))
     if array.ndim == 1:
         array = array[np.newaxis, :]
-    struct_array = np.zeros((array.shape[0]), dtype=get_dtype(names))
+    struct_array = np.zeros((array.shape[0]), dtype=get_dtype(names, **kwargs))
     for i, n in enumerate(names):
         struct_array[n] = array[..., i]
     return struct_array
 
 
-def dict_to_live_points(d):
+def dict_to_live_points(d, **kwargs):
     """Convert a dictionary with parameters names as keys to live points.
 
     Assumes all entries have the same length. Also, determines number of points
@@ -117,6 +130,8 @@ def dict_to_live_points(d):
     d : dict
         Dictionary with parameters names as keys and values that correspond
         to one or more parameters
+    **kwargs
+        Keyword arguments passed to :py:func:`~nessai.livepoint.get_dtype`
 
     Returns
     -------
@@ -129,10 +144,12 @@ def dict_to_live_points(d):
     else:
         N = 1
     if N == 1:
-        return np.array((*a, 0., 0.),
-                        dtype=get_dtype(d.keys(), DEFAULT_FLOAT_DTYPE))
+        return np.array(
+            (*a, 0., 0.),
+            dtype=get_dtype(d.keys(), **kwargs)
+        )
     else:
-        array = np.zeros(N, dtype=get_dtype(list(d.keys())))
+        array = np.zeros(N, dtype=get_dtype(list(d.keys()), **kwargs))
         for k, v in d.items():
             array[k] = v
         return array
@@ -161,7 +178,7 @@ def live_points_to_dict(live_points, names=None):
     return {f: live_points[f] for f in names}
 
 
-def dataframe_to_live_points(df):
+def dataframe_to_live_points(df, **kwargs):
     """Convert and pandas dataframe to live points.
 
     Adds the additional parameters logL and logP initialised to zero.
@@ -173,6 +190,8 @@ def dataframe_to_live_points(df):
     ----------
     df : :obj:`pandas.DataFrame`
         Pandas DataFrame to convert to live points
+    **kwargs
+        Keyword arguments passed to :py:func:`~nessai.livepoint.get_dtype`
 
     Returns
     -------
@@ -182,5 +201,5 @@ def dataframe_to_live_points(df):
     """
     return np.array(
         [tuple(x) + (0.0, 0.0,) for x in df.values],
-        dtype=get_dtype(list(df.dtypes.index))
+        dtype=get_dtype(list(df.dtypes.index), **kwargs)
     )

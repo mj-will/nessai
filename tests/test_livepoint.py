@@ -36,6 +36,34 @@ def empty_live_point():
                               ('logL', lp.LOGL_DTYPE)])
 
 
+def test_get_dtype():
+    """Assert the correct dtype is returned"""
+    expected = [
+        ('x', 'f8'),
+        ('y', 'f8'),
+        ('logP', 'f8'),
+        ('logL', lp.LOGL_DTYPE)
+    ]
+    dtype = lp.get_dtype(
+        ['x', 'y'], array_dtype='f8', non_sampling_parameters=True
+    )
+    assert dtype == expected
+
+
+def test_get_dtype_wo_non_sampling():
+    """Assert the correct dtype is returned when non-sampling parameters are
+    excluded.
+    """
+    expected = [
+        ('x', 'f8'),
+        ('y', 'f8'),
+    ]
+    dtype = lp.get_dtype(
+        ['x', 'y'], array_dtype='f8', non_sampling_parameters=False
+    )
+    assert dtype == expected
+
+
 def test_parameters_to_live_point(live_point):
     """
     Test function that produces a single live point given the parameter
