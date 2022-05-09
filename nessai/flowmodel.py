@@ -270,6 +270,7 @@ class FlowModel:
             - Initialising the optimiser
             - Configuring the inference device
         """
+        logger.debug('Initialising flow model')
         self.update_mask()
         self.model, self.device = configure_model(self.model_config)
         logger.debug(f'Training device: {self.device}')
@@ -679,7 +680,7 @@ class FlowModel:
         if plot:
             history = dict(loss=[], val_loss=[])
 
-        current_weights_file = output + 'model.pt'
+        current_weights_file = os.path.join(output, 'model.pt')
         for epoch in range(1, max_epochs + 1):
 
             loss = self._train(
@@ -1150,18 +1151,35 @@ class CombinedFlowModel(FlowModel):
         all_weights_files = glob.glob(
             os.path.join(weights_path, '', 'level_*', 'model.pt')
         )
-        if len(all_weights_files) != self.n_models:
+        logger.debug(f'Loading weights from: {all_weights_files}')
+        if len(all_weights_files) <= self.n_models:
             raise RuntimeError(
                 f'Cannot use weights from: {weights_path}.'
+            )
+        elif len(all_weights_files) > self.n_models:
+            logger.warning(
+                'More weights files than expected. Some files will be skipped.'
             )
         self.weights_files = [
             os.path.join(weights_path, f'level_{i}', 'model.pt')
             for i in range(self.n_models)
         ]
 
+    def resume(self, model_config, weights_path=None):
+        """Resume the model"""
+        self.model_config = model_config
+        if weights_path is None:
+            logger.debug(
+                'Not weights path specified, looking in output directory'
+            )
+            weights_path = self.output
+        self.update_weights_path(weights_path)
+        self.load_all_weights()
+        self.initialise()
+
     def __getstate__(self):
         state = self.__dict__.copy()
-        state['initialised'] = False
-        del state['optimiser']
+        state['_initialised'] = False
+        del state['_optimiser']
         del state['model_config']
         return state

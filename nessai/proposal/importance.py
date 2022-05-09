@@ -148,6 +148,8 @@ class ImportanceFlowProposal(Proposal):
         """Set configuration (includes checking defaults)"""
         if config is None:
             config = dict(model_config=dict())
+        elif 'model_config' not in config:
+            config['model_config'] = dict()
         config['model_config']['n_inputs'] = self.model.dims
         self._flow_config = update_config(config)
 
@@ -175,6 +177,7 @@ class ImportanceFlowProposal(Proposal):
         """Initialise the proposal"""
         self._check_fields()
         if self.initialised:
+            logger.debug('Proposal already initialised')
             return
 
         self.verify_rescaling()
@@ -841,9 +844,10 @@ class ImportanceFlowProposal(Proposal):
         super().resume(model)
         self.flow_config = flow_config
         self.initialise()
-        if weights_path:
-            self.flow.update_weights_path(weights_path)
-        self.flow.load_all_weights()
+        self.flow.resume(
+            self.flow_config['model_config'],
+            weights_path=weights_path
+        )
 
     def __getstate__(self):
         obj = super().__getstate__()
