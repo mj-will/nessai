@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Legacy version of GWFlowProposal used in the first paper and the realted
+Legacy version of GWFlowProposal used in the first paper and the related
 utilities and priors
 """
 import logging
@@ -41,7 +41,7 @@ def determine_rescaled_bounds(prior_min, prior_max, x_min, x_max, invert):
     Parameters
     ----------
     prior_min : float
-        Mininum of the prior
+        Minimum of the prior
     prior_max : float
         Maximum of the prior
     x_min : float
@@ -92,7 +92,7 @@ def cartesian_to_angle(x, y, scale=1.0, zero='centre'):
     scale : float, optional
         Rescaling factor used to rescale from [0, 2pi]
     zero : str, {centre, bound}
-        Specifiy is zero should be the central value or lower bound
+        Specify is zero should be the central value or lower bound
     """
     radius = np.sqrt(x ** 2. + y ** 2.)
     if zero == 'centre':
@@ -113,7 +113,7 @@ def ra_dec_to_cartesian(ra, dec, dL=None):
         Right ascension and declination
     dL: array_like, optional
         Corresponding luminosity distance defined on [0, 1]. If None (default)
-        radial componment is drawn froma chi distribution with 3 degrees of
+        radial component is drawn from a chi distribution with 3 degrees of
         freedom
 
     Returns
@@ -165,7 +165,7 @@ def azimuth_zenith_to_cartesian(azimuth, zenith, dL=None):
         Azimuth and zenith
     dL: array_like, optional
         Corresponding luminosity distance defined on [0, 1]. If None (default)
-        radial componment is drawn froma chi distribution with 3 degrees of
+        radial component is drawn from a chi distribution with 3 degrees of
         freedom
 
     Returns
@@ -270,7 +270,7 @@ def _spin_jacobian_to_precessing(sx, sy, sz):
 
 
 def _spin_jacobian_from_precessing(a, theta):
-    """Log jacobian for tranformation from precessing to spin vector"""
+    """Log jacobian for transformation from precessing to spin vector"""
     return 2 * np.log(a) + np.log(np.sin(theta))
 
 
@@ -317,13 +317,13 @@ def rescale_and_sigmoid(x, xmin, xmax):
 
 
 def log_uniform_prior(x, xmin=-1, xmax=1):
-    """Unformalised log probability of uniform prior"""
+    """Unnormalised log probability of uniform prior"""
     return np.log((x >= xmin) & (x <= xmax))
 
 
 def log_2d_cartesian_prior(x, y, k=np.pi):
     """
-    Log probability of Cartesian coordinates for a uniform distibution of
+    Log probability of Cartesian coordinates for a uniform distribution of
     angles on [0, k] and a radial component drawn from a chi distribution
     with two degrees of freedom.
     """
@@ -332,7 +332,7 @@ def log_2d_cartesian_prior(x, y, k=np.pi):
 
 def log_2d_cartesian_prior_sine(x, y):
     """
-    Log probability of Cartesian coordinates for a sine distibution of
+    Log probability of Cartesian coordinates for a sine distribution of
     angles and a radial component drawn from a chi distribution
     with two degrees of freedom.
     """
@@ -382,7 +382,7 @@ class LegacyGWFlowProposal(FlowProposal):
         super().__init__(model, **kwargs)
 
         self.set_reparameterisations(reparameterisations)
-        # list to itnernally track reparemeterisations
+        # list to internally track reparemeterisations
         self._reparameterisations = []
         self._search_angles = {}
         self._inversion = {}
@@ -409,7 +409,7 @@ class LegacyGWFlowProposal(FlowProposal):
 
     def set_reparameterisations(self, reparameterisations):
         """
-        Set the relevant reparamterisation flags
+        Set the relevant reparameterisation flags
         """
         defaults = dict(mass_inversion=False,
                         reduced_quaternions=True, distance_rescaling=False,
@@ -688,7 +688,7 @@ class LegacyGWFlowProposal(FlowProposal):
                     self.setup_angle(a, scale=1.0, zero='bound')
                     self._remaining.remove(a)
         else:
-            logger.warning('Angles are not coverted to Cartesian!')
+            logger.warning('Angles are not converted to Cartesian!')
 
     def set_rescaling(self):
         """
@@ -1373,7 +1373,7 @@ class LegacyGWFlowProposal(FlowProposal):
 
         return x_prime, log_J
 
-    def inverse_rescale(self, x_prime):
+    def inverse_rescale(self, x_prime, **kwargs):
         """
         Rescale from the x prime  space to the x space
         """
@@ -1517,7 +1517,7 @@ class LegacyGWFlowProposal(FlowProposal):
                                                      xmin=self._dc3_min,
                                                      xmax=self._dc3_max)
                 log_J += lj
-            # Another step is requires to covert back to dL
+            # Another step is requires to convert back to dL
             x['luminosity_distance'] = \
                 self.convert_to_dl(x['luminosity_distance'])
 

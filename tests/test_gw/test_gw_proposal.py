@@ -37,6 +37,7 @@ def test_add_default_reparameterisation(proposal):
     proposal.model = MagicMock()
     proposal.model.bounds = \
         {'chirp_mass': [10.0, 20.0], 'theta_jn': [0.0, 3.0]}
+    proposal.parameters_without_reparameterisation = ['theta_jn']
 
     reparam = MagicMock()
     reparam.__name__ = 'MockReparam'
