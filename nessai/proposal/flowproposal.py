@@ -531,8 +531,9 @@ class FlowProposal(RejectionProposal):
         else:
             self._poolsize_scale = 1.0 / acceptance
             if self._poolsize_scale > self.max_poolsize_scale:
-                logger.warning(
-                    'Poolsize scaling is greater than maximum value')
+                logger.info(
+                    'Poolsize scaling is greater than maximum value'
+                )
                 self._poolsize_scale = self.max_poolsize_scale
             if self._poolsize_scale < 1.:
                 self._poolsize_scale = 1.
@@ -1433,9 +1434,10 @@ class FlowProposal(RejectionProposal):
                 continue
 
             if warn and (x.size / self.drawsize < 0.01):
-                logger.warning(
+                logger.info(
                     'Rejection sampling accepted less than 1 percent of '
-                    f'samples! ({x.size / self.drawsize})')
+                    f'samples! ({x.size / self.drawsize})'
+                )
                 warn = False
 
             n = min(x.size, N - accepted)
