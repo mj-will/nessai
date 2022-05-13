@@ -98,7 +98,9 @@ class Reparameterisation:
 
     def __init__(self, parameters=None, prior_bounds=None):
         if not isinstance(parameters, (str, list)):
-            raise TypeError('Parameters must be a str or list.')
+            raise TypeError(
+                f'Parameters must be a str or list. Got {type(parameters)}'
+            )
 
         self.parameters = \
             [parameters] if isinstance(parameters, str) else parameters.copy()
