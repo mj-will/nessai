@@ -48,6 +48,15 @@ class GWFlowProposal(FlowProposal):
     GW specific reparameterisations will be used by default. This is different
     to the parent class where they are disabled by default.
     """
+    default_prior_only_parameters = [
+        r"recalib_[a-zA-Z]\d_amplitude_\d+",
+        r"recalib_[a-zA-Z]\d_phase_\d+",
+    ]
+    """
+    Parameters for which prior-only treatment with be used by default. Ignored
+    if :code:`prior_only_parameters` is specified. Includes calibration
+    parameters.
+    """
 
     def get_reparameterisation(self, reparameterisation):
         """Function to get reparameterisations that checks GW defaults and
@@ -60,9 +69,7 @@ class GWFlowProposal(FlowProposal):
         Add default reparameterisations for parameters that have not been
         specified.
         """
-        parameters = \
-            [n for n in self.names
-             if n not in self._reparameterisation.parameters]
+        parameters = self.parameters_without_reparameterisation
         logger.info(f'Adding default reparameterisations for {parameters}')
 
         for p in parameters:
