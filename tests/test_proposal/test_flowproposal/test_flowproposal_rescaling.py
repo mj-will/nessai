@@ -16,6 +16,8 @@ from unittest.mock import MagicMock, Mock, call, patch
 def proposal(proposal):
     """Specific mocked proposal for reparameterisation tests"""
     proposal.use_default_reparameterisations = False
+    proposal.has_prior_only_parameters = False
+    proposal.prior_only_parameters = []
     return proposal
 
 
@@ -63,8 +65,10 @@ def test_configure_reparameterisations_dict(proposal, dummy_cmb_rc, dummy_rc):
         dummy_rc, {'boundary_inversion': True}
     ))
     proposal.model = MagicMock()
-    proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    proposal.model.bounds = {'x': [-1, 1]}
     proposal.names = ['x']
+    proposal.parameters_without_reparameterisation = []
+    proposal.fallback_reparameterisation = None
 
     with patch('nessai.proposal.flowproposal.CombinedReparameterisation',
                return_value=dummy_cmb_rc) as mocked_class:
@@ -108,6 +112,7 @@ def test_configure_reparameterisations_dict_w_params(mocked_class, proposal,
     proposal.model = MagicMock()
     proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     proposal.names = ['x', 'y']
+    proposal.parameters_without_reparameterisation = []
 
     with patch('nessai.proposal.flowproposal.CombinedReparameterisation',
                return_value=dummy_cmb_rc) as mocked_class:
@@ -151,6 +156,7 @@ def test_configure_reparameterisations_requires_prime_prior(
     proposal.model = MagicMock()
     proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     proposal.names = ['x', 'y']
+    proposal.parameters_without_reparameterisation = []
 
     with patch('nessai.proposal.flowproposal.CombinedReparameterisation',
                return_value=dummy_cmb_rc), \
@@ -193,6 +199,7 @@ def test_configure_reparameterisations_str(mocked_class, proposal):
     proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     proposal.names = ['x', 'y']
     proposal.fallback_reparameterisation = None
+    proposal.parameters_without_reparameterisation = ['y']
     FlowProposal.configure_reparameterisations(
         proposal, {'x': 'default'})
 
@@ -213,6 +220,7 @@ def test_configure_reparameterisations_dict_reparam(mocked_class, proposal):
     proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     proposal.names = ['x', 'y']
     proposal.fallback_reparameterisation = None
+    proposal.parameters_without_reparameterisation = ['y']
     FlowProposal.configure_reparameterisations(
         proposal, {'default': {'parameters': ['x']}})
 
@@ -233,6 +241,7 @@ def test_configure_reparameterisations_none(mocked_class, proposal):
     proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     proposal.names = ['x', 'y']
     proposal.fallback_reparameterisation = None
+    proposal.parameters_without_reparameterisation = ['x', 'y']
     FlowProposal.configure_reparameterisations(proposal, None)
     proposal.add_default_reparameterisations.assert_called_once()
     assert proposal.rescaled_names == ['x', 'y']
@@ -256,6 +265,7 @@ def test_configure_reparameterisations_fallback(mocked_class, proposal):
     proposal.model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
     proposal.names = ['x', 'y']
     proposal.fallback_reparameterisation = 'default'
+    proposal.parameters_without_reparameterisation = ['x', 'y']
     FlowProposal.configure_reparameterisations(proposal, None)
     proposal.add_default_reparameterisations.assert_called_once()
     assert proposal.rescaled_names == ['x_prime', 'y_prime']
@@ -395,8 +405,12 @@ def test_set_rescaling_parameters_list(proposal, model, update_bounds,
     if rescale_parameters[0]:
         assert proposal._rescale_factor == 2.0
         assert proposal._rescale_shift == -1.0
-        assert proposal._min == {'x': -5, 'y': -5}
-        assert proposal._max == {'x': 5, 'y': 5}
+        if rescale_parameters[0] == ['x']:
+            assert proposal._min == {'x': -5}
+            assert proposal._max == {'x': 5}
+        else:
+            assert proposal._min == {'x': -5, 'y': -5}
+            assert proposal._max == {'x': 5, 'y': 5}
 
 
 def test_default_rescale(proposal):
@@ -441,27 +455,40 @@ def test_rescale_w_reparameterisation(proposal, n):
 
 
 @pytest.mark.parametrize('n', [1, 10])
-def test_inverse_rescale_w_reparameterisation(proposal, n):
+@pytest.mark.parametrize('prior_only', [False, True])
+def test_inverse_rescale_w_reparameterisation(proposal, prior_only, n):
     """Test rescaling when using reparameterisation dict"""
     x = numpy_array_to_live_points(np.random.randn(n, 2), ['x', 'y']).squeeze()
     x_prime = numpy_array_to_live_points(
         np.random.randn(n, 2), ['x_prime', 'y_prime'])
     x_prime['logL'] = np.random.randn(n)
     x_prime['logP'] = np.random.randn(n)
-    proposal.x_dtype = \
-        [('x', 'f8'), ('y', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    log_j = 0.5 * np.ones(n)
+    if prior_only:
+        proposal.x_dtype = \
+            [('x', 'f8'), ('y', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    else:
+        proposal.x_dtype_flow = \
+            [('x', 'f8'), ('y', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.inverse_reparameterise = \
-        MagicMock(return_value=[x, x_prime, np.ones(x.size)])
+        MagicMock(return_value=[x, x_prime, log_j])
+    proposal.fill_prior_only_parameters = MagicMock(return_value=x)
 
-    x_out, log_j = \
+    x_out, log_j_out = \
         FlowProposal._inverse_rescale_w_reparameterisation(
-            proposal, x_prime)
+            proposal, x_prime, prior_only_parameters=prior_only,
+        )
 
     np.testing.assert_array_equal(x[['x', 'y']], x_out[['x', 'y']])
     np.testing.assert_array_equal(
         x_prime[['logP', 'logL']], x_out[['logL', 'logP']])
+    assert log_j_out is log_j
     proposal._reparameterisation.inverse_reparameterise.assert_called_once()
+    if prior_only:
+        proposal.fill_prior_only_parameters.assert_called_once_with(x)
+    else:
+        proposal.fill_prior_only_parameters.assert_not_called()
 
 
 @pytest.mark.parametrize('n', [1, 10])
@@ -490,6 +517,7 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
     proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
     proposal.rescaled_names = ['x_prime', 'y_prime', 'z']
+    proposal._mapping = {'x': 'x_prime', 'y': 'y_prime', 'z': 'z'}
     proposal.model = model
     proposal.boundary_inversion = []
 
@@ -538,6 +566,7 @@ def test_rescale_to_bounds_w_inversion_duplicate(
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
     proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal._mapping = {'x': 'x_prime', 'y': 'y_prime'}
     proposal.model = model
     proposal.boundary_inversion = ['x']
 
@@ -596,6 +625,7 @@ def test_rescale_to_bounds_w_inversion_split(
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
     proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal._mapping = {'x': 'x_prime', 'y': 'y_prime'}
     proposal.model = model
     proposal.boundary_inversion = ['x']
 
@@ -649,6 +679,7 @@ def test_rescale_to_bounds_w_inversion_false(
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
     proposal.rescaled_names = ['x_prime', 'y_prime']
+    proposal._mapping = {'x': 'x_prime', 'y': 'y_prime'}
     proposal.model = model
     proposal.boundary_inversion = ['x']
 
@@ -673,7 +704,8 @@ def test_rescale_to_bounds_w_inversion_false(
 
 
 @pytest.mark.parametrize('n', [1, 10])
-def test_inverse_rescale_to_bounds(proposal, model, n):
+@pytest.mark.parametrize('prior_only', [True, False])
+def test_inverse_rescale_to_bounds(proposal, model, n, prior_only):
     """Test the default method for the inverse rescaling.
 
     Also tests the log Jacobian determinant.
@@ -691,12 +723,19 @@ def test_inverse_rescale_to_bounds(proposal, model, n):
     x_expected['y'] = 8.0 * (x_prime['y_prime'] + 1.0) / 2.0 - 4.0
     x_expected['z'] = x_prime['z']
 
-    proposal.x_dtype = \
-        [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    if prior_only:
+        proposal.x_dtype = \
+            [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'),
+             ('logL', 'f8')]
+    else:
+        proposal.x_dtype_flow = \
+            [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'),
+             ('logL', 'f8')]
 
     proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
     proposal.rescaled_names = ['x_prime', 'y_prime', 'z']
+    proposal._mapping = {'x': 'x_prime', 'y': 'y_prime', 'z': 'z'}
     proposal.model = model
     proposal.boundary_inversion = []
 
@@ -705,16 +744,29 @@ def test_inverse_rescale_to_bounds(proposal, model, n):
     proposal._min = {'x': -5, 'y': -4}
     proposal._max = {'x': 5, 'y': 4}
 
+    proposal.fill_prior_only_parameters = MagicMock(
+        side_effect=lambda x: x
+    )
+
     x, log_j = \
-        FlowProposal._inverse_rescale_to_bounds(proposal, x_prime)
+        FlowProposal._inverse_rescale_to_bounds(
+            proposal, x_prime, prior_only_parameters=prior_only,
+        )
 
     np.testing.assert_equal(log_j, np.log(20))
     np.testing.assert_array_equal(x, x_expected)
+    if prior_only:
+        proposal.fill_prior_only_parameters.assert_called_once_with(x)
+    else:
+        proposal.fill_prior_only_parameters.assert_not_called()
 
 
 @pytest.mark.parametrize('n', [1, 10])
 @pytest.mark.parametrize('itype', ['lower', 'upper'])
-def test_inverse_rescale_to_bounds_w_inversion(proposal, model, n, itype):
+@pytest.mark.parametrize('prior_only', [True, False])
+def test_inverse_rescale_to_bounds_w_inversion(
+    proposal, model, n, itype, prior_only
+):
     """Test the default method for the inverse rescaling with inversion.
 
     Also tests the log Jacobian determinant.
@@ -737,12 +789,19 @@ def test_inverse_rescale_to_bounds_w_inversion(proposal, model, n, itype):
     x_expected['y'] = 8.0 * x_prime['y_prime'] - 4.0
     x_expected['z'] = x_prime['z']
 
-    proposal.x_dtype = \
-        [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    if prior_only:
+        proposal.x_dtype = \
+            [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'),
+             ('logL', 'f8')]
+    else:
+        proposal.x_dtype_flow = \
+            [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'),
+             ('logL', 'f8')]
 
     proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
     proposal.rescaled_names = ['x_prime', 'y_prime', 'z']
+    proposal._mapping = {'x': 'x_prime', 'y': 'y_prime', 'z': 'z'}
     proposal.model = model
     proposal.boundary_inversion = ['x']
     proposal.inversion_type = 'split'
@@ -753,11 +812,21 @@ def test_inverse_rescale_to_bounds_w_inversion(proposal, model, n, itype):
     proposal._min = {'x': -5, 'y': -4}
     proposal._max = {'x': 5, 'y': 4}
 
+    proposal.fill_prior_only_parameters = MagicMock(
+        side_effect=lambda x: x
+    )
+
     x, log_j = \
-        FlowProposal._inverse_rescale_to_bounds(proposal, x_prime)
+        FlowProposal._inverse_rescale_to_bounds(
+            proposal, x_prime, prior_only_parameters=prior_only,
+        )
 
     np.testing.assert_equal(log_j, np.log(80))
     np.testing.assert_array_equal(x, x_expected)
+    if prior_only:
+        proposal.fill_prior_only_parameters.assert_called_once_with(x)
+    else:
+        proposal.fill_prior_only_parameters.assert_not_called()
 
 
 @pytest.mark.parametrize('has_inversion', [False, True])
@@ -792,7 +861,9 @@ def test_verify_rescaling(proposal, has_inversion):
         call(x, test=None)
     ]
     proposal.rescale.assert_has_calls(calls)
-    proposal.inverse_rescale.assert_has_calls(4 * [call(x_prime)])
+    proposal.inverse_rescale.assert_has_calls(
+        4 * [call(x_prime, prior_only_parameters=False)]
+    )
 
 
 @pytest.mark.parametrize('has_inversion', [False, True])

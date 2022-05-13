@@ -27,6 +27,7 @@ def test_training_plots(proposal, tmpdir, plot):
     x_gen = numpy_array_to_live_points(x, names)
     x_prime_gen = numpy_array_to_live_points(x_prime, prime_names)
     proposal.dims = 2
+    proposal.flow_dims = 2
     proposal.rescale_parameters = names
     proposal.rescaled_names = prime_names
 

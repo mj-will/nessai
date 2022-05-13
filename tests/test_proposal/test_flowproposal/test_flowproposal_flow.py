@@ -64,13 +64,16 @@ def test_forward_pass(proposal, model, n):
 
 @pytest.mark.parametrize('log_p', [np.ones(2), np.array([-1, np.inf])])
 def test_backward_pass(proposal, model, log_p):
-    """Test the forward pass method"""
+    """Test the forward pass method without prior-only parameters"""
     n = 2
     acc = int(np.isfinite(log_p).sum())
     x = np.random.randn(n, model.dims)
     z = np.random.randn(n, model.dims)
-    proposal.inverse_rescale = \
-        MagicMock(side_effect=lambda a: (a, np.ones(a.size)))
+
+    def inverse_rescale(a, prior_only_parameters=False):
+        return a, np.ones(a.size)
+
+    proposal.inverse_rescale = MagicMock(side_effect=inverse_rescale)
     proposal.rescaled_names = model.names
     proposal.alt_dist = None
     proposal.check_prior_bounds = MagicMock(side_effect=lambda a, b: (a, b))
@@ -78,10 +81,14 @@ def test_backward_pass(proposal, model, log_p):
     proposal.flow.sample_and_log_prob = \
         MagicMock(return_value=[x, log_p])
 
-    x_out, log_p = FlowProposal.backward_pass(proposal, z)
+    x_out, log_p = FlowProposal.backward_pass(
+        proposal, z, prior_only_parameters=False
+    )
 
     assert len(x_out) == acc
     proposal.inverse_rescale.assert_called_once()
+    assert proposal.inverse_rescale.call_args_list[0][1] \
+        == {'prior_only_parameters': False}
     proposal.flow.sample_and_log_prob.assert_called_once_with(
         z=z, alt_dist=None)
 

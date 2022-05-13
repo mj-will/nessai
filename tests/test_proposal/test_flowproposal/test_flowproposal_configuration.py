@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test general configuration functions"""
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from nessai.proposal import FlowProposal
 from nessai import utils
@@ -231,3 +231,37 @@ def test_update_flow_proposal(proposal):
     proposal.rescaled_dims = 4
     FlowProposal.update_flow_config(proposal)
     assert proposal.flow_config['model_config']['n_inputs'] == 4
+
+
+def test_configure_prior_only_parameters_pattern(proposal):
+    """Assert the pattern matching works"""
+    proposal.model = MagicMock()
+    proposal.model.names = ['x', 'x_1', 'y']
+    FlowProposal.configure_prior_only_parameters(proposal, [r'x(.*?)'])
+    assert proposal.prior_only_parameters == ['x', 'x_1']
+
+
+def test_configure_prior_only_parameters_pattern_match_none(proposal):
+    """Assert the pattern matching works with no matches"""
+    proposal.model = MagicMock()
+    proposal.model.names = ['x', 'x_1', 'y']
+    FlowProposal.configure_prior_only_parameters(proposal, [r'z(.*?)'])
+    assert proposal.prior_only_parameters == []
+
+
+def test_configure_prior_only_parameters_names(proposal):
+    """Assert the pattern matching works with names"""
+    proposal.model = MagicMock()
+    proposal.model.names = ['x', 'x_1', 'y']
+    FlowProposal.configure_prior_only_parameters(proposal, ['x', 'y'])
+    assert proposal.prior_only_parameters == ['x', 'y']
+
+
+def test_configure_prior_only_parameters_mix(proposal):
+    """Assert the pattern matching works with names and patterns"""
+    proposal.model = MagicMock()
+    proposal.model.names = ['x', 'x_1', 'xx', 'y', 'z']
+    FlowProposal.configure_prior_only_parameters(
+        proposal, [r'x(.*?)', 'x', 'y', r'x(.*?)']
+    )
+    assert proposal.prior_only_parameters == ['x', 'x_1', 'xx', 'y']

@@ -95,70 +95,147 @@ def test_compute_weights_prime_prior(proposal, x, log_q):
 
 
 @patch('numpy.random.rand', return_value=np.array([0.1, 0.9]))
-def test_rejection_sampling(proposal, z, x, log_q):
-    """Test rejection sampling method."""
-    proposal.use_x_prime_prior = False
-    proposal.truncate = False
-    proposal.backward_pass = MagicMock(return_value=(x, log_q))
+def test_rejection_sampling(rand, proposal, x, log_q):
+    """Assert the rejection sampling method returns the correct indices"""
     log_w = np.log(np.array([0.5, 0.5]))
     proposal.compute_weights = MagicMock(return_value=log_w)
 
-    z_out, x_out = FlowProposal.rejection_sampling(proposal, z)
+    indices = FlowProposal.rejection_sampling(proposal, x, log_q)
 
-    assert proposal.backward_pass.called_once_with(x, True)
-    assert proposal.compute_weights.called_once_with(x)
+    rand.assert_called_once_with(2)
+    proposal.compute_weights.assert_called_once_with(x, log_q)
+    np.testing.assert_array_equal(indices, np.array([0]))
+
+
+def test_sample(proposal, z, x, log_q):
+    """Test rejection sampling method."""
+    flow_dims = 2
+    r = 1
+    drawsize = 5
+    fuzz = 1.0
+
+    proposal.flow_dims = flow_dims
+    proposal.r = r
+    proposal.drawsize = drawsize
+    proposal.fuzz = fuzz
+    proposal.use_x_prime_prior = False
+    proposal.truncate = False
+    proposal.has_prior_only_parameters = True
+    proposal.draw_latent_kwargs = {'var': 2.0}
+
+    proposal.draw_latent_prior = MagicMock(return_value=z)
+    proposal.backward_pass = MagicMock(return_value=(x, log_q))
+    proposal.rejection_sampling = MagicMock(return_value=np.array([0]))
+
+    x_out, z_out = FlowProposal.sample(
+        proposal, worst_q=None, return_latent=True
+    )
+    proposal.draw_latent_prior.assert_called_once_with(
+        flow_dims, r=r, N=drawsize, fuzz=fuzz, var=2.0
+    )
+
+    proposal.backward_pass.assert_called_once_with(
+        z, rescale=True, prior_only_parameters=True,
+    )
+    proposal.rejection_sampling.assert_called_once_with(x, log_q)
+
     assert x_out.size == 1
     assert z_out.shape == (1, 2)
     assert np.array_equal(x_out[0], x[0])
     assert np.array_equal(z_out[0], z[0])
 
 
-def test_rejection_sampling_empty(proposal, z):
-    """Test rejection sampling method if no valid points are produced by
-    `backwards_pass`
-    """
+def test_sample_only_return_x(proposal, x, z):
+    """Assert only x is returned in return_latent is false"""
+    proposal.flow_dims = 2
+    proposal.r = 1.0
+    proposal.drawsize = 5
+    proposal.fuzz = 1.0
+    proposal.draw_latent_kwargs = {}
     proposal.use_x_prime_prior = False
     proposal.truncate = False
+    proposal.has_prior_only_parameters = True
+    proposal.draw_latent_kwargs = {'var': 2.0}
+
+    proposal.draw_latent_prior = MagicMock(return_value=z)
+    proposal.backward_pass = MagicMock(return_value=(x.copy(), log_q))
+    proposal.rejection_sampling = MagicMock(return_value=np.array([0]))
+
+    out = FlowProposal.sample(
+        proposal, worst_q=None, return_latent=False
+    )
+    np.testing.assert_array_equal(out, x[0])
+
+
+def test_sample_empty(proposal, z):
+    """Test sample method if no valid points are produced by `backwards_pass`
+    """
+    proposal.flow_dims = 2
+    proposal.r = 1.0
+    proposal.drawsize = 5
+    proposal.fuzz = 1.0
+    proposal.draw_latent_kwargs = {}
+    proposal.use_x_prime_prior = False
+    proposal.truncate = False
+    proposal.draw_latent_prior = MagicMock(return_value=z)
+    proposal.has_prior_only_parameters = True
     proposal.backward_pass = \
         MagicMock(return_value=(np.array([]), np.array([])))
 
-    z_out, x_out = FlowProposal.rejection_sampling(proposal, z)
+    z_out, x_out = FlowProposal.sample(proposal, return_latent=True)
+
+    proposal.backward_pass.assert_called_once_with(
+        z, rescale=True, prior_only_parameters=True,
+    )
 
     assert x_out.size == 0
     assert z_out.size == 0
 
 
-@patch('numpy.random.rand', return_value=np.array([0.1]))
-def test_rejection_sampling_truncate(proposal, z, x):
-    """Test rejection sampling method with truncation"""
+def test_sample_truncate(proposal, z, x):
+    """Test sample method with truncation"""
+    proposal.flow_dims = 2
+    proposal.r = 1.0
+    proposal.drawsize = 5
+    proposal.fuzz = 1.0
+    proposal.draw_latent_kwargs = {}
     proposal.use_x_prime_prior = False
     proposal.truncate = True
+    proposal.has_prior_only_parameters = True
     log_q = np.array([0.0, 1.0])
-    proposal.backward_pass = MagicMock(return_value=(x, log_q))
-    worst_q = 0.5
-    log_w = np.log(np.array([0.5]))
-    proposal.compute_weights = MagicMock(return_value=log_w)
+    proposal.draw_latent_prior = MagicMock(return_value=z.copy())
+    proposal.backward_pass = MagicMock(return_value=(x.copy(), log_q.copy()))
+    proposal.rejection_sampling = MagicMock(return_value=np.array([0]))
 
-    z_out, x_out = \
-        FlowProposal.rejection_sampling(proposal, z, worst_q=worst_q)
+    x_out, z_out = FlowProposal.sample(
+        proposal, worst_q=0.05, return_latent=True
+    )
 
-    assert proposal.backward_pass.called_once_with(x, True)
-    assert proposal.compute_weights.called_once_with(x)
+    proposal.backward_pass.assert_called_once()
+    proposal.rejection_sampling.assert_called_once_with(x[1], log_q[1])
     assert x_out.size == 1
     assert z_out.shape == (1, 2)
     assert np.array_equal(x_out[0], x[1])
     assert np.array_equal(z_out[0], z[1])
 
 
-def test_rejection_sampling_truncate_missing_q(proposal, z, x, log_q):
-    """Test rejection sampling method with truncation without without q"""
+def test_sample_truncate_missing_q(proposal, z, x, log_q):
+    """Test sample method with truncation without without q"""
+    proposal.flow_dims = 2
+    proposal.r = 1.0
+    proposal.drawsize = 5
+    proposal.fuzz = 1.0
+    proposal.draw_latent_kwargs = {}
     proposal.use_x_prime_prior = False
     proposal.truncate = True
+    proposal.has_prior_only_parameters = True
+    proposal.use_x_prime_prior = False
     log_q = np.array([0.0, 1.0])
+    proposal.draw_latent_prior = MagicMock(return_value=z)
     proposal.backward_pass = MagicMock(return_value=(x, log_q))
 
     with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.rejection_sampling(proposal, z, worst_q=None)
+        FlowProposal.sample(proposal, worst_q=None)
     assert 'Cannot use truncation' in str(excinfo.value)
 
 
@@ -311,7 +388,7 @@ def test_populate(proposal, check_acceptance):
 
     proposal.initialised = True
     proposal.max_radius = 50
-    proposal.dims = n_dims
+    proposal.flow_dims = n_dims
     proposal.poolsize = poolsize
     proposal.drawsize = drawsize
     proposal.min_radius = 0.1
@@ -327,14 +404,12 @@ def test_populate(proposal, check_acceptance):
     proposal.populated_count = 1
     proposal.population_dtype = \
         [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
-    proposal.draw_latent_kwargs = {'var': 2.0}
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, worst_q))
     proposal.radius = MagicMock(return_value=(1.0, worst_q))
     proposal.get_alt_distribution = MagicMock(return_value=None)
-    proposal.draw_latent_prior = MagicMock(side_effect=z)
-    proposal.rejection_sampling = MagicMock(
-        side_effect=[(a[:-1], b[:-1]) for a, b in zip(z, x)]
+    proposal.sample = MagicMock(
+        side_effect=[(a[:-1], b[:-1]) for a, b in zip(x, z)]
     )
     proposal.compute_acceptance = MagicMock(side_effect=[0.5, 0.8])
     proposal.model = MagicMock()
@@ -354,16 +429,8 @@ def test_populate(proposal, check_acceptance):
     proposal.radius.assert_called_once_with(worst_z, worst_q)
     assert proposal.r == 1
 
-    draw_calls = [
-        call(2, r=1.0, N=5, fuzz=1.0, var=2.0),
-        call(2, r=1.0, N=5, fuzz=1.0, var=2.0),
-    ]
-    proposal.draw_latent_prior.assert_has_calls(draw_calls)
-
-    rejection_calls = [
-        call(z[0], worst_q), call(z[1], worst_q), call(z[2], worst_q)
-    ]
-    proposal.rejection_sampling.assert_has_calls(rejection_calls)
+    sample_calls = 3 * [call(worst_q=worst_q, return_latent=True)]
+    proposal.sample.assert_has_calls(sample_calls)
 
     proposal.plot_pool.assert_called_once()
     proposal.convert_to_samples.assert_called_once()

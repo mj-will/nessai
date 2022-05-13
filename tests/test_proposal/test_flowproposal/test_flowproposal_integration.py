@@ -2,10 +2,12 @@
 """End-to-end test of the populate method"""
 import numpy as np
 import pytest
+from scipy import stats
 import torch
 
 from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
+from nessai.model import Model
 
 torch.set_num_threads(1)
 
@@ -101,3 +103,58 @@ def test_constant_volume_mode(
 
     np.testing.assert_approx_equal(fp.r, expected_radius, 4)
     np.testing.assert_approx_equal(fp.fixed_radius, expected_radius, 4)
+
+
+@pytest.mark.parametrize(
+    "reparameterisations",
+    [None, {'default': {'parameters': ['x', 'y']}}]
+)
+@pytest.mark.slow_integration_test
+def test_prior_only_parameters(tmp_path, reparameterisations):
+    """Integration test with prior only parameters"""
+    output = tmp_path / "test_prior_only"
+    output.mkdir()
+
+    class TestModel(Model):
+
+        def __init__(self):
+            self.names = ['x', 'y', 'z']
+            self.bounds = {n: [-10.0, 10.0] for n in self.names}
+
+        def log_prior(self, x):
+            log_p = np.log(self.in_bounds(x))
+            for n in self.names:
+                log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
+            return log_p
+
+        def log_likelihood(self, x):
+            log_l = np.zeros(x.size)
+            for n in ['x', 'y']:
+                log_l += stats.norm.logpdf(x[n])
+            return log_l
+
+        def sample_parameter(self, p, n=1):
+            return np.random.uniform(
+                self.bounds[p][0],
+                self.bounds[p][1],
+                size=n
+            )
+
+    model = TestModel()
+
+    fp = FlowProposal(
+        model,
+        output=output,
+        poolsize=100,
+        prior_only_parameters=['z'],
+        constant_volume_mode=True,
+        volume_fraction=0.5,
+        reparameterisations=reparameterisations,
+        rescale_parameters=True,
+    )
+    fp.initialise()
+
+    training_data = model.new_point(500)
+    fp.train(training_data)
+    worst = numpy_array_to_live_points(0.5 * np.ones(fp.dims), fp.names)
+    fp.populate(worst, N=100)

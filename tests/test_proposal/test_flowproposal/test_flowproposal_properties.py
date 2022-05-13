@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test different properties in FlowProposal"""
+from unittest.mock import MagicMock
+
 from nessai.proposal import FlowProposal
 
 
@@ -54,3 +56,15 @@ def test_population_dtype_prime_prior(proposal):
     proposal.use_x_prime_prior = True
     assert FlowProposal.population_dtype.__get__(proposal) == \
         [('x_p', 'f8'), ('y_p', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+
+
+def test_parameters_without_reparameterisation(proposal):
+    """Assert the correct list is returned"""
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.parameters = ['x']
+    proposal.prior_only_parameters = ['z']
+    proposal.names = ['x', 'y', 'z']
+    assert (
+        FlowProposal.parameters_without_reparameterisation.__get__(proposal)
+        == ['y']
+    )
