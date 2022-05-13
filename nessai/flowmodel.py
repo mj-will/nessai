@@ -165,7 +165,7 @@ class FlowModel:
         """
         config = copy.deepcopy(config)
         if output_file is None:
-            output_file = self.output + "flow_config.json"
+            output_file = os.path.join(self.output, "flow_config.json")
         for k, v in list(config.items()):
             if type(v) == np.ndarray:
                 config[k] = np.array_str(config[k])
