@@ -361,6 +361,25 @@ class Model(ABC):
         """
         raise NotImplementedError('User must implement this method!')
 
+    def log_prior_parameter(self, name, x):
+        """Compute the log_prior for a single parameter.
+
+        Must be implemented by the user when using prior-only parameters.
+
+        Parameters
+        ----------
+        name : str
+            Name of the parameter.
+        x : numpy.ndarray
+            Array of values. Not a structured array.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of log-prior values for the parameter.
+        """
+        raise NotImplementedError('User must implement this method!')
+
     def parameter_in_bounds(self, x, name):
         """
         Check if an array of values for specific parameter are in the prior \
