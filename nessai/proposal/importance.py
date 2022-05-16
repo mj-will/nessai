@@ -335,7 +335,7 @@ class ImportanceFlowProposal(Proposal):
         if beta:
             self.update_annealing(beta)
 
-        if self.weighted_kl or weights:
+        if self.weighted_kl or weights is not None:
             logger.debug('Using weights in training')
             if weights is not None:
                 weights = weights / np.sum(weights)
@@ -343,7 +343,9 @@ class ImportanceFlowProposal(Proposal):
                 if self.weights_include_likelihood:
                     log_weights = (
                         training_data['logW']
-                        + self.beta * training_data['logL']
+                        + self.beta * (
+                            training_data['logL'] - training_data['logL'].max()
+                        )
                     )
                 else:
                     log_weights = training_data['logW'].copy()
