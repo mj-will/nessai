@@ -1054,9 +1054,15 @@ class CombinedFlowModel(FlowModel):
         """Initialise things"""
         self.initialised = True
 
-    def reset_optimiser(self):
-        """Reset the optimiser to point at current model."""
-        self._optimiser = self.get_optimiser()
+    def reset_optimiser(self) -> None:
+        """Reset the optimiser to point at current model.
+
+        Uses the original optimiser and kwargs.
+        """
+        self._optimiser = self.get_optimiser(
+            optimiser=self.optimiser,
+            **self.optimiser_kwargs
+        )
 
     def add_new_flow(self, reset=False):
         """Add a new flow"""
