@@ -685,10 +685,37 @@ def test_configure_pool_with_pool(model):
     """Test configuring the pool when pool is specified"""
     n_pool = 2
     pool = MagicMock()
-    pool._processes = n_pool
-    Model.configure_pool(model, pool=pool, n_pool=1)
+    with patch('nessai.model.get_n_pool', return_value=n_pool) as mock:
+        Model.configure_pool(model, pool=pool, n_pool=1)
+    mock.assert_called_once_with(pool)
     assert model.pool is pool
     assert model.n_pool == n_pool
+
+
+def test_configure_pool_with_pool_no_n_pool(model):
+    """Test configuring the pool when pool is specified but n_pool cannot be
+    determined and the user has not specified the value.
+    """
+    pool = MagicMock()
+    with patch('nessai.model.get_n_pool', return_value=None) as mock:
+        Model.configure_pool(model, pool=pool)
+    mock.assert_called_once_with(pool)
+    assert model.pool is pool
+    assert model.n_pool is None
+    assert model.allow_vectorised is False
+
+
+def test_configure_pool_with_pool_user_n_pool(model):
+    """Test configuring the pool when pool is specified but n_pool cannot be
+    determined but the user has specified the value.
+    """
+    model.allow_vectorised = True
+    pool = MagicMock()
+    with patch('nessai.model.get_n_pool', return_value=None) as mock:
+        Model.configure_pool(model, pool=pool, n_pool=1)
+    mock.assert_called_once_with(pool)
+    assert model.pool is pool
+    assert model.n_pool == 1
 
 
 def test_configure_pool_n_pool(model):
