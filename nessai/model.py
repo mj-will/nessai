@@ -14,7 +14,10 @@ from .livepoint import (
     DEFAULT_FLOAT_DTYPE,
     LOGL_DTYPE,
 )
-from .utils.multiprocessing import log_likelihood_wrapper
+from .utils.multiprocessing import (
+    get_n_pool,
+    log_likelihood_wrapper,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -199,7 +202,8 @@ class Model(ABC):
         pool :
             User provided pool. Must call
             :py:func:`nessai.utils.multiprocessing.initialise_pool_variables`
-            before creating the pool.
+            before creating the pool or pass said function to the initialiser
+            with the model.
         n_pool : int
             Number of threads to use to create an instance of
             :py:obj:`multiprocessing.Pool`.
@@ -207,10 +211,18 @@ class Model(ABC):
         self.pool = pool
         self.n_pool = n_pool
         if self.pool:
-            if self.n_pool:
-                logger.warning('`n_pool` is ignored when `pool` is specified')
             logger.info('Using user specified pool')
-            self.n_pool = self.pool._processes
+            n_pool = get_n_pool(self.pool)
+            if n_pool is None and not self.n_pool:
+                logger.warning(
+                    'Could not determine number of processes in pool and '
+                    'user has not specified the number. Likelihood '
+                    'vectorisation will be disabled.'
+                )
+                self.allow_vectorised = False
+            elif n_pool:
+                self.n_pool = n_pool
+                logger.debug(f'User pool has {n_pool} processes')
         elif self.n_pool:
             logger.info(
                 f'Starting multiprocessing pool with {n_pool} processes'
