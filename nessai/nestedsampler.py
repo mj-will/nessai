@@ -414,7 +414,7 @@ class NestedSampler:
         **kwargs :
             Kwargs passed to init function.
         """
-        proposal_output = self.output + '/proposal/'
+        proposal_output = os.path.join(self.output, 'proposal', '')
 
         if not self.plot:
             proposal_plots = False
@@ -481,7 +481,7 @@ class NestedSampler:
             resume_file = os.path.join(output, resume_file)
 
         if self.plot:
-            os.makedirs(output + '/diagnostics/', exist_ok=True)
+            os.makedirs(os.path.join(output, 'diagnostics', ''), exist_ok=True)
 
         return resume_file
 
