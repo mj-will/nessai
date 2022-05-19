@@ -165,7 +165,7 @@ class FlowModel:
         """
         config = copy.deepcopy(config)
         if output_file is None:
-            output_file = self.output + "flow_config.json"
+            output_file = os.path.join(self.output, "flow_config.json")
         for k, v in list(config.items()):
             if type(v) == np.ndarray:
                 config[k] = np.array_str(config[k])
@@ -493,7 +493,7 @@ class FlowModel:
         if plot:
             history = dict(loss=[], val_loss=[])
 
-        current_weights_file = output + 'model.pt'
+        current_weights_file = os.path.join(output, 'model.pt')
         logger.debug(f'Training with {samples.shape[0]} samples')
         for epoch in range(1, max_epochs + 1):
 
@@ -529,7 +529,9 @@ class FlowModel:
         self.model.eval()
 
         if plot:
-            plot_loss(epoch, history, filename=output + '/loss.png')
+            plot_loss(
+                epoch, history, filename=os.path.join(output, 'loss.png')
+            )
 
     def save_weights(self, weights_file):
         """
