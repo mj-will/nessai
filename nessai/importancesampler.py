@@ -31,6 +31,7 @@ from .utils.information import (
     differential_entropy,
     relative_entropy_from_log,
 )
+from .utils.optimise import optimise_meta_proposal_weights
 from .utils.stats import effective_sample_size, weighted_quantile
 from .utils.structures import get_subset_arrays
 
@@ -1158,9 +1159,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self,
         n_post: Optional[int] = None,
         n_draw: Optional[int] = None,
-        max_its: int = 10,
-        max_batch_size: int = 100_000,
+        max_its: int = 1000,
+        max_batch_size: int = 20_000,
+        max_samples_ratio: Optional[float] = 1.0,
         use_counts: bool = False,
+        optimise_weights: bool = False,
+        optimise_kwargs: Optional[dict] = None,
     ):
         """Draw final unbiased samples until a desired ESS is reached.
 
@@ -1186,9 +1190,19 @@ class ImportanceNestedSampler(BaseNestedSampler):
             Maximum number of iterations before stopping.
         max_batch_size
             Maximum number of samples to draw in a single batch.
+        max_samples_ratio
+            Maximum number of samples in terms of the number of samples drawn
+            during sampling. For example if :code:`max_samples=1`, up to half
+            the initial number of samples will be drawn. If None, no limit is
+            set.
+        optimise_weights
+            If True, the weights for each proposal are optimised before
+            redrawing the samples.
+        optimise_kwargs
+            Keyword arguments passed to the optimiser function.
         use_counts
             Use the exact counts for each proposal rather than the weights.
-            Not recommended.
+            Not recommended. Ignored if :code:`optimise_weights` is True.
 
         Returns
         -------
@@ -1212,15 +1226,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.state.effective_n_posterior_samples
             / self.nested_samples.size
         )
+        max_samples = int(max_samples_ratio * self.nested_samples.size)
 
         logger.debug(f'Expected efficiency: {eff:.3f}')
         if not any([n_post, n_draw]):
             n_draw = self.nested_samples.size
 
         if n_post:
-            n_draw = n_post / eff
+            n_draw = int(n_post / eff)
             logger.info(f'Redrawing samples with target ESS: {n_post:.1f}')
             logger.info(f'Expect to draw approximately {n_draw:.0f} samples')
+            if n_draw > max_samples:
+                logger.warning(
+                    f'Expected number of samples ({n_draw}) is greater than '
+                    f'the maximum number of samples ({max_samples}). Final '
+                    'ESS will most likely be less than the specified value.'
+                )
             desc = 'ESS'
             total = int(n_post)
         else:
@@ -1239,7 +1260,16 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         logger.debug(f'Batch size: {batch_size}')
 
-        if use_counts:
+        if optimise_weights:
+            if optimise_kwargs is None:
+                optimise_kwargs = {}
+            weights = optimise_meta_proposal_weights(
+                self.nested_samples.copy(),
+                self._log_q_ns.copy(),
+                **optimise_kwargs,
+            )
+            target_counts = None
+        elif use_counts:
             logger.warning('Using counts is not recommended!')
             target_counts = np.array(
                 np.fromiter(self.proposal.unnormalised_weights.values(), int)
@@ -1247,11 +1277,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 dtype=int
             )
             batch_size = target_counts.sum()
-            weights = None
+            weights = target_counts / target_counts.sum()
         else:
             weights = np.fromiter(
                 self.proposal.unnormalised_weights.values(), float
             )
+            weights /= weights.sum()
             target_counts = None
 
         n_models = self.proposal.n_proposals
@@ -1259,12 +1290,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         log_q = np.empty([0, n_models])
         counts = np.zeros(n_models)
 
-        # Need actual weights for computing log Q
-        unnormed_weights = np.fromiter(
-            self.proposal.unnormalised_weights.values(), float
-        )
-        # This is used to normalise the weights in the evidence
-        log_meta_constant = np.log(np.sum(unnormed_weights))
+        # Using normalised weights, so constant is zero
+        log_meta_constant = 0.0
         self.final_state.log_meta_constant = log_meta_constant
 
         it = 0
@@ -1285,23 +1312,27 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     break
                 if n_post is None and (samples.size > n_draw):
                     break
+                if max_samples_ratio and (len(samples) > max_samples):
+                    logger.warning(
+                        f'Reached maximum number of samples: {max_samples}'
+                    )
+                    logger.warning('Stopping')
+                    break
 
-                # Draw all samples before computing the likelihood
                 it_samples = np.empty([0], dtype=self.proposal.dtype)
-                for _ in range(int(np.ceil(n_draw / batch_size))):
-                    new_samples, new_log_q, new_counts = \
-                        self.proposal.draw_from_flows(
-                            batch_size, counts=target_counts, weights=weights,
-                        )
-                    it_samples = np.concatenate([it_samples, new_samples])
-                    log_q = np.concatenate([log_q, new_log_q], axis=0)
-                    counts += new_counts
+                # Target counts will be None if use_counts is False
+                it_samples, new_log_q, new_counts = \
+                    self.proposal.draw_from_flows(
+                        batch_size, counts=target_counts, weights=weights,
+                    )
+                log_q = np.concatenate([log_q, new_log_q], axis=0)
+                counts += new_counts
 
                 it_samples['logL'] = \
                     self.model.batch_evaluate_log_likelihood(it_samples)
                 samples = np.concatenate([samples, it_samples])
 
-                log_Q = logsumexp(log_q, b=unnormed_weights, axis=1)
+                log_Q = logsumexp(log_q, b=weights, axis=1)
 
                 if np.isposinf(log_Q).any():
                     logger.warning('Log meta proposal contains +inf')
@@ -1320,7 +1351,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 logger.debug(f'Current ESS: {ess}')
                 it += 1
 
-            pbar.n = pbar.total
+            if not n_post or (n_post and ess >= n_post):
+                pbar.n = pbar.total
 
         logger.debug(f'Original weights: {self.proposal.unnormalised_weights}')
         logger.debug(f'New weights: {counts}')
@@ -1330,7 +1362,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f'Final evidence: {self.final_state.logZ:.3f} '
             f'+/- {self.final_state.compute_uncertainty():.3f}'
         )
-        logger.info(f'Final ess: {ess:.1f}')
+        logger.info(f'Final ESS: {ess:.1f}')
         self.final_samples = samples
         self.redraw_time += (timer() - start_time)
         return self.final_state.logZ, samples
