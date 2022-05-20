@@ -11,6 +11,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import logsumexp
+from scipy import optimize
 from tqdm import tqdm
 
 from .evidence import _INSIntegralState
@@ -31,7 +32,11 @@ from .utils.information import (
     relative_entropy_from_log,
 )
 from .utils.optimise import optimise_meta_proposal_weights
-from .utils.stats import effective_sample_size, weighted_quantile
+from .utils.stats import (
+    effective_sample_size,
+    effective_volume,
+    weighted_quantile,
+)
 from .utils.structures import get_subset_arrays
 
 logger = logging.getLogger(__name__)
@@ -61,6 +66,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
         the number will depend on the level method chosen. Note that this will
         override the choice of live points. The number of points draw is set
         by the live points.
+    min_samples
+        Minimum number of samples that are used for training the next
+        normalising flow.
+    min_remove
+        Minimum number of samples that can be removed when creating the next
+        level. If less than one, the sampler will stop if the level method
+        determines no samples should be removed.
+    plot_likelihood_levels
+        Enable or disable plotting the likelihood levels.
     trace_plot_kwargs
         Keyword arguments for the trace plot.
     """
@@ -88,7 +102,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         plotting_frequency: int = 5,
         min_iteration: Optional[int] = None,
         max_iteration: Optional[int] = None,
-        min_samples: int = 1000,
+        min_samples: int = 500,
         min_remove: int = 1,
         tolerance: float = np.e,
         n_update: Optional[int] = None,
@@ -107,9 +121,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         stopping_criterion: str = 'ratio_ns',
         check_criteria: Literal['any', 'all'] = 'any',
         level_kwargs: Optional[dict] = None,
-        annealing: bool = False,
-        beta_min: float = 0.01,
-        beta_max: float = 1.0,
+        annealing_target: Optional[float] = None,
+        annealing_beta: Optional[float] = None,
         draw_constant: bool = False,
         **kwargs: Any
     ):
@@ -145,6 +158,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.plot_pool = plot_pool
         self.plot_level_cdf = plot_level_cdf
         self._plot_trace = plot_trace
+        self._plot_likelihood_levels = plot_likelihood_levels
         self.trace_plot_kwargs = \
             {} if trace_plot_kwargs is None else trace_plot_kwargs
         self.plot_training_data = plot_training_data
@@ -153,9 +167,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.leaky = leaky
         self.level_method = level_method
         self.level_kwargs = {} if level_kwargs is None else level_kwargs
-        self.annealing = annealing
-        self.beta_min = beta_min
-        self.beta_max = beta_max
         self.beta = None
         self.logX = 0.0
         self.min_logL = -np.inf
@@ -188,6 +199,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             check_criteria,
         )
 
+        self.configure_annealing(annealing_target, annealing_beta)
+
         self.nested_samples = np.empty(0, dtype=get_dtype(self.model.names))
         self._log_q_ns = None
         self._log_q_lp = None
@@ -200,10 +213,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.add_samples_time = 0.0
 
         if self.replace_all:
-            raise NotImplementedError
+            logger.warning('Replace all is experimental')
 
         if not self.leaky and self.sorting == 'rel_entr':
             raise ValueError('Invalid combination of arguments!')
+
+        self.check_configuration()
 
     @property
     def log_evidence(self) -> float:
@@ -367,6 +382,56 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             self.max_iteration = int(max_iteration)
 
+    def check_configuration(self) -> bool:
+        """Check sampler configuration is valid.
+
+        Returns true if all checks pass.
+        """
+        if self.min_samples > self.nlive:
+            raise ValueError('`min_samples` must be less than `nlive`')
+        if self.min_remove > self.nlive:
+            raise ValueError('`min_remove` must be less than `nlive`')
+        return True
+
+    def configure_annealing(
+        self,
+        annealing_target: Optional[float],
+        beta: Optional[float],
+    ) -> None:
+        """Configure likelihood annealing for training the flow.
+
+        Parameters
+        ----------
+        annealing_target
+            Target volume for annealing. Must be in (0, 1).
+        beta
+            Value for the annealing parameter beta. Must be in (0, 1). If
+            annealing target is specified then this value will be used as the
+            initial value for the first iteration and then overridden.
+        """
+        if beta is not None:
+            if not (0 < beta < 1):
+                raise ValueError('Annealing beta must be in (0, 1)')
+            beta = float(beta)
+
+        if annealing_target is not None:
+            if not (0 < annealing_target < 1):
+                raise ValueError('Annealing target must be in (0, 1)')
+            self.annealing_target = float(annealing_target)
+            if beta is None:
+                self.beta = 1e-4
+            else:
+                self.beta = beta
+            self.annealing = True
+        elif beta is not None:
+            self.annealing_target = None
+            self.beta = beta
+            self.annealing = True
+        else:
+            self.annealing = False
+            self.beta = None
+            self.annealing_target = None
+
     def _rel_entr(self, x):
         return relative_entropy_from_log(x['logL'], x['logQ'])
 
@@ -459,17 +524,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 n_added=[],
                 n_removed=[],
                 n_post=[],
-                live_points_remaining_entropy=[],
                 live_points_ess=[],
                 pool_entropy=[],
                 samples_entropy=[],
                 likelihood_evaluations=[],
-                max_logQ=[],
-                mean_logQ=[],
-                median_logQ=[],
-                min_logQ=[],
                 kl_proposals=[],
-                beta=[],
+                annealing_beta=[],
                 stopping_criteria={
                     k: [] for k in self.stopping_criterion_aliases.keys()
                 },
@@ -493,13 +553,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['likelihood_evaluations'].append(
             self.model.likelihood_evaluations
         )
-        self.history['max_logQ'].append(np.max(self.live_points['logQ']))
-        self.history['mean_logQ'].append(np.mean(self.live_points['logQ']))
-        self.history['median_logQ'].append(
-            np.median(self.live_points['logQ'])
-        )
-        self.history['min_logQ'].append(np.min(self.live_points['logQ']))
-        self.history['beta'].append(self.beta)
 
         for k in self.stopping_criterion_aliases.keys():
             self.history['stopping_criteria'][k].append(
@@ -574,17 +627,24 @@ class ImportanceNestedSampler(BaseNestedSampler):
             log-weights.
         """
         if include_likelihood:
-            log_weights = self.live_points['logW'] + self.live_points['logL']
+            log_weights = \
+                self.live_points['logW'] \
+                + self.live_points['logL'] \
+                + np.log(self.proposal.normalisation_constant)
         else:
-            log_weights = self.live_points['logW'].copy()
+            log_weights = \
+                self.live_points['logW'].copy() \
+                + np.log(self.proposal.normalisation_constant)
         if use_log_weights:
             p = log_weights
         else:
             p = np.exp(log_weights)
         cdf = np.cumsum(p)
+        if cdf.sum() == 0:
+            cdf = np.arange(len(p), dtype=float)
         cdf /= cdf[-1]
         n = np.argmax(cdf >= q)
-        if self.plot_level_cdf:
+        if self.plot and self.plot_level_cdf:
             fig = plt.figure()
             plt.plot(self.live_points['logL'], cdf)
             plt.xlabel('Log-likelihood')
@@ -616,26 +676,47 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.info(f'Next level should remove {n} points')
         return n
 
-    def get_annealing_beta(self) -> float:
-        """Determine the current annealing value"""
-        if not self.annealing:
-            beta = None
-        if self.annealing in {'dZ', 'evidence', 'Z'}:
-            if not np.isfinite(self.dZ):
-                beta = self.beta_min
-            else:
-                if self._initial_dZ is None:
-                    self._initial_dZ = np.log(self.dZ)
-                beta = max(
-                    self.beta_min,
-                    (1.0 - self.beta_min)
-                    * (np.log(self.dZ) - self._initial_dZ)
-                    / (np.log(self.tolerance) - self._initial_dZ)
-                    + self.beta_min,
-                )
-        else:
-            beta = self.annealing
-        logger.debug(f'Annealing beta = {beta:.2f}')
+    @staticmethod
+    def get_annealing_beta(
+        log_l: np.ndarray,
+        log_w: np.ndarray,
+        target_vol: float,
+        beta0: float = 1e-3,
+    ) -> float:
+        """Determine the current annealing value.
+
+        Parameters
+        ----------
+        log_l
+            Array of log-likelihood values.
+        log_w
+            Array of log-weights. Must be normalised.
+        target_vol
+            Target volume.
+        beta0
+            Initial value for beta.
+
+        Returns
+        -------
+        float
+            Value of beta.
+        """
+        if not (0 < target_vol < 1):
+            raise ValueError('Target volume must be in (0, 1)')
+
+        def loss(beta):
+            return np.abs(target_vol - effective_volume(log_w, log_l, beta))
+
+        beta, _, ierr, msg = optimize.fsolve(
+            loss, beta0, full_output=True
+        )
+        beta = float(np.clip(beta, 0.0, None))
+        if ierr != 1:
+            raise RuntimeError(
+                f'No solution! Returned error: {msg}'
+            )
+        logger.debug(f'Beta: {beta}')
+
         return beta
 
     def update_level(self):
@@ -646,11 +727,36 @@ class ImportanceNestedSampler(BaseNestedSampler):
             "Training data ESS: "
             f"{effective_sample_size(self.training_points['logW'])}"
         )
-        self.beta = self.get_annealing_beta()
+
+        if self.annealing:
+            log_w = self.training_points['logW'] \
+                    + np.log(self.proposal.normalisation_constant)
+
+            if self.annealing_target:
+                self.beta = self.get_annealing_beta(
+                    self.training_points['logL'],
+                    log_w,
+                    target_vol=self.annealing_target,
+                )
+                self.history['annealing_beta'].append(self.beta)
+            w = np.exp(log_w)
+            lr = np.exp(
+                self.beta
+                * (
+                    self.training_points['logL']
+                    - self.training_points['logL'].max()
+                )
+            )
+            weights = (w * lr) / np.sum(w)
+        else:
+            weights = None
+
+        self.training_weights = weights
+
         self.proposal.train(
             self.training_points,
             plot=self.plot_training_data,
-            beta=self.beta,
+            weights=weights,
         )
         kl = self.proposal.compute_kl_between_proposals(
             self.training_points, p_it=self.iteration - 1, q_it=self.iteration,
@@ -668,7 +774,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.debug('Updating existing live points')
             if self.live_points is None:
                 logger.warning('No live points to update!')
-                return
+                return None
             else:
                 live_points = self.live_points
                 log_q = self._log_q_lp
@@ -698,14 +804,47 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.info('Evaluating likelihood for new points')
             new_points['logL'] = \
                 self.model.batch_evaluate_log_likelihood(new_points)
+            logger.info(
+                'Min. log-likelihood of new samples: '
+                f"{np.min(new_points['logL'])}"
+            )
+            if not np.isfinite(new_points['logL']).all():
+                raise ValueError('Log-likelihood contains infs')
+        if np.any(np.exp(new_points['logL']) == 0):
+            logger.warning('New points contain points with zero likelihood')
+
         self.history['leakage_new_points'].append(
             self.compute_leakage(new_points)
         )
         self.draw_time += (timer() - st)
         return new_points, log_q
 
-    def compute_leakage(self, samples: np.ndarray) -> float:
-        return (samples['logL'] < self.min_logL).sum() / samples.size
+    def compute_leakage(
+        self, samples: np.ndarray, weights: bool = True
+    ) -> float:
+        """Compute the leakage for a number of samples.
+
+        Parameters
+        ----------
+        samples : numpy.ndarray
+            Array of samples.
+        weights : bool
+            If True, the weight of each sample is accounted for in the
+            calculation.
+
+        Returns
+        -------
+        float
+            The leakage as a fraction of the total number of samples
+            (or effective sample size if weights is True).
+        """
+        if weights:
+            return (
+                np.sum(samples['logW'][samples['logL'] < self.min_logL])
+                / samples['logW'].sum()
+            )
+        else:
+            return (samples['logL'] < self.min_logL).sum() / samples.size
 
     def add_and_update_points(self, n: int):
         """Add new points to the current set of live points.
@@ -746,6 +885,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.debug('Adding all points to the live points.')
             if self.live_points is None:
                 self.live_points = new_points
+                self._log_q_lp = log_q
             else:
                 if self.sorting == 'logL':
                     idx = np.searchsorted(
@@ -786,6 +926,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             )
         self.live_points_ess = effective_sample_size(
             self.live_points['logW']
+            + np.log(self.proposal.normalisation_constant)
         )
         self.history['leakage_live_points'].append(
             self.compute_leakage(self.live_points)
@@ -816,13 +957,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n : int
             The number of points to remove.
         """
-        self.history['n_removed'].append(n)
+        if self.replace_all:
+            self.history['n_removed'].append(self.live_points.size)
+        else:
+            self.history['n_removed'].append(n)
         logger.debug(f'Removing {n} points')
-        self.add_to_nested_samples(self.live_points[:n], self._log_q_lp[:n])
 
         if self.replace_all:
-            raise NotImplementedError('Replace all is not implemented')
+            self.add_to_nested_samples(self.live_points, self._log_q_lp)
+            self.training_points = self.live_points.copy()
+            self.live_points = None
+            self._log_q_lp = None
         else:
+            self.add_to_nested_samples(
+                self.live_points[:n], self._log_q_lp[:n]
+            )
+
             self.live_points = np.delete(self.live_points, np.s_[:n])
             self._log_q_lp = np.delete(self._log_q_lp, np.s_[:n], axis=0)
             self.training_points = self.live_points.copy()
@@ -893,8 +1043,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
             batch_samples = samples[idx_keep]
             batch_log_q = log_q[idx_keep]
-            counts_out = np.unique(batch_samples['it'], return_counts=True)[1]
-            np.testing.assert_array_equal(new_counts, counts_out)
             assert batch_samples.size == orig_n_total
 
             log_Q = logsumexp(batch_log_q, b=original_unnorm_weight, axis=1)
@@ -981,6 +1129,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.dH = np.abs(
             (self._current_entropy - previous_entropy) / self._current_entropy
         )
+        self.ess = self.state.effective_n_posterior_samples
 
         logger.debug(f'Current entropy: {self._current_entropy:.3f}')
         logger.debug(f'Relative change in entropy: {self.dH:.3f}')
@@ -1037,23 +1186,27 @@ class ImportanceNestedSampler(BaseNestedSampler):
             else:
                 n_remove = self.n_update
             if n_remove == 0:
-                logger.warning('No points to remove')
-                break
+                if self.min_remove < 1:
+                    logger.warning('No points to remove')
+                    logger.warning('Stopping')
+                    break
+                else:
+                    n_remove = 1
             if (self.live_points.size - n_remove) < self.min_samples:
                 n_remove = self.live_points.size - self.min_samples
-                logger.critical('Cannot remove all live points!')
-                logger.critical(f'Removing {n_remove}')
+                logger.warning('Cannot remove all live points!')
+                logger.warning(f'Removing {n_remove}')
             elif n_remove < self.min_remove:
-                logger.critical(
+                logger.warning(
                     f'Cannot remove less than {self.min_remove} samples'
                 )
                 n_remove = self.min_remove
-                logger.critical(f'Removing {n_remove}')
+                logger.warning(f'Removing {n_remove}')
 
             self.min_logL = self.live_points[n_remove]['logL'].copy()
             self.remove_points(n_remove)
             self.update_level()
-            if self.draw_constant:
+            if self.draw_constant or self.replace_all:
                 n_add = self.nlive
             else:
                 n_add = n_remove
@@ -1067,7 +1220,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 f'log Z: {self.state.logZ:.3f} +/- '
                 f'{self.state.compute_uncertainty():.3f} '
                 f'dZ: {self.dZ:.3f} '
-                f'ESS: {self.state.effective_n_posterior_samples:.1f} '
+                f'ESS: {self.ess:.1f} '
                 f"logL min: {self.live_points['logL'].min():.3f} "
                 f"logL max: {self.live_points['logL'].max():.3f}"
             )
@@ -1380,7 +1533,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
             If specified the figure will be saved, otherwise the figure is
             returned.
         """
-        fig, ax = plt.subplots(9, 1, sharex=True, figsize=(15, 15))
+        n_subplots = 9
+        if self.annealing_target:
+            n_subplots += 1
+
+        fig, ax = plt.subplots(n_subplots, 1, sharex=True, figsize=(15, 15))
         ax = ax.ravel()
         its = np.arange(self.iteration)
 
@@ -1483,6 +1640,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
 
         m += 1
+
+        if self.annealing_target:
+            ax[m].plot(
+                its, self.history['annealing_beta'], c=colours[0], ls=ls[0]
+            )
+            ax[m].set_ylabel(r'$\beta$')
+            m += 1
 
         ax[m].plot(
             its, self.history['samples_entropy'], c=colours[0], ls=ls[0]
