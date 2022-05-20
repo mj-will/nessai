@@ -26,7 +26,7 @@ jobs:
         pip install -e .
     - name: Run (quick) integration tests
       run: |
-        pytest tests/ -m "integration_test"
+        pytest -v tests/ -m "integration_test"
     - name: Run slow integration tests
       run: |
-        pytest tests/ -m "slow_integration_test"
+        pytest -v tests/ -m "slow_integration_test"
