@@ -852,6 +852,11 @@ class ImportanceFlowProposal(Proposal):
         )
 
     def __getstate__(self):
-        obj = super().__getstate__()
-        del obj['_flow_config']
-        return obj
+        d = self.__dict__
+        exclude = {'model', '_flow_config', 'flow'}
+        state = {k: d[k] for k in d.keys() - exclude}
+        return state, self.flow
+
+    def __setstate__(self, state):
+        self.__dict__.update(state[0])
+        self.flow = state[1]
