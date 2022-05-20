@@ -96,6 +96,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         plot_pool: bool = False,
         plot_level_cdf: bool = False,
         plot_trace: bool = True,
+        plot_likelihood_levels: bool = True,
         plot_training_data: bool = False,
         trace_plot_kwargs: Optional[dict] = None,
         replace_all: bool = False,
@@ -1563,13 +1564,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         fig, axs = plt.subplots(n, 1, sharex=True, figsize=(5, 2 * n))
 
-        log_w = self.nested_samples['logW']
+        samples = self.all_samples
+
+        log_w = samples['logW']
 
         if enable_colours:
             colour_kwargs = dict(
-                c=self.nested_samples['it'],
+                c=samples['it'],
                 vmin=-1,
-                vmax=self.nested_samples['it'].max(),
+                vmax=samples['it'].max(),
             )
         else:
             colour_kwargs = {}
@@ -1577,7 +1580,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         for ax, p in zip(axs, parameters):
             ax.scatter(
                 log_w,
-                self.nested_samples[p],
+                samples[p],
                 s=1.0,
                 **colour_kwargs,
             )
@@ -1658,9 +1661,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     filename=os.path.join(self.output, 'trace.png'),
                     **self.trace_plot_kwargs,
                 )
-            self.plot_likelihood_levels(
-                os.path.join(self.output, 'likelihood_levels.png')
-            )
+            if self._plot_likelihood_levels:
+                self.plot_likelihood_levels(
+                    os.path.join(self.output, 'likelihood_levels.png')
+                )
         else:
             logger.debug('Skipping plots')
 
