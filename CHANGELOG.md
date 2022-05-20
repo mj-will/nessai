@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add support for vectorised likelihoods and automatically detect if the likelihood is vectorised.
 - Add support for passing a user-defined pool instead of using `n_pool`.
 - Add an option to disable signal handling in `FlowSampler`.
+- Add support for `ray.util.multiprocessing.Pool` (fixes [#162](https://github.com/mj-will/nessai/issues/162)).
 
 ### Changed
 
