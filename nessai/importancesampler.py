@@ -1691,3 +1691,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         logger.info(f'Current dZ: {obj.dZ:.3f}')
         return obj
+
+    def __getstate__(self):
+        d = self.__dict__
+        exclude = {'model', 'proposal'}
+        state = {k: d[k] for k in d.keys() - exclude}
+        state['_previous_likelihood_evaluations'] = \
+            d['model'].likelihood_evaluations
+        state['_previous_likelihood_evaluation_time'] = \
+            d['model'].likelihood_evaluation_time.total_seconds()
+        return state, self.proposal
+
+    def __setstate__(self, state):
+        self.__dict__.update(state[0])
+        self.proposal = state[1]
