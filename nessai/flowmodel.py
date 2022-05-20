@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import shutil
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -1021,6 +1022,7 @@ class FlowModel:
 class CombinedFlowModel(FlowModel):
     """Flow Model that contains multiple flows for importance sampler."""
     models: torch.nn.ModuleList = None
+    _resume_n_models: int = None
 
     def __init__(self, config=None, output='./'):
         super().__init__(config=config, output=output)
@@ -1046,9 +1048,12 @@ class CombinedFlowModel(FlowModel):
             self.models.append(model)
 
     @property
-    def n_models(self):
+    def n_models(self) -> int:
         """Number of models (flows)"""
-        return len(self.models)
+        if self.models:
+            return len(self.models)
+        else:
+            return 0
 
     def initialise(self) -> None:
         """Initialise things"""
@@ -1129,19 +1134,17 @@ class CombinedFlowModel(FlowModel):
         x = x.cpu().numpy().astype(np.float64)
         return x
 
-    def save_weights(self, weights_file):
+    def save_weights(self, weights_file) -> None:
         """Save the weights file."""
         super().save_weights(weights_file)
         self.weights_files.append(self.weights_file)
 
-    def load_all_weights(self):
+    def load_all_weights(self) -> None:
         """Load all of the weights files for each flow.
 
         Resets any existing models.
         """
-        if self.models:
-            logger.debug('Resetting model list')
-            self.models = torch.nn.ModuleList()
+        self.models = torch.nn.ModuleList()
         logger.debug(f'Loading weights from {self.weights_files}')
         for wf in self.weights_files:
             new_flow, self.device = configure_model(self.model_config)
@@ -1149,29 +1152,52 @@ class CombinedFlowModel(FlowModel):
             self.models.append(new_flow)
         self.models.eval()
 
-    def update_weights_path(self, weights_path):
+    def update_weights_path(
+        self, weights_path: str, n: Optional[int] = None
+    ) -> None:
         """Update the weights path.
 
         Searches in the specified directory for weights files.
+
+        Parameters
+        ----------
+        weights_path : str
+            Path to the directory that contains the weights files.
+        n : Optional[int]
+            The number of files to load. If not specified, :code:`n_models` is
+            used instead. Must be specified when resuming since the models list
+            is not saved.
         """
         all_weights_files = glob.glob(
             os.path.join(weights_path, '', 'level_*', 'model.pt')
         )
+
+        if n is None:
+            if self.n_models:
+                n = self.n_models
+            else:
+                raise RuntimeError(
+                    'n is None and no models are defined, cannot update '
+                    'weights path.'
+                )
+
         logger.debug(f'Loading weights from: {all_weights_files}')
-        if len(all_weights_files) <= self.n_models:
+        if len(all_weights_files) < n:
             raise RuntimeError(
                 f'Cannot use weights from: {weights_path}.'
             )
-        elif len(all_weights_files) > self.n_models:
+        elif len(all_weights_files) > n:
             logger.warning(
                 'More weights files than expected. Some files will be skipped.'
             )
         self.weights_files = [
             os.path.join(weights_path, f'level_{i}', 'model.pt')
-            for i in range(self.n_models)
+            for i in range(n)
         ]
 
-    def resume(self, model_config, weights_path=None):
+    def resume(
+        self, model_config: dict, weights_path: Optional[str] = None
+    ) -> None:
         """Resume the model"""
         self.model_config = model_config
         if weights_path is None:
@@ -1179,13 +1205,17 @@ class CombinedFlowModel(FlowModel):
                 'Not weights path specified, looking in output directory'
             )
             weights_path = self.output
-        self.update_weights_path(weights_path)
+        self.update_weights_path(weights_path, n=self._resume_n_models)
         self.load_all_weights()
         self.initialise()
 
     def __getstate__(self):
-        state = self.__dict__.copy()
+        d = self.__dict__
+        # Avoid making a copy because models can be large and this doubles the
+        # memory usage.
+        exclude = {'models', '_optimiser', 'model_config'}
+        state = {k: d[k] for k in d.keys() - exclude}
         state['_initialised'] = False
-        del state['_optimiser']
-        del state['model_config']
+        state['models'] = None
+        state['_resume_n_models'] = len(d['models'])
         return state
