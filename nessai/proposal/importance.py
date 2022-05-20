@@ -59,7 +59,7 @@ class ImportanceFlowProposal(Proposal):
         plot_training: bool = False,
         weighted_kl: bool = True,
         weights_include_likelihood: bool = False,
-        reset_flows: Union[bool, int] = False,
+        reset_flows: Union[bool, int] = True,
         flow_config: dict = None,
         clip: bool = False,
         beta: Optional[float] = None,
@@ -113,9 +113,12 @@ class ImportanceFlowProposal(Proposal):
         Value depends on :code:`reweight_draws`.
         """
         if self.reweight_draws:
-            return self.total_samples_requested
+            c = self.total_samples_requested
         else:
-            return self.total_samples_drawn
+            c = self.total_samples_drawn
+        if not c:
+            c = 1.0
+        return c
 
     @property
     def unnormalised_weights(self) -> dict:
@@ -351,6 +354,11 @@ class ImportanceFlowProposal(Proposal):
                     log_weights = training_data['logW'].copy()
                 log_weights -= logsumexp(log_weights)
                 weights = np.exp(log_weights)
+            if np.isnan(weights).any():
+                raise ValueError('Weights contain NaNs')
+            if not np.isfinite(weights).all():
+                raise ValueError('Weights contain Infs')
+
             if plot:
                 plot_histogram(
                     weights, filename=level_output + 'training_weights.png'
@@ -584,7 +592,8 @@ class ImportanceFlowProposal(Proposal):
             )
             samples['logW'] = -samples['logQ']
 
-        self.draw_count += 1
+        if update_counts:
+            self.draw_count += 1
         logger.debug(f'Returning {samples.size} samples')
         return samples, log_q_samples
 
