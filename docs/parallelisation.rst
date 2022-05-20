@@ -17,6 +17,40 @@ There are two keyword arguments that must be set to enable parallelisation:
     If running ``nessai`` via a job scheduler such as HTCondor, remember to set the number of requested threads accordingly. This should match :code:`max_threads`.
 
 
+*****************
+Specifying a pool
+*****************
+
+Alternatively, ``nessai`` can use a user-defined pool. This is specified by setting the :code:`pool` argument in :code:`NestedSampler` or :code:`FlowSampler`. Some variables must be initialised when creating the pool, this is done using :py:func:`~nessai.utils.multiprocessing.initialise_pool_variables`:
+
+.. code-block:: python
+
+    from multiprocessing import Pool
+    from nessai.utils.multiprocessing import initialise_pool_variables
+
+    model = GaussianModel()
+    pool = Pool(
+        processes=2,
+        initializer=initialise_pool_variables,
+        initargs=(model,),
+    )
+
+:code:`pool` can then passed to the :code:`pool` keyword argument when setting up the sampler.
+
+-------------
+Using ``ray``
+-------------
+
+``ray`` includes a `distributed multiprocessing pool <https://docs.ray.io/en/latest/ray-more-libs/multiprocessing.html>`_ that can also be used with ``nessai``. Simply import :code:`ray.util.multiprocessing.Pool` instead of the standard pool and initialise using the method described above.
+
+
+-----------
+Other pools
+-----------
+
+When a pool object is passed to :code:`nessai` it tries to determine how processes the pool contains and (if the likelihood is vectorised) uses this information to determine the chunk size when evaluating the likelihood. If it can not determine this, then likelihood vectorisation will be disabled. This can be avoided by specifying :code:`n_pool` and :code:`max_threads` when initialising the sampler.
+
+
 *************
 Example usage
 *************
@@ -25,9 +59,10 @@ Example usage
     :language: python
 
 ********
-Also see
+See also
 ********
 
-- :py:func:`nessai.utils.configure_threads`
-- :py:meth:`nessai.proposal.base.Proposal.configure_pool`
-- :py:meth:`nessai.proposal.base.Proposal.close_pool`
+- :py:func:`nessai.utils.threading.configure_threads`
+- :py:func:`nessai.utils.multiprocessing.initialise_pool_variables`
+- :py:meth:`nessai.model.Model.configure_pool`
+- :py:meth:`nessai.model.Model.close_pool`
