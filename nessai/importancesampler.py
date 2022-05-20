@@ -2,7 +2,6 @@
 """
 Importance nested sampler.
 """
-from copy import deepcopy
 import logging
 import os
 from timeit import default_timer as timer
@@ -848,8 +847,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         # This changes the proposal because the number of samples changes
         log_evidences = np.empty(n_batches)
         log_evidence_errors = np.empty(n_batches)
-        tmp_proposal = deepcopy(self.proposal)
-        tmp_proposal.model = self.model
+        proposal = self.proposal
         for i in range(n_batches):
             new_counts = np.random.multinomial(
                 orig_n_total,
@@ -864,10 +862,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     logger.debug(f'Drawing {nc - c} samples from {it}')
                     if it == -1:
                         new_samples, new_log_q = \
-                            tmp_proposal.draw_from_prior(nc - c)
+                            proposal.draw_from_prior(nc - c)
                     else:
                         new_samples, new_log_q = \
-                            tmp_proposal.draw(
+                            proposal.draw(
                                 n=(nc - c),
                                 flow_number=it,
                                 update_counts=False,
