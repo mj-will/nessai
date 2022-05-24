@@ -712,9 +712,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         beta = float(np.clip(beta, 0.0, None))
         if ierr != 1:
-            raise RuntimeError(
-                f'No solution! Returned error: {msg}'
+            logger.warning(
+                f'No solution when determining beta! Returned error: {msg}. '
+                'beta0 will be used.'
             )
+            beta = beta0
         logger.debug(f'Beta: {beta}')
 
         return beta
@@ -737,6 +739,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     self.training_points['logL'],
                     log_w,
                     target_vol=self.annealing_target,
+                    beta0=self.beta,
                 )
                 self.history['annealing_beta'].append(self.beta)
             w = np.exp(log_w)
