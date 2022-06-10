@@ -523,6 +523,9 @@ class FlowModel:
                 logger.info(f'Epoch {epoch}: Reached patience')
                 break
 
+        # Make sure caches are reset
+        self.model.train()
+        self.model.eval()
         self.model.load_state_dict(best_model)
         self.save_weights(current_weights_file)
         self.move_to(self.inference_device)
