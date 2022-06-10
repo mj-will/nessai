@@ -228,9 +228,7 @@ class ComovingDistanceConverter(DistanceConverter):
         except AttributeError:
             raise RuntimeError(
                 f'Could not get specified cosmology ({cosmology}) from '
-                '`astropy.cosmology`. Available cosmologies are: '
-                f'{cosmo.parameters.available}. See astropy documentation '
-                'for more details.'
+                '`astropy.cosmology`. See astropy documentation for details.'
             )
         self.scale = np.float64(scale)
         self.pad = pad
