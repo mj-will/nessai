@@ -574,6 +574,7 @@ class NestedSampler(BaseNestedSampler):
             if proposed['logL'] > self.logLmin:
                 # Assuming point was proposed
                 # replace worst point with new one
+                proposed['it'] = self.iteration
                 index = self.insert_live_point(proposed)
                 self.insertion_indices.append(index)
                 self.accepted += 1
@@ -635,6 +636,7 @@ class NestedSampler(BaseNestedSampler):
                         break
 
         self.live_points = np.sort(live_points, order='logL')
+        self.live_points['it'] = 0
         if self.store_live_points:
             np.savetxt(self.live_points_dir + '/initial_live_points.dat',
                        self.live_points,
