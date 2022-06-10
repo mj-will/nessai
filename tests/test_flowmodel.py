@@ -279,3 +279,43 @@ def test_save_weights(mock_save, model):
 def test_get_state(flow_model):
     """Make the object can be pickled"""
     pickle.dumps(flow_model)
+
+
+@pytest.mark.integration_test
+def test_lu_cache_reset(tmp_path):
+    """Assert the LU cache is correctly reset after training.
+
+    Cache is reset when calling .train() so if cache is incorrect then after
+    the reset the values in the latent space will not match.
+    """
+    output = tmp_path / "test"
+    output.mkdir()
+
+    config = dict(
+        max_epochs=100,
+        patience=1000,
+        model_config=dict(
+            n_inputs=2,
+            n_blocks=2,
+            kwargs=dict(
+                linear_transform='lu',
+            )
+        )
+    )
+
+    flow = FlowModel(config=config, output=output)
+    data = np.random.randn(100, 2)
+
+    flow.train(data)
+
+    test_data = torch.from_numpy(data).type(torch.get_default_dtype())
+
+    with torch.no_grad():
+        z_out, log_j = flow.model.forward(test_data)
+    flow.model.train()
+    flow.model.eval()
+    with torch.no_grad():
+        z_out_reset, log_j_reset = flow.model.forward(test_data)
+
+    np.testing.assert_array_equal(z_out_reset, z_out)
+    np.testing.assert_array_equal(log_j_reset, log_j)
