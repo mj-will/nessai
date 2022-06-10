@@ -50,6 +50,7 @@ vertical lines that can appear in the subplots.
 - Fixed a bug that prevented the use of `prior_sampling=True` with `FlowSampler`.
 - Fix issue when creating multiple instances of `FlowSampler` with the same output directory when resuming is enabled as reported in [#155](https://github.com/mj-will/nessai/issues/155).
 - Fixed missing square-root in `nessai.flows.distributions.MultivariateGaussian._sample` and fix the corresponding unit test.
+- Fix issue with cosmology in `ComovingDistanceConverter` caused by changes to `astropy.cosmology` in version 5.1.
 
 
 ### Removed
