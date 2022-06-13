@@ -51,6 +51,7 @@ vertical lines that can appear in the subplots.
 - Fix issue when creating multiple instances of `FlowSampler` with the same output directory when resuming is enabled as reported in [#155](https://github.com/mj-will/nessai/issues/155).
 - Fixed missing square-root in `nessai.flows.distributions.MultivariateGaussian._sample` and fix the corresponding unit test.
 - Fix issue with cosmology in `ComovingDistanceConverter` caused by changes to `astropy.cosmology` in version 5.1.
+- Fixed bug with caching in `LULinear` transform when reloading a checkpointed flow.
 
 
 ### Removed
