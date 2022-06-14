@@ -7,57 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+## [0.5.0] - 2022-06-14
 ### Added
 
-- Add `dataframe_to_live_points` function to `nessai.livepoint` for converting from a `pandas.DataFrame` to live points.
-- Add `fallback_reparameterisation` to `FlowProposal`. This allows the user to specify which reparameterisation to use for parameters that are not included in the reparameterisations dictionary. Default behaviour remains unchanged (defaults to no reparameterisation).
-- Add `rolling_mean` to `nessai.utils.stats`.
-- Add `nessai.flows.utils.create_linear_transform` as a common function for creating linear transforms in the flows.
-- Add `nessai.flows.transforms.LULinear` to address a [bug in nflows](https://github.com/bayesiains/nflows/pull/38) that has not been patched and prevents the use of CUDA with `LULinear`.
-- Add `calibration_example.py` to the gravitational wave examples.
-- Add `defaults` keyword argument to `nessai.reparameterisations.get_reparameterisation` for overriding the dictionary of default reparameterisations.
-- Add explicit tests for `nessai.flowsampler`
-- Add more tests for `nessai.reparameterisations`
-- Add more tests for `nessai.gw`
+- Add `dataframe_to_live_points` function to `nessai.livepoint` for converting from a `pandas.DataFrame` to live points. ([#133](https://github.com/mj-will/nessai/pull/133))
+- Add `fallback_reparameterisation` to `FlowProposal`. This allows the user to specify which reparameterisation to use for parameters that are not included in the reparameterisations dictionary. Default behaviour remains unchanged (defaults to no reparameterisation). ([#134](https://github.com/mj-will/nessai/pull/134))
+- Add `rolling_mean` to `nessai.utils.stats`. ([#136](https://github.com/mj-will/nessai/pull/136))
+- Add `nessai.flows.utils.create_linear_transform` as a common function for creating linear transforms in the flows. ([#137](https://github.com/mj-will/nessai/pull/137))
+- Add `nessai.flows.transforms.LULinear` to address a [bug in nflows](https://github.com/bayesiains/nflows/pull/38) that has not been patched and prevents the use of CUDA with `LULinear`. ([#138](https://github.com/mj-will/nessai/pull/138))
+- Add `calibration_example.py` to the gravitational wave examples. ([#139](https://github.com/mj-will/nessai/pull/139))
+- Add `defaults` keyword argument to `nessai.reparameterisations.get_reparameterisation` for overriding the dictionary of default reparameterisations. ([#142](https://github.com/mj-will/nessai/pull/142))
+- Add explicit tests for `nessai.flowsampler` ([#143](https://github.com/mj-will/nessai/pull/143))
+- Add more tests for `nessai.reparameterisations` ([#145](https://github.com/mj-will/nessai/pull/145))
+- Add more tests for `nessai.gw` ([#144](https://github.com/mj-will/nessai/pull/144))
 - Add support for vectorised likelihoods and automatically detect if the likelihood is vectorised. ([#148](https://github.com/mj-will/nessai/pull/148), [#166](https://github.com/mj-will/nessai/pull/166))
-- Add support for passing a user-defined pool instead of using `n_pool`.
-- Add an option to disable signal handling in `FlowSampler`.
-- Add support for `ray.util.multiprocessing.Pool` (fixes [#162](https://github.com/mj-will/nessai/issues/162)).
+- Add support for passing a user-defined pool instead of using `n_pool`. ([#148](https://github.com/mj-will/nessai/pull/148))
+- Add an option to disable signal handling in `FlowSampler`. ([#159](https://github.com/mj-will/nessai/pull/159))
+- Add support for `ray.util.multiprocessing.Pool` (fixes [#162](https://github.com/mj-will/nessai/issues/162)). ([#163](https://github.com/mj-will/nessai/pull/163))
 
 ### Changed
 
-- `NestedSampler.plot_state` now includes the log-prior volume in one of the subplots and the rolling mean of the gradient (|dlogL/dLogX|) is plotted instead of the gradient directly.
-- The figure produced by `NestedSampler.plot_state` now includes a legend for the different vertical lines that can appear in the subplots.
-- `RealNVP` and `NeuralSplineFlow` now use `nessai.flows.utils.create_linear_transform`.
-- The figure produced by `NestedSampler.plot_state` now includes a legend for the different
-vertical lines that can appear in the subplots.
-- Updated all of the examples to reflect the new defaults.
-- Rework `nessai.gw.reparameterisations.get_gw_reparameterisation` to use `get_reparameterisation` with the `defaults` keyword argument.
-- Switch to `os.path.join` for joining paths.
-- Context is now passed to the transform in `nessai.flows.base.NFlow` enabling the use of flows with conditional transforms.
-- Add `context_features` to RealNVP and NeuralSplineFlows
-- Rework `MaskedAutoregressiveFlow` to add `context_features`
-- Rework how likelihood parallelisation is handled. The model now contains the pool instead of the sampler and proposals.
-- Update `parallelisation_example.py` to show use of `n_pool` and `pool` for parallelisation.
-- Simplify how the normalising flow is reset in `FlowModel` and `NestedSampler`.
-- Reduce logging level a some statements in `FlowProposal`.
+- `NestedSampler.plot_state` now includes the log-prior volume in one of the subplots and the rolling mean of the gradient (|dlogL/dLogX|) is plotted instead of the gradient directly. ([#136](https://github.com/mj-will/nessai/pull/136))
+- The figure produced by `NestedSampler.plot_state` now includes a legend for the different vertical lines that can appear in the subplots. ([#136](https://github.com/mj-will/nessai/pull/136))
+- `RealNVP` and `NeuralSplineFlow` now use `nessai.flows.utils.create_linear_transform`. ([#137](https://github.com/mj-will/nessai/pull/137))
+- Updated all of the examples to reflect the new defaults. ([#139](https://github.com/mj-will/nessai/pull/139))
+- Rework `nessai.gw.reparameterisations.get_gw_reparameterisation` to use `get_reparameterisation` with the `defaults` keyword argument. ([#142](https://github.com/mj-will/nessai/pull/142))
+- Switch to `os.path.join` for joining paths. ([#143](https://github.com/mj-will/nessai/pull/143), [#161](https://github.com/mj-will/nessai/pull/161))
+- Context is now passed to the transform in `nessai.flows.base.NFlow` enabling the use of flows with conditional transforms. ([#146](https://github.com/mj-will/nessai/pull/146))
+- Add `context_features` to RealNVP and NeuralSplineFlows ([#146](https://github.com/mj-will/nessai/pull/146))
+- Rework `MaskedAutoregressiveFlow` to add `context_features` ([#146](https://github.com/mj-will/nessai/pull/146))
+- Rework how likelihood parallelisation is handled. The model now contains the pool instead of the sampler and proposals. ([#148](https://github.com/mj-will/nessai/pull/148))
+- Update `parallelisation_example.py` to show use of `n_pool` and `pool` for parallelisation. ([#148](https://github.com/mj-will/nessai/pull/148))
+- Simplify how the normalising flow is reset in `FlowModel` and `NestedSampler`. ([#150](https://github.com/mj-will/nessai/pull/150))
+- Reduce logging level a some statements in `FlowProposal`. ([#160](https://github.com/mj-will/nessai/pull/160))
 
 
 ### Fixed
 
-- Fixed a bug in `RescaleToBounds` when using `pre_rescaling` without boundary inversion.
-- Fixed slow integration tests not running if a quick integration test is reran after failing.
-- Fixed a bug that prevented the use of `prior_sampling=True` with `FlowSampler`.
-- Fix issue when creating multiple instances of `FlowSampler` with the same output directory when resuming is enabled as reported in [#155](https://github.com/mj-will/nessai/issues/155).
-- Fixed missing square-root in `nessai.flows.distributions.MultivariateGaussian._sample` and fix the corresponding unit test.
-- Fix issue with cosmology in `ComovingDistanceConverter` caused by changes to `astropy.cosmology` in version 5.1.
-- Fixed bug with caching in `LULinear` transform when reloading a checkpointed flow.
+- Fixed a bug in `RescaleToBounds` when using `pre_rescaling` without boundary inversion. ([#145](https://github.com/mj-will/nessai/pull/145))
+- Fixed slow integration tests not running if a quick integration test is reran after failing. ([#153](https://github.com/mj-will/nessai/pull/153))
+- Fixed a bug that prevented the use of `prior_sampling=True` with `FlowSampler`. ([#156](https://github.com/mj-will/nessai/pull/156))
+- Fix issue when creating multiple instances of `FlowSampler` with the same output directory when resuming is enabled as reported in [#155](https://github.com/mj-will/nessai/issues/155). ([#157](https://github.com/mj-will/nessai/pull/157))
+- Fixed missing square-root in `nessai.flows.distributions.MultivariateGaussian._sample` and fix the corresponding unit test. ([#158](https://github.com/mj-will/nessai/pull/158))
+- Fix issue with cosmology in `ComovingDistanceConverter` caused by changes to `astropy.cosmology` in version 5.1. ([#168](https://github.com/mj-will/nessai/pull/168))
+- Fixed bug with caching in `LULinear` transform when reloading a checkpointed flow. ([#167](https://github.com/mj-will/nessai/pull/167))
 
 
 ### Removed
 
-- Removed `legacy_gw_example.py`
-- Removed `keep_samples` from `FlowProposal`.
+- Removed `legacy_gw_example.py` ([#139](https://github.com/mj-will/nessai/pull/139))
+- Removed `keep_samples` from `FlowProposal`. ([#140](https://github.com/mj-will/nessai/pull/140))
 
 ## [0.4.0] - 2021-11-23
 
@@ -346,7 +346,8 @@ First public release.
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/mj-will/nessai/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mj-will/nessai/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/mj-will/nessai/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/mj-will/nessai/compare/v0.3.1...v0.3.2
