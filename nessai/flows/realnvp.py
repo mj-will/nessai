@@ -61,6 +61,10 @@ class RealNVP(NFlow):
     linear_transform : {'permutation', 'lu', 'svd', None}
         Linear transform to use between coupling layers. Not recommended when
         using a custom mask.
+    pre_transform : Optional[str]
+        Name of transform that is applied before the first coupling transform.
+    pre_transform_kwargs : Optional[dict]
+        Keyword arguments for configuring the pre-transform
     """
     def __init__(
         self,
@@ -79,6 +83,7 @@ class RealNVP(NFlow):
         linear_transform=None,
         distribution=None,
         pre_transform=None,
+        pre_transform_kwargs=None,
     ):
 
         if features <= 1:
@@ -150,13 +155,18 @@ class RealNVP(NFlow):
 
         layers = []
 
+        if pre_transform_kwargs is None:
+            pre_transform_kwargs = {}
+
         if pre_transform == 'logit':
             from .transforms import Logit
             layers.append(
-                Logit(temperature=np.ones(features), learn_temperature=True)
+                Logit(temperature=np.ones(features), **pre_transform_kwargs)
             )
         elif pre_transform == 'batch_norm':
-            layers.append(transforms.BatchNorm(features=features))
+            layers.append(transforms.BatchNorm(
+                features=features, **pre_transform_kwargs
+            ))
         elif pre_transform == 'affine':
             layers.append(transforms.PointwiseAffineTransform())
         elif pre_transform is not None:
