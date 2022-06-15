@@ -142,6 +142,20 @@ class BaseFlow(Module, ABC):
         """
         pass
 
+    def freeze_transform(self):
+        """Freeze the transform part of the flow.
+
+        Not implemented by default.
+        """
+        raise NotImplementedError
+
+    def unfreeze_transform(self):
+        """Unfreeze the transform part of the flow.
+
+        Not implemented by default.
+        """
+        raise NotImplementedError
+
 
 class NFlow(BaseFlow):
     """
@@ -276,3 +290,11 @@ class NFlow(BaseFlow):
             self._distribution.end_iteration()
         if hasattr(self._transform, "end_iteration"):
             self._transform.end_iteration()
+
+    def freeze_transform(self):
+        """Freeze the transform part of the flow"""
+        self._transform.requires_grad_(False)
+
+    def unfreeze_transform(self):
+        """Unfreeze the transform part of the flow"""
+        self._transform.requires_grad_(True)
