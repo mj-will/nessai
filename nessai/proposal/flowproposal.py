@@ -18,6 +18,7 @@ from ..livepoint import (
     live_points_to_array,
     numpy_array_to_live_points,
     get_dtype,
+    empty_structured_array,
     )
 from ..reparameterisations import (
     CombinedReparameterisation,
@@ -773,7 +774,7 @@ class FlowProposal(RejectionProposal):
             x_out, log_J_inv = self.inverse_rescale(x_prime)
             if x.size == x_out.size:
                 for f in x.dtype.names:
-                    if not np.allclose(x[f], x_out[f]):
+                    if not np.allclose(x[f], x_out[f], equal_nan=True):
                         raise RuntimeError(
                             f'Rescaling is not invertible for {f}')
                 if not np.allclose(log_J, -log_J_inv):
@@ -788,7 +789,9 @@ class FlowProposal(RejectionProposal):
                             'Check the rescaling and inverse rescaling '
                             f'functions for {f}.')
                 for f in x.dtype.names:
-                    if not np.allclose(x[f], x_out[f][:x.size]):
+                    if not np.allclose(
+                        x[f], x_out[f][:x.size], equal_nan=True
+                    ):
                         raise RuntimeError(
                             f'Rescaling is not invertible for {f}')
                 if not np.allclose(log_J, -log_J_inv):
@@ -1418,8 +1421,7 @@ class FlowProposal(RejectionProposal):
                 "Existing pool of samples is not empty. "
                 "Discarding existing samples."
             )
-        self.x = np.empty(N,  dtype=self.population_dtype)
-        self.x['logP'] = np.nan * np.ones(N)
+        self.x = empty_structured_array(N, dtype=self.population_dtype)
         self.indices = []
         z_samples = np.empty([N, self.dims])
 
