@@ -2,14 +2,15 @@
 """
 Global configuration for nessai.
 """
+import numpy as np
 
 # Settings for live points
 LOGL_DTYPE = 'f8'
 IT_DTYPE = 'i4'
 DEFAULT_FLOAT_DTYPE = 'f8'
-DEFAULT_FLOAT_VALUE = 0.0
+DEFAULT_FLOAT_VALUE = np.nan
 CORE_PARAMETERS = ['logP', 'logL', 'it']
-CORE_PARAMETERS_DEFAULTS = [0.0, 0.0, 0]
+CORE_PARAMETERS_DEFAULTS = [np.nan, np.nan, 0]
 CORE_PARAMETERS_DTYPE = [DEFAULT_FLOAT_DTYPE, LOGL_DTYPE, IT_DTYPE]
 EXTRA_PARAMETERS = []
 EXTRA_PARAMETERS_DEFAULTS = []
