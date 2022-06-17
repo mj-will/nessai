@@ -89,6 +89,31 @@ def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
     )
 
 
+def empty_structured_array(n, names):
+    """Get an empty structured array with the extra parameters initialised.
+
+    Parameters
+    ----------
+    n : int
+        Length of the structured array
+    names : list
+        Names of fields (excluding non-sampling parameters)
+
+    Returns
+    -------
+    np.ndarray
+        Structured array with the all parameters initialised to their
+        default values.
+    """
+    struct_array = np.empty((n), dtype=get_dtype(names))
+    struct_array[names] = config.DEFAULT_FLOAT_VALUE
+    for n, v in zip(
+        config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
+    ):
+        struct_array[n] = v
+    return struct_array
+
+
 def live_points_to_array(live_points, names=None):
     """
     Converts live points to unstructured arrays for training.
@@ -131,9 +156,9 @@ def parameters_to_live_point(parameters, names):
         Numpy structured array with fields given by names plus logP and logL
     """
     if not len(parameters):
-        return np.empty(0, dtype=get_dtype(names, config.DEFAULT_FLOAT_DTYPE))
+        return empty_structured_array(0, names)
     else:
-        return np.array((*parameters, *config.NON_SAMPLING_DEFAULTS),
+        return np.array([(*parameters, *config.NON_SAMPLING_DEFAULTS)],
                         dtype=get_dtype(names, config.DEFAULT_FLOAT_DTYPE))
 
 
@@ -157,7 +182,7 @@ def numpy_array_to_live_points(array, names):
         return np.empty(0, dtype=get_dtype(names))
     if array.ndim == 1:
         array = array[np.newaxis, :]
-    struct_array = np.zeros((array.shape[0]), dtype=get_dtype(names))
+    struct_array = empty_structured_array(len(array), names)
     for i, n in enumerate(names):
         struct_array[n] = array[..., i]
     return struct_array
@@ -190,7 +215,7 @@ def dict_to_live_points(d):
         return np.array([(*a, *config.NON_SAMPLING_DEFAULTS)],
                         dtype=get_dtype(d.keys(), config.DEFAULT_FLOAT_DTYPE))
     else:
-        array = np.zeros(N, dtype=get_dtype(list(d.keys())))
+        array = empty_structured_array(N, list(d.keys()))
         for k, v in d.items():
             array[k] = v
         return array
