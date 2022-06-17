@@ -634,14 +634,16 @@ class NestedSampler:
             / self.block_iteration
 
         if self.info_enabled:
-            logger.info(f"{self.iteration:5d}: n: {count:3d} "
-                        f"b_acc: {self.mean_block_acceptance:.3f} "
-                        f"H: {self.state.info[-1]:.2f} "
-                        f"logL: {self.logLmin:.5f} --> {proposed['logL']:.5f} "
-                        f"dZ: {self.condition:.3f} "
-                        f"logZ: {self.state.logZ:.3f} "
-                        f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
-                        f"logLmax: {self.logLmax:.2f}")
+            logger.info(
+                f"{self.iteration:5d}: n: {count:3d} "
+                f"b_acc: {self.mean_block_acceptance:.3f} "
+                f"H: {self.state.info[-1]:.2f} "
+                f"logL: {self.logLmin:.5f} --> {proposed['logL'][0]:.5f} "
+                f"dZ: {self.condition:.3f} "
+                f"logZ: {self.state.logZ:.3f} "
+                f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
+                f"logLmax: {self.logLmax:.2f}"
+            )
 
     def populate_live_points(self):
         """

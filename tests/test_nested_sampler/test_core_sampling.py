@@ -11,6 +11,7 @@ from nessai.livepoint import (
     parameters_to_live_point
 )
 from nessai.nestedsampler import NestedSampler
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture
@@ -118,7 +119,7 @@ def test_finalise(sampler, live_points):
     sampler.state.increment.assert_has_calls(calls)
     sampler.update_state.assert_called_once_with(force=True)
     sampler.state.finalise.assert_called_once()
-    assert sampler.nested_samples == [*live_points]
+    assert_structured_arrays_equal(sampler.nested_samples, [*live_points])
     assert sampler.finalised is True
 
 
@@ -138,7 +139,7 @@ def test_consume_sample(sampler, live_points):
     sampler.insert_live_point.assert_called_once_with(new_sample)
     sampler.check_state.assert_not_called()
 
-    assert sampler.nested_samples == [live_points[0]]
+    assert_structured_arrays_equal(sampler.nested_samples, [live_points[0]])
     assert sampler.logLmin == 0.0
     assert sampler.accepted == 1
     assert sampler.block_acceptance == 1.0
@@ -166,7 +167,7 @@ def test_consume_sample_reject(sampler, live_points):
     sampler.insert_live_point.assert_called_once_with(new_sample)
     sampler.check_state.assert_called_once()
 
-    assert sampler.nested_samples == [live_points[0]]
+    assert_structured_arrays_equal(sampler.nested_samples, [live_points[0]])
     assert sampler.logLmin == 0.0
     assert sampler.rejected == 1
     assert sampler.accepted == 1
@@ -269,5 +270,5 @@ def test_nested_sampling_loop_prior_sampling(sampler, close_pool):
     else:
         sampler.model.close_pool.assert_not_called()
     sampler.finalise.assert_called_once()
-    np.testing.assert_array_equal(samples, sampler.nested_samples)
+    assert_structured_arrays_equal(samples, sampler.nested_samples)
     assert evidence == -5.99

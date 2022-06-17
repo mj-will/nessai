@@ -18,19 +18,23 @@ def test_insert_live_point(sampler):
 
 
 def test_populate_live_points(sampler):
-    """Test popluting the live points"""
+    """Test populating the live points"""
+    samples = sampler.model.new_point(sampler.nlive)
+    samples['logP'] = 0.0
+    samples['logL'] = 0.0
     sampler.yield_sample = MagicMock(
-        return_value=iter(zip(np.ones(sampler.nlive),
-                              sampler.model.new_point(sampler.nlive)))
-        )
+        return_value=iter(zip(np.ones(sampler.nlive), samples))
+    )
     NestedSampler.populate_live_points(sampler)
     assert len(sampler.live_points) == sampler.nlive
 
 
 def test_populate_live_points_nans(sampler):
-    """Test popluting the live points with NaN values"""
+    """Test populating the live points with NaN values"""
     new_points = sampler.model.new_point(sampler.nlive + 1)
+    new_points['logL'] = 0.0
     new_points['logL'][4] = np.nan
+    new_points['logP'] = 0.0
     sampler.yield_sample = MagicMock(
         return_value=iter(zip(np.ones(sampler.nlive + 1), new_points))
         )
