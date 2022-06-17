@@ -87,11 +87,11 @@ def test_get_dtype():
     assert dtype == expected
 
 
-def test_empty_structured_array():
-    """Assert the correct default values are used"""
+def test_empty_structured_array_names():
+    """Assert the correct default values are used when specifying names"""
     n = 10
     fields = ['x', 'y']
-    array = lp.empty_structured_array(n, fields)
+    array = lp.empty_structured_array(n, names=fields)
     for f in fields:
         np.testing.assert_array_equal(
             array[f], config.DEFAULT_FLOAT_VALUE * np.ones(n)
@@ -100,6 +100,27 @@ def test_empty_structured_array():
         config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
     ):
         np.testing.assert_array_equal(array[nsp], v * np.ones(n))
+
+
+def test_empty_structured_array_dtype():
+    """Assert the correct default values are used when specifying the dtype"""
+    n = 10
+    dtype = [('x', 'f8'),  ('y', 'f8')] + EXTRA_PARAMS_DTYPE
+    array = lp.empty_structured_array(n, dtype=dtype)
+    for f in ['x', 'y']:
+        np.testing.assert_array_equal(
+            array[f], config.DEFAULT_FLOAT_VALUE * np.ones(n)
+        )
+    assert array.dtype == dtype
+
+
+def test_empty_structured_array_dtype_missing():
+    """Assert an error is raised if the non-sampling parameters are missing"""
+    n = 10
+    dtype = [('x', 'f8'),  ('y', 'f8')]
+    with pytest.raises(ValueError) as excinfo:
+        lp.empty_structured_array(n, dtype=dtype)
+    assert "non-sampling parameters" in str(excinfo.value)
 
 
 def test_parameters_to_live_point(live_point):

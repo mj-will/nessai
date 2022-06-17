@@ -89,15 +89,18 @@ def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
     )
 
 
-def empty_structured_array(n, names):
+def empty_structured_array(n, names=None, dtype=None):
     """Get an empty structured array with the extra parameters initialised.
 
     Parameters
     ----------
     n : int
         Length of the structured array
-    names : list
-        Names of fields (excluding non-sampling parameters)
+    dtype : Optional[list]
+        Dtype to use. Must contain the non-sampling parameters.
+    names : Optional[list]
+        Names of fields (excluding non-sampling parameters) to construct the
+        dtype. Must be specified if :code:`dtype` is not specified.
 
     Returns
     -------
@@ -105,12 +108,24 @@ def empty_structured_array(n, names):
         Structured array with the all parameters initialised to their
         default values.
     """
-    struct_array = np.empty((n), dtype=get_dtype(names))
+    if dtype is None:
+        dtype = get_dtype(names)
+    else:
+        names = [
+            n[0] for n in dtype if n[0] not in config.NON_SAMPLING_PARAMETERS
+        ]
+    struct_array = np.empty((n), dtype=dtype)
     struct_array[names] = config.DEFAULT_FLOAT_VALUE
-    for n, v in zip(
-        config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
-    ):
-        struct_array[n] = v
+    try:
+        for n, v in zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
+        ):
+            struct_array[n] = v
+    except ValueError:
+        raise ValueError(
+            "Could not create empty structured array. Maybe the non-sampling "
+            "parameters are missing?"
+        )
     return struct_array
 
 
@@ -182,7 +197,7 @@ def numpy_array_to_live_points(array, names):
         return np.empty(0, dtype=get_dtype(names))
     if array.ndim == 1:
         array = array[np.newaxis, :]
-    struct_array = empty_structured_array(len(array), names)
+    struct_array = empty_structured_array(len(array), names=names)
     for i, n in enumerate(names):
         struct_array[n] = array[..., i]
     return struct_array
@@ -215,7 +230,7 @@ def dict_to_live_points(d):
         return np.array([(*a, *config.NON_SAMPLING_DEFAULTS)],
                         dtype=get_dtype(d.keys(), config.DEFAULT_FLOAT_DTYPE))
     else:
-        array = empty_structured_array(N, list(d.keys()))
+        array = empty_structured_array(N, names=list(d.keys()))
         for k, v in d.items():
             array[k] = v
         return array
