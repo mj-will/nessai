@@ -7,12 +7,11 @@ import datetime
 import logging
 import numpy as np
 
+from . import config
 from .livepoint import (
     parameters_to_live_point,
     numpy_array_to_live_points,
     get_dtype,
-    DEFAULT_FLOAT_DTYPE,
-    LOGL_DTYPE,
 )
 from .utils.multiprocessing import (
     get_n_pool,
@@ -162,7 +161,9 @@ class Model(ABC):
         if self._vectorised_likelihood is None:
             if self.allow_vectorised:
                 x = self.new_point(N=10)
-                target = np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
+                target = np.fromiter(
+                    map(self.log_likelihood, x), config.LOGL_DTYPE
+                )
                 try:
                     batch = self.log_likelihood(x)
                 except (TypeError, ValueError):
@@ -327,8 +328,9 @@ class Model(ABC):
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
-        new_points = np.array([], dtype=get_dtype(self.names,
-                                                  DEFAULT_FLOAT_DTYPE))
+        new_points = np.array(
+            [], dtype=get_dtype(self.names, config.DEFAULT_FLOAT_DTYPE)
+        )
         while new_points.size < N:
             p = numpy_array_to_live_points(
                     np.random.uniform(self.lower_bounds, self.upper_bounds,
@@ -440,7 +442,7 @@ class Model(ABC):
                 log_likelihood = self.log_likelihood(x)
             else:
                 log_likelihood = \
-                    np.fromiter(map(self.log_likelihood, x), LOGL_DTYPE)
+                    np.fromiter(map(self.log_likelihood, x), config.LOGL_DTYPE)
         else:
             logger.debug('Using pool to evaluate likelihood')
             if self.allow_vectorised and self.vectorised_likelihood:
