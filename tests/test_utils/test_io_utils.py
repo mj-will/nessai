@@ -9,6 +9,7 @@ import pickle
 import pytest
 from unittest.mock import call, create_autospec, mock_open, patch
 
+from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.utils.io import (
     NessaiJSONEncoder,
@@ -106,7 +107,11 @@ def test_safe_file_dump_integration(tmp_path):
 
 def test_save_live_points(tmp_path):
     """Test the function for saving live points"""
-    d = {'x': [1, 2], 'y': [3, 4], 'logP': [0, 0], 'logL': [0, 0]}
+    d = {'x': [1, 2], 'y': [3, 4]}
+    d.update({
+        k: 2 * [v] for k, v in
+        zip(config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS)
+    })
     live_points = numpy_array_to_live_points(
         np.array([[1, 3], [2, 4]]), ['x', 'y']
     )
@@ -116,4 +121,4 @@ def test_save_live_points(tmp_path):
     with open(filename, 'r') as fp:
         d_out = json.load(fp)
 
-    assert d_out == d
+    np.testing.assert_equal(d_out, d)
