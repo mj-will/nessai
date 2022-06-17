@@ -9,6 +9,7 @@ import numpy as np
 
 import pytest
 
+from nessai import config
 from nessai.model import Model as BaseModel
 from nessai.gw.proposal import GWFlowProposal
 from nessai.gw.legacy import LegacyGWFlowProposal
@@ -22,6 +23,15 @@ except ImportError:
 
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(autouse=True)
+def update_config():
+    """Configure the config to match the values for the legacy proposal"""
+    original = copy.copy(config.NON_SAMPLING_DEFAULTS)
+    config.NON_SAMPLING_DEFAULTS = [0.0, 0.0, 0]
+    yield
+    config.NON_SAMPLING_DEFAULTS = original
 
 
 @pytest.fixture(scope='module')
