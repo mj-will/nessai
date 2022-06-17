@@ -22,6 +22,8 @@ def assert_structured_arrays_equal(x, y):
     AssertionError
         If dtype or values in each field are not equal.
     """
+    x = np.asanyarray(x)
+    y = np.asanyarray(y)
     if x.dtype != y.dtype:
         raise AssertionError(
             f"""Structured array dtypes are different:
