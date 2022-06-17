@@ -3,15 +3,68 @@
 Functions related to creating live points and converting to other common
 data-types.
 """
+import logging
+
 import numpy as np
 from numpy.lib import recfunctions as rfn
 
+from . import config
 
-LOGL_DTYPE = 'f8'
-DEFAULT_FLOAT_DTYPE = 'f8'
+logger = logging.getLogger(__name__)
 
 
-def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
+def add_extra_parameters_to_live_points(parameters, default_values=None,):
+    """Add extra parameters to the live points dtype.
+
+    Extra parameters will be included in the live points dtype that is used
+    for constructing/converting to/from live points.
+
+    Parameters
+    ----------
+    parameters: list
+        List of parameters to add.
+    default_values: list
+        List of default values for each parameters. If not specified, default
+        values will be set to based on :code: `DEFAULT_FLOAT_VALUE` in
+        :code:`nessai.config`.
+    """
+    if default_values is None:
+        default_values = len(parameters) * [config.DEFAULT_FLOAT_VALUE]
+    for p, dv in zip(parameters, default_values):
+        if p not in config.EXTRA_PARAMETERS:
+            config.EXTRA_PARAMETERS.append(p)
+            config.EXTRA_PARAMETERS_DEFAULTS.append(dv)
+            config.EXTRA_PARAMETERS_DTYPE.append(config.DEFAULT_FLOAT_DTYPE)
+    config.NON_SAMPLING_PARAMETERS = \
+        config.CORE_PARAMETERS + config.EXTRA_PARAMETERS
+    config.NON_SAMPLING_DEFAULTS = \
+        config.CORE_PARAMETERS_DEFAULTS + config.EXTRA_PARAMETERS_DEFAULTS
+    config.NON_SAMPLING_DEFAULT_DTYPE = \
+        config.CORE_PARAMETERS_DTYPE + config.EXTRA_PARAMETERS_DTYPE
+    logger.debug(
+        f'Updated non-sampling parameters: {config.NON_SAMPLING_PARAMETERS}'
+    )
+    logger.debug(
+        'Updated defaults for non-sampling parameters: '
+        f'{config.NON_SAMPLING_DEFAULTS}'
+    )
+
+
+def reset_extra_live_points_parameters():
+    """Reset the extra live points parameters."""
+    logger.debug('Resetting extra parameters')
+    config.EXTRA_PARAMETERS = []
+    config.EXTRA_PARAMETERS_DEFAULTS = []
+    config.EXTRA_PARAMETERS_DTYPE = []
+    config.NON_SAMPLING_PARAMETERS = \
+        config.CORE_PARAMETERS + config.EXTRA_PARAMETERS
+    config.NON_SAMPLING_DEFAULTS = \
+        config.CORE_PARAMETERS_DEFAULTS + config.EXTRA_PARAMETERS_DEFAULTS
+    config.NON_SAMPLING_DEFAULT_DTYPE = \
+        config.CORE_PARAMETERS_DTYPE + config.EXTRA_PARAMETERS_DTYPE
+
+
+def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
     """
     Get a list of tuples containing the dtypes for the structured array
 
@@ -27,8 +80,13 @@ def get_dtype(names, array_dtype=DEFAULT_FLOAT_DTYPE):
     list of tuple
         Dtypes as tuples with (field, dtype)
     """
-    return [(n, array_dtype) for n in names] \
-        + [('logP', array_dtype), ('logL', LOGL_DTYPE)]
+    return (
+        [(n, array_dtype) for n in names]
+        + list(zip(
+            config.NON_SAMPLING_PARAMETERS,
+            config.NON_SAMPLING_DEFAULT_DTYPE,
+        ))
+    )
 
 
 def live_points_to_array(live_points, names=None):
@@ -73,10 +131,10 @@ def parameters_to_live_point(parameters, names):
         Numpy structured array with fields given by names plus logP and logL
     """
     if not len(parameters):
-        return np.empty(0, dtype=get_dtype(names, DEFAULT_FLOAT_DTYPE))
+        return np.empty(0, dtype=get_dtype(names, config.DEFAULT_FLOAT_DTYPE))
     else:
-        return np.array((*parameters, 0., 0.),
-                        dtype=get_dtype(names, DEFAULT_FLOAT_DTYPE))
+        return np.array((*parameters, *config.NON_SAMPLING_DEFAULTS),
+                        dtype=get_dtype(names, config.DEFAULT_FLOAT_DTYPE))
 
 
 def numpy_array_to_live_points(array, names):
@@ -129,8 +187,8 @@ def dict_to_live_points(d):
     else:
         N = 1
     if N == 1:
-        return np.array((*a, 0., 0.),
-                        dtype=get_dtype(d.keys(), DEFAULT_FLOAT_DTYPE))
+        return np.array([(*a, *config.NON_SAMPLING_DEFAULTS)],
+                        dtype=get_dtype(d.keys(), config.DEFAULT_FLOAT_DTYPE))
     else:
         array = np.zeros(N, dtype=get_dtype(list(d.keys())))
         for k, v in d.items():
@@ -181,6 +239,6 @@ def dataframe_to_live_points(df):
         logL.
     """
     return np.array(
-        [tuple(x) + (0.0, 0.0,) for x in df.values],
+        [tuple(x) + tuple(config.NON_SAMPLING_DEFAULTS) for x in df.values],
         dtype=get_dtype(list(df.dtypes.index))
     )
