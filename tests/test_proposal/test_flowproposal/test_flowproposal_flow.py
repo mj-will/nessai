@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import FlowProposal
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 def test_reset_model_weights(proposal):
@@ -34,7 +35,7 @@ def test_train_plot_false(mock_os_makedirs, proposal, model):
     proposal.rescale = MagicMock(return_value=(x_prime, np.zeros_like(x)))
     FlowProposal.train(proposal, x, plot=False)
 
-    assert np.array_equal(x, proposal.training_data)
+    assert_structured_arrays_equal(x, proposal.training_data)
     proposal.check_state.assert_called_once_with(proposal.training_data)
     proposal.rescale.assert_called_once_with(x)
     assert proposal.populated is False
@@ -117,7 +118,7 @@ def test_training(proposal, tmpdir, save, plot, plot_training):
          patch('nessai.proposal.flowproposal.save_live_points') as mock_save:
         FlowProposal.train(proposal, x, plot=plot)
 
-    np.testing.assert_array_equal(x, proposal.training_data)
+    assert_structured_arrays_equal(x, proposal.training_data)
 
     if save or (plot and plot_training):
         output = f'{output}/training/block_0/'

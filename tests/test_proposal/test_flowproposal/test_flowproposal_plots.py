@@ -26,6 +26,16 @@ def test_training_plots(proposal, tmpdir, plot):
         numpy_array_to_live_points(x_prime, prime_names)
     x_gen = numpy_array_to_live_points(x, names)
     x_prime_gen = numpy_array_to_live_points(x_prime, prime_names)
+
+    # LogL will be populated before plotting
+    for array in [
+        proposal.training_data,
+        proposal.training_data_prime,
+        x_gen,
+        x_prime_gen,
+    ]:
+        array['logL'] = 0.0
+
     proposal.dims = 2
     proposal.rescale_parameters = names
     proposal.rescaled_names = prime_names
@@ -70,8 +80,12 @@ def test_plot_pool_1d(proposal, tmpdir, alt_dist):
 
     z = np.random.randn(10, 2)
     x = numpy_array_to_live_points(np.random.randn(10, 2), ['x', 'y'])
+    x['logL'] = np.random.randn(10)
+    x['logP'] = np.random.randn(10)
     training_data = \
         numpy_array_to_live_points(np.random.randn(10, 2), ['x', 'y'])
+    training_data['logP'] = np.random.randn(10)
+    training_data['logP'] = np.random.randn(10)
     proposal.training_data = training_data
     log_p = torch.arange(10)
 

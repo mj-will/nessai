@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """Test methods related to reparameterisations"""
 import numpy as np
-from nessai.livepoint import numpy_array_to_live_points
+from nessai.livepoint import get_dtype, numpy_array_to_live_points
 from nessai.proposal import FlowProposal
 from nessai.reparameterisations import (
     NullReparameterisation,
     RescaleToBounds,
     get_reparameterisation,
 )
+from nessai.utils.testing import assert_structured_arrays_equal
 import pytest
 from unittest.mock import MagicMock, Mock, call, patch
 
@@ -423,8 +424,7 @@ def test_rescale_w_reparameterisation(proposal, n):
     x['logP'] = np.random.randn(n)
     x_prime = numpy_array_to_live_points(
         np.random.randn(n, 2), ['x_prime', 'y_prime'])
-    proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    proposal.x_prime_dtype = get_dtype(['x_prime', 'y_prime'])
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.reparameterise = MagicMock(return_value=[
         x, x_prime, np.ones(x.size)])
@@ -448,8 +448,7 @@ def test_inverse_rescale_w_reparameterisation(proposal, n):
         np.random.randn(n, 2), ['x_prime', 'y_prime'])
     x_prime['logL'] = np.random.randn(n)
     x_prime['logP'] = np.random.randn(n)
-    proposal.x_dtype = \
-        [('x', 'f8'), ('y', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    proposal.x_dtype = get_dtype(['x', 'y'])
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.inverse_reparameterise = \
         MagicMock(return_value=[x, x_prime, np.ones(x.size)])
@@ -483,9 +482,7 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
     x_prime_expected['y_prime'] = 2 * (x['y'] + 4) / 8 - 1
     x_prime_expected['z'] = x['z']
 
-    proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('z', 'f8'), ('logP', 'f8'),
-         ('logL', 'f8')]
+    proposal.x_prime_dtype = get_dtype(['x_prime', 'y_prime', 'z'])
 
     proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
@@ -503,7 +500,7 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
             proposal, x, compute_radius=compute_radius)
 
     np.testing.assert_equal(log_j, -np.log(20))
-    np.testing.assert_array_equal(x_prime, x_prime_expected)
+    assert_structured_arrays_equal(x_prime, x_prime_expected)
 
 
 @pytest.mark.parametrize('n', [1, 10])
@@ -533,7 +530,7 @@ def test_rescale_to_bounds_w_inversion_duplicate(
         x_prime_expected['x_prime'][n:] *= -1
 
     proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x_prime', 'f8'), ('y_prime', 'f8')] + get_dtype([])
 
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
@@ -563,7 +560,7 @@ def test_rescale_to_bounds_w_inversion_duplicate(
     assert mock_detect_edge.call_args[1]['k'] == 2
 
     np.testing.assert_equal(log_j, -np.log(80))
-    np.testing.assert_array_equal(x_prime, x_prime_expected)
+    assert_structured_arrays_equal(x_prime, x_prime_expected)
 
 
 @pytest.mark.parametrize('n', [1, 10])
@@ -591,7 +588,7 @@ def test_rescale_to_bounds_w_inversion_split(
         x_prime_expected['x_prime'][inv] *= -1
 
     proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+        [('x_prime', 'f8'), ('y_prime', 'f8')] + get_dtype([])
 
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
@@ -622,7 +619,7 @@ def test_rescale_to_bounds_w_inversion_split(
     assert mock_detect_edge.call_args[1]['k'] == 2
 
     np.testing.assert_equal(log_j, -np.log(80))
-    np.testing.assert_array_equal(x_prime, x_prime_expected)
+    assert_structured_arrays_equal(x_prime, x_prime_expected)
 
 
 @pytest.mark.parametrize('n', [1, 10])
@@ -643,8 +640,7 @@ def test_rescale_to_bounds_w_inversion_false(
     x_prime_expected['x_prime'] = (x['x'] + 5) / 10
     x_prime_expected['y_prime'] = (x['y'] + 4) / 8
 
-    proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    proposal.x_prime_dtype = get_dtype(['x_prime', 'y_prime'])
 
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
@@ -669,7 +665,7 @@ def test_rescale_to_bounds_w_inversion_false(
     mock_detect_edge.assert_not_called()
 
     np.testing.assert_equal(log_j, -np.log(80))
-    np.testing.assert_array_equal(x_prime, x_prime_expected)
+    assert_structured_arrays_equal(x_prime, x_prime_expected)
 
 
 @pytest.mark.parametrize('n', [1, 10])
@@ -691,8 +687,7 @@ def test_inverse_rescale_to_bounds(proposal, model, n):
     x_expected['y'] = 8.0 * (x_prime['y_prime'] + 1.0) / 2.0 - 4.0
     x_expected['z'] = x_prime['z']
 
-    proposal.x_dtype = \
-        [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    proposal.x_dtype = get_dtype(['x', 'y', 'z'])
 
     proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
@@ -709,7 +704,7 @@ def test_inverse_rescale_to_bounds(proposal, model, n):
         FlowProposal._inverse_rescale_to_bounds(proposal, x_prime)
 
     np.testing.assert_equal(log_j, np.log(20))
-    np.testing.assert_array_equal(x, x_expected)
+    assert_structured_arrays_equal(x, x_expected)
 
 
 @pytest.mark.parametrize('n', [1, 10])
@@ -737,8 +732,7 @@ def test_inverse_rescale_to_bounds_w_inversion(proposal, model, n, itype):
     x_expected['y'] = 8.0 * x_prime['y_prime'] - 4.0
     x_expected['z'] = x_prime['z']
 
-    proposal.x_dtype = \
-        [('x', 'f8'), ('y', 'f8'), ('z', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    proposal.x_dtype = get_dtype(['x', 'y', 'z'])
 
     proposal.names = ['x', 'y', 'z']
     proposal.rescale_parameters = ['x', 'y']
@@ -757,7 +751,7 @@ def test_inverse_rescale_to_bounds_w_inversion(proposal, model, n, itype):
         FlowProposal._inverse_rescale_to_bounds(proposal, x_prime)
 
     np.testing.assert_equal(log_j, np.log(80))
-    np.testing.assert_array_equal(x, x_expected)
+    assert_structured_arrays_equal(x, x_expected)
 
 
 @pytest.mark.parametrize('has_inversion', [False, True])
