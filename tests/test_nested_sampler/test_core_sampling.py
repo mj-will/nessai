@@ -126,7 +126,7 @@ def test_finalise(sampler, live_points):
 def test_consume_sample(sampler, live_points):
     """Test the default behaviour of consume sample"""
     sampler.live_points = live_points
-    new_sample = parameters_to_live_point((0.5,), ['x'])
+    new_sample = np.squeeze(parameters_to_live_point((0.5,), ['x']))
     new_sample['logL'] = 0.5
     sampler.yield_sample = MagicMock()
     sampler.yield_sample.return_value = iter([(1, new_sample)])
@@ -153,7 +153,7 @@ def test_consume_sample_reject(sampler, live_points):
     sampler.live_points = live_points
     reject_sample = parameters_to_live_point((-0.5,), ['x'])
     reject_sample['logL'] = -0.5
-    new_sample = parameters_to_live_point((0.5,), ['x'])
+    new_sample = np.squeeze(parameters_to_live_point((0.5,), ['x']))
     new_sample['logL'] = 0.5
     sampler.yield_sample = MagicMock()
     sampler.yield_sample.return_value = \
