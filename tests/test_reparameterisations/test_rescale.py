@@ -8,6 +8,7 @@ from unittest.mock import create_autospec
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.reparameterisations import Rescale
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture()
@@ -42,8 +43,8 @@ def test_reparameterise(reparam, n):
     x_out, x_prime_out, log_j_out = \
         Rescale.reparameterise(reparam, x, x_prime, log_j)
 
-    assert np.array_equal(x, x_out)
-    assert np.array_equal(log_j_out, -np.log(8 * np.ones(n)))
+    assert_structured_arrays_equal(x, x_out)
+    np.testing.assert_array_equal(log_j_out, -np.log(8 * np.ones(n)))
     assert (x_prime_out['x_prime'] == -0.5).all()
     assert (x_prime_out['y_prime'] == 0.25).all()
 
@@ -87,8 +88,8 @@ def test_inverse_reparameterise(reparam, n):
     x_out, x_prime_out, log_j_out = \
         Rescale.inverse_reparameterise(reparam, x, x_prime, log_j)
 
-    assert np.array_equal(x_prime, x_prime_out)
-    assert np.array_equal(log_j_out, np.log(8 * np.ones(n)))
+    assert_structured_arrays_equal(x_prime, x_prime_out)
+    np.testing.assert_array_equal(log_j_out, np.log(8 * np.ones(n)))
     assert (x_out['x'] == 2.0).all()
     assert (x_out['y'] == 4.0).all()
 

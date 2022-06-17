@@ -8,10 +8,11 @@ from unittest.mock import MagicMock, create_autospec
 
 from nessai.reparameterisations import Angle
 from nessai.livepoint import (
-    get_dtype,
+    empty_structured_array,
     numpy_array_to_live_points,
     parameters_to_live_point,
 )
+from nessai.utils.testing import assert_structured_arrays_equal
 
 scales = [1.0, 2.0]
 
@@ -30,8 +31,8 @@ def reparam():
 def assert_invertibility(model, n=100):
     def test_invertibility(reparam, angle, radial=None):
 
-        x = np.zeros([n], dtype=get_dtype(reparam.parameters))
-        x_prime = np.zeros([n], dtype=get_dtype(reparam.prime_parameters))
+        x = empty_structured_array(n, names=reparam.parameters)
+        x_prime = empty_structured_array(n, names=reparam.prime_parameters)
         log_j = 0
 
         x[reparam.angle] = angle
@@ -48,7 +49,7 @@ def assert_invertibility(model, n=100):
             np.testing.assert_array_equal(x[reparam.radial],
                                           x_re[reparam.radial])
 
-        x_in = np.zeros([n], dtype=get_dtype(reparam.parameters))
+        x_in = empty_structured_array(n, names=reparam.parameters)
 
         x_inv, x_prime_inv, log_j_inv = \
             reparam.inverse_reparameterise(x_in, x_prime_re, log_j)
@@ -59,7 +60,7 @@ def assert_invertibility(model, n=100):
             np.testing.assert_array_almost_equal(x[reparam.radial],
                                                  x_inv[reparam.radial])
 
-        np.testing.assert_array_equal(x_prime_re, x_prime_inv)
+        assert_structured_arrays_equal(x_prime_re, x_prime_inv)
         np.testing.assert_array_almost_equal(log_j_re, -log_j_inv)
 
         return True
@@ -252,7 +253,7 @@ def test_periodic_parameter(value, output_x, output_y):
     log_j = np.zeros(x.size)
     x_out, x_prime_out, log_j_out = reparam.reparameterise(x, x_prime, log_j)
 
-    np.testing.assert_array_equal(x_out, x)
+    assert_structured_arrays_equal(x_out, x)
 
     if output_x:
         assert x_prime_out[reparam.x] == output_x

@@ -12,7 +12,8 @@ from nessai.reparameterisations import (
     Reparameterisation,
     RescaleToBounds
     )
-from nessai.livepoint import get_dtype
+from nessai.livepoint import empty_structured_array
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture
@@ -56,7 +57,7 @@ def test_add_multiple_reparameterisations(model):
 
     n = 100
     x = model.new_point(N=n)
-    x_prime = np.zeros([n], dtype=get_dtype(reparam.prime_parameters))
+    x_prime = empty_structured_array(n, names=reparam.prime_parameters)
     log_j = 0
 
     x_re, x_prime_re, log_j_re = reparam.reparameterise(
@@ -64,15 +65,15 @@ def test_add_multiple_reparameterisations(model):
 
     assert reparam.x_prime_log_prior(x_prime_re) is not None
 
-    np.testing.assert_array_equal(x, x_re)
+    assert_structured_arrays_equal(x, x_re)
 
-    x_in = np.zeros([n], dtype=get_dtype(reparam.parameters))
+    x_in = empty_structured_array(n, names=reparam.parameters)
 
     x_inv, x_prime_inv, log_j_inv = \
         reparam.inverse_reparameterise(x_in, x_prime_re, log_j)
 
-    np.testing.assert_array_equal(x, x_inv)
-    np.testing.assert_array_equal(x_prime_re, x_prime_inv)
+    assert_structured_arrays_equal(x, x_inv)
+    assert_structured_arrays_equal(x_prime_re, x_prime_inv)
     np.testing.assert_array_equal(log_j_re, -log_j_inv)
 
 
