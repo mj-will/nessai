@@ -27,6 +27,8 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     """
     Plot a set of live points in a corner-like plot.
 
+    Will drop columns where all elements are NaNs
+
     Parameters
     ----------
     live_points : ndarray
@@ -45,6 +47,7 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     pairplot_kwargs.update(kwargs)
 
     df = pd.DataFrame(live_points)
+    df = df.dropna(axis='columns', how='all')
     df = df[np.isfinite(df).all(1)]
 
     if c is not None:
@@ -153,6 +156,8 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         finite_points = []
         include = []
         for j, lp in enumerate(live_points):
+            if np.isnan(lp[f]).all():
+                continue
             idx = np.isfinite(lp[f])
             if idx.any():
                 finite_points.append(lp[f][idx])
