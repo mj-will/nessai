@@ -16,7 +16,8 @@ import seaborn as sns
 import torch
 from tqdm import tqdm
 
-from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
+from . import config
+from .livepoint import get_dtype
 from .plot import plot_indices, plot_trace
 from .evidence import _NSIntegralState
 from .proposal import FlowProposal
@@ -612,6 +613,7 @@ class NestedSampler:
             if proposed['logL'] > self.logLmin:
                 # Assuming point was proposed
                 # replace worst point with new one
+                proposed['it'] = self.iteration
                 index = self.insert_live_point(proposed)
                 self.insertion_indices.append(index)
                 self.accepted += 1
@@ -646,9 +648,10 @@ class NestedSampler:
         Initialise the pool of live points.
         """
         i = 0
-        live_points = np.empty(self.nlive,
-                               dtype=get_dtype(self.model.names,
-                                               DEFAULT_FLOAT_DTYPE))
+        live_points = np.empty(
+            self.nlive,
+            dtype=get_dtype(self.model.names, config.DEFAULT_FLOAT_DTYPE),
+        )
 
         with tqdm(total=self.nlive, desc='Drawing live points') as pbar:
             while i < self.nlive:
@@ -675,6 +678,7 @@ class NestedSampler:
                         break
 
         self.live_points = np.sort(live_points, order='logL')
+        self.live_points['it'] = 0
         if self.store_live_points:
             np.savetxt(self.live_points_dir + '/initial_live_points.dat',
                        self.live_points,
