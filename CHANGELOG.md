@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Added
+
+- Add a warning in `Model.verify_model` when `Model.log_prior` returns an array that has `float16` precision.
+
+
 ## [0.5.1] - 2022-06-20
 
 ## Fixed
