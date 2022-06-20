@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2022-06-20
+
 ## Fixed
 
-- Fixed a bug where live points where added to the initial points with incorrect log-likelihood and log-prior.
+- Fixed a bug where live points where added to the initial points with incorrect log-likelihood and log-prior. ([#171](https://github.com/mj-will/nessai/pull/171))
 
 ## [0.5.0] - 2022-06-14
+
 ### Added
 
 - Add `dataframe_to_live_points` function to `nessai.livepoint` for converting from a `pandas.DataFrame` to live points. ([#133](https://github.com/mj-will/nessai/pull/133))
@@ -349,7 +352,8 @@ First public release.
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/mj-will/nessai/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mj-will/nessai/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mj-will/nessai/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/mj-will/nessai/compare/v0.3.2...v0.3.3
