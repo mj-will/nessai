@@ -1,5 +1,6 @@
 
 from numpy.random import seed
+import numpy as np
 import pytest
 from scipy.stats import norm
 import torch
@@ -22,11 +23,9 @@ def model():
             self.names = ['x', 'y']
 
         def log_prior(self, x):
-            log_p = 0.
+            log_p = np.log(self.in_bounds(x), dtype='float')
             for n in self.names:
-                log_p += ((x[n] >= self.bounds[n][0])
-                          & (x[n] <= self.bounds[n][1])) \
-                        / (self.bounds[n][1] - self.bounds[n][0])
+                log_p -= (self.bounds[n][1] - self.bounds[n][0])
             return log_p
 
         def log_likelihood(self, x):
