@@ -3,6 +3,7 @@
 Functions and objects related to the main nested sampling algorithm.
 """
 from collections import deque
+from copy import copy
 import datetime
 import logging
 import os
@@ -556,7 +557,7 @@ class NestedSampler:
             counter = 0
             while True:
                 counter += 1
-                newparam = self.proposal.draw(oldparam.copy())
+                newparam = self.proposal.draw(copy(oldparam))
 
                 # Prior is computed in the proposal
                 if newparam['logP'] != -np.inf:
@@ -652,8 +653,9 @@ class NestedSampler:
         with tqdm(total=self.nlive, desc='Drawing live points') as pbar:
             while i < self.nlive:
                 while i < self.nlive:
-                    count, live_point = next(
-                            self.yield_sample(self.model.new_point()))
+                    _, live_point = next(self.yield_sample(None))
+                    if live_point is None:
+                        break
                     if np.isnan(live_point['logL']):
                         logger.warning(
                             'Likelihood function returned NaN for '

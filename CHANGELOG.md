@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## Fixed
+
+- Fixed a bug where live points where added to the initial points with incorrect log-likelihood and log-prior.
 
 ## [0.5.0] - 2022-06-14
 ### Added
