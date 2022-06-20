@@ -524,6 +524,13 @@ class Model(ABC):
             raise RuntimeError('Log-likelihood function did not return '
                                'a likelihood value')
 
+        if self.log_prior(x).dtype == np.dtype("float16"):
+            logger.critical(
+                "log_prior returned an array with float16 precision. "
+                "This not recommended and can lead to numerical errors."
+                " Consider casting to a higher precision."
+            )
+
     def __getstate__(self):
         state = self.__dict__.copy()
         state['pool'] = None
