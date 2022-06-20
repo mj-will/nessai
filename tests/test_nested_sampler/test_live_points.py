@@ -39,6 +39,23 @@ def test_populate_live_points_nans(sampler):
     assert not np.isnan(sampler.live_points['logL']).any()
 
 
+def test_populate_live_points_none_returned(sampler):
+    """Assert that if None is returned by yield sample, it is skipped"""
+    new_points = sampler.model.new_point(5)
+    new_points['logL'] = 0.0
+    new_points['logP'] = 0.0
+    new_points = [None, ] + [*new_points]
+    sampler.yield_sample = MagicMock(
+        return_value=iter(zip(np.ones(len(new_points)), new_points))
+        )
+    sampler.nlive = 5
+    NestedSampler.populate_live_points(sampler)
+    np.testing.assert_array_equal(
+        sampler.live_points,
+        np.sort(new_points[1:], order='logL'),
+    )
+
+
 @pytest.mark.parametrize('rolling', [False, True])
 @patch('nessai.nestedsampler.compute_indices_ks_test', return_value=(0.1, 0.5))
 def test_insertion_indices(mock_fn, rolling, sampler):
