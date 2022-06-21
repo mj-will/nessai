@@ -29,6 +29,13 @@ def nested_samples(live_points):
     return np.sort(live_points, order='logL')
 
 
+@pytest.fixture(autouse=True)
+def auto_close_figures():
+    """Automatically close all figures after each test"""
+    yield
+    plt.close('all')
+
+
 @pytest.mark.parametrize('bounds', [None, True])
 def test_plot_live_points_bounds(live_points, bounds, model):
     """Test generating a plot for a set of live points."""
@@ -338,3 +345,16 @@ def test_histogram_plot_save(tmpdir):
     fig = plot.plot_histogram(x, filename=filename)
     assert fig is None
     assert os.path.exists(filename)
+
+
+def test_corner_plot(live_points):
+    """Test the corner plot"""
+    fig = plot.corner_plot(live_points)
+    assert fig is not None
+
+
+def test_corner_plot_save(tmpdir, live_points):
+    """Assert the corner plot is saved."""
+    fig = plot.corner_plot(live_points, filename=tmpdir + 'corner.png')
+    assert fig is None
+    assert os.path.exists(tmpdir + 'corner.png')
