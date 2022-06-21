@@ -529,8 +529,7 @@ def test_rescale_to_bounds_w_inversion_duplicate(
         x_prime_expected = np.concatenate([x_prime_expected, x_prime_expected])
         x_prime_expected['x_prime'][n:] *= -1
 
-    proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8')] + get_dtype([])
+    proposal.x_prime_dtype = get_dtype(['x_prime', 'y_prime'])
 
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']
@@ -587,8 +586,7 @@ def test_rescale_to_bounds_w_inversion_split(
         x_prime_expected['x_prime'] = 1 - x_prime_expected['x_prime']
         x_prime_expected['x_prime'][inv] *= -1
 
-    proposal.x_prime_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8')] + get_dtype([])
+    proposal.x_prime_dtype = get_dtype(['x_prime', 'y_prime'])
 
     proposal.names = ['x', 'y']
     proposal.rescale_parameters = ['x', 'y']

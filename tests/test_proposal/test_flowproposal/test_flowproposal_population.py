@@ -330,8 +330,7 @@ def test_populate(proposal, check_acceptance, indices):
     proposal.check_acceptance = check_acceptance
     proposal._plot_pool = True
     proposal.populated_count = 1
-    proposal.population_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8')] + get_dtype([])
+    proposal.population_dtype = get_dtype(['x_prime', 'y_prime'])
     proposal.draw_latent_kwargs = {'var': 2.0}
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, worst_q))
