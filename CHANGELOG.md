@@ -7,9 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## Added
+### Added
 
 - Add a warning in `Model.verify_model` when `Model.log_prior` returns an array that has `float16` precision.
+- Add more functionality for configuring live point fields and defaults.
+- Record iteration at which live points are drawn in `it` field of live points.
+- Add `nessai.config` for storing package wide defaults.
+- Add `nessai.utils.testing` submodule which contains functions to use during testing.
+
+### Changed
+
+- Change default values for log-likelihood and log-prior in empty live points to be `np.nan` instead of zero.
 
 ### Fixed
 
