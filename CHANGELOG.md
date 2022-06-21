@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add a warning in `Model.verify_model` when `Model.log_prior` returns an array that has `float16` precision.
 
+### Fixed
+
+- Fixed a bug in `FlowProposal.populate` which occurred when the pool of samples was not empty (closes [#176](https://github.com/mj-will/nessai/issues/176))
 
 ## [0.5.1] - 2022-06-20
 

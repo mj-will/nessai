@@ -286,7 +286,8 @@ def test_check_prior_bounds(proposal):
 
 
 @pytest.mark.parametrize('check_acceptance', [False, True])
-def test_populate(proposal, check_acceptance):
+@pytest.mark.parametrize('indices', [[], [1]])
+def test_populate(proposal, check_acceptance, indices):
     """Test the main populate method"""
     n_dims = 2
     poolsize = 10
@@ -316,7 +317,7 @@ def test_populate(proposal, check_acceptance):
     proposal.drawsize = drawsize
     proposal.min_radius = 0.1
     proposal.fuzz = 1.0
-    proposal.indices = []
+    proposal.indices = indices
     proposal.approx_acceptance = [0.4]
     proposal.acceptance = [0.7]
     proposal.keep_samples = False
