@@ -35,7 +35,7 @@ def integration_model():
             self.names = ['x', 'y']
 
         def log_prior(self, x):
-            log_p = np.log(self.in_bounds(x))
+            log_p = np.log(self.in_bounds(x), dtype='float')
             for n in self.names:
                 log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
             return log_p
@@ -632,6 +632,51 @@ def test_verify_model_1d():
         model.verify_model()
     assert 'nessai is not designed to handle one-dimensional models' \
         in str(excinfo.value)
+
+
+@pytest.mark.parametrize("value", [np.log(True), np.float16(5.0)])
+def test_verify_float16(caplog, value):
+    """
+    Test `Model.verify_model` and ensure that a critical warning is raised
+    if a float16 array is returned by the prior.
+    """
+    class TestModel(EmptyModel):
+
+        def __init__(self):
+            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
+            self.names = ['x', 'y']
+
+        def log_prior(self, x):
+            return value
+
+        def log_likelihood(self, x):
+            return 0.0
+
+    model = TestModel()
+
+    model.verify_model()
+
+    assert 'float16 precision' in caplog.text
+
+
+def test_verify_no_float16(caplog):
+    """
+    Test `Model.verify_model` and ensure that a critical warning is not raised
+    if array return by log_prior is not dtype float16.
+    """
+    class TestModel(EmptyModel):
+
+        def __init__(self):
+            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
+            self.names = ['x', 'y']
+
+        def log_prior(self, x):
+            return np.array(1.0)
+
+        def log_likelihood(self, x):
+            return 0.0
+
+    assert 'float16 precision' not in caplog.text
 
 
 def test_unbounded_priors_wo_new_point():
