@@ -4,8 +4,10 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, Mock, patch, call
 
+from nessai import config
 from nessai.proposal import FlowProposal
-from nessai.livepoint import numpy_array_to_live_points
+from nessai.livepoint import get_dtype, numpy_array_to_live_points
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture()
@@ -109,7 +111,7 @@ def test_rejection_sampling(proposal, z, x, log_q):
     assert proposal.compute_weights.called_once_with(x)
     assert x_out.size == 1
     assert z_out.shape == (1, 2)
-    assert np.array_equal(x_out[0], x[0])
+    assert_structured_arrays_equal(x_out[0], x[0])
     assert np.array_equal(z_out[0], z[0])
 
 
@@ -146,7 +148,7 @@ def test_rejection_sampling_truncate(proposal, z, x):
     assert proposal.compute_weights.called_once_with(x)
     assert x_out.size == 1
     assert z_out.shape == (1, 2)
-    assert np.array_equal(x_out[0], x[1])
+    assert_structured_arrays_equal(x_out[0], x[1])
     assert np.array_equal(z_out[0], z[1])
 
 
@@ -179,7 +181,8 @@ def test_convert_to_samples(proposal):
 
     out_samples = FlowProposal.convert_to_samples(proposal, samples, plot=True)
 
-    assert out_samples.dtype.names == ('x', 'logP', 'logL')
+    assert out_samples.dtype.names == \
+        ('x',) + tuple(config.NON_SAMPLING_PARAMETERS)
 
 
 @patch('nessai.proposal.flowproposal.plot_1d_comparison')
@@ -202,7 +205,8 @@ def test_convert_to_samples_with_prime(mock_plot, proposal):
         'data', samples, labels=['live points', 'pool'],
         filename='.//pool_prime_1.png')
     proposal.inverse_rescale.assert_called_once()
-    assert out_samples.dtype.names == ('x', 'logP', 'logL')
+    assert out_samples.dtype.names == \
+        ('x',) + tuple(config.NON_SAMPLING_PARAMETERS)
 
 
 def test_get_alt_distribution_truncated_gaussian(proposal):
@@ -281,7 +285,7 @@ def test_check_prior_bounds(proposal):
     y = np.arange(10)
     x_out, y_out = FlowProposal.check_prior_bounds(proposal, x, y)
 
-    np.testing.assert_array_equal(x_out, x[:6])
+    assert_structured_arrays_equal(x_out, x[:6])
     np.testing.assert_array_equal(y_out, y[:6])
 
 
@@ -326,8 +330,7 @@ def test_populate(proposal, check_acceptance, indices):
     proposal.check_acceptance = check_acceptance
     proposal._plot_pool = True
     proposal.populated_count = 1
-    proposal.population_dtype = \
-        [('x_prime', 'f8'), ('y_prime', 'f8'), ('logP', 'f8'), ('logL', 'f8')]
+    proposal.population_dtype = get_dtype(['x_prime', 'y_prime'])
     proposal.draw_latent_kwargs = {'var': 2.0}
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, worst_q))
@@ -347,8 +350,17 @@ def test_populate(proposal, check_acceptance, indices):
         side_effect=lambda *args, **kwargs: args[0]
     )
 
-    FlowProposal.populate(proposal, worst_point, N=10, plot=True)
+    x_empty = np.empty(poolsize,  dtype=proposal.population_dtype)
+    with patch(
+        'nessai.proposal.flowproposal.empty_structured_array',
+        return_value=x_empty,
+    ) as mock_empty:
+        FlowProposal.populate(proposal, worst_point, N=10, plot=True)
 
+    mock_empty.assert_called_once_with(
+        poolsize,
+        dtype=proposal.population_dtype,
+    )
     proposal.forward_pass.assert_called_once_with(
         worst_point, rescale=True, compute_radius=True,
     )
@@ -368,7 +380,7 @@ def test_populate(proposal, check_acceptance, indices):
 
     proposal.plot_pool.assert_called_once()
     proposal.convert_to_samples.assert_called_once()
-    np.testing.assert_array_equal(
+    assert_structured_arrays_equal(
         proposal.convert_to_samples.call_args[0][0],
         proposal.x
     )

@@ -15,6 +15,7 @@ from nessai.utils.multiprocessing import (
     initialise_pool_variables,
     log_likelihood_wrapper,
 )
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 class EmptyModel(Model):
@@ -333,7 +334,7 @@ def test_new_point_multiple_integration(integration_model):
     new_points = integration_model.new_point(N=100)
     log_q = integration_model.new_point_log_prob(new_points)
     assert new_points.size == 100
-    assert all(np.isfinite(new_points['logP']))
+    assert all(np.isnan(new_points['logP']))
     assert all(new_points['x'] < 5) & all(new_points['x'] > -5)
     assert all(new_points['y'] < 5) & all(new_points['y'] > -5)
     assert (log_q == 0).all()
@@ -826,7 +827,7 @@ def test_evaluate_likelihoods_pool_vectorised(model):
 
     input_array = model.pool.map.call_args_list[0][0][1]
     assert len(input_array) == 2
-    np.testing.assert_array_equal(
+    assert_structured_arrays_equal(
         input_array, np.array([samples[:2], samples[2:]])
     )
     model.likelihood_evaluation_time.total_seconds() > 0
@@ -858,6 +859,9 @@ def test_evaluate_likelihoods_pool_not_vectorised(model):
 def test_evaluate_likelihoods_no_pool_not_vectorised(model):
     """Test evaluating the likelihood without a pool"""
     samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    # Cannot compare NaNs in has calls
+    samples['logL'] = 0.0
+    samples['logP'] = 0.0
     logL = np.array([3, 4])
     model.pool = None
     model.vectorised_likelihood = False

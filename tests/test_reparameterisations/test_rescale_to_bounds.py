@@ -7,7 +7,12 @@ import pytest
 from unittest.mock import MagicMock, call, create_autospec, patch
 
 from nessai.reparameterisations import RescaleToBounds
-from nessai.livepoint import get_dtype, numpy_array_to_live_points
+from nessai.livepoint import (
+    get_dtype,
+    empty_structured_array,
+    numpy_array_to_live_points,
+)
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture
@@ -28,14 +33,14 @@ def reparameterisation(model):
 def is_invertible(model, n=100):
     def test_invertibility(reparam, model=model, decimal=16):
         x = model.new_point(N=n)
-        x_prime = np.zeros([n], dtype=get_dtype(reparam.prime_parameters))
+        x_prime = empty_structured_array(n, names=reparam.prime_parameters)
         log_j = np.zeros(n)
         assert x.size == x_prime.size
 
         x_re, x_prime_re, log_j_re = reparam.reparameterise(
             x, x_prime, log_j)
 
-        x_in = np.zeros([x_re.size], dtype=get_dtype(reparam.parameters))
+        x_in = empty_structured_array(x_re.size, reparam.parameters)
         log_j = np.zeros(x_re.size)
 
         x_inv, x_prime_inv, log_j_inv = \
@@ -371,7 +376,7 @@ def test_reparameterise(reparam):
 
     assert reparam._rescale_to_bounds.call_args_list[0][0][1] == 'x'
 
-    np.testing.assert_array_equal(x, x_out)
+    assert_structured_arrays_equal(x, x_out)
     np.testing.assert_array_equal(x_prime_out['x_prime'], x_prime_val)
     np.testing.assert_array_equal(log_j_out, np.array([0.0, 0.5]))
 
@@ -403,7 +408,7 @@ def test_inverse_reparameterise(reparam):
     assert \
         reparam._inverse_rescale_to_bounds.call_args_list[0][0][1] == 'x'
 
-    np.testing.assert_array_equal(x_prime_out, x_prime)
+    assert_structured_arrays_equal(x_prime_out, x_prime)
     np.testing.assert_array_equal(x_out['x'], x_val + 1.0)
     np.testing.assert_array_equal(log_j_out, np.array([0.0, 0.5]))
 
@@ -438,10 +443,10 @@ def test_reparameterise_boundary_inversion(reparam):
         reparam, x, x_prime_in, log_j, compute_radius=True, test='test',
     )
 
-    np.testing.assert_array_equal(
+    assert_structured_arrays_equal(
         reparam._apply_inversion.call_args_list[0][0][0], x
     )
-    np.testing.assert_array_equal(
+    assert_structured_arrays_equal(
         reparam._apply_inversion.call_args_list[0][0][1], x_prime_in,
     )
     np.testing.assert_array_equal(
@@ -452,8 +457,8 @@ def test_reparameterise_boundary_inversion(reparam):
     assert reparam._apply_inversion.call_args_list[0][0][5] is True
     assert reparam._apply_inversion.call_args_list[0][1] == {'test': 'test'}
 
-    np.testing.assert_array_equal(x_out, x_ex)
-    np.testing.assert_array_equal(x_prime_out, x_prime_ex)
+    assert_structured_arrays_equal(x_out, x_ex)
+    assert_structured_arrays_equal(x_prime_out, x_prime_ex)
     np.testing.assert_array_equal(log_j_out, log_j_ex)
 
 
@@ -487,18 +492,18 @@ def test_inverse_reparameterise_boundary_inversion(reparam):
         reparam, x_in, x_prime, log_j,
     )
 
-    np.testing.assert_array_equal(
+    assert_structured_arrays_equal(
         reparam._reverse_inversion.call_args_list[0][0][0], x_in
     )
-    np.testing.assert_array_equal(
+    assert_structured_arrays_equal(
         reparam._reverse_inversion.call_args_list[0][0][1], x_prime
     )
     np.testing.assert_array_equal(
         reparam._reverse_inversion.call_args_list[0][0][2], log_j
     )
 
-    np.testing.assert_array_equal(x_out, x_ex)
-    np.testing.assert_array_equal(x_prime_out, x_prime_ex)
+    assert_structured_arrays_equal(x_out, x_ex)
+    assert_structured_arrays_equal(x_prime_out, x_prime_ex)
     np.testing.assert_array_equal(log_j_out, log_j_ex)
 
 
@@ -544,7 +549,7 @@ def test_reparameterise_pre_post_rescaling(reparam):
     # x_prime gets replaces so change check inputs to the function
     reparam.post_rescaling.assert_called_once()
 
-    np.testing.assert_array_equal(x, x_out)
+    assert_structured_arrays_equal(x, x_out)
     np.testing.assert_array_equal(x_prime_out['x_prime'], np.array([1.0, 1.5]))
     np.testing.assert_array_equal(log_j_out, np.array([2.5, 4.0]))
 
@@ -592,7 +597,7 @@ def test_inverse_reparameterise_pre_post_rescaling(reparam):
     # x_prime gets replaces so change check inputs to the function
     reparam.post_rescaling_inv.assert_called_once()
 
-    np.testing.assert_array_equal(x_prime, x_prime_out)
+    assert_structured_arrays_equal(x_prime, x_prime_out)
     np.testing.assert_array_equal(x_out['x'], np.array([0.5, 1.0]))
     np.testing.assert_array_equal(log_j_out, np.array([2.5, 4.0]))
 
@@ -744,7 +749,7 @@ def test_apply_inversion_duplicate(reparam, inv_type, compute_radius):
         decimal=10,
     )
     # x should be the same but duplicated
-    np.testing.assert_array_equal(
+    assert_structured_arrays_equal(
         x_out, np.concatenate([x, x])
     )
     # Jacobian should just include jacobian from rescaling but duplicated
@@ -897,7 +902,7 @@ def test_pre_rescaling_integration(is_invertible, model):
 
     x_out, x_prime_out, log_j_out = reparam.reparameterise(x, x_prime, log_j)
 
-    np.testing.assert_array_equal(x_out, x)
+    assert_structured_arrays_equal(x_out, x)
     np.testing.assert_array_equal(
         x_prime_out['x_prime'], np.array([-1, 0.0, 2 * np.log(2) - 1, 1])
 
@@ -912,7 +917,7 @@ def test_pre_rescaling_integration(is_invertible, model):
     np.testing.assert_array_equal(log_j_final, np.log(x_out['x']) - np.log(2))
 
     np.testing.assert_array_equal(x_out['x'], x['x'])
-    np.testing.assert_array_equal(x_prime_final, x_prime_out)
+    assert_structured_arrays_equal(x_prime_final, x_prime_out)
     np.testing.assert_array_equal(log_j_final, -log_j_out)
 
     # Trick to get a 1d model to test only x

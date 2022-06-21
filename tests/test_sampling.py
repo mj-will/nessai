@@ -2,6 +2,7 @@
 """
 Integration tests for running the sampler with different configurations.
 """
+import logging
 import os
 import torch
 import pytest
@@ -261,3 +262,20 @@ def test_sampler_resume(model, tmp_path):
     )
 
     fs.run(save=False, plot=False)
+
+
+@pytest.mark.slow_integration_test
+def test_debug_log_level(model, tmpdir):
+    """Test running with debug log-level."""
+    logger = logging.getLogger('nessai')
+    original_level = logger.level
+    logger.setLevel("DEBUG")
+    output = str(tmpdir.mkdir('debug_logging'))
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+    )
+    fs.run(plot=False)
+    logger.setLevel(original_level)

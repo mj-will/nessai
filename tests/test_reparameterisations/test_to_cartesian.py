@@ -8,6 +8,7 @@ from unittest.mock import create_autospec, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.reparameterisations import ToCartesian
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture
@@ -70,8 +71,8 @@ def test_rescale_angle_split(reparam, x):
         )
 
     np.testing.assert_array_equal(angle, expected_angle)
-    np.testing.assert_array_equal(x_out, x)
-    np.testing.assert_array_equal(x_prime_out, x_prime)
+    assert_structured_arrays_equal(x_out, x)
+    assert_structured_arrays_equal(x_prime_out, x_prime)
     np.testing.assert_equal(log_j_out, -np.log(2))
 
 
@@ -103,8 +104,8 @@ def test_rescale_angle_duplicate_or_compute_radius(reparam, x, args):
         )
 
     np.testing.assert_array_equal(angle, expected_angle)
-    np.testing.assert_array_equal(x_out, np.concatenate([x, x]))
-    np.testing.assert_array_equal(
+    assert_structured_arrays_equal(x_out, np.concatenate([x, x]))
+    assert_structured_arrays_equal(
         x_prime_out, np.concatenate([x_prime, x_prime])
     )
     np.testing.assert_equal(log_j_out, -np.log(2))
@@ -127,6 +128,6 @@ def test_inverse_rescale_angle(reparam):
         reparam, x, x_prime, log_j
     )
 
-    np.testing.assert_array_equal(x_out, expected_x)
-    np.testing.assert_array_equal(x_prime_out, x_prime)
+    assert_structured_arrays_equal(x_out, expected_x)
+    assert_structured_arrays_equal(x_prime_out, x_prime)
     np.testing.assert_equal(log_j_out, np.log(2))

@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, Mock, create_autospec, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import RejectionProposal
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture
@@ -94,7 +95,7 @@ def test_populate(proposal,  N):
 
     assert proposal.population_acceptance == 0.5
     assert proposal.populated is True
-    np.testing.assert_array_equal(proposal.samples, samples)
+    assert_structured_arrays_equal(proposal.samples, samples)
 
     if N is None:
         N = poolsize

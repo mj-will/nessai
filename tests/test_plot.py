@@ -9,6 +9,7 @@ import pytest
 from unittest.mock import patch
 
 from nessai import plot
+from nessai import config
 
 
 @pytest.fixture()
@@ -68,6 +69,14 @@ def test_plot_live_points_save(live_points, save, model, tmpdir):
 def test_plot_live_points_1d():
     """Test generating the live points plot for one parameter"""
     live_points = np.random.randn(100).view([('x', 'f8')])
+    fig = plot.plot_live_points(live_points)
+    assert fig is not None
+    plt.close()
+
+
+def test_plot_live_points_with_nans(live_points):
+    """Assert a plot is made if one of parameters is all NaNs"""
+    live_points['x'] = np.nan
     fig = plot.plot_live_points(live_points)
     assert fig is not None
     plt.close()
@@ -151,6 +160,14 @@ def test_plot_1d_comparison_1d():
     l1 = np.random.randn(100).view([('x', 'f8')])
     l2 = np.random.randn(100).view([('x', 'f8')])
     plot.plot_1d_comparison(l1, l2)
+    plt.close()
+
+
+def test_plot_1d_comparison_nans(live_points):
+    """Assert parameters containing only NaNs don't raise an error"""
+    live_points['logL'] = np.nan
+    live_points['logP'] = np.nan
+    plot.plot_1d_comparison(live_points)
     plt.close()
 
 
@@ -286,7 +303,9 @@ def test_trace_plot_unstructured():
     assert 'structured array' in str(excinfo.value)
 
 
-@pytest.mark.parametrize('labels', [None, ['x', 'y', 'logL', 'logP']])
+@pytest.mark.parametrize(
+    'labels', [None, ['x', 'y'] + config.NON_SAMPLING_PARAMETERS]
+)
 def test_trace_plot_labels(nested_samples, labels):
     """Test trace plot generation with labels."""
     log_x = np.linspace(-10, 0, nested_samples.size)

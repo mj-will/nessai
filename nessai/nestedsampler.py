@@ -16,7 +16,7 @@ import seaborn as sns
 import torch
 from tqdm import tqdm
 
-from .livepoint import get_dtype, DEFAULT_FLOAT_DTYPE
+from .livepoint import empty_structured_array
 from .plot import plot_indices, plot_trace
 from .evidence import _NSIntegralState
 from .proposal import FlowProposal
@@ -612,6 +612,7 @@ class NestedSampler:
             if proposed['logL'] > self.logLmin:
                 # Assuming point was proposed
                 # replace worst point with new one
+                proposed['it'] = self.iteration
                 index = self.insert_live_point(proposed)
                 self.insertion_indices.append(index)
                 self.accepted += 1
@@ -632,23 +633,24 @@ class NestedSampler:
             / self.block_iteration
 
         if self.info_enabled:
-            logger.info(f"{self.iteration:5d}: n: {count:3d} "
-                        f"b_acc: {self.mean_block_acceptance:.3f} "
-                        f"H: {self.state.info[-1]:.2f} "
-                        f"logL: {self.logLmin:.5f} --> {proposed['logL']:.5f} "
-                        f"dZ: {self.condition:.3f} "
-                        f"logZ: {self.state.logZ:.3f} "
-                        f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
-                        f"logLmax: {self.logLmax:.2f}")
+            logger.info(
+                f"{self.iteration:5d}: n: {count:3d} "
+                f"b_acc: {self.mean_block_acceptance:.3f} "
+                f"H: {self.state.info[-1]:.2f} "
+                f"logL: {self.logLmin:.5f} --> {proposed['logL']:.5f} "
+                f"dZ: {self.condition:.3f} "
+                f"logZ: {self.state.logZ:.3f} "
+                f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
+                f"logLmax: {self.logLmax:.2f}"
+            )
 
     def populate_live_points(self):
         """
         Initialise the pool of live points.
         """
         i = 0
-        live_points = np.empty(self.nlive,
-                               dtype=get_dtype(self.model.names,
-                                               DEFAULT_FLOAT_DTYPE))
+        live_points = \
+            empty_structured_array(self.nlive, names=self.model.names)
 
         with tqdm(total=self.nlive, desc='Drawing live points') as pbar:
             while i < self.nlive:
@@ -675,6 +677,7 @@ class NestedSampler:
                         break
 
         self.live_points = np.sort(live_points, order='logL')
+        self.live_points['it'] = 0
         if self.store_live_points:
             np.savetxt(self.live_points_dir + '/initial_live_points.dat',
                        self.live_points,
