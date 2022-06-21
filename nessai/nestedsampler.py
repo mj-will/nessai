@@ -16,8 +16,7 @@ import seaborn as sns
 import torch
 from tqdm import tqdm
 
-from . import config
-from .livepoint import get_dtype
+from .livepoint import empty_structured_array
 from .plot import plot_indices, plot_trace
 from .evidence import _NSIntegralState
 from .proposal import FlowProposal
@@ -650,10 +649,8 @@ class NestedSampler:
         Initialise the pool of live points.
         """
         i = 0
-        live_points = np.empty(
-            self.nlive,
-            dtype=get_dtype(self.model.names, config.DEFAULT_FLOAT_DTYPE),
-        )
+        live_points = \
+            empty_structured_array(self.nlive, names=self.model.names)
 
         with tqdm(total=self.nlive, desc='Drawing live points') as pbar:
             while i < self.nlive:

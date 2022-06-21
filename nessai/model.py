@@ -9,9 +9,9 @@ import numpy as np
 
 from . import config
 from .livepoint import (
+    empty_structured_array,
     parameters_to_live_point,
     numpy_array_to_live_points,
-    get_dtype,
 )
 from .utils.multiprocessing import (
     get_n_pool,
@@ -328,9 +328,7 @@ class Model(ABC):
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
-        new_points = np.array(
-            [], dtype=get_dtype(self.names, config.DEFAULT_FLOAT_DTYPE)
-        )
+        new_points = empty_structured_array(0, names=self.names)
         while new_points.size < N:
             p = numpy_array_to_live_points(
                     np.random.uniform(self.lower_bounds, self.upper_bounds,

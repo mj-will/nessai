@@ -23,7 +23,7 @@ def add_extra_parameters_to_live_points(parameters, default_values=None,):
     ----------
     parameters: list
         List of parameters to add.
-    default_values: list
+    default_values: Optional[list]
         List of default values for each parameters. If not specified, default
         values will be set to based on :code: `DEFAULT_FLOAT_VALUE` in
         :code:`nessai.config`.
@@ -194,7 +194,7 @@ def numpy_array_to_live_points(array, names):
         Numpy structured array with fields given by names plus logP and logL
     """
     if array.size == 0:
-        return np.empty(0, dtype=get_dtype(names))
+        return empty_structured_array(0, names=names)
     if array.ndim == 1:
         array = array[np.newaxis, :]
     struct_array = empty_structured_array(len(array), names=names)
