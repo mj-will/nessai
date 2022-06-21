@@ -8,6 +8,8 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 
+from nessai.livepoint import live_points_to_array
+
 from .utils import auto_bins
 
 sns.set()
@@ -373,6 +375,94 @@ def plot_histogram(samples, label=None, filename=None, **kwargs):
     plt.hist(samples, **default_kwargs)
     if label is not None:
         plt.xlabel(label)
+    if filename is not None:
+        fig.savefig(filename, bbox_inches='tight')
+        plt.close(fig)
+    else:
+        return fig
+
+
+def corner_plot(
+    array,
+    fields=None,
+    exclude=None,
+    labels=None,
+    truths=None,
+    filename=None,
+    **kwargs
+):
+    """Produce a corner plot for a structured array.
+
+    Removes any fields with no dynamic range.
+
+    Parameters
+    ----------
+    array : np.ndarray
+        Structured array
+    fields : Optional[list]
+        List of fields (parameters) to plot.
+    exclude : Optional[list]
+        List of fields (parameters) to exclude.
+    labels : Optional[Iterable]
+        Labels for each fields (parameter) that is to be plotted.
+    truths : Optional[Iterable]
+        Truth values for each parameters, parameters can be skipped by setting
+        the value to None.
+    filename : Optional[str]
+        Filename for saving the plot. If not specified, figure is returned.
+    kwargs : Dict[Any]
+        Dictionary of keyword arguments passed to :code:`corner.corner`.
+    """
+    import corner
+
+    default_kwargs = dict(
+        bins=32,
+        smooth=0.9,
+        color="teal",
+        truth_color="#ffc900",
+        quantiles=[0.16, 0.84],
+        levels=(1 - np.exp(-0.5), 1 - np.exp(-2), 1 - np.exp(-9 / 2.)),
+        plot_density=True,
+        plot_datapoints=True,
+        fill_contours=True,
+        show_titles=True,
+        hist_kwargs=dict(density=True),
+    )
+    if kwargs:
+        default_kwargs.update(kwargs)
+
+    if fields and exclude:
+        raise ValueError('Cannot specify both `fields` and `exclude`')
+
+    if exclude:
+        fields = [n for n in array.dtype.names if n not in exclude]
+    if fields:
+        array = array[fields]
+    if labels is None:
+        labels = np.asarray(array.dtype.names)
+    else:
+        labels = np.asarray(labels)
+
+    unstruct_array = live_points_to_array(array)
+
+    has_range = np.array(
+        [~(np.nanmin(v) == np.nanmax(v)) for v in unstruct_array.T],
+        dtype=bool,
+    )
+    if not all(has_range):
+        logger.warning(
+            "Some fields have no dynamic range. Removing: "
+            f"{[n for n, b in zip(array.dtype.names, has_range) if not b]}"
+        )
+    unstruct_array = unstruct_array[..., has_range]
+    labels = labels[has_range]
+    if truths:
+        truths = np.asarray(truths)[has_range]
+
+    fig = corner.corner(
+        unstruct_array, truths=truths, labels=labels, **default_kwargs
+    )
+
     if filename is not None:
         fig.savefig(filename, bbox_inches='tight')
         plt.close(fig)
