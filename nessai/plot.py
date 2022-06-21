@@ -384,7 +384,7 @@ def plot_histogram(samples, label=None, filename=None, **kwargs):
 
 def corner_plot(
     array,
-    fields=None,
+    include=None,
     exclude=None,
     labels=None,
     truths=None,
@@ -397,14 +397,14 @@ def corner_plot(
 
     Parameters
     ----------
-    array : np.ndarray
+    array : numpy.ndarray
         Structured array
-    fields : Optional[list]
-        List of fields (parameters) to plot.
+    include : Optional[list]
+        List of parameters to plot.
     exclude : Optional[list]
-        List of fields (parameters) to exclude.
+        List of parameters to exclude.
     labels : Optional[Iterable]
-        Labels for each fields (parameter) that is to be plotted.
+        Labels for each parameter that is to be plotted.
     truths : Optional[Iterable]
         Truth values for each parameters, parameters can be skipped by setting
         the value to None.
@@ -431,13 +431,13 @@ def corner_plot(
     if kwargs:
         default_kwargs.update(kwargs)
 
-    if fields and exclude:
-        raise ValueError('Cannot specify both `fields` and `exclude`')
+    if include and exclude:
+        raise ValueError('Cannot specify both `include` and `exclude`')
 
     if exclude:
-        fields = [n for n in array.dtype.names if n not in exclude]
-    if fields:
-        array = array[fields]
+        include = [n for n in array.dtype.names if n not in exclude]
+    if include:
+        array = array[include]
     if labels is None:
         labels = np.asarray(array.dtype.names)
     else:
@@ -446,18 +446,24 @@ def corner_plot(
     unstruct_array = live_points_to_array(array)
 
     has_range = np.array(
-        [~(np.nanmin(v) == np.nanmax(v)) for v in unstruct_array.T],
+        [(~np.isnan(v).all()) and (~(np.nanmin(v) == np.nanmax(v)))
+         for v in unstruct_array.T],
         dtype=bool,
     )
     if not all(has_range):
         logger.warning(
-            "Some fields have no dynamic range. Removing: "
+            "Some parameters have no dynamic range. Removing: "
             f"{[n for n, b in zip(array.dtype.names, has_range) if not b]}"
         )
     unstruct_array = unstruct_array[..., has_range]
-    labels = labels[has_range]
+
+    if len(labels) != unstruct_array.shape[-1]:
+        labels = labels[has_range]
+
     if truths:
-        truths = np.asarray(truths)[has_range]
+        truths = np.asarray(truths)
+        if len(truths) != unstruct_array.shape[-1]:
+            truths = truths[has_range]
 
     fig = corner.corner(
         unstruct_array, truths=truths, labels=labels, **default_kwargs
