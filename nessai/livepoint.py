@@ -113,15 +113,18 @@ def empty_structured_array(n, names=None, dtype=None):
     else:
         dtype = np.dtype(dtype)
         names = [
-            n for n in dtype.names if n not in config.NON_SAMPLING_PARAMETERS
+            nm for nm in dtype.names
+            if nm not in config.NON_SAMPLING_PARAMETERS
         ]
     struct_array = np.empty((n), dtype=dtype)
+    if n == 0:
+        return struct_array
     struct_array[names] = config.DEFAULT_FLOAT_VALUE
     try:
-        for n, v in zip(
+        for nm, v in zip(
             config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
         ):
-            struct_array[n] = v
+            struct_array[nm] = v
     except ValueError:
         raise ValueError(
             "Could not create empty structured array. Maybe the non-sampling "
