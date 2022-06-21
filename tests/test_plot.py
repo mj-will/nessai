@@ -348,13 +348,84 @@ def test_histogram_plot_save(tmpdir):
 
 
 def test_corner_plot(live_points):
-    """Test the corner plot"""
+    """Test the corner plot."""
     fig = plot.corner_plot(live_points)
     assert fig is not None
 
 
+def test_corner_plot_check_inputs(live_points):
+    """Assert corner.corner is called with the correct inputs"""
+    with patch('corner.corner') as mock_corner:
+        plot.corner_plot(live_points, test_kwarg='a')
+
+    assert len(mock_corner.call_args[0]) == 1
+    kwargs = mock_corner.call_args[1]
+    assert 'truths' in kwargs
+    assert 'labels' in kwargs
+    assert 'test_kwarg' in kwargs
+    assert 'color' in kwargs
+
+
+@pytest.mark.parametrize(
+    "labels",
+    [['x', 'y'], ['x', 'y'] + config.NON_SAMPLING_PARAMETERS]
+)
+def test_corner_plot_w_labels(live_points, labels):
+    """Test the corner plot with labels"""
+    plot.corner_plot(live_points, labels=labels)
+
+
+@pytest.mark.parametrize(
+    "truths",
+    [[0, 0], [0, 0, None, None, None]]
+)
+def test_corner_plot_w_truths(live_points, truths):
+    """Test the corner plot with truths"""
+    plot.corner_plot(live_points, truths=truths)
+
+
+def test_corner_plot_w_exclude(live_points):
+    """Test the parameter is excluded"""
+    fig = plot.corner_plot(live_points, exclude=['y'])
+    assert len(fig.axes) == 1
+
+
+def test_corner_plot_w_include(live_points):
+    """Test the parameter is included"""
+    fig = plot.corner_plot(live_points, include=['x'])
+    assert len(fig.axes) == 1
+
+
+def test_corner_plot_w_include_and_labels(live_points):
+    """Test the parameter is included and the labels do not raise an error"""
+    fig = plot.corner_plot(live_points, include=['x'], labels=['x_0'])
+    assert len(fig.axes) == 1
+
+
+def test_corner_plot_all_nans(caplog, live_points):
+    """Test how NaNs are handled.
+
+    Should skip a parameter will al NaNs. In this case this should also include
+    all of the non-sampling parameters since they are either NaNs or have zero
+    dynamic range (it).
+    """
+    live_points['x'] = np.nan
+    fig = plot.corner_plot(live_points)
+    assert fig is not None
+    assert str(['x'] + config.NON_SAMPLING_PARAMETERS) in caplog.text
+
+
 def test_corner_plot_save(tmpdir, live_points):
     """Assert the corner plot is saved."""
-    fig = plot.corner_plot(live_points, filename=tmpdir + 'corner.png')
+    filename = os.path.join(tmpdir, 'corner.png')
+    fig = plot.corner_plot(live_points, filename=filename)
     assert fig is None
-    assert os.path.exists(tmpdir + 'corner.png')
+    assert os.path.exists(filename)
+
+
+def test_corner_plot_fields_exclude_error(live_points):
+    """Assert an error is raised if include and exclude are both specified"""
+    with pytest.raises(ValueError) as excinfo:
+        plot.corner_plot(live_points, include=['x'], exclude=['logL'])
+    assert "Cannot specify both `include` and `exclude`" \
+        in str(excinfo.value)
