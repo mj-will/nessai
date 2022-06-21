@@ -114,6 +114,14 @@ def test_empty_structured_array_dtype():
     assert array.dtype == dtype
 
 
+def test_empty_structured_array_zero_points():
+    """Assert setting n=0 works correctly"""
+    dtype = [('x', 'f8'),  ('y', 'f8')] + EXTRA_PARAMS_DTYPE
+    array = lp.empty_structured_array(0, names=['x', 'y'])
+    assert len(array) == 0
+    assert array.dtype == dtype
+
+
 def test_empty_structured_array_dtype_missing():
     """Assert an error is raised if the non-sampling parameters are missing"""
     n = 10
