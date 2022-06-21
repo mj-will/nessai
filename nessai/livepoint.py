@@ -77,10 +77,10 @@ def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
 
     Returns
     -------
-    list of tuple
-        Dtypes as tuples with (field, dtype)
+    numpy.dtype
+        A instance of :code:`numpy.dtype`.
     """
-    return (
+    return np.dtype(
         [(n, array_dtype) for n in names]
         + list(zip(
             config.NON_SAMPLING_PARAMETERS,
@@ -111,8 +111,9 @@ def empty_structured_array(n, names=None, dtype=None):
     if dtype is None:
         dtype = get_dtype(names)
     else:
+        dtype = np.dtype(dtype)
         names = [
-            n[0] for n in dtype if n[0] not in config.NON_SAMPLING_PARAMETERS
+            n for n in dtype.names if n not in config.NON_SAMPLING_PARAMETERS
         ]
     struct_array = np.empty((n), dtype=dtype)
     struct_array[names] = config.DEFAULT_FLOAT_VALUE
