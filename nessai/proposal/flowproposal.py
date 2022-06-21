@@ -1411,11 +1411,15 @@ class FlowProposal(RejectionProposal):
 
         self.alt_dist = self.get_alt_distribution()
 
-        if not self.indices:
-            self.x = np.empty(N,  dtype=self.population_dtype)
-            self.x['logP'] = np.nan * np.ones(N)
-            self.indices = []
-            z_samples = np.empty([N, self.dims])
+        if self.indices:
+            logger.info(
+                "Existing pool of samples is not empty. "
+                "Discarding existing samples."
+            )
+        self.x = np.empty(N,  dtype=self.population_dtype)
+        self.x['logP'] = np.nan * np.ones(N)
+        self.indices = []
+        z_samples = np.empty([N, self.dims])
 
         proposed = 0
         accepted = 0
