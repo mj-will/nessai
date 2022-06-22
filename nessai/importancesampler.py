@@ -14,6 +14,7 @@ from scipy.special import logsumexp
 from scipy import optimize
 from tqdm import tqdm
 
+from . import config
 from .evidence import _INSIntegralState
 from .basesampler import BaseNestedSampler
 from .model import Model
@@ -32,6 +33,7 @@ from .utils.information import (
     relative_entropy_from_log,
 )
 from .utils.optimise import optimise_meta_proposal_weights
+from .utils.rescaling import logistic_function
 from .utils.stats import (
     effective_sample_size,
     effective_volume,
@@ -123,6 +125,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         level_kwargs: Optional[dict] = None,
         annealing_target: Optional[float] = None,
         annealing_beta: Optional[float] = None,
+        sigmoid_weights: bool = False,
+        weighted_kl: bool = False,
         draw_constant: bool = False,
         **kwargs: Any
     ):
@@ -174,6 +178,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.logL_pre = -np.inf
         self.logL = -np.inf
         self.draw_constant = draw_constant
+        self.weighted_kl = weighted_kl,
+        self.sigmoid_weights = sigmoid_weights
+        self.sigmoid_midpoint = None
 
         self.dZ = np.inf
         self.dZ_ns = np.inf
@@ -641,7 +648,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 + np.log(self.proposal.normalisation_constant)
         else:
             log_weights = \
-                self.live_points['logW'].copy() \
+                self.live_points['logW'] \
                 + np.log(self.proposal.normalisation_constant)
         if use_log_weights:
             p = log_weights
@@ -759,6 +766,23 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 )
             )
             weights = (w * lr) / np.sum(w)
+        elif self.replace_all:
+            weights = - np.exp(self.training_log_q[:, -1])
+        elif self.sigmoid_weights:
+            weights = logistic_function(
+                (
+                    self.training_points['logL']
+                    - self.training_points['logL'][-1]
+                ),
+                x0=self.sigmoid_midpoint - self.training_points['logL'][-1],
+                k=0.5,
+            )
+            weights += config.eps
+        elif self.weighted_kl:
+            log_w = self.training_points['logW'] \
+                + np.log(self.proposal.normalisation_constant)
+            log_w -= logsumexp(log_w)
+            weights = np.exp(log_w)
         else:
             weights = None
 
@@ -977,17 +1001,21 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         if self.replace_all:
             self.add_to_nested_samples(self.live_points, self._log_q_lp)
-            self.training_points = self.live_points.copy()
+            self.training_points = self.live_points[n:].copy()
+            self.training_log_q = self._log_q_lp[n:].copy()
             self.live_points = None
             self._log_q_lp = None
         else:
             self.add_to_nested_samples(
                 self.live_points[:n], self._log_q_lp[:n]
             )
-
+            if self.sigmoid_weights:
+                self.training_points = self.live_points.copy()
+                self.sigmoid_midpoint = self.live_points['logL'][n]
             self.live_points = np.delete(self.live_points, np.s_[:n])
             self._log_q_lp = np.delete(self._log_q_lp, np.s_[:n], axis=0)
-            self.training_points = self.live_points.copy()
+            if not self.sigmoid_weights:
+                self.training_points = self.live_points.copy()
 
     def adjust_final_samples(self, n_batches=5):
         """Adjust the final samples"""
