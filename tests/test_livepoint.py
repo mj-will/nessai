@@ -286,3 +286,26 @@ def test_multiple_live_points_to_dict(live_points):
     d_out = lp.live_points_to_dict(live_points)
     assert list(d.keys()) == list(d_out.keys())
     np.testing.assert_array_equal(list(d.values()), list(d_out.values()))
+
+
+def test_unstructured_view_dtype(live_points):
+    """Assert the correct array is returned when given the dtype"""
+    dtype = np.dtype({
+        n: live_points.dtype.fields[n] for n in ['x', 'y']
+    })
+    view = lp.unstructured_view(live_points, dtype=dtype)
+    assert view.base is live_points
+    assert view.shape == (live_points.size, 2)
+
+
+def test_unstructured_view_names(live_points):
+    """Assert the correct array is returned when given names"""
+    view = lp.unstructured_view(live_points, names=['x', 'y'])
+    assert view.base is live_points
+    assert view.shape == (live_points.size, 2)
+
+
+def test_unstructured_view_error(live_points):
+    """Assert an error is raised when neither names or dtype is given."""
+    with pytest.raises(TypeError):
+        lp.unstructured_view(live_points)

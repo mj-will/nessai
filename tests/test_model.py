@@ -55,6 +55,16 @@ def model():
     return create_autospec(Model)
 
 
+@pytest.fixture
+def live_point(integration_model):
+    return integration_model.new_point()
+
+
+@pytest.fixture
+def live_points(integration_model):
+    return integration_model.new_point(10)
+
+
 def test_names(model):
     """Assert names returns the correct value."""
     model._names = ['x', 'y']
@@ -936,6 +946,39 @@ def test_evaluate_likelihoods_pool_allow_vectorised_false(model):
     np.testing.assert_array_equal(out, logL)
 
 
+def test_view_dtype(model, live_point):
+    """Assert view dtype calls the correct functions with the correct inputs"""
+    model._dtype = None
+    model.names = ['x', 'y']
+    model.new_point = MagicMock(return_value=live_point)
+
+    expected = np.dtype([(n, 'f8') for n in model.names])
+
+    with patch(
+        "nessai.model._unstructured_view_dtype", return_value=expected
+    ) as mock:
+        dtype = Model._view_dtype.__get__(model)
+
+    model.new_point.assert_called_once()
+    mock.assert_called_once_with(live_point, model.names)
+    assert model._dtype == expected
+    assert dtype == expected
+
+
+def test_unstructured_view(model, live_points):
+    """Assert the underlying function is called with the correct inputs"""
+    out = np.random.randn(live_points.size, 2)
+    dtype = np.dtype([('x', 'f8'), ('y', 'f8')])
+    model._view_dtype = dtype
+    with patch(
+        'nessai.model.unstructured_view', return_value=out
+    ) as mock:
+        view = Model.unstructured_view(model, live_points)
+
+    mock.assert_called_once_with(live_points, dtype=dtype)
+    assert view is out
+
+
 def test_get_state(model):
     """Assert pool is removed in __getstate__"""
     pool = True
@@ -1007,3 +1050,11 @@ def test_n_pool(integration_model):
 
     integration_model.close_pool()
     assert integration_model.pool is None
+
+
+@pytest.mark.integration_test
+def test_unstructured_view_integration(integration_model, live_points):
+    """Integration test for unstructured view."""
+    view = integration_model.unstructured_view(live_points)
+    assert view.base is live_points
+    assert view.shape == (live_points.size, integration_model.dims)
