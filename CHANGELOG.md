@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Record iteration at which live points are drawn in `it` field of live points.
 - Add `nessai.config` for storing package wide defaults.
 - Add `nessai.utils.testing` submodule which contains functions to use during testing.
+- Add `nessai.livepoint.unstructured_view` and `nessai.model.Model.unstructured_view` for constructing unstructured views of live points.
 
 ### Changed
 
@@ -26,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.5.1] - 2022-06-20
 
-## Fixed
+### Fixed
 
 - Fixed a bug where live points where added to the initial points with incorrect log-likelihood and log-prior. ([#171](https://github.com/mj-will/nessai/pull/171))
 
