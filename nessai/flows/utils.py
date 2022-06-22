@@ -338,3 +338,18 @@ def set_affine_parameters(
             module._shift = shift.type_as(module._shift)
 
     model.apply(fn)
+
+
+def add_noise_to_parameters(m: torch.nn.Module, scale: float = 0.1) -> None:
+    """Add Gaussian noise to the parameters on module.
+
+    Parameters
+    ----------
+    m : torch.nn.Module
+        Module to add noise to.
+    scale : float
+        Scale of the Gaussian noise.
+    """
+    with torch.no_grad():
+        if hasattr(m, 'param'):
+            m.param.add_(torch.randn(m.param.size()) * scale)

@@ -8,6 +8,7 @@ from .maf import MaskedAutoregressiveFlow
 from .nsf import NeuralSplineFlow
 from .realnvp import RealNVP
 from .utils import (
+    add_noise_to_parameters,
     configure_model,
     get_n_neurons,
     set_affine_parameters,
@@ -21,6 +22,7 @@ __all__ = ["BaseFlow",
            "MaskedAutoregressiveFlow",
            "NeuralSplineFlow",
            "RealNVP",
+           "add_noise_to_parameters",
            "configure_model",
            "get_n_neurons",
            "set_affine_parameters",
