@@ -150,6 +150,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.tolerance = None
         self.criterion = None
         self._stop_any = None
+        self._current_proposal_entropy = None
 
         self.min_samples = min_samples
         self.min_remove = min_remove
@@ -261,6 +262,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
             + np.log(self.proposal.normalisation_constant)
         )
         return differential_entropy(log_p)
+
+    @property
+    def current_proposal_entropy(self) -> float:
+        """Differential entropy of the current proposal"""
+        return self._current_proposal_entropy
 
     @property
     def is_checkpoint_iteration(self) -> bool:
@@ -527,6 +533,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 live_points_ess=[],
                 pool_entropy=[],
                 samples_entropy=[],
+                proposal_entropy=[],
                 likelihood_evaluations=[],
                 kl_proposals=[],
                 annealing_beta=[],
@@ -549,6 +556,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history['logZ_lp'].append(self._logZ_lp)
         self.history['n_post'].append(self.state.effective_n_posterior_samples)
         self.history['samples_entropy'].append(self.samples_entropy)
+        self.history['proposal_entropy'].append(self.current_proposal_entropy)
         self.history['live_points_ess'].append(self.live_points_ess)
         self.history['likelihood_evaluations'].append(
             self.model.likelihood_evaluations
@@ -861,6 +869,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(f'Adding {n} points')
         new_points, log_q = self.draw_n_samples(n)
         new_points, log_q = self.sort_points(new_points, log_q)
+        self._current_proposal_entropy = differential_entropy(-log_q[:, -1])
         new_points['it'] = self.iteration
         logger.info(
             "New samples ESS: "
@@ -1652,9 +1661,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
             m += 1
 
         ax[m].plot(
-            its, self.history['samples_entropy'], c=colours[0], ls=ls[0]
+            its, self.history['samples_entropy'], c=colours[0], ls=ls[0],
+            label='Overall',
+        )
+        ax[m].plot(
+            its, self.history['proposal_entropy'], c=colours[1], ls=ls[1],
+            label='Current',
         )
         ax[m].set_ylabel('Differential\n entropy')
+        ax[m].legend(frameon=False)
 
         m += 1
 
