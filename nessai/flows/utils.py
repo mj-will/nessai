@@ -4,16 +4,16 @@ Various utilities for implementing normalising flows.
 """
 import inspect
 import logging
-import numpy as np
-import torch
-import torch.nn.functional as F
 from typing import Optional, Union
 
 from nflows import transforms
-from nflows.nn.nets import MLP as NFlowsMLP
+import numpy as np
+import torch
+import torch.nn.functional as F
 
 from .distributions import MultivariateNormal, ResampledGaussian
 from .transforms import LULinear
+from .nets import MLP
 
 logger = logging.getLogger(__name__)
 
@@ -63,14 +63,18 @@ def get_base_distribution(
         logger.debug('Creating instance of the base distribution')
         if dist_class is ResampledGaussian:
             n_layers = kwargs.pop('n_layers', 2)
-            n_neurons = kwargs.pop('n_neurons', 128)
+            n_neurons = get_n_neurons(
+                kwargs.pop('n_neurons', None), n_inputs=n_inputs
+            )
             layers_list = n_layers * [n_neurons]
             logger.debug(
                 f'LARS acceptance network will have {n_layers} layers with '
                 f'{n_neurons} neurons each.'
             )
+            net_kwargs = kwargs.pop('net_kwargs', {})
             acc_fn = MLP(
-                [n_inputs], [1], layers_list, activate_output=torch.sigmoid
+                [n_inputs], [1], layers_list, activate_output=torch.sigmoid,
+                **net_kwargs,
             )
             logger.debug(f'Other LARs kwargs: {kwargs}')
             dist = dist_class([n_inputs], acc_fn, **kwargs)
@@ -182,10 +186,6 @@ def configure_model(config):
     dist_kwargs = config.pop('distribution_kwargs', None)
     if dist_kwargs is None:
         dist_kwargs = {}
-    dist_kwargs['n_neurons'] = get_n_neurons(
-        n_neurons=dist_kwargs.get('n_neurons'),
-        n_inputs=config.get('n_inputs'),
-    )
     distribution = get_base_distribution(
         config['n_inputs'],
         config.pop('distribution', None),
@@ -279,70 +279,6 @@ def reset_permutations(module):
         module._initialize(identity_init=True)
     elif isinstance(module, transforms.RandomPermutation):
         module._permutation = torch.randperm(len(module._permutation))
-
-
-class MLP(NFlowsMLP):
-    """Wrapper for the MLP included in nflows.
-
-    Adds option to handle :code:`context=None` and using a different activation
-    function for the output layer.
-
-    See the implementation in nflows for details: \
-        https://github.com/bayesiains/nflows/blob/master/nflows/nn/nets/mlp.py#L9
-    """
-    def __init__(
-        self,
-        in_shape,
-        out_shape,
-        hidden_sizes,
-        activation=F.leaky_relu,
-        activate_output=False,
-    ):
-        super().__init__(
-            in_shape,
-            out_shape,
-            hidden_sizes,
-            activation,
-            False
-        )
-
-        if activate_output:
-            self.activate_output = True
-            if activate_output is True:
-                self._output_activation = self._activation
-            elif callable(activate_output):
-                self._output_activation = activate_output
-            else:
-                raise ValueError(
-                    'activate_output must be a boolean or a callable'
-                )
-        else:
-            self.activate_output = False
-
-    def forward(self, inputs, context=None):
-        """Forward method that allows for kwargs such as context.
-
-        Parameters
-        ----------
-        inputs : :obj:`torch.tensor`
-            Inputs to the MLP
-        context : None
-            Conditional inputs, must be None. Only implemented to the
-            function is compatible with other methods.
-
-        Raises
-        ------
-        RuntimeError
-            If the context is not None.
-        """
-        if context is not None:
-            raise NotImplementedError(
-                'MLP with conditional inputs is not implemented.'
-            )
-        out = super().forward(inputs)
-        if self.activate_output:
-            out = self._output_activation(out)
-        return out
 
 
 def create_linear_transform(linear_transform, features):
