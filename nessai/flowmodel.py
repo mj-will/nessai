@@ -754,6 +754,10 @@ class FlowModel:
 
         logger.debug('Finished training')
         logger.debug(f'Loading best model from epoch {best_epoch}')
+
+        # Make sure cache for LU is reset.
+        self.model.train()
+        self.model.eval()
         self.model.load_state_dict(best_model)
         self.finalise()
 
