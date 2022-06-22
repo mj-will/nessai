@@ -12,6 +12,8 @@ from .livepoint import (
     empty_structured_array,
     parameters_to_live_point,
     numpy_array_to_live_points,
+    unstructured_view,
+    _unstructured_view_dtype,
 )
 from .utils.multiprocessing import (
     get_n_pool,
@@ -39,6 +41,7 @@ class Model(ABC):
 
     _names = None
     _bounds = None
+    _dtype = None
     reparameterisations = None
     """
     dict
@@ -194,6 +197,14 @@ class Model(ABC):
     def vectorised_likelihood(self, value):
         """Manually set the value for vectorised likelihood."""
         self._vectorised_likelihood = value
+
+    @property
+    def _view_dtype(self):
+        """dtype used for unstructured view"""
+        if self._dtype is None:
+            x = self.new_point()
+            self._dtype = _unstructured_view_dtype(x, self.names)
+        return self._dtype
 
     def configure_pool(self, pool=None, n_pool=None):
         """Configure a multiprocessing pool for the likelihood computation.
@@ -457,6 +468,33 @@ class Model(ABC):
         self.likelihood_evaluations += x.size
         self.likelihood_evaluation_time += (datetime.datetime.now() - st)
         return log_likelihood
+
+    def unstructured_view(self, x):
+        """An unstructured view of point(s) x that only contains the \
+            parameters in the model.
+
+        This is quicker than converting to a unstructured array and does not
+        create a copy of the array.
+
+        Calls :py:func:`nessai.livepoint.unstructured_view` with a pre-computed
+        dtype.
+
+        Note
+        ----
+        Will only work if all of the model parameters use the same dtype.
+
+        Parameters
+        ----------
+        x : structured_array
+            Structured array of points
+
+        Returns
+        -------
+        numpy.ndarray
+            View of x as an unstructured array that contains only the
+            parameters in the model. Shape is (x.size, self.dims).
+        """
+        return unstructured_view(x, dtype=self._view_dtype)
 
     def verify_model(self):
         """
