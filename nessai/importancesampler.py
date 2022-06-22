@@ -1068,10 +1068,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
             log_evidence_errors[i] = state.log_evidence_error
             logger.debug(f'Log-evidence batch {i} = {log_evidences[i]:.3f}')
 
-        logger.info(f'Mean log evidence: {np.mean(log_evidences)}')
-        logger.info(f'STD log evidence: {np.std(log_evidences)}')
-        self.adjusted_log_evidence = np.mean(log_evidences)
-        self.adjusted_log_evidence_error = np.mean(log_evidences)
+        mean_log_evidence = np.mean(log_evidences)
+        standard_error = np.std(log_evidences, ddof=1)
+
+        logger.info(f'Mean log evidence: {mean_log_evidence:.3f}')
+        logger.info(f'SE log evidence: {standard_error:.3f}')
+        self.adjusted_log_evidence = mean_log_evidence
+        self.adjusted_log_evidence_error = standard_error
 
     def finalise(self) -> None:
         """Finalise the sampling process."""
