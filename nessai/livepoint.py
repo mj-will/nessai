@@ -286,3 +286,52 @@ def dataframe_to_live_points(df):
         [tuple(x) + tuple(config.NON_SAMPLING_DEFAULTS) for x in df.values],
         dtype=get_dtype(list(df.dtypes.index))
     )
+
+
+def _unstructured_view_dtype(x, names):
+    """Get the dtype for an unstructured view.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Array on which to base the dtype.
+    names : Iterable
+        Names for the fields to include in the dtype.
+
+    Returns
+    -------
+    numpy.dtype
+        Dtype containing the specified fields.
+    """
+    return np.dtype(
+        {name: x.dtype.fields[name] for name in names}
+    )
+
+
+def unstructured_view(x, names=None, dtype=None):
+    """Get an unstructured view of a live points containing certain parameters.
+
+    This is quicker than converting to a unstructured array and does not
+    create a copy of the array.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Structured array.
+    names : Optional[Iterable]
+        Iterable of parameters to include in the view. Must be specified if
+        dtype is None.
+    dtype : Optional[numpy.dtype]
+        Dtype for constructing the unstructured view.
+
+    Returns
+    -------
+    numpy.ndarray
+        View of x as an unstructured array that contains only the
+        parameters in names/dtype. Shape is (x.size, # parameters).
+    """
+    if dtype is None:
+        dtype = _unstructured_view_dtype(x, names)
+    return np.ndarray(
+        x.shape, dtype, x, 0,  x.strides
+    ).view((config.DEFAULT_FLOAT_DTYPE, len(dtype)))
