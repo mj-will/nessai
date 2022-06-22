@@ -6,6 +6,7 @@ import copy
 import glob
 import json
 import logging
+import math
 import os
 import shutil
 from typing import Optional
@@ -16,7 +17,9 @@ import torch
 from torch.nn.utils import clip_grad_norm_
 
 from .flows import (
+    BaseFlow,
     configure_model,
+    add_noise_to_parameters,
     get_n_neurons,
     set_affine_parameters,
     reset_weights,
@@ -98,9 +101,12 @@ def update_config(d):
         batch_size=1000,
         val_size=0.1,
         max_epochs=500,
+        pre_train_epochs=None,
         patience=20,
         noise_type=None,
         noise_scale=None,
+        parameter_noise=None,
+        gradient_noise=None,
         use_dataloader=False,
         optimiser='adamw',
         optimiser_kwargs={}
@@ -158,6 +164,10 @@ class FlowModel:
     model_config = None
     noise_scale = None
     noise_type = None
+    parameter_noise = None
+    gradient_noise = None
+    pre_train_epochs = None
+    model: BaseFlow = None
 
     def __init__(self, config=None, output='./'):
         self.model = None
@@ -447,6 +457,7 @@ class FlowModel:
     def _train(
         self,
         train_data,
+        epoch,
         noise_scale=0.0,
         is_dataloader=False,
         weighted=False
@@ -492,6 +503,11 @@ class FlowModel:
             p = torch.randperm(train_data.shape[0])
             train_data = train_data[p, :].split(self._batch_size)
 
+        if self.gradient_noise:
+            sigma = math.sqrt(
+                self.gradient_noise / (1 + epoch) ** 0.55
+            )
+
         n = 0
         for data in train_data:
             if is_dataloader:
@@ -509,9 +525,19 @@ class FlowModel:
                 loss = loss_fn(x)
             train_loss += loss.item()
             loss.backward()
+
+            if self.gradient_noise:
+                for param in model.parameters():
+                    param.grad += sigma * torch.rand_like(param.grad)
             if self.clip_grad_norm:
                 clip_grad_norm_(model.parameters(), self.clip_grad_norm)
+
             self._optimiser.step()
+
+            if self.parameter_noise:
+                model.apply(
+                    lambda m: add_noise_to_parameters(m, self.parameter_noise)
+                )
             n += 1
 
         self.end_iteration()
@@ -597,7 +623,8 @@ class FlowModel:
         patience=None,
         output=None,
         val_size=None,
-        plot=True
+        plot=True,
+        pre_train_epochs=None,
     ):
         """
         Train the flow on a set of samples.
@@ -624,6 +651,8 @@ class FlowModel:
             specified when the object is initialised
         plot : bool, optional
             Boolean to enable or disable plotting the loss function
+        pre_train_epochs : int, optional
+            Number of epochs to pre-train the base distribution.
         """
         if not self.initialised:
             logger.info("Initialising")
@@ -648,6 +677,9 @@ class FlowModel:
             noise_scale = None
 
         self.move_to(self.device)
+
+        if pre_train_epochs is None:
+            pre_train_epochs = self.pre_train_epochs
 
         weighted = True if weights is not None else False
         use_dataloader = self.use_dataloader or weighted
@@ -682,10 +714,14 @@ class FlowModel:
             history = dict(loss=[], val_loss=[])
 
         current_weights_file = os.path.join(output, 'model.pt')
+        if pre_train_epochs:
+            self.model.freeze_transform()
+
         for epoch in range(1, max_epochs + 1):
 
             loss = self._train(
                 train_data,
+                epoch,
                 noise_scale=noise_scale,
                 is_dataloader=use_dataloader,
                 weighted=weighted,
@@ -711,6 +747,10 @@ class FlowModel:
             if epoch - best_epoch > patience:
                 logger.info(f'Epoch {epoch}: Reached patience')
                 break
+
+            if pre_train_epochs and (epoch == pre_train_epochs):
+                logger.info('Ending pre-training')
+                self.model.unfreeze_transform()
 
         logger.debug('Finished training')
         logger.debug(f'Loading best model from epoch {best_epoch}')
