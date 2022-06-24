@@ -14,6 +14,10 @@ from nessai.livepoint import (
 )
 from nessai.utils.testing import assert_structured_arrays_equal
 
+# Tolerances for assert_allclose
+atol = 1e-15
+rtol = 1e-15
+
 
 @pytest.fixture
 def reparam():
@@ -897,7 +901,7 @@ def test_pre_rescaling_integration(is_invertible, model):
     x = numpy_array_to_live_points(
         np.array([[1.0], [np.e ** 0.5], [2.0], [np.e]]), ['x']
     )
-    x_prime = numpy_array_to_live_points(np.empty([x.size, 1]), ['x_prime'])
+    x_prime = empty_structured_array(x.size, ['x_prime'])
     log_j = np.zeros(x.size)
 
     x_out, x_prime_out, log_j_out = reparam.reparameterise(x, x_prime, log_j)
@@ -905,25 +909,25 @@ def test_pre_rescaling_integration(is_invertible, model):
     assert_structured_arrays_equal(x_out, x)
     np.testing.assert_allclose(
         x_prime_out['x_prime'], np.array([-1, 0.0, 2 * np.log(2) - 1, 1]),
-        rtol=1e-15,
+        rtol=rtol, atol=atol,
 
     )
     np.testing.assert_allclose(
-        log_j_out, -np.log(x['x']) + np.log(2), rtol=1e-15,
+        log_j_out, -np.log(x['x']) + np.log(2), rtol=rtol, atol=atol,
     )
 
-    x_in = numpy_array_to_live_points(np.empty([x_prime_out.size, 1]), ['x'])
+    x_in = empty_structured_array(x_prime_out.size, ['x'])
     log_j = np.zeros(x.size)
     x_out, x_prime_final, log_j_final = \
         reparam.inverse_reparameterise(x_in, x_prime_out, log_j)
 
     np.testing.assert_allclose(
-        log_j_final, np.log(x_out['x']) - np.log(2), rtol=1e-15,
+        log_j_final, np.log(x_out['x']) - np.log(2), rtol=rtol, atol=atol,
     )
 
-    np.testing.assert_allclose(x_out['x'], x['x'], rtol=1e-15)
+    np.testing.assert_allclose(x_out['x'], x['x'], rtol=rtol, atol=atol)
     assert_structured_arrays_equal(x_prime_final, x_prime_out)
-    np.testing.assert_allclose(log_j_final, -log_j_out, rtol=1e-15)
+    np.testing.assert_allclose(log_j_final, -log_j_out, rtol=rtol, atol=atol)
 
     # Trick to get a 1d model to test only x
     model._names.remove('y')
