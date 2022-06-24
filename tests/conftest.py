@@ -1,3 +1,4 @@
+import sys
 
 from numpy.random import seed
 import numpy as np
@@ -70,6 +71,11 @@ def pytest_configure(config):
         "requires(package): mark test to only run if the package can be "
         "imported"
     )
+    config.addinivalue_line(
+        "markers",
+        "skip_on_windows: mark test to indicated it should be skipped on "
+        "Windows"
+    )
 
 
 def pytest_runtest_setup(item):
@@ -92,3 +98,6 @@ def pytest_runtest_setup(item):
         reason = 'Missing dependency: {}'.format(name)
         if skip_it:
             pytest.skip(reason)
+    for mark in item.iter_markers(name='skip_on_windows'):
+        if sys.platform == "win32":
+            pytest.skip("Test does not run on Windows")
