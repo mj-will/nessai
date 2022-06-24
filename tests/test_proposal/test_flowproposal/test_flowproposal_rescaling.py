@@ -436,7 +436,7 @@ def test_rescale_w_reparameterisation(proposal, n):
     np.testing.assert_array_equal(
         x_prime[['x_prime', 'y_prime']], x_prime_out[['x_prime', 'y_prime']])
     np.testing.assert_array_equal(
-        x[['logP', 'logL']], x_prime_out[['logL', 'logP']])
+        x[['logP', 'logL']], x_prime_out[['logP', 'logL']])
     proposal._reparameterisation.reparameterise.assert_called_once()
 
 
@@ -459,7 +459,7 @@ def test_inverse_rescale_w_reparameterisation(proposal, n):
 
     np.testing.assert_array_equal(x[['x', 'y']], x_out[['x', 'y']])
     np.testing.assert_array_equal(
-        x_prime[['logP', 'logL']], x_out[['logL', 'logP']])
+        x_prime[['logP', 'logL']], x_out[['logP', 'logL']])
     proposal._reparameterisation.inverse_reparameterise.assert_called_once()
 
 
