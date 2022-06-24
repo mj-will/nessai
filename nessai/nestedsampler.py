@@ -1080,16 +1080,23 @@ class NestedSampler:
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
-                    plot_indices(self.insertion_indices[-self.nlive:],
-                                 self.nlive,
-                                 plot_breakdown=False,
-                                 filename=(f'{self.output}/diagnostics/'
-                                           'insertion_indices_'
-                                           f'{self.iteration}.png'))
+                    plot_indices(
+                        self.insertion_indices[-self.nlive:],
+                        self.nlive,
+                        plot_breakdown=False,
+                        filename=os.path.join(
+                            self.output, 'diagnostics',
+                            f'insertion_indices_{self.iteration}.png'
+                        )
+                    )
 
             if self.plot:
-                self.plot_state(filename=f'{self.output}/state.png')
-                self.plot_trace(filename=f'{self.output}/trace.png')
+                self.plot_state(
+                    filename=os.path.join(self.output, 'state.png')
+                )
+                self.plot_trace(
+                    filename=os.path.join(self.output, 'trace.png')
+                )
 
             if self.uninformed_sampling:
                 self.block_acceptance = 0.
