@@ -272,7 +272,7 @@ def test_run(
     log_Z = -5.0
     nested_samples = [0.1, 1.0, 10.0]
     insertion_indices = [1, 2, 3]
-    output = './'
+    output = os.getcwd()
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.nlive = nlive
     flow_sampler.ns.insertion_indices = insertion_indices

@@ -14,7 +14,7 @@ from nessai.livepoint import numpy_array_to_live_points
 def test_training_plots(proposal, tmpdir, plot):
     """Make sure traings plots are correctly produced"""
     proposal._plot_training = plot
-    output = tmpdir.mkdir('test/')
+    output = tmpdir.mkdir('test')
 
     names = ['x', 'y']
     prime_names = ['x_prime', 'y_prime']
@@ -49,10 +49,13 @@ def test_training_plots(proposal, tmpdir, plot):
 
     FlowProposal._plot_training_data(proposal, output)
 
-    assert os.path.exists(f'{output}/x_samples.png') is bool(plot)
-    assert os.path.exists(f'{output}/x_generated.png') is bool(plot)
-    assert os.path.exists(f'{output}/x_prime_samples.png') is bool(plot)
-    assert os.path.exists(f'{output}/x_prime_generated.png') is bool(plot)
+    assert os.path.exists(os.path.join(output, 'x_samples.png')) is bool(plot)
+    assert os.path.exists(os.path.join(output, 'x_generated.png')) \
+        is bool(plot)
+    assert os.path.exists(os.path.join(output, 'x_prime_samples.png')) \
+        is bool(plot)
+    assert os.path.exists(os.path.join(output, 'x_prime_generated.png')) \
+        is bool(plot)
 
 
 def test_plot_pool_all(proposal):
@@ -63,7 +66,9 @@ def test_plot_pool_all(proposal):
     x = numpy_array_to_live_points(np.random.randn(10, 2), ['x', 'y'])
     with patch('nessai.proposal.flowproposal.plot_live_points') as plot:
         FlowProposal.plot_pool(proposal, None, x)
-    plot.assert_called_once_with(x, c='logL', filename='test/pool_0.png')
+    plot.assert_called_once_with(
+        x, c='logL', filename=os.path.join('test', 'pool_0.png')
+    )
 
 
 @pytest.mark.parametrize('alt_dist', [False, True])
@@ -105,9 +110,9 @@ def test_plot_pool_1d(proposal, tmpdir, alt_dist):
         training_data,
         x,
         labels=['live points', 'pool'],
-        filename=f'{output}/pool_0.png'
+        filename=os.path.join(output, 'pool_0.png')
     )
-    assert os.path.exists(f'{output}/pool_0_log_q.png')
+    assert os.path.exists(os.path.join(output, 'pool_0_log_q.png'))
 
     if alt_dist:
         proposal.alt_dist.log_prob.assert_called_once()

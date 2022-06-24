@@ -52,7 +52,7 @@ def test_plot_trace(mock_plot, sampler, tmpdir, samples, filename):
     sampler.nested_samples = samples
     sampler.state = MagicMock()
     sampler.state.log_vols = [1, 2, 3, 4]
-    sampler.output = './'
+    sampler.output = os.getcwd()
 
     if filename is not None:
         sampler.output = tmpdir.mkdir('test_plot_trace')

@@ -2,6 +2,8 @@
 """
 Test functions related to handling live points
 """
+import os
+
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
@@ -97,7 +99,7 @@ def test_insertion_indices_p_none(mock_fn, sampler):
 @patch('nessai.nestedsampler.compute_indices_ks_test', return_value=(0.1, 0.5))
 def test_insertion_indices_save(mock_fn, mock_save, filename, sampler):
     """Test saving the insertion indices"""
-    sampler.output = './'
+    sampler.output = os.getcwd()
     sampler.insertion_indices = \
         np.random.randint(sampler.nlive, size=2 * sampler.nlive)
 
@@ -106,5 +108,8 @@ def test_insertion_indices_save(mock_fn, mock_save, filename, sampler):
 
     if filename:
         mock_save.assert_called_once_with(
-            './file.txt', sampler.insertion_indices, newline='\n',
-            delimiter=' ')
+            os.path.join(os.getcwd(), 'file.txt'),
+            sampler.insertion_indices,
+            newline='\n',
+            delimiter=' '
+        )

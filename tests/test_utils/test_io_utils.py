@@ -100,9 +100,12 @@ def test_safe_file_dump_integration(tmp_path):
     f = path / 'test.pkl'
     f.write_text('a')
     data = 'b'
-    safe_file_dump(data, str(path) + '/test.pkl', pickle, save_existing=True)
-    assert os.path.exists(str(path) + '/test.pkl')
-    assert os.path.exists(str(path) + '/test.pkl.old')
+    path = str(path)
+    safe_file_dump(
+        data, os.path.join(path, 'test.pkl'), pickle, save_existing=True
+    )
+    assert os.path.exists(os.path.join(path, 'test.pkl'))
+    assert os.path.exists(os.path.join(path, 'test.pkl.old'))
 
 
 def test_save_live_points(tmp_path):
@@ -115,7 +118,7 @@ def test_save_live_points(tmp_path):
     live_points = numpy_array_to_live_points(
         np.array([[1, 3], [2, 4]]), ['x', 'y']
     )
-    filename = str(tmp_path) + 'test.json'
+    filename = os.path.join(str(tmp_path), 'test.json')
     save_live_points(live_points, filename)
 
     with open(filename, 'r') as fp:

@@ -2,6 +2,7 @@
 """
 Test functions related to training and using the flow.
 """
+import os
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
@@ -92,7 +93,7 @@ def test_backward_pass(proposal, model, log_p):
 @pytest.mark.parametrize('plot_training', [True, False])
 def test_training(proposal, tmpdir, save, plot, plot_training):
     """Test the training method"""
-    output = tmpdir.mkdir('test/')
+    output = tmpdir.mkdir('test')
     data = np.random.randn(10, 2)
     data_prime = data / 2
     x = numpy_array_to_live_points(data, ['x', 'y'])
@@ -121,7 +122,7 @@ def test_training(proposal, tmpdir, save, plot, plot_training):
     assert_structured_arrays_equal(x, proposal.training_data)
 
     if save or (plot and plot_training):
-        output = f'{output}/training/block_0/'
+        output = os.path.join(output, 'training', 'block_0', '')
 
     if save:
         mock_save.assert_called_once()

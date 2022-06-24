@@ -2,6 +2,7 @@
 """
 Tests related to checking and updating the state of sampler and the history.
 """
+import os
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -152,7 +153,7 @@ def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
     sampler.uninformed_sampling = True
     sampler.plot_state = MagicMock()
     sampler.plot_trace = MagicMock()
-    sampler.output = './'
+    sampler.output = os.getcwd()
     sampler.insertion_indices = range(2 * sampler.nlive)
     sampler.checkpointing = checkpointing
 
@@ -169,11 +170,16 @@ def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
     assert sampler.population_acceptance == [0.5]
 
     if plot:
-        sampler.plot_state.assert_called_once_with(filename='.//state.png')
+        sampler.plot_state.assert_called_once_with(
+            filename=os.path.join(os.getcwd(), 'state.png')
+        )
         sampler.plot_trace.assert_called_once()
         mock_plot.assert_called_once_with(
             sampler.insertion_indices[-100:], 100, plot_breakdown=False,
-            filename='.//diagnostics/insertion_indices_100.png')
+            filename=os.path.join(
+                os.getcwd(), 'diagnostics', 'insertion_indices_100.png'
+            )
+        )
     else:
         assert not sampler.plot_state.called
         assert not sampler.plot_trace.called
@@ -193,7 +199,7 @@ def test_update_state_force(mock_plot, checkpointing, sampler):
     sampler.plot = True
     sampler.plot_state = MagicMock()
     sampler.plot_trace = MagicMock()
-    sampler.output = './'
+    sampler.output = os.getcwd()
     sampler.uninformed_sampling = False
     sampler.checkpointing = checkpointing
 
@@ -206,7 +212,9 @@ def test_update_state_force(mock_plot, checkpointing, sampler):
     assert not mock_plot.called
     assert not sampler.called
     sampler.plot_trace.assert_called_once()
-    sampler.plot_state.assert_called_once_with(filename='.//state.png')
+    sampler.plot_state.assert_called_once_with(
+        filename=os.path.join(os.getcwd(), 'state.png')
+    )
 
     assert sampler.max_likelihood == [100.0, 150.0]
     assert sampler.population_acceptance == [0.5]

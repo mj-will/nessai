@@ -37,7 +37,7 @@ def test_init_use_default_reparams(model, proposal, value, expected):
 def test_initialise(tmpdir, proposal, ef, fuzz):
     """Test the initialise method"""
     p = tmpdir.mkdir('test')
-    proposal.output = f'{p}/output/'
+    proposal.output = os.path.join(p, 'output')
     proposal.rescaled_dims = 2
     proposal.expansion_fraction = ef
     proposal.fuzz = 2.0
@@ -63,7 +63,7 @@ def test_initialise(tmpdir, proposal, ef, fuzz):
     assert proposal.populated is False
     assert proposal.initialised
     assert proposal.fuzz == fuzz
-    assert os.path.exists(f'{p}/output')
+    assert os.path.exists(os.path.join(p, 'output'))
 
 
 def test_resume(proposal):
