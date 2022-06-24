@@ -897,21 +897,24 @@ def test_pre_rescaling_integration(is_invertible, model):
     x = numpy_array_to_live_points(
         np.array([[1.0], [np.e ** 0.5], [2.0], [np.e]]), ['x']
     )
-    x_prime = numpy_array_to_live_points(np.empty([x.size, 1]), ['x_prime'])
+    x_prime = empty_structured_array(x.size, ['x_prime'])
     log_j = np.zeros(x.size)
 
     x_out, x_prime_out, log_j_out = reparam.reparameterise(x, x_prime, log_j)
 
     assert_structured_arrays_equal(x_out, x)
-    np.testing.assert_array_almost_equal_nulp(
-        x_prime_out['x_prime'], np.array([-1, 0.0, 2 * np.log(2) - 1, 1]),
+    np.testing.assert_allclose(
+        x_prime_out['x_prime'],
+        np.array([-1.0, 0.0, 2 * np.log(2) - 1.0, 1.0]),
+        rtol=1e-15,
+        atol=1e-15,
 
     )
     np.testing.assert_array_almost_equal_nulp(
         log_j_out, -np.log(x['x']) + np.log(2),
     )
 
-    x_in = numpy_array_to_live_points(np.empty([x_prime_out.size, 1]), ['x'])
+    x_in = empty_structured_array(x_prime_out.size, ['x'])
     log_j = np.zeros(x.size)
     x_out, x_prime_final, log_j_final = \
         reparam.inverse_reparameterise(x_in, x_prime_out, log_j)
