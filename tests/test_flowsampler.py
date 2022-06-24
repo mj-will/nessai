@@ -395,6 +395,7 @@ def test_safe_exit(flow_sampler):
 )
 @pytest.mark.integration_test
 @pytest.mark.timeout(30)
+@pytest.mark.skip_on_windows
 def test_signal_handling(tmp_path, caplog, model, kwargs):
     """Test the signal handling in nessai.
 
@@ -438,6 +439,7 @@ def test_signal_handling(tmp_path, caplog, model, kwargs):
 
 @pytest.mark.integration_test
 @pytest.mark.timeout(30)
+@pytest.mark.skip_on_windows
 def test_signal_handling_disabled(tmp_path, caplog, model):
     """Assert signal handling is correctly disabled.
 
