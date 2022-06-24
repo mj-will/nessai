@@ -48,7 +48,6 @@ def test_setup_logger_with_label(tmp_path, output):
 def test_setup_logger_with_mkdir(tmp_path):
     """Assert the output directory is created if missing"""
     output = tmp_path / 'logger_dir'
-    output.mkdir()
     setup_logger(label='test', output=output)
     assert os.path.exists(os.path.join(output, 'test.log'))
 
