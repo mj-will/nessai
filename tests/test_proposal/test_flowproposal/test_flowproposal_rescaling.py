@@ -499,7 +499,7 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
         FlowProposal._rescale_to_bounds(
             proposal, x, compute_radius=compute_radius)
 
-    np.testing.assert_equal(log_j, -np.log(20))
+    np.testing.assert_allclose(log_j, -np.log(20), rtol=1e-14)
     assert_structured_arrays_equal(x_prime, x_prime_expected)
 
 
@@ -701,7 +701,7 @@ def test_inverse_rescale_to_bounds(proposal, model, n):
     x, log_j = \
         FlowProposal._inverse_rescale_to_bounds(proposal, x_prime)
 
-    np.testing.assert_equal(log_j, np.log(20))
+    np.testing.assert_allclose(log_j, np.log(20), rtol=1e-14)
     assert_structured_arrays_equal(x, x_expected)
 
 
