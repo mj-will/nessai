@@ -903,22 +903,27 @@ def test_pre_rescaling_integration(is_invertible, model):
     x_out, x_prime_out, log_j_out = reparam.reparameterise(x, x_prime, log_j)
 
     assert_structured_arrays_equal(x_out, x)
-    np.testing.assert_array_equal(
-        x_prime_out['x_prime'], np.array([-1, 0.0, 2 * np.log(2) - 1, 1])
+    np.testing.assert_allclose(
+        x_prime_out['x_prime'], np.array([-1, 0.0, 2 * np.log(2) - 1, 1]),
+        rtol=1e-15,
 
     )
-    np.testing.assert_array_equal(log_j_out, -np.log(x['x']) + np.log(2))
+    np.testing.assert_allclose(
+        log_j_out, -np.log(x['x']) + np.log(2), rtol=1e-15,
+    )
 
     x_in = numpy_array_to_live_points(np.empty([x_prime_out.size, 1]), ['x'])
     log_j = np.zeros(x.size)
     x_out, x_prime_final, log_j_final = \
         reparam.inverse_reparameterise(x_in, x_prime_out, log_j)
 
-    np.testing.assert_array_equal(log_j_final, np.log(x_out['x']) - np.log(2))
+    np.testing.assert_allclose(
+        log_j_final, np.log(x_out['x']) - np.log(2), rtol=1e-15,
+    )
 
-    np.testing.assert_array_equal(x_out['x'], x['x'])
+    np.testing.assert_allclose(x_out['x'], x['x'], rtol=1e-15)
     assert_structured_arrays_equal(x_prime_final, x_prime_out)
-    np.testing.assert_array_equal(log_j_final, -log_j_out)
+    np.testing.assert_allclose(log_j_final, -log_j_out, rtol=1e-15)
 
     # Trick to get a 1d model to test only x
     model._names.remove('y')
