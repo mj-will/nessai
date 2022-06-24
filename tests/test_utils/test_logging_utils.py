@@ -30,25 +30,26 @@ def test_setup_logger_no_label():
 
 
 @pytest.mark.parametrize('output', ['logger_dir', None])
-def test_setup_logger_with_label(tmpdir, output):
+def test_setup_logger_with_label(tmp_path, output):
     """Test behaviour when label is not None.
 
     This should produce a log file.
     """
     if output:
-        output = str(tmpdir.mkdir(output))
+        output = tmp_path / output
+        output.mkdir()
     logger = setup_logger(label='test', output=output)
     if output is None:
-        output = '.'
-    assert os.path.exists(f'{output}/test.log')
+        output = os.getcwd()
+    assert os.path.exists(os.path.join(output, 'test.log'))
     assert any([type(h) == logging.FileHandler for h in logger.handlers])
 
 
-def test_setup_logger_with_mkdir(tmpdir):
+def test_setup_logger_with_mkdir(tmp_path):
     """Assert the output directory is created if missing"""
-    output = str(tmpdir) + '/logger_dir/'
+    output = tmp_path / 'logger_dir'
     setup_logger(label='test', output=output)
-    assert os.path.exists(f'{output}/test.log')
+    assert os.path.exists(os.path.join(output, 'test.log'))
 
 
 @pytest.mark.parametrize(

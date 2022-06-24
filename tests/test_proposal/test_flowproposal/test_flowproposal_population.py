@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test methods related to popluation of the proposal after training"""
+import os
+
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, Mock, patch, call
@@ -195,7 +197,7 @@ def test_convert_to_samples_with_prime(mock_plot, proposal):
     proposal.model.log_prior = MagicMock(return_value=np.ones(10))
     proposal._plot_pool = True
     proposal.training_data_prime = 'data'
-    proposal.output = './'
+    proposal.output = os.getcwd()
     proposal.populated_count = 1
     proposal.inverse_rescale = MagicMock(return_value=(samples, None))
 
@@ -203,7 +205,7 @@ def test_convert_to_samples_with_prime(mock_plot, proposal):
 
     mock_plot.assert_called_once_with(
         'data', samples, labels=['live points', 'pool'],
-        filename='.//pool_prime_1.png')
+        filename=os.path.join(os.getcwd(), 'pool_prime_1.png'))
     proposal.inverse_rescale.assert_called_once()
     assert out_samples.dtype.names == \
         ('x',) + tuple(config.NON_SAMPLING_PARAMETERS)

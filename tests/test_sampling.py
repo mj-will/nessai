@@ -109,7 +109,7 @@ def test_sampling_with_n_pool(model, flow_config, tmpdir):
     fp.run()
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
-    assert os.path.exists(output + '/result.json')
+    assert os.path.exists(os.path.join(output, 'result.json'))
 
 
 @pytest.mark.slow_integration_test

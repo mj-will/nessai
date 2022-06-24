@@ -1360,8 +1360,11 @@ class FlowProposal(RejectionProposal):
                 plot_1d_comparison(
                     self.training_data_prime, x,
                     labels=['live points', 'pool'],
-                    filename=(f'{self.output}/pool_prime_'
-                              + f'{self.populated_count}.png'))
+                    filename=os.path.join(
+                        self.output,
+                        f'pool_prime_{self.populated_count}.png'
+                    ),
+                )
 
             x, _ = self.inverse_rescale(x)
         x['logP'] = self.model.log_prior(x)

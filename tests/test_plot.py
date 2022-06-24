@@ -59,7 +59,7 @@ def test_plot_live_points_constant_hue(live_points):
 def test_plot_live_points_save(live_points, save, model, tmpdir):
     """Test generating a plot for a set of live points and saving it."""
     if save:
-        filename = tmpdir + 'lp.png'
+        filename = os.path.join(tmpdir, 'lp.png')
     else:
         filename = None
     plot.plot_live_points(live_points, filename=filename)
@@ -121,7 +121,7 @@ def test_plot_1d_comparison_parameters(parameters, live_points, live_points_1):
 def test_plot_1d_comparison_save(save, live_points, live_points_1, tmpdir):
     """Test generating a 1d comparison plot"""
     if save:
-        filename = tmpdir + 'comp.png'
+        filename = os.path.join(tmpdir, 'comp.png')
     else:
         filename = None
     plot.plot_1d_comparison(live_points, live_points_1, filename=filename)
@@ -232,7 +232,7 @@ def test_plot_indices_save(save, tmpdir):
     nlive = 100
     indices = np.random.randint(0, nlive, 1000)
     if save:
-        filename = tmpdir + 'indices.png'
+        filename = os.path.join(tmpdir, 'indices.png')
     else:
         filename = None
     plot.plot_indices(indices, nlive=nlive, filename=filename)
@@ -264,7 +264,7 @@ def test_plot_loss_save(save, tmpdir):
     epoch = 10
     history = dict(loss=np.arange(epoch), val_loss=np.arange(epoch))
     if save:
-        filename = tmpdir + 'loss.png'
+        filename = os.path.join(tmpdir, 'loss.png')
     else:
         filename = None
     plot.plot_loss(epoch, history, filename=filename)
@@ -334,6 +334,7 @@ def test_histogram_plot():
 def test_histogram_plot_save(tmpdir):
     """Test to make sure the figure is saved."""
     x = np.random.randn(100)
-    fig = plot.plot_histogram(x, filename=tmpdir + 'hist.png')
+    filename = os.path.join(tmpdir, 'hist.png')
+    fig = plot.plot_histogram(x, filename=filename)
     assert fig is None
-    assert os.path.exists(tmpdir + 'hist.png')
+    assert os.path.exists(filename)
