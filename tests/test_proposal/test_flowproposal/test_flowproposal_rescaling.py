@@ -436,7 +436,7 @@ def test_rescale_w_reparameterisation(proposal, n):
     np.testing.assert_array_equal(
         x_prime[['x_prime', 'y_prime']], x_prime_out[['x_prime', 'y_prime']])
     np.testing.assert_array_equal(
-        x[['logP', 'logL']], x_prime_out[['logL', 'logP']])
+        x[['logP', 'logL']], x_prime_out[['logP', 'logL']])
     proposal._reparameterisation.reparameterise.assert_called_once()
 
 
@@ -459,7 +459,7 @@ def test_inverse_rescale_w_reparameterisation(proposal, n):
 
     np.testing.assert_array_equal(x[['x', 'y']], x_out[['x', 'y']])
     np.testing.assert_array_equal(
-        x_prime[['logP', 'logL']], x_out[['logL', 'logP']])
+        x_prime[['logP', 'logL']], x_out[['logP', 'logL']])
     proposal._reparameterisation.inverse_reparameterise.assert_called_once()
 
 
@@ -499,7 +499,7 @@ def test_rescale_to_bounds(proposal, model, n, compute_radius):
         FlowProposal._rescale_to_bounds(
             proposal, x, compute_radius=compute_radius)
 
-    np.testing.assert_equal(log_j, -np.log(20))
+    np.testing.assert_allclose(log_j, -np.log(20), rtol=1e-14)
     assert_structured_arrays_equal(x_prime, x_prime_expected)
 
 
@@ -701,7 +701,7 @@ def test_inverse_rescale_to_bounds(proposal, model, n):
     x, log_j = \
         FlowProposal._inverse_rescale_to_bounds(proposal, x_prime)
 
-    np.testing.assert_equal(log_j, np.log(20))
+    np.testing.assert_allclose(log_j, np.log(20), rtol=1e-14)
     assert_structured_arrays_equal(x, x_expected)
 
 

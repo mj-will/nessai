@@ -24,6 +24,16 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Dictionary to translate new parameter names to legacy names.
+EQUIVALENT_PARAMETERS = dict(
+    mass_ratio_prime='mass_ratio_inv',
+    luminosity_distance_prime='dc3',
+    geocent_time_prime='time',
+    ra_dec_x='sky_x',
+    ra_dec_y='sky_y',
+    ra_dec_z='sky_z',
+)
+
 
 @pytest.fixture(autouse=True)
 def update_config():
@@ -259,13 +269,15 @@ def test_parameter(parameters, injection_parameters, kwargs, legacy_kwargs,
         np.testing.assert_array_equal(log_p, log_p_new)
         try:
             np.testing.assert_array_equal(x_prime, x_prime_new)
-        except AssertionError:
-            flag = {n: False for n in x_prime.dtype.names}
-            for n in x_prime.dtype.names:
-                for nn in x_prime_new.dtype.names:
-                    if np.allclose(x_prime[n], x_prime_new[nn]):
-                        logger.critical(f'{n} is equivalent to {nn}')
-                        flag[n] = True
+        except (AssertionError, TypeError):
+            flag = {n: False for n in x_prime_new.dtype.names}
+            for n in x_prime_new.dtype.names:
+                # Get equivalent name
+                # If not included, assume it should be the same.
+                legacy_name = EQUIVALENT_PARAMETERS.get(n, n)
+                if np.allclose(x_prime[legacy_name], x_prime_new[n]):
+                    logger.critical(f'{n} is equivalent to {legacy_name}')
+                    flag[n] = True
 
             assert all(v for v in flag.values()), print(f'Flags: {flag}')
         test_results[test] = True
