@@ -989,13 +989,12 @@ def test_get_state(model):
 
 
 @pytest.mark.integration_test
-def test_pool(integration_model):
+def test_pool(integration_model, mp_context):
     """Integration test for evaluating the likelihood with a pool"""
-    from multiprocessing import Pool
     # Cannot pickle lambda functions
     integration_model.fn = lambda x: x
     initialise_pool_variables(integration_model)
-    pool = Pool(1)
+    pool = mp_context.Pool(1)
     integration_model.configure_pool(pool=pool)
     assert integration_model.pool is pool
     x = integration_model.new_point(10)
@@ -1035,11 +1034,12 @@ def test_pool_ray(integration_model):
 
 
 @pytest.mark.integration_test
-def test_n_pool(integration_model):
+def test_n_pool(integration_model, mp_context):
     """Integration test for evaluating the likelihood with n_pool"""
     # Cannot pickle lambda functions
     integration_model.fn = lambda x: x
-    integration_model.configure_pool(n_pool=1)
+    with patch("multiprocessing.Pool", mp_context.Pool):
+        integration_model.configure_pool(n_pool=1)
     assert integration_model.n_pool == 1
     x = integration_model.new_point(10)
     out = integration_model.batch_evaluate_log_likelihood(x)

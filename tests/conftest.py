@@ -6,6 +6,7 @@ import pytest
 from scipy.stats import norm
 import time
 import torch
+import multiprocessing
 
 from nessai.model import Model
 
@@ -59,6 +60,19 @@ def wait():
     def func(*args, **kwargs):
         time.sleep(0.01)
     return func
+
+
+@pytest.fixture(params=["fork", "spawn"])
+def mp_context(request):
+    """Multiprocessing context to test"""
+    if request.param == "spawn":
+        pytest.skip(
+            "nessai does not currently support multiprocessing with the "
+            "'spawn' method."
+        )
+    if sys.platform == "win32":
+        pytest.skip("Windows does not support 'fork' method")
+    return multiprocessing.get_context(request.param)
 
 
 def pytest_configure(config):

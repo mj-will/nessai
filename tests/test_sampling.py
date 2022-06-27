@@ -7,6 +7,7 @@ import os
 import torch
 import pytest
 import numpy as np
+from unittest.mock import patch
 
 from nessai.flowsampler import FlowSampler
 from nessai.livepoint import numpy_array_to_live_points
@@ -96,16 +97,19 @@ def test_sampling_uninformed(model, flow_config, tmpdir, analytic):
 
 
 @pytest.mark.slow_integration_test
-def test_sampling_with_n_pool(model, flow_config, tmpdir):
+def test_sampling_with_n_pool(model, flow_config, tmpdir, mp_context):
     """
     Test running the sampler with multiprocessing.
     """
     output = str(tmpdir.mkdir('pool'))
-    fp = FlowSampler(model, output=output, resume=False, nlive=100, plot=False,
-                     flow_config=flow_config, training_frequency=10,
-                     maximum_uninformed=9, rescale_parameters=True,
-                     seed=1234, max_iteration=11, poolsize=10, max_threads=3,
-                     n_pool=2)
+    with patch('multiprocessing.Pool', mp_context.Pool):
+        fp = FlowSampler(
+            model, output=output, resume=False, nlive=100, plot=False,
+            flow_config=flow_config, training_frequency=10,
+            maximum_uninformed=9, rescale_parameters=True,
+            seed=1234, max_iteration=11, poolsize=10, max_threads=3,
+            n_pool=2
+        )
     fp.run()
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
