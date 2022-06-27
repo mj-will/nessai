@@ -10,22 +10,14 @@ from nessai.livepoint import numpy_array_to_live_points
 torch.set_num_threads(1)
 
 
-@pytest.mark.parametrize(
-    'latent_prior',
-    ['gaussian', 'truncated_gaussian', 'uniform_nball', 'uniform_nsphere',
-     'uniform']
-)
 @pytest.mark.parametrize('expansion_fraction', [0, 1, None])
 @pytest.mark.parametrize('check_acceptance', [False, True])
 @pytest.mark.parametrize('rescale_parameters', [False, True])
 @pytest.mark.parametrize('max_radius', [False, 2])
-@pytest.mark.timeout(10)
-@pytest.mark.flaky(run=3)
 @pytest.mark.integration_test
 def test_flowproposal_populate(
     tmp_path,
     model,
-    latent_prior,
     expansion_fraction,
     check_acceptance,
     rescale_parameters,
@@ -37,12 +29,13 @@ def test_flowproposal_populate(
     """
     output = tmp_path / 'flowproposal'
     output.mkdir()
+    n_draw = 10
     fp = FlowProposal(
         model,
         output=output,
         plot=False,
         poolsize=10,
-        latent_prior=latent_prior,
+        latent_prior="truncated_gaussian",
         expansion_fraction=expansion_fraction,
         check_acceptance=check_acceptance,
         rescale_parameters=rescale_parameters,
@@ -51,10 +44,40 @@ def test_flowproposal_populate(
     )
 
     fp.initialise()
-    worst = numpy_array_to_live_points(0.1 * np.ones(fp.dims), fp.names)
-    fp.populate(worst, N=10)
+    worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.names)
+    fp.populate(worst, N=n_draw)
 
-    assert fp.x.size == 10
+    assert fp.x.size == n_draw
+
+
+@pytest.mark.parametrize(
+    'latent_prior',
+    ['gaussian', 'truncated_gaussian', 'uniform_nball', 'uniform_nsphere',
+     'uniform']
+)
+@pytest.mark.integration_test
+def test_flowproposal_populate_edge_cases(tmp_path, model, latent_prior):
+    """Tests some less common settings for flowproposal"""
+    output = tmp_path / 'flowproposal'
+    output.mkdir()
+    n_draw = 10
+    fp = FlowProposal(
+        model,
+        output=output,
+        plot=False,
+        poolsize=10,
+        latent_prior=latent_prior,
+        expansion_fraction=1.0,
+        rescale_parameters=True,
+        max_radius=0.1,
+        constant_volume_mode=False,
+    )
+
+    fp.initialise()
+    worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.names)
+    fp.populate(worst, N=n_draw)
+
+    assert fp.x.size == n_draw
 
 
 @pytest.mark.parametrize('plot', [False, True])
@@ -81,8 +104,6 @@ def test_training(tmpdir, model, plot):
 
 @pytest.mark.parametrize('check_acceptance', [False, True])
 @pytest.mark.parametrize('rescale_parameters', [False, True])
-@pytest.mark.timeout(10)
-@pytest.mark.flaky(run=3)
 @pytest.mark.integration_test
 def test_constant_volume_mode(
     tmpdir, model, check_acceptance, rescale_parameters
@@ -105,8 +126,8 @@ def test_constant_volume_mode(
     )
     fp.initialise()
     worst = numpy_array_to_live_points(0.5 * np.ones(fp.dims), fp.names)
-    fp.populate(worst, N=100)
-    assert fp.x.size == 100
+    fp.populate(worst, N=10)
+    assert fp.x.size == 10
 
     np.testing.assert_approx_equal(fp.r, expected_radius, 4)
     np.testing.assert_approx_equal(fp.fixed_radius, expected_radius, 4)
