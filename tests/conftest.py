@@ -3,6 +3,7 @@ from numpy.random import seed
 import numpy as np
 import pytest
 from scipy.stats import norm
+import time
 import torch
 
 from nessai.model import Model
@@ -46,6 +47,17 @@ def flow_config():
                               kwargs=dict(batch_norm_between_layers=False))
             )
     return d
+
+
+@pytest.fixture()
+def wait():
+    """Sleep for 0.01s for timing tests.
+
+    Time resolution on Windows is less than Linux and macOS
+    """
+    def func(*args, **kwargs):
+        time.sleep(0.01)
+    return func
 
 
 def pytest_configure(config):

@@ -68,11 +68,11 @@ def test_populate(proposal, N):
 
 
 @pytest.mark.parametrize('populated', [True, False])
-def test_draw(proposal, populated):
+def test_draw(proposal, populated, wait):
     """Test the draw method"""
     N = 5
     proposal.populated = populated
-    proposal.populate = Mock()
+    proposal.populate = Mock(side_effect=wait)
     proposal.population_time = datetime.timedelta()
     proposal.indices = [0, 1, 2, 3, 4]
     proposal.samples = np.array([0, 1, 2, 3, 4])

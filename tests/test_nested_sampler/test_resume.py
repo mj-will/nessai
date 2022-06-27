@@ -21,7 +21,7 @@ def complete_sampler(model, tmpdir):
 
 
 @pytest.mark.parametrize('periodic', [False, True])
-def test_checkpoint(sampler, periodic):
+def test_checkpoint(sampler, periodic, wait):
     """Test checkpointing method.
 
     Make sure a file is produced and that the sampling time is updated.
@@ -30,6 +30,7 @@ def test_checkpoint(sampler, periodic):
     sampler.checkpoint_iterations = [10]
     sampler.iteration = 20
     now = datetime.datetime.now()
+    wait()
     sampler.sampling_start_time = now
     sampler.sampling_time = datetime.timedelta()
     sampler.resume_file = 'test.pkl'

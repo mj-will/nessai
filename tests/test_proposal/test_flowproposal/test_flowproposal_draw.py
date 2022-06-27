@@ -31,7 +31,7 @@ def test_draw_populated_last_sample(proposal):
 
 
 @pytest.mark.parametrize('update', [False, True])
-def test_draw_not_popluated(proposal, update):
+def test_draw_not_populated(proposal, update, wait):
     """Test the draw method when the proposal is not populated"""
     import datetime
     proposal.populated = False
@@ -44,6 +44,7 @@ def test_draw_not_popluated(proposal, update):
     proposal.ns_acceptance = 0.5
 
     def mock_populate(*args, **kwargs):
+        wait()
         proposal.populated = True
         proposal.samples = np.arange(3)
         proposal.indices = list(range(3))

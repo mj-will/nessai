@@ -228,10 +228,10 @@ def test_train_proposal_not_training(sampler):
     sampler.proposal.train.assert_not_called()
 
 
-def test_train_proposal(sampler):
+def test_train_proposal(sampler, wait):
     """Verify the proposal is trained"""
     sampler.proposal = MagicMock()
-    sampler.proposal.train = MagicMock()
+    sampler.proposal.train = MagicMock(side_effect=wait)
     sampler.check_flow_model_reset = MagicMock()
     sampler.checkpoint = MagicMock()
     sampler.iteration = 100
@@ -258,10 +258,10 @@ def test_train_proposal(sampler):
     assert sampler.block_acceptance == 0
 
 
-def test_train_proposal_memory(sampler):
+def test_train_proposal_memory(sampler, wait):
     """Verify the proposal is trained with memory"""
     sampler.proposal = MagicMock()
-    sampler.proposal.train = MagicMock()
+    sampler.proposal.train = MagicMock(side_effect=wait)
     sampler.check_flow_model_reset = MagicMock()
     sampler.checkpoint = MagicMock()
     sampler.iteration = 100
