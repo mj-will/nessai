@@ -10,18 +10,30 @@ from nessai.livepoint import numpy_array_to_live_points
 torch.set_num_threads(1)
 
 
-@pytest.mark.parametrize('expansion_fraction', [0, 1, None])
+@pytest.mark.parametrize()
+def flow_config():
+    return dict(
+        model_config=dict(
+            n_neurons=1,
+            n_blocks=1,
+            n_layers=1,
+            kwargs={}
+        )
+    )
+
+
+@pytest.mark.parametrize('expansion_fraction', [0.0, 1.0, None])
 @pytest.mark.parametrize('check_acceptance', [False, True])
 @pytest.mark.parametrize('rescale_parameters', [False, True])
-@pytest.mark.parametrize('max_radius', [False, 2])
 @pytest.mark.integration_test
+@pytest.mark.timeout(30)
 def test_flowproposal_populate(
     tmp_path,
     model,
+    flow_config,
     expansion_fraction,
     check_acceptance,
     rescale_parameters,
-    max_radius,
 ):
     """
     Test the populate method in the FlowProposal class with a range of
@@ -33,13 +45,14 @@ def test_flowproposal_populate(
     fp = FlowProposal(
         model,
         output=output,
+        flow_config=flow_config,
         plot=False,
         poolsize=10,
         latent_prior="truncated_gaussian",
         expansion_fraction=expansion_fraction,
         check_acceptance=check_acceptance,
         rescale_parameters=rescale_parameters,
-        max_radius=max_radius,
+        max_radius=1.0,
         constant_volume_mode=False,
     )
 
@@ -56,19 +69,23 @@ def test_flowproposal_populate(
      'uniform']
 )
 @pytest.mark.integration_test
-def test_flowproposal_populate_edge_cases(tmp_path, model, latent_prior):
+@pytest.mark.timeout(30)
+def test_flowproposal_populate_edge_cases(
+    tmp_path, model, flow_config, latent_prior
+):
     """Tests some less common settings for flowproposal"""
     output = tmp_path / 'flowproposal'
     output.mkdir()
-    n_draw = 10
+    n_draw = 2
     fp = FlowProposal(
         model,
         output=output,
+        flow_config=flow_config,
         plot=False,
         poolsize=10,
         latent_prior=latent_prior,
-        expansion_fraction=1.0,
-        rescale_parameters=True,
+        expansion_fraction=None,
+        rescale_parameters=False,
         max_radius=0.1,
         constant_volume_mode=False,
     )
@@ -105,8 +122,9 @@ def test_training(tmpdir, model, plot):
 @pytest.mark.parametrize('check_acceptance', [False, True])
 @pytest.mark.parametrize('rescale_parameters', [False, True])
 @pytest.mark.integration_test
+@pytest.mark.timeout(30)
 def test_constant_volume_mode(
-    tmpdir, model, check_acceptance, rescale_parameters
+    tmpdir, model, flow_config, check_acceptance, rescale_parameters
 ):
     """Integration test for constant volume mode.
 
@@ -117,6 +135,7 @@ def test_constant_volume_mode(
     fp = FlowProposal(
         model,
         output=output,
+        flow_config=flow_config,
         plot=False,
         poolsize=10,
         constant_volume_mode=True,
