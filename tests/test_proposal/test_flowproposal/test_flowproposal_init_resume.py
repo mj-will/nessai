@@ -211,35 +211,47 @@ def test_reset(proposal):
 @pytest.mark.integration_test
 def test_reset_integration(tmpdir, model):
     """Test reset method iteration with other methods"""
-    proposal = FlowProposal(model, poolsize=10)
+    config = dict(
+        model_config=dict(
+            n_neurons=1,
+            n_blocks=1,
+            n_layers=1,
+            kwargs=dict(
+                batch_norm_between_layers=False,
+                linear_transform=None,
+            )
+        )
+    )
     output = str(tmpdir.mkdir('reset_integration'))
     poolsize = 2
     drawsize = 100
     proposal = FlowProposal(
         model,
         output=output,
+        flow_config=config,
         plot=False,
         poolsize=poolsize,
         drawsize=drawsize,
         expansion_fraction=None,
         latent_prior='truncated_gaussian',
-        constant_volume_mode=False
+        constant_volume_mode=True,
     )
 
     modified_proposal = FlowProposal(
         model,
         output=output,
+        flow_config=config,
         plot=False,
         poolsize=poolsize,
         drawsize=drawsize,
         expansion_fraction=None,
         latent_prior='truncated_gaussian',
-        constant_volume_mode=False
+        constant_volume_mode=True
     )
     proposal.initialise()
     modified_proposal.initialise()
 
-    modified_proposal.populate(model.new_point(), r=0.1)
+    modified_proposal.populate(model.new_point())
     modified_proposal.reset()
 
     d1 = proposal.__getstate__()
