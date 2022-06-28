@@ -38,6 +38,9 @@ jobs:
       run: |
         echo "MPLBACKEND=agg" >> $env:GITHUB_ENV
         echo "Set MPL backend to $MPLBACKEND"
+    - name: Print environment variables
+      run: |
+        env
     - name: Test with pytest
       run: |
         python -m pytest --cov-report=xml --without-integration --without-slow-integration

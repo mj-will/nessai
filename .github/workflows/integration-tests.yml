@@ -33,6 +33,9 @@ jobs:
         pip install -r requirements.txt
         pip install -r dev_requirements.txt
         pip install -e .
+    - name: Print environment variables
+      run: |
+        env
     - name: Run (quick) integration tests
       run: |
         python -m pytest -v -m "integration_test"
