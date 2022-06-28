@@ -207,18 +207,21 @@ def test_reset(proposal):
     assert proposal._edges['x'] is None
 
 
-@pytest.mark.timeout(10)
-@pytest.mark.flaky(run=3)
+@pytest.mark.timeout(60)
 @pytest.mark.integration_test
 def test_reset_integration(tmpdir, model):
     """Test reset method iteration with other methods"""
     proposal = FlowProposal(model, poolsize=10)
     output = str(tmpdir.mkdir('reset_integration'))
+    poolsize = 2
+    drawsize = 100
     proposal = FlowProposal(
         model,
         output=output,
         plot=False,
-        poolsize=10,
+        poolsize=poolsize,
+        drawsize=drawsize,
+        expansion_fraction=None,
         latent_prior='truncated_gaussian',
         constant_volume_mode=False
     )
@@ -227,14 +230,16 @@ def test_reset_integration(tmpdir, model):
         model,
         output=output,
         plot=False,
-        poolsize=10,
+        poolsize=poolsize,
+        drawsize=drawsize,
+        expansion_fraction=None,
         latent_prior='truncated_gaussian',
         constant_volume_mode=False
     )
     proposal.initialise()
     modified_proposal.initialise()
 
-    modified_proposal.populate(model.new_point(), r=1.0)
+    modified_proposal.populate(model.new_point(), r=0.1)
     modified_proposal.reset()
 
     d1 = proposal.__getstate__()
