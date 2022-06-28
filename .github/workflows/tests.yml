@@ -37,7 +37,7 @@ jobs:
       if: runner.os == 'Windows'
       run: |
         echo "MPLBACKEND=agg" >> $env:GITHUB_ENV
-        echo "Set MPL backend to $MPLBACKEND"
+        echo "Set MPL backend to ${env:MPLBACKEND}""
     - name: Print environment variables
       run: |
         env
