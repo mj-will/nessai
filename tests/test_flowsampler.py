@@ -395,7 +395,8 @@ def test_safe_exit(flow_sampler):
 )
 @pytest.mark.integration_test
 @pytest.mark.timeout(30)
-def test_signal_handling(tmp_path, caplog, model, kwargs):
+@pytest.mark.skip_on_windows
+def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
     """Test the signal handling in nessai.
 
     Test is based on a similar test in bilby which is in turn based on: \
@@ -404,15 +405,16 @@ def test_signal_handling(tmp_path, caplog, model, kwargs):
     output = tmp_path / "output"
     output.mkdir()
 
-    fs = FlowSampler(
-        model,
-        output=output,
-        nlive=500,
-        poolsize=1000,
-        exit_code=5,
-        signal_handling=True,
-        **kwargs
-    )
+    with patch("multiprocessing.Pool", mp_context.Pool):
+        fs = FlowSampler(
+            model,
+            output=output,
+            nlive=500,
+            poolsize=1000,
+            exit_code=5,
+            signal_handling=True,
+            **kwargs
+        )
 
     pid = os.getpid()
 
@@ -438,6 +440,7 @@ def test_signal_handling(tmp_path, caplog, model, kwargs):
 
 @pytest.mark.integration_test
 @pytest.mark.timeout(30)
+@pytest.mark.skip_on_windows
 def test_signal_handling_disabled(tmp_path, caplog, model):
     """Assert signal handling is correctly disabled.
 

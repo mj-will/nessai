@@ -1,3 +1,4 @@
+import sys
 
 from numpy.random import seed
 import numpy as np
@@ -5,6 +6,7 @@ import pytest
 from scipy.stats import norm
 import time
 import torch
+import multiprocessing
 
 from nessai.model import Model
 
@@ -60,6 +62,19 @@ def wait():
     return func
 
 
+@pytest.fixture(params=["fork", "spawn"])
+def mp_context(request):
+    """Multiprocessing context to test"""
+    if request.param == "spawn":
+        pytest.skip(
+            "nessai does not currently support multiprocessing with the "
+            "'spawn' method."
+        )
+    if sys.platform == "win32":
+        pytest.skip("Windows does not support 'fork' method")
+    return multiprocessing.get_context(request.param)
+
+
 def pytest_configure(config):
     # register an additional marker
     config.addinivalue_line(
@@ -69,6 +84,11 @@ def pytest_configure(config):
         "markers",
         "requires(package): mark test to only run if the package can be "
         "imported"
+    )
+    config.addinivalue_line(
+        "markers",
+        "skip_on_windows: mark test to indicated it should be skipped on "
+        "Windows"
     )
 
 
@@ -92,3 +112,6 @@ def pytest_runtest_setup(item):
         reason = 'Missing dependency: {}'.format(name)
         if skip_it:
             pytest.skip(reason)
+    for mark in item.iter_markers(name='skip_on_windows'):
+        if sys.platform == "win32":
+            pytest.skip("Test does not run on Windows")
