@@ -5,7 +5,7 @@ Installation
 The preferred installation method is via ``pip`` in the virtual environment of your choice.
 
 .. note::
-    ``nessai`` requires Python 3.6 or greater.
+    ``nessai`` requires Python 3.7 or greater.
 
 
 Installing nessai

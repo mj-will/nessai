@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed a bug in `FlowProposal.populate` which occurred when the pool of samples was not empty (closes [#176](https://github.com/mj-will/nessai/issues/176))
 
+### Removed
+
+- Drop support for Python 3.6
+
+
 ## [0.5.1] - 2022-06-20
 
 ### Fixed
