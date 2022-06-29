@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import logsumexp
 from scipy import optimize
-from tqdm import tqdm
 
 from . import config
 from .evidence import _INSIntegralState
@@ -1437,12 +1436,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     f'the maximum number of samples ({max_samples}). Final '
                     'ESS will most likely be less than the specified value.'
                 )
-            desc = 'ESS'
-            total = int(n_post)
         else:
-            desc = 'Drawing samples'
             logger.info(f'Drawing at least {n_draw} final samples')
-            total = n_draw
 
         batch_size = int(1.05 * n_draw)
         while batch_size > max_batch_size:
@@ -1492,62 +1487,50 @@ class ImportanceNestedSampler(BaseNestedSampler):
         it = 0
         ess = 0
 
-        with tqdm(
-            total=total,
-            desc=desc,
-            unit='samples',
-            bar_format=("{desc}: {percentage:.1f}%|{bar}| {n:.1f}/{total_fmt}")
-        ) as pbar:
-            while True:
-                if n_post and (ess > n_post):
-                    break
-                if it >= max_its:
-                    logger.warning('Reached maximum number of iterations.')
-                    logger.warning('Stopping drawing final samples.')
-                    break
-                if n_post is None and (samples.size > n_draw):
-                    break
-                if max_samples_ratio and (len(samples) > max_samples):
-                    logger.warning(
-                        f'Reached maximum number of samples: {max_samples}'
-                    )
-                    logger.warning('Stopping')
-                    break
+        logger.info("Drawing final samples")
+        while True:
+            if n_post and (ess > n_post):
+                break
+            if it >= max_its:
+                logger.warning('Reached maximum number of iterations.')
+                logger.warning('Stopping drawing final samples.')
+                break
+            if n_post is None and (samples.size > n_draw):
+                break
+            if max_samples_ratio and (len(samples) > max_samples):
+                logger.warning(
+                    f'Reached maximum number of samples: {max_samples}'
+                )
+                logger.warning('Stopping')
+                break
 
-                it_samples = np.empty([0], dtype=self.proposal.dtype)
-                # Target counts will be None if use_counts is False
-                it_samples, new_log_q, new_counts = \
-                    self.proposal.draw_from_flows(
-                        batch_size, counts=target_counts, weights=weights,
-                    )
-                log_q = np.concatenate([log_q, new_log_q], axis=0)
-                counts += new_counts
+            it_samples = np.empty([0], dtype=self.proposal.dtype)
+            # Target counts will be None if use_counts is False
+            it_samples, new_log_q, new_counts = \
+                self.proposal.draw_from_flows(
+                    batch_size, counts=target_counts, weights=weights,
+                )
+            log_q = np.concatenate([log_q, new_log_q], axis=0)
+            counts += new_counts
 
-                it_samples['logL'] = \
-                    self.model.batch_evaluate_log_likelihood(it_samples)
-                samples = np.concatenate([samples, it_samples])
+            it_samples['logL'] = \
+                self.model.batch_evaluate_log_likelihood(it_samples)
+            samples = np.concatenate([samples, it_samples])
 
-                log_Q = logsumexp(log_q, b=weights, axis=1)
+            log_Q = logsumexp(log_q, b=weights, axis=1)
 
-                if np.isposinf(log_Q).any():
-                    logger.warning('Log meta proposal contains +inf')
+            if np.isposinf(log_Q).any():
+                logger.warning('Log meta proposal contains +inf')
 
-                samples['logQ'] = log_Q
-                samples['logW'] = -log_Q
+            samples['logQ'] = log_Q
+            samples['logW'] = -log_Q
 
-                self.final_state.update_evidence(samples)
-                ess = self.final_state.effective_n_posterior_samples
-                if n_post:
-                    pbar.n = ess
-                    pbar.refresh()
-                else:
-                    pbar.update(it_samples.size)
-                logger.debug(f'Sample count: {samples.size}')
-                logger.debug(f'Current ESS: {ess}')
-                it += 1
-
-            if not n_post or (n_post and ess >= n_post):
-                pbar.n = pbar.total
+            self.final_state.update_evidence(samples)
+            ess = self.final_state.effective_n_posterior_samples
+            logger.debug(f'Sample count: {samples.size}')
+            logger.debug(f'Current ESS: {ess}')
+            it += 1
+            logger.info(f"Drawn {samples.size} - ESS: {ess:2f}")
 
         logger.debug(f'Original weights: {self.proposal.unnormalised_weights}')
         logger.debug(f'New weights: {counts}')
