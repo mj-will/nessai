@@ -228,11 +228,11 @@ class ImportanceFlowProposal(Proposal):
         """Convert samples from the unit hypercube to samples in x'-space"""
         x = np.atleast_2d(x)
         if self.reparam == 'logit':
-            x_prime, log_j = logit(x.copy(), fuzz=config.eps)
+            x_prime, log_j = logit(x, fuzz=config.eps)
             log_j = log_j.sum(axis=1)
         elif self.reparam == 'gaussian_cdf':
             logger.debug('Rescaling with inverse Gaussian CDF')
-            x_prime, log_j = inv_gaussian_cdf_with_log_j(x.copy())
+            x_prime, log_j = inv_gaussian_cdf_with_log_j(x)
             log_j = log_j.sum(axis=1)
         elif self.reparam is None:
             x_prime = x.copy()
@@ -245,11 +245,11 @@ class ImportanceFlowProposal(Proposal):
         """Convert samples the x'-space to samples in the unit hypercube."""
         x_prime = np.atleast_2d(x_prime)
         if self.reparam == 'logit':
-            x, log_j = sigmoid(x_prime.copy(), fuzz=config.eps)
+            x, log_j = sigmoid(x_prime, fuzz=config.eps)
             log_j = log_j.sum(axis=1)
         elif self.reparam == 'gaussian_cdf':
             logger.debug('Rescaling with Gaussian CDF')
-            x, log_j = gaussian_cdf_with_log_j(x_prime.copy())
+            x, log_j = gaussian_cdf_with_log_j(x_prime)
             log_j = log_j.sum(axis=1)
         elif self.reparam is None:
             x = x_prime.copy()
@@ -628,7 +628,7 @@ class ImportanceFlowProposal(Proposal):
                 'Must draw samples from the new level before updating any '
                 'existing samples!'
             )
-        x, log_j = self.rescale(samples.copy())
+        x, log_j = self.rescale(samples)
         log_prob_fn = self.get_proposal_log_prob(self.level_count)
         log_q_current = log_prob_fn(x)
 
@@ -651,13 +651,30 @@ class ImportanceFlowProposal(Proposal):
             log_Q = logsumexp(
                 log_q,
                 b=self.poolsize,
-                axis=1
+                axis=1,
             )
 
         samples['logQ'] = log_Q
         samples['logW'] = - samples['logQ']
 
         return log_q
+
+    def _update_log_q(self, samples, log_q):
+        x, log_j = self.rescale(samples)
+        log_prob_fn = self.get_proposal_log_prob(self.level_count)
+        log_q_current = log_prob_fn(x)
+        log_q = np.concatenate([
+            log_q,
+            log_q_current[:, np.newaxis] + log_j[:, np.newaxis]
+        ], axis=1)
+        return log_q
+
+    def _compute_meta_proposal_from_log_q(self, log_q):
+        return logsumexp(
+            log_q,
+            b=self.poolsize,
+            axis=1,
+        )
 
     def compute_meta_proposal_samples(self, samples: np.ndarray) -> np.ndarray:
         """Compute the meta proposal Q for a set of samples.
@@ -678,7 +695,7 @@ class ImportanceFlowProposal(Proposal):
                 'Must draw samples from the new level before updating any '
                 'existing samples!'
             )
-        x, log_j = self.rescale(samples.copy())
+        x, log_j = self.rescale(samples)
         log_Q, log_q = self.compute_log_Q(x, log_j=log_j)
         samples['logQ'] = log_Q
         samples['logW'] = - samples['logQ']

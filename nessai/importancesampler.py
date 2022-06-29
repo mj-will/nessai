@@ -822,8 +822,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """Update the nested samples to reflect the current g."""
         st = timer()
         logger.debug('Updating all nested samples')
+        # This uses less memory
         self._log_q_ns = \
-            self.proposal.update_samples(self.nested_samples, self._log_q_ns)
+            self.proposal._update_log_q(self.nested_samples, self._log_q_ns)
+        self.nested_samples['logQ'] = \
+            self.proposal._compute_meta_proposal_from_log_q(self._log_q_ns)
+        self.nested_samples['logW'] = - self.nested_samples['logQ']
+        # self._log_q_ns = \
+        #     self.proposal.update_samples(self.nested_samples, self._log_q_ns)
         self.update_ns_time += (timer() - st)
 
     def draw_n_samples(self, n: int):
@@ -1454,8 +1460,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             if optimise_kwargs is None:
                 optimise_kwargs = {}
             weights = optimise_meta_proposal_weights(
-                self.nested_samples.copy(),
-                self._log_q_ns.copy(),
+                self.nested_samples,
+                self._log_q_ns,
                 **optimise_kwargs,
             )
             target_counts = None
