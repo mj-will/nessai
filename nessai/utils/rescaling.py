@@ -293,8 +293,7 @@ def logit(x, fuzz=None):
         Log Jacobian determinant.
     """
     if fuzz:
-        x += fuzz
-        x /= (1 + 2 * fuzz)
+        x = (x + fuzz) / (1 + 2 * fuzz)
     log_j = -np.log(x) - np.log1p(-x)
     if fuzz:
         log_j -= np.log(1 + 2 * fuzz)
