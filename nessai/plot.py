@@ -418,8 +418,8 @@ def corner_plot(
     default_kwargs = dict(
         bins=32,
         smooth=0.9,
-        color="teal",
-        truth_color="#ffc900",
+        color="#02979d",
+        truth_color="#f5b754",
         quantiles=[0.16, 0.84],
         levels=(1 - np.exp(-0.5), 1 - np.exp(-2), 1 - np.exp(-9 / 2.)),
         plot_density=True,
