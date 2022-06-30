@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `nessai.config` for storing package wide defaults.
 - Add `nessai.utils.testing` submodule which contains functions to use during testing.
 - Add `nessai.livepoint.unstructured_view` and `nessai.model.Model.unstructured_view` for constructing unstructured views of live points.
+- Add `nessai.plot.corner_plot` as an alternative to `plot_live_points` that uses `corner` instead of `seaborn`
 
 ### Changed
 
