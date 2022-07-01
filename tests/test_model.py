@@ -146,18 +146,36 @@ def test_dims_no_names(model):
     assert Model.dims.__get__(model) is None
 
 
+def test_set_upper_lower(model):
+    """Assert the upper and lower bounds are set correctly."""
+    model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    Model._set_upper_lower(model)
+    np.testing.assert_array_equal(model._lower, np.array([-1, -1]))
+    np.testing.assert_array_equal(model._upper, np.array([1, 1]))
+
+
 def test_lower_bounds(model):
     """Check the lower bounds are correctly set"""
-    model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    def func():
+        model._lower = np.array([-1, -1])
+
+    model._set_upper_lower = MagicMock(side_effect=func)
     model._lower = None
-    assert (Model.lower_bounds.__get__(model) == [-1, -1]).all()
+    bounds = Model.lower_bounds.__get__(model)
+    model._set_upper_lower.assert_called_once()
+    np.testing.assert_array_equal(bounds, np.array([-1, -1]))
 
 
 def test_upper_bounds(model):
     """Check the upper bounds are correctly set"""
-    model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    def func():
+        model._upper = np.array([1.0, 1.0])
+
+    model._set_upper_lower = MagicMock(side_effect=func)
     model._upper = None
-    assert (Model.upper_bounds.__get__(model) == [1, 1]).all()
+    bounds = Model.upper_bounds.__get__(model)
+    model._set_upper_lower.assert_called_once()
+    np.testing.assert_array_equal(bounds, np.array([1, 1]))
 
 
 def test_vectorised_likelihood_true(model):
@@ -350,18 +368,31 @@ def test_new_point_multiple_integration(integration_model):
     assert (log_q == 0).all()
 
 
-def test_likelihood_evaluations(model):
+def test_likelihood_evaluations(model, live_point):
     """
     Test `evaluate_log_likelihood` and ensure the counter increases.
     """
-    x = 1
-    model.likelihood_evaluations = 0
+    model.likelihood_evaluations = 1
     model.log_likelihood = MagicMock(return_value=2)
-    log_l = Model.evaluate_log_likelihood(model, x)
+    log_l = Model.evaluate_log_likelihood(model, live_point)
 
-    model.log_likelihood.assert_called_once_with(x)
+    model.log_likelihood.assert_called_once_with(live_point)
     assert log_l == 2
-    assert model.likelihood_evaluations == 1
+    assert model.likelihood_evaluations == 2
+
+
+def test_likelihood_evaluations_vectorised(model, live_points):
+    """
+    Test `evaluate_log_likelihood` and ensure the counter increases.
+    """
+    out = np.random.randn(live_points.size)
+    model.likelihood_evaluations = 1
+    model.log_likelihood = MagicMock(return_value=out)
+    log_l = Model.evaluate_log_likelihood(model, live_points)
+
+    model.log_likelihood.assert_called_once_with(live_points)
+    assert log_l is out
+    assert model.likelihood_evaluations == (1 + live_points.size)
 
 
 def test_log_prior(model):
@@ -374,6 +405,18 @@ def test_log_likelihood(model):
     """Verify the log likelihood raises a NotImplementedError"""
     with pytest.raises(NotImplementedError):
         Model.log_likelihood(model, 1)
+
+
+def test_to_unit_hypercube(model):
+    """Assert an error is raised by default"""
+    with pytest.raises(NotImplementedError):
+        Model.to_unit_hypercube(model, 1)
+
+
+def test_from_unit_hypercube(model):
+    """Assert an error is raised by default"""
+    with pytest.raises(NotImplementedError):
+        Model.from_unit_hypercube(model, 1)
 
 
 def test_missing_log_prior():
