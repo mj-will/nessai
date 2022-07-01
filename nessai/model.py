@@ -426,7 +426,7 @@ class Model(ABC):
             Log-likelihood value
 
         """
-        self.likelihood_evaluations += 1
+        self.likelihood_evaluations += x.size
         return self.log_likelihood(x)
 
     def batch_evaluate_log_likelihood(self, x):
