@@ -131,22 +131,24 @@ class Model(ABC):
             d = None
         return d
 
+    def _set_upper_lower(self):
+        """Set the upper and lower bounds arrays"""
+        bounds_array = np.array(list(self.bounds.values()))
+        self._lower = bounds_array[:, 0]
+        self._upper = bounds_array[:, 1]
+
     @property
     def lower_bounds(self):
         """Lower bounds on the priors"""
         if self._lower is None:
-            bounds_array = np.array(list(self.bounds.values()))
-            self._lower = bounds_array[:, 0]
-            self._upper = bounds_array[:, 1]
+            self._set_upper_lower()
         return self._lower
 
     @property
     def upper_bounds(self):
         """Upper bounds on the priors"""
         if self._upper is None:
-            bounds_array = np.array(list(self.bounds.values()))
-            self._lower = bounds_array[:, 0]
-            self._upper = bounds_array[:, 1]
+            self._set_upper_lower()
         return self._upper
 
     @property
