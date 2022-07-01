@@ -404,6 +404,20 @@ class Model(ABC):
         """
         return (x >= self.bounds[name][0]) & (x <= self.bounds[name][1])
 
+    def from_unit_hypercube(self, x):
+        """Map from the unit hypercube to the priors.
+
+        Not implemented by default.
+        """
+        raise NotImplementedError
+
+    def to_unit_hypercube(self, x):
+        """Map from the prior space to the unit hypercube.
+
+        Not implemented by default.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def log_prior(self, x):
         """
