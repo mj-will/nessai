@@ -30,17 +30,16 @@ class EggboxModel(Model):
 
     def log_prior(self, x):
         """Log-prior."""
-        log_p = np.log(self.in_bounds(x))
+        log_p = np.log(self.in_bounds(x), dtype='float')
         for bounds in self.bounds.values():
             log_p -= np.log(bounds[1] - bounds[0])
         return log_p
 
     def log_likelihood(self, x):
         """Log-likelihood."""
-        log_l = np.ones(x.size)
-        for n in self.names:
-            log_l *= np.cos(x[n] / 2.)
-        return (log_l + 2.0) ** 5.0
+        return (
+            np.prod(np.cos(self.unstructured_view(x) / 2.0), axis=-1) + 2
+        ) ** 5.0
 
 
 flow_config = dict(
@@ -48,7 +47,7 @@ flow_config = dict(
     model_config=dict(n_blocks=6, n_neurons=8)
 )
 
-# Sampling the Eggbox will inefficient, so we increase the maximum size of
+# Sampling the Eggbox will be inefficient, so we increase the maximum size of
 # the pool of proposal points. We also allow the initial sampling without
 # the flow to run until it becomes inefficient rather than a fixed iteration.
 fs = FlowSampler(

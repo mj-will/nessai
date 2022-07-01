@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Example of using AugmentedFlowProposal for a multimodel model
+# Example of using AugmentedFlowProposal for a multimodal model
 # Note that this feature is experimental and not fully tested.
 
 import numpy as np
@@ -22,7 +22,7 @@ class MultimodalModel(Model):
 
     def log_prior(self, x):
         """Log-prior"""
-        log_p = np.log(self.in_bounds(x))
+        log_p = np.log(self.in_bounds(x), dtype='float')
         for bounds in self.bounds.values():
             log_p -= np.log(bounds[1] - bounds[0])
         return log_p

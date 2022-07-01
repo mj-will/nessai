@@ -46,7 +46,7 @@ class GaussianLikelihood(Model):
 
     def log_prior(self, x):
         """Uniform prior on both parameters."""
-        log_p = np.log(self.in_bounds(x))
+        log_p = np.log(self.in_bounds(x), dtype='float')
         for bounds in self.bounds.values():
             log_p -= np.log(bounds[1] - bounds[0])
         return log_p

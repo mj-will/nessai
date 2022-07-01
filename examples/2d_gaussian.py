@@ -38,8 +38,9 @@ class GaussianModel(Model):
         Returns log of prior given a live point assuming uniform
         priors on each parameter.
         """
-        # Check if values are in bounds
-        log_p = np.log(self.in_bounds(x))
+        # Check if values are in bounds, returns True/False
+        # Then take the log to get 0/-inf and make sure the dtype is float
+        log_p = np.log(self.in_bounds(x), dtype='float')
         # Iterate through each parameter (x and y)
         # since the live points are a structured array we can
         # get each value using just the name
