@@ -24,7 +24,7 @@ from ..reparameterisations import (
     CombinedReparameterisation,
     get_reparameterisation
     )
-from ..plot import plot_live_points, plot_1d_comparison
+from ..plot import plot_live_points, plot_1d_comparison, nessai_style
 from .rejection import RejectionProposal
 from ..utils import (
     compute_radius,
@@ -976,6 +976,7 @@ class FlowProposal(RejectionProposal):
                 self._min = {n: np.min(x[n]) for n in self.model.names}
                 self._max = {n: np.max(x[n]) for n in self.model.names}
 
+    @nessai_style()
     def _plot_training_data(self, output):
         """Plot the training data and compare to the results"""
         z_training_data, _ = self.forward_pass(self.training_data,
@@ -1554,6 +1555,7 @@ class FlowProposal(RejectionProposal):
         # make live point and return
         return new_sample
 
+    @nessai_style()
     def plot_pool(self, z, x):
         """
         Plot the pool of points.

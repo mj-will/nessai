@@ -2,28 +2,64 @@
 """
 Plotting utilities.
 """
+import functools
 import logging
+
+from cycler import cycler
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 import numpy as np
 import seaborn as sns
 import pandas as pd
 
-from nessai.livepoint import live_points_to_array
-
+from . import config
+from .livepoint import live_points_to_array
 from .utils import auto_bins
-
-sns.set()
-sns.set_style('ticks')
 
 logger = logging.getLogger(__name__)
 
-pairplot_kwargs = dict(corner=True, kind='scatter',
-                       diag_kws=dict(histtype='step', bins='auto', lw=1.5,
-                                     density=True, color='teal'),
-                       plot_kws=dict(s=1.0, edgecolor=None, palette='viridis',
-                                     color='teal'))
+_rcparams = sns.plotting_context("notebook")
+_rcparams.update({
+    'legend.frameon': False,
+})
 
 
+def nessai_style(line_styles=True):
+    """Decorator for plotting function that sets the style.
+
+    Functions as both standard decorator :code:`@nessai_style` or as a callable
+    decorator :code:`@nessai_style()`.
+
+    Style can be disabled by setting :py:data:`nessai.config.DISABLE_STYLE` to
+    :code:`True`.
+
+    Parameters
+    ----------
+    line_styles : boolean
+        Use custom line styles.
+    """
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if config.DISABLE_STYLE:
+                return func(*args, **kwargs)
+            c = cycler(color=config.LINE_COLOURS)
+            if line_styles:
+                c += cycler(linestyle=config.LINE_STYLES)
+            d = {
+                'axes.prop_cycle': c,
+            }
+            with sns.axes_style(config.SNS_STYLE), \
+                 mpl.rc_context({**_rcparams, **d}):
+                return func(*args, **kwargs)
+        return wrapper
+    if callable(line_styles):
+        return decorator(line_styles)
+    else:
+        return decorator
+
+
+@nessai_style()
 def plot_live_points(live_points, filename=None, bounds=None, c=None,
                      **kwargs):
     """
@@ -46,6 +82,22 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
         Keyword arguments used to update the pairplot kwargs. Diagonal and off-
         diagonal plots can be configured with ``diag_kws`` and ``plot_kws``.
     """
+    pairplot_kwargs = dict(
+        corner=True, kind='scatter',
+        diag_kws=dict(
+            histtype='step',
+            bins='auto',
+            lw=1.5,
+            density=True,
+            color=config.BASE_COLOUR,
+        ),
+        plot_kws=dict(
+            s=1.0,
+            edgecolor=None,
+            palette='viridis',
+            color=config.BASE_COLOUR,
+        )
+    )
     pairplot_kwargs.update(kwargs)
 
     df = pd.DataFrame(live_points)
@@ -75,8 +127,12 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
 
     if bounds is not None:
         for i, v in enumerate(bounds.values()):
-            fig.axes[i, i].axvline(v[0], ls=':', alpha=0.5, color='k')
-            fig.axes[i, i].axvline(v[1], ls=':', alpha=0.5, color='k')
+            fig.axes[i, i].axvline(
+                v[0], ls=':', alpha=0.5, color=config.HIGHLIGHT_COLOUR,
+            )
+            fig.axes[i, i].axvline(
+                v[1], ls=':', alpha=0.5, color=config.HIGHLIGHT_COLOUR,
+            )
 
     if filename is not None:
         fig.savefig(filename)
@@ -85,6 +141,7 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
         return fig
 
 
+@nessai_style()
 def plot_1d_comparison(*live_points, parameters=None, labels=None,
                        colours=None, bounds=None, hist_kwargs={},
                        filename=None, convert_to_live_points=False):
@@ -205,6 +262,7 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         return fig
 
 
+@nessai_style(line_styles=False)
 def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
     """
     Histogram indices for index insertion tests, also includes the CDF.
@@ -266,6 +324,7 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
         return fig
 
 
+@nessai_style()
 def plot_loss(epoch, history, filename=None):
     """
     Plot the loss function per epoch.
@@ -300,6 +359,7 @@ def plot_loss(epoch, history, filename=None):
         return fig
 
 
+@nessai_style()
 def plot_trace(log_x, nested_samples, labels=None, filename=None):
     """Produce trace plot for all of the parameters.
 
@@ -352,6 +412,7 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
         return fig
 
 
+@nessai_style()
 def plot_histogram(samples, label=None, filename=None, **kwargs):
     """Plot a histogram of samples.
 
@@ -382,6 +443,7 @@ def plot_histogram(samples, label=None, filename=None, **kwargs):
         return fig
 
 
+@nessai_style()
 def corner_plot(
     array,
     include=None,
@@ -418,8 +480,8 @@ def corner_plot(
     default_kwargs = dict(
         bins=32,
         smooth=0.9,
-        color="#02979d",
-        truth_color="#f5b754",
+        color=config.BASE_COLOUR,
+        truth_color=config.HIGHLIGHT_COLOUR,
         quantiles=[0.16, 0.84],
         levels=(1 - np.exp(-0.5), 1 - np.exp(-2), 1 - np.exp(-9 / 2.)),
         plot_density=True,

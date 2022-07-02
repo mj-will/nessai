@@ -12,12 +12,12 @@ import pickle
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import numpy as np
-import seaborn as sns
 import torch
 from tqdm import tqdm
 
+from . import config
 from .livepoint import empty_structured_array
-from .plot import plot_indices, plot_trace
+from .plot import plot_indices, plot_trace, nessai_style
 from .evidence import _NSIntegralState
 from .proposal import FlowProposal
 from .utils import (
@@ -25,9 +25,6 @@ from .utils import (
     compute_indices_ks_test,
     rolling_mean,
 )
-
-sns.set()
-sns.set_style('ticks')
 
 logger = logging.getLogger(__name__)
 
@@ -878,6 +875,7 @@ class NestedSampler:
         if train or force:
             self.train_proposal(force=force)
 
+    @nessai_style()
     def plot_state(self, filename=None):
         """
         Produce plots with the current state of the nested sampling run.
@@ -895,10 +893,6 @@ class NestedSampler:
         it = (np.arange(len(self.min_likelihood))) * (self.nlive // 10)
         it[-1] = self.iteration
 
-        colours = ['#4575b4', '#d73027', '#fad117']
-
-        ls = ['-', '--', ':']
-
         for t in self.training_iterations:
             for a in ax:
                 a.axvline(t, ls='-', color='lightgrey')
@@ -915,18 +909,13 @@ class NestedSampler:
         for a in ax:
             a.axvline(self.iteration, c='#ff9900', ls='-.')
 
-        ax[0].plot(it, self.min_likelihood, label='Min logL',
-                   c=colours[0], ls=ls[0])
-        ax[0].plot(it, self.max_likelihood, label='Max logL',
-                   c=colours[1], ls=ls[1])
+        ax[0].plot(it, self.min_likelihood, label='Min logL')
+        ax[0].plot(it, self.max_likelihood, label='Max logL')
         ax[0].set_ylabel('logL')
         ax[0].legend(frameon=False)
 
         logX_its = np.arange(len(self.state.log_vols))
-        ax[1].plot(
-            logX_its, self.state.log_vols, ls=ls[0], c=colours[0],
-            label='log X'
-        )
+        ax[1].plot(logX_its, self.state.log_vols, label='log X')
         ax[1].set_ylabel('Log X')
         ax[1].legend(frameon=False)
 
@@ -936,8 +925,8 @@ class NestedSampler:
             ax_logX_grad.plot(
                 logX_its,
                 rolling_mean(np.abs(self.state.gradients), self.nlive // 10),
-                c=colours[1],
-                ls=ls[2],
+                c='C1',
+                ls=config.LINE_STYLES[1],
                 label='Gradient'
             )
             ax_logX_grad.set_ylabel(r'$|d\log L/d \log X|$')
@@ -948,39 +937,41 @@ class NestedSampler:
                 handles + handles_tw, labels + labels_tw, frameon=False
             )
 
-        ax[2].plot(it, self.likelihood_evaluations, c=colours[0], ls=ls[0],
-                   label='Evaluations')
+        ax[2].plot(it, self.likelihood_evaluations, label='Evaluations')
         ax[2].set_ylabel('logL evaluations')
 
-        ax[3].plot(it, self.logZ_history, label='logZ', c=colours[0], ls=ls[0])
+        ax[3].plot(it, self.logZ_history, label='logZ')
         ax[3].set_ylabel('logZ')
         ax[3].legend(frameon=False)
 
         ax_dz = plt.twinx(ax[3])
-        ax_dz.plot(it, self.dZ_history, label='dZ', c=colours[1], ls=ls[1])
+        ax_dz.plot(
+            it, self.dZ_history, label='dZ', c='C1',
+            ls=config.LINE_STYLES[1],
+        )
         ax_dz.set_ylabel('dZ')
         handles, labels = ax[3].get_legend_handles_labels()
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
         ax[3].legend(handles + handles_dz, labels + labels_dz, frameon=False)
 
-        ax[4].plot(it, self.mean_acceptance_history, c=colours[0],
-                   label='Proposal')
+        ax[4].plot(it, self.mean_acceptance_history, label='Proposal')
         ax[4].plot(self.population_iterations, self.population_acceptance,
-                   c=colours[1], ls=ls[1], label='Population')
+                   label='Population')
         ax[4].set_ylabel('Acceptance')
         ax[4].set_ylim((-0.1, 1.1))
         handles, labels = ax[4].get_legend_handles_labels()
 
         ax_r = plt.twinx(ax[4])
         ax_r.plot(self.population_iterations, self.population_radii,
-                  label='Radius', color=colours[2], ls=ls[2])
+                  label='Radius', color='C2',
+                  ls=config.LINE_STYLES[2])
         ax_r.set_ylabel('Population radius')
         handles_r, labels_r = ax_r.get_legend_handles_labels()
         ax[4].legend(handles + handles_r, labels + labels_r, frameon=False)
 
         if len(self.rolling_p):
             it = (np.arange(len(self.rolling_p)) + 1) * self.nlive
-            ax[5].plot(it, self.rolling_p, 'o', c=colours[0], label='p-value')
+            ax[5].plot(it, self.rolling_p, 'o', label='p-value')
         ax[5].set_ylabel('p-value')
         ax[5].set_ylim([-0.1, 1.1])
 
