@@ -101,12 +101,12 @@ def test_draw_gaussian():
         (7.0, 4.0, 2.0)
     ]
 )
-@pytest.mark.flaky(run=5)
+@pytest.mark.flaky(run=10)
 def test_draw_truncated_gaussian_1d(r, var, fuzz):
     """
     Test drawing from a truncated Gaussian in 1d
     """
-    s = draw_truncated_gaussian(1, r, var=var, N=1000, fuzz=fuzz)
+    s = draw_truncated_gaussian(1, r, var=var, N=2000, fuzz=fuzz)
     sigma = np.sqrt(var)
     d = stats.truncnorm(-r * fuzz / sigma, r * fuzz / sigma,
                         loc=0, scale=sigma)
