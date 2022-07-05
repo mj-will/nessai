@@ -7,6 +7,8 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 
+from .plot import nessai_style
+
 logger = logging.getLogger(__name__)
 
 
@@ -123,6 +125,7 @@ class _NSIntegralState:
                                            np.array(self.log_vols))
         return self.logZ
 
+    @nessai_style()
     def plot(self, filename=None):
         """
         Plot the logX vs logL

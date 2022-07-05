@@ -3,6 +3,7 @@
 Testing the plotting functions.
 """
 import os
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -34,6 +35,65 @@ def auto_close_figures():
     """Automatically close all figures after each test"""
     yield
     plt.close('all')
+
+
+@pytest.mark.parametrize("line_styles", [True, False])
+def test_nessai_style_enabled(line_styles):
+    """Assert the style is applied with config.DISABLE_STYLE=False
+
+    Tests with `line_styles` True and False
+    """
+
+    def func(a, b):
+        return a + b
+
+    with patch("nessai.plot.config.DISABLE_STYLE", False), \
+         patch("seaborn.axes_style") as mock_style, \
+         patch("matplotlib.rc_context") as mock_rc:
+        out = plot.nessai_style(line_styles=line_styles)(func)(1, 2)
+    assert out == 3
+    mock_style.assert_called_with("ticks")
+    mock_rc.assert_called_once()
+    d = mock_rc.call_args[0][0]["axes.prop_cycle"].by_key()
+    if line_styles:
+        d['linestyle'] == config.LINE_STYLES
+        d['color'] == config.LINE_COLOURS
+    else:
+        assert 'linestyle' not in d
+
+
+def test_nessai_style_disabled():
+    """Assert the style isn't applied with config.DISABLE_STYLE=True"""
+
+    def func(a, b):
+        return a + b
+
+    with patch("nessai.plot.config.DISABLE_STYLE", True), \
+         patch('seaborn.axes_style') as mock_style:
+        out = plot.nessai_style(func)(1, 2)
+    assert out == 3
+    mock_style.assert_not_called()
+
+
+@pytest.mark.parametrize("line_styles", [True, False])
+@pytest.mark.integration_test
+def test_nessai_style_integration(line_styles):
+    """Assert the line colours and styles are applied correctly"""
+    def func():
+        return (
+            plt.rcParams['axes.prop_cycle'].by_key().get('color'),
+            plt.rcParams['axes.prop_cycle'].by_key().get('linestyle', None),
+        )
+
+    colours, line_styles = plot.nessai_style(line_styles=line_styles)(func)()
+    assert colours == config.LINE_COLOURS
+    if line_styles:
+        assert line_styles == config.LINE_STYLES
+    else:
+        assert line_styles is None
+
+    # Assert rcParams are still set to the defaults
+    assert plt.rcParams == mpl.rcParamsDefault
 
 
 @pytest.mark.parametrize('bounds', [None, True])
