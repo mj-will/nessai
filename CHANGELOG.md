@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Change default values for log-likelihood and log-prior in empty live points to be `np.nan` instead of zero.
 - `nessai.livepoint.get_dtype` now returns an instance of `numpy.dtype`
+- Style for plots is no longer set globally and can be disabled completely.
 
 ### Fixed
 
