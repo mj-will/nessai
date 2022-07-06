@@ -27,26 +27,27 @@ class EmptyModel(Model):
         return None
 
 
+class TestModel(Model):
+
+    def __init__(self):
+        self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
+        self.names = ['x', 'y']
+
+    def log_prior(self, x):
+        log_p = np.log(self.in_bounds(x), dtype='float')
+        for n in self.names:
+            log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
+        return log_p
+
+    def log_likelihood(self, x):
+        log_l = 0
+        for pn in self.names:
+            log_l += norm.logpdf(x[pn])
+        return log_l
+
+
 @pytest.fixture()
 def integration_model():
-    class TestModel(Model):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
-
-        def log_prior(self, x):
-            log_p = np.log(self.in_bounds(x), dtype='float')
-            for n in self.names:
-                log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
-            return log_p
-
-        def log_likelihood(self, x):
-            log_l = 0
-            for pn in self.names:
-                log_l += norm.logpdf(x[pn])
-            return log_l
-
     return TestModel()
 
 
@@ -718,18 +719,9 @@ def test_verify_no_float16(caplog):
     Test `Model.verify_model` and ensure that a critical warning is not raised
     if array return by log_prior is not dtype float16.
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
-
-        def log_prior(self, x):
-            return np.array(1.0)
-
-        def log_likelihood(self, x):
-            return 0.0
-
+    model = TestModel()
+    out = model.verify_model()
+    assert out is True
     assert 'float16 precision' not in caplog.text
 
 
@@ -778,6 +770,24 @@ def test_unbounded_priors_w_new_point():
 
     model = TestModel()
     model.verify_model()
+
+
+def test_verify_model_likelihood_repeated_calls():
+    """Assert that an error is raised if repeated calls with the likelihood
+    return different values.
+    """
+    class BrokenModel(TestModel):
+        count = 0
+
+        def log_likelihood(self, x):
+            self.count += 1
+            return self.count
+
+    model = BrokenModel()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        model.verify_model()
+    assert "Repeated calls" in str(excinfo.value)
 
 
 def test_configure_pool_with_pool(model):
