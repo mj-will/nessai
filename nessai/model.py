@@ -516,6 +516,11 @@ class Model(ABC):
         """
         Verify that the model is correctly setup. This includes checking
         the names, bounds and log-likelihood.
+
+        Returns
+        -------
+        bool
+            True if the model was verified as valid.
         """
         if not isinstance(self.names, list):
             raise TypeError('`names` must be a list')
@@ -578,12 +583,20 @@ class Model(ABC):
             raise RuntimeError('Log-likelihood function did not return '
                                'a likelihood value')
 
+        logl = np.array([self.log_likelihood(x) for _ in range(16)])
+        if not all(logl == logl[0]):
+            raise RuntimeError(
+                'Repeated calls to the log-likelihood with the same parameters'
+                ' return different values.'
+            )
+
         if self.log_prior(x).dtype == np.dtype("float16"):
             logger.critical(
                 "log_prior returned an array with float16 precision. "
                 "This not recommended and can lead to numerical errors."
                 " Consider casting to a higher precision."
             )
+        return True
 
     def __getstate__(self):
         state = self.__dict__.copy()
