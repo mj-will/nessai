@@ -782,8 +782,14 @@ class FlowProposal(RejectionProposal):
             else:
                 # ratio = x_out.size // x.size
                 for f in x.dtype.names:
-                    if not all([np.any(np.isclose(x[f], xo))
-                                for xo in x_out[f]]):
+                    if np.isnan(x[f]).all():
+                        if not np.isnan(x_out[f]).all():
+                            raise RuntimeError(
+                                f'Rescaling is not invertible for {f} (NaNs)'
+                            )
+                    elif not all([
+                        np.any(np.isclose(x[f], xo)) for xo in x_out[f]
+                    ]):
                         raise RuntimeError(
                             'Duplicate samples must map to same input values. '
                             'Check the rescaling and inverse rescaling '
