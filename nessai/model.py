@@ -131,22 +131,24 @@ class Model(ABC):
             d = None
         return d
 
+    def _set_upper_lower(self):
+        """Set the upper and lower bounds arrays"""
+        bounds_array = np.array(list(self.bounds.values()))
+        self._lower = bounds_array[:, 0]
+        self._upper = bounds_array[:, 1]
+
     @property
     def lower_bounds(self):
         """Lower bounds on the priors"""
         if self._lower is None:
-            bounds_array = np.array(list(self.bounds.values()))
-            self._lower = bounds_array[:, 0]
-            self._upper = bounds_array[:, 1]
+            self._set_upper_lower()
         return self._lower
 
     @property
     def upper_bounds(self):
         """Upper bounds on the priors"""
         if self._upper is None:
-            bounds_array = np.array(list(self.bounds.values()))
-            self._lower = bounds_array[:, 0]
-            self._upper = bounds_array[:, 1]
+            self._set_upper_lower()
         return self._upper
 
     @property
@@ -402,6 +404,20 @@ class Model(ABC):
         """
         return (x >= self.bounds[name][0]) & (x <= self.bounds[name][1])
 
+    def from_unit_hypercube(self, x):
+        """Map from the unit hypercube to the priors.
+
+        Not implemented by default.
+        """
+        raise NotImplementedError
+
+    def to_unit_hypercube(self, x):
+        """Map from the prior space to the unit hypercube.
+
+        Not implemented by default.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def log_prior(self, x):
         """
@@ -426,7 +442,7 @@ class Model(ABC):
             Log-likelihood value
 
         """
-        self.likelihood_evaluations += 1
+        self.likelihood_evaluations += x.size
         return self.log_likelihood(x)
 
     def batch_evaluate_log_likelihood(self, x):
@@ -500,6 +516,11 @@ class Model(ABC):
         """
         Verify that the model is correctly setup. This includes checking
         the names, bounds and log-likelihood.
+
+        Returns
+        -------
+        bool
+            True if the model was verified as valid.
         """
         if not isinstance(self.names, list):
             raise TypeError('`names` must be a list')
@@ -562,12 +583,20 @@ class Model(ABC):
             raise RuntimeError('Log-likelihood function did not return '
                                'a likelihood value')
 
+        logl = np.array([self.log_likelihood(x) for _ in range(16)])
+        if not all(logl == logl[0]):
+            raise RuntimeError(
+                'Repeated calls to the log-likelihood with the same parameters'
+                ' return different values.'
+            )
+
         if self.log_prior(x).dtype == np.dtype("float16"):
             logger.critical(
                 "log_prior returned an array with float16 precision. "
                 "This not recommended and can lead to numerical errors."
                 " Consider casting to a higher precision."
             )
+        return True
 
     def __getstate__(self):
         state = self.__dict__.copy()

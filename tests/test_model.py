@@ -27,9 +27,28 @@ class EmptyModel(Model):
         return None
 
 
+class TestModel(Model):
+
+    def __init__(self):
+        self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
+        self.names = ['x', 'y']
+
+    def log_prior(self, x):
+        log_p = np.log(self.in_bounds(x), dtype='float')
+        for n in self.names:
+            log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
+        return log_p
+
+    def log_likelihood(self, x):
+        log_l = np.ones(x.size)
+        for pn in self.names:
+            log_l += norm.logpdf(x[pn])
+        return log_l
+
+
 @pytest.fixture()
 def integration_model():
-    class TestModel(Model):
+    class IntegrationModel(Model):
 
         def __init__(self):
             self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
@@ -42,12 +61,11 @@ def integration_model():
             return log_p
 
         def log_likelihood(self, x):
-            log_l = 0
+            log_l = np.ones(x.size)
             for pn in self.names:
                 log_l += norm.logpdf(x[pn])
             return log_l
-
-    return TestModel()
+    return IntegrationModel()
 
 
 @pytest.fixture
@@ -146,18 +164,36 @@ def test_dims_no_names(model):
     assert Model.dims.__get__(model) is None
 
 
+def test_set_upper_lower(model):
+    """Assert the upper and lower bounds are set correctly."""
+    model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    Model._set_upper_lower(model)
+    np.testing.assert_array_equal(model._lower, np.array([-1, -1]))
+    np.testing.assert_array_equal(model._upper, np.array([1, 1]))
+
+
 def test_lower_bounds(model):
     """Check the lower bounds are correctly set"""
-    model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    def func():
+        model._lower = np.array([-1, -1])
+
+    model._set_upper_lower = MagicMock(side_effect=func)
     model._lower = None
-    assert (Model.lower_bounds.__get__(model) == [-1, -1]).all()
+    bounds = Model.lower_bounds.__get__(model)
+    model._set_upper_lower.assert_called_once()
+    np.testing.assert_array_equal(bounds, np.array([-1, -1]))
 
 
 def test_upper_bounds(model):
     """Check the upper bounds are correctly set"""
-    model.bounds = {'x': [-1, 1], 'y': [-1, 1]}
+    def func():
+        model._upper = np.array([1.0, 1.0])
+
+    model._set_upper_lower = MagicMock(side_effect=func)
     model._upper = None
-    assert (Model.upper_bounds.__get__(model) == [1, 1]).all()
+    bounds = Model.upper_bounds.__get__(model)
+    model._set_upper_lower.assert_called_once()
+    np.testing.assert_array_equal(bounds, np.array([1, 1]))
 
 
 def test_vectorised_likelihood_true(model):
@@ -350,18 +386,31 @@ def test_new_point_multiple_integration(integration_model):
     assert (log_q == 0).all()
 
 
-def test_likelihood_evaluations(model):
+def test_likelihood_evaluations(model, live_point):
     """
     Test `evaluate_log_likelihood` and ensure the counter increases.
     """
-    x = 1
-    model.likelihood_evaluations = 0
+    model.likelihood_evaluations = 1
     model.log_likelihood = MagicMock(return_value=2)
-    log_l = Model.evaluate_log_likelihood(model, x)
+    log_l = Model.evaluate_log_likelihood(model, live_point)
 
-    model.log_likelihood.assert_called_once_with(x)
+    model.log_likelihood.assert_called_once_with(live_point)
     assert log_l == 2
-    assert model.likelihood_evaluations == 1
+    assert model.likelihood_evaluations == 2
+
+
+def test_likelihood_evaluations_vectorised(model, live_points):
+    """
+    Test `evaluate_log_likelihood` and ensure the counter increases.
+    """
+    out = np.random.randn(live_points.size)
+    model.likelihood_evaluations = 1
+    model.log_likelihood = MagicMock(return_value=out)
+    log_l = Model.evaluate_log_likelihood(model, live_points)
+
+    model.log_likelihood.assert_called_once_with(live_points)
+    assert log_l is out
+    assert model.likelihood_evaluations == (1 + live_points.size)
 
 
 def test_log_prior(model):
@@ -374,6 +423,18 @@ def test_log_likelihood(model):
     """Verify the log likelihood raises a NotImplementedError"""
     with pytest.raises(NotImplementedError):
         Model.log_likelihood(model, 1)
+
+
+def test_to_unit_hypercube(model):
+    """Assert an error is raised by default"""
+    with pytest.raises(NotImplementedError):
+        Model.to_unit_hypercube(model, 1)
+
+
+def test_from_unit_hypercube(model):
+    """Assert an error is raised by default"""
+    with pytest.raises(NotImplementedError):
+        Model.from_unit_hypercube(model, 1)
 
 
 def test_missing_log_prior():
@@ -432,16 +493,12 @@ def test_verify_new_point():
     Test `Model.verify_model` and ensure a model with an ill-defined
     prior function raises the correct error
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
+    class BrokenModel(TestModel):
 
         def log_prior(self, x):
             return -np.inf
 
-    model = TestModel()
+    model = BrokenModel()
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
@@ -455,16 +512,12 @@ def test_verify_log_prior_finite(log_p):
     Test `Model.verify_model` and ensure a model with a log-prior that
     only returns inf function raises the correct error
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
+    class BrokenModel(TestModel):
 
         def log_prior(self, x):
             return log_p
 
-    model = TestModel()
+    model = BrokenModel()
 
     with pytest.raises(RuntimeError):
         model.verify_model()
@@ -475,16 +528,12 @@ def test_verify_log_prior_none():
     Test `Model.verify_model` and ensure a model with a log-prior that
     only returns None raises an error.
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
+    class BrokenModel(TestModel):
 
         def log_prior(self, x):
             return None
 
-    model = TestModel()
+    model = BrokenModel()
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
@@ -497,19 +546,12 @@ def test_verify_log_likelihood_none():
     Test `Model.verify_model` and ensure a model with a log-likelihood that
     only returns None raises an error.
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
-
-        def log_prior(self, x):
-            return 0
+    class BrokenModel(TestModel):
 
         def log_likelihood(self, x):
             return None
 
-    model = TestModel()
+    model = BrokenModel()
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
@@ -651,19 +693,12 @@ def test_verify_float16(caplog, value):
     Test `Model.verify_model` and ensure that a critical warning is raised
     if a float16 array is returned by the prior.
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
+    class BrokenModel(TestModel):
 
         def log_prior(self, x):
             return value
 
-        def log_likelihood(self, x):
-            return 0.0
-
-    model = TestModel()
+    model = BrokenModel()
 
     model.verify_model()
 
@@ -675,18 +710,9 @@ def test_verify_no_float16(caplog):
     Test `Model.verify_model` and ensure that a critical warning is not raised
     if array return by log_prior is not dtype float16.
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
-
-        def log_prior(self, x):
-            return np.array(1.0)
-
-        def log_likelihood(self, x):
-            return 0.0
-
+    model = TestModel()
+    out = model.verify_model()
+    assert out is True
     assert 'float16 precision' not in caplog.text
 
 
@@ -735,6 +761,24 @@ def test_unbounded_priors_w_new_point():
 
     model = TestModel()
     model.verify_model()
+
+
+def test_verify_model_likelihood_repeated_calls():
+    """Assert that an error is raised if repeated calls with the likelihood
+    return different values.
+    """
+    class BrokenModel(TestModel):
+        count = 0
+
+        def log_likelihood(self, x):
+            self.count += 1
+            return self.count
+
+    model = BrokenModel()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        model.verify_model()
+    assert "Repeated calls" in str(excinfo.value)
 
 
 def test_configure_pool_with_pool(model):
@@ -1011,7 +1055,10 @@ def test_pool(integration_model, mp_context):
 @pytest.mark.requires('ray')
 @pytest.mark.integration_test
 def test_pool_ray(integration_model):
-    """Integration test for evaluating the likelihood with a pool from ray"""
+    """Integration test for evaluating the likelihood with a pool from ray.
+
+    This will break if the class for integration_model is defined globally.
+    """
     from ray.util.multiprocessing import Pool
     # Cannot pickle lambda functions
     integration_model.fn = lambda x: x
