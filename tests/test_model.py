@@ -40,7 +40,7 @@ class TestModel(Model):
         return log_p
 
     def log_likelihood(self, x):
-        log_l = 0
+        log_l = np.ones(x.size)
         for pn in self.names:
             log_l += norm.logpdf(x[pn])
         return log_l
@@ -48,7 +48,24 @@ class TestModel(Model):
 
 @pytest.fixture()
 def integration_model():
-    return TestModel()
+    class IntegrationModel(Model):
+
+        def __init__(self):
+            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
+            self.names = ['x', 'y']
+
+        def log_prior(self, x):
+            log_p = np.log(self.in_bounds(x), dtype='float')
+            for n in self.names:
+                log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
+            return log_p
+
+        def log_likelihood(self, x):
+            log_l = np.ones(x.size)
+            for pn in self.names:
+                log_l += norm.logpdf(x[pn])
+            return log_l
+    return IntegrationModel()
 
 
 @pytest.fixture
@@ -476,16 +493,12 @@ def test_verify_new_point():
     Test `Model.verify_model` and ensure a model with an ill-defined
     prior function raises the correct error
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
+    class BrokenModel(TestModel):
 
         def log_prior(self, x):
             return -np.inf
 
-    model = TestModel()
+    model = BrokenModel()
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
@@ -499,16 +512,12 @@ def test_verify_log_prior_finite(log_p):
     Test `Model.verify_model` and ensure a model with a log-prior that
     only returns inf function raises the correct error
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
+    class BrokenModel(TestModel):
 
         def log_prior(self, x):
             return log_p
 
-    model = TestModel()
+    model = BrokenModel()
 
     with pytest.raises(RuntimeError):
         model.verify_model()
@@ -519,16 +528,12 @@ def test_verify_log_prior_none():
     Test `Model.verify_model` and ensure a model with a log-prior that
     only returns None raises an error.
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
+    class BrokenModel(TestModel):
 
         def log_prior(self, x):
             return None
 
-    model = TestModel()
+    model = BrokenModel()
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
@@ -541,19 +546,12 @@ def test_verify_log_likelihood_none():
     Test `Model.verify_model` and ensure a model with a log-likelihood that
     only returns None raises an error.
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
-
-        def log_prior(self, x):
-            return 0
+    class BrokenModel(TestModel):
 
         def log_likelihood(self, x):
             return None
 
-    model = TestModel()
+    model = BrokenModel()
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
@@ -695,19 +693,12 @@ def test_verify_float16(caplog, value):
     Test `Model.verify_model` and ensure that a critical warning is raised
     if a float16 array is returned by the prior.
     """
-    class TestModel(EmptyModel):
-
-        def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
+    class BrokenModel(TestModel):
 
         def log_prior(self, x):
             return value
 
-        def log_likelihood(self, x):
-            return 0.0
-
-    model = TestModel()
+    model = BrokenModel()
 
     model.verify_model()
 
@@ -1064,7 +1055,10 @@ def test_pool(integration_model, mp_context):
 @pytest.mark.requires('ray')
 @pytest.mark.integration_test
 def test_pool_ray(integration_model):
-    """Integration test for evaluating the likelihood with a pool from ray"""
+    """Integration test for evaluating the likelihood with a pool from ray.
+
+    This will break if the class for integration_model is defined globally.
+    """
     from ray.util.multiprocessing import Pool
     # Cannot pickle lambda functions
     integration_model.fn = lambda x: x
