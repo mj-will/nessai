@@ -150,3 +150,24 @@ def test_constant_volume_mode(
 
     np.testing.assert_approx_equal(fp.r, expected_radius, 4)
     np.testing.assert_approx_equal(fp.fixed_radius, expected_radius, 4)
+
+
+@pytest.mark.parametrize("boundary_inversion", [True, False])
+@pytest.mark.parametrize("inversion_type", ["split", "duplicate"])
+@pytest.mark.integration_test
+def test_verify_rescaling_integration(
+    tmp_path, model, boundary_inversion, inversion_type
+):
+    """Assert verify rescaling passes."""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    fp = FlowProposal(
+        model,
+        output=output,
+        poolsize=10,
+        boundary_inversion=boundary_inversion,
+        inversion_type=inversion_type,
+    )
+    fp.set_rescaling()
+    fp.verify_rescaling()

@@ -830,6 +830,24 @@ def test_verify_rescaling_duplicate_error(proposal):
     assert 'Duplicate samples must map to same input' in str(excinfo.value)
 
 
+def test_verify_rescaling_duplicate_error_nans(proposal):
+    """Assert an error is raised if the duplication is missing samples"""
+    x = np.array([[np.nan], [np.nan]], dtype=[('x', 'f8')])
+    x_prime = np.array([1.0, 2.0])
+    log_j = np.array([-2, -2, -2, -2])
+    x_out = np.array([[np.nan], [np.nan], [4], [np.nan]], dtype=[('x', 'f8')])
+    log_j_inv = np.array([2, 2, 2, 2])
+
+    proposal.model = MagicMock()
+    proposal.model.new_point = MagicMock(return_value=x)
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+
+    with pytest.raises(RuntimeError) as excinfo:
+        FlowProposal.verify_rescaling(proposal)
+    assert 'Rescaling is not invertible for x (NaNs)' in str(excinfo.value)
+
+
 @pytest.mark.parametrize('has_inversion', [False, True])
 def test_verify_rescaling_jacobian_error(proposal, has_inversion):
     """Assert an error is raised if the Jacobian is not invertible"""
