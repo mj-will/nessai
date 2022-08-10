@@ -341,14 +341,17 @@ class Model(ABC):
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
-        new_points = empty_structured_array(0, names=self.names)
-        while new_points.size < N:
+        new_points = empty_structured_array(N, names=self.names)
+        n = 0
+        while n < N:
             p = numpy_array_to_live_points(
                     np.random.uniform(self.lower_bounds, self.upper_bounds,
                                       [N, self.dims]),
                     self.names)
-            logP = self.log_prior(p)
-            new_points = np.concatenate([new_points, p[np.isfinite(logP)]])
+            flag = np.isfinite(self.log_prior(p))
+            m = np.sum(flag)
+            new_points[n:(n + m)] = p[flag][:min(m, N - n)]
+            n += m
         return new_points
 
     def in_bounds(self, x):
