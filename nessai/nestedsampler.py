@@ -602,7 +602,7 @@ class NestedSampler:
         self.block_iteration += 1
         count = 0
 
-        while(True):
+        while True:
             c, proposed = next(self.yield_sample(worst))
             count += c
 
