@@ -2,4 +2,6 @@
 """
 Functions and classes for using nessai for gravitational-wave inference.
 """
-__all__ = ["proposal", "reparameterisations", "utils"]
+from .proposal import GWFlowProposal
+
+__all__ = ["GWFlowProposal"]
