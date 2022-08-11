@@ -5,7 +5,7 @@ Test the base flow class
 import pytest
 from unittest.mock import create_autospec, patch
 
-from nessai.flows import BaseFlow, NFlow
+from nessai.flows.base import BaseFlow, NFlow
 from nflows.transforms import Transform
 
 
