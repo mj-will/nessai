@@ -101,5 +101,5 @@ def save_live_points(live_points, filename):
         File to save to.
     """
     d = live_points_to_dict(live_points)
-    with open(filename, 'w') as wf:
+    with open(filename, "w") as wf:
         json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)

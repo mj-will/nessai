@@ -8,13 +8,13 @@ from torch.nn import functional as F
 
 from nflows.distributions.normal import StandardNormal
 from nflows.transforms.autoregressive import (
-    MaskedAffineAutoregressiveTransform
+    MaskedAffineAutoregressiveTransform,
 )
 from nflows.transforms.base import CompositeTransform
 from nflows.transforms.normalization import BatchNorm
 from nflows.transforms.permutations import (
     RandomPermutation,
-    ReversePermutation
+    ReversePermutation,
 )
 
 from .base import NFlow
@@ -58,6 +58,7 @@ class MaskedAutoregressiveFlow(NFlow):
     batch_norm_between_layers : bool, optional
        Enable or disable batch norm between coupling transforms
     """
+
     def __init__(
         self,
         features,

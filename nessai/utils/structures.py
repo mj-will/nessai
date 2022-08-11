@@ -23,10 +23,10 @@ def replace_in_list(target_list, targets, replacements):
         replacements = [replacements]
 
     if not len(targets) == len(replacements):
-        raise RuntimeError('Targets and replacements are different lengths!')
+        raise RuntimeError("Targets and replacements are different lengths!")
 
     if not all([t in target_list for t in targets]):
-        raise ValueError(f'Targets {targets} not in list: {target_list}')
+        raise ValueError(f"Targets {targets} not in list: {target_list}")
 
     for t, r in zip(targets, replacements):
         i = target_list.index(t)

@@ -29,8 +29,8 @@ def get_n_pool(pool):
         except AttributeError:
             n_pool = None
             logger.warning(
-                'Could not determine number of processes in pool of type: '
-                f'{type(pool)}.'
+                "Could not determine number of processes in pool of type: "
+                f"{type(pool)}."
             )
     return n_pool
 

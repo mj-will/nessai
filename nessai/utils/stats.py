@@ -25,7 +25,7 @@ def rolling_mean(x, N=10):
     """
     # np.cumsum is faster but doesn't work with infs in the data.
     return np.convolve(
-        np.pad(x, (N // 2, N - 1 - N // 2), mode='edge'),
+        np.pad(x, (N // 2, N - 1 - N // 2), mode="edge"),
         np.ones(N) / N,
-        mode='valid'
+        mode="valid",
     )

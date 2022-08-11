@@ -8,7 +8,7 @@ import torch
 from torch.distributions import MultivariateNormal
 
 
-def get_uniform_distribution(dims, r, device='cpu'):
+def get_uniform_distribution(dims, r, device="cpu"):
     """
     Return a torch distribution that is uniform in the number of dims
     specified.
@@ -32,7 +32,7 @@ def get_uniform_distribution(dims, r, device='cpu'):
     return BoxUniform(low=-r, high=r)
 
 
-def get_multivariate_normal(dims, var=1, device='cpu'):
+def get_multivariate_normal(dims, var=1, device="cpu"):
     """
     Return a Pytorch distribution that is normally distributed in n dims
     with a given variance.

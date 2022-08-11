@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 class OneDimensionalModelError(Exception):
     """Exception raised when the model is one-dimensional"""
+
     pass
 
 
@@ -79,22 +80,22 @@ class Model(ABC):
     def names(self):
         """List of the names of each parameter in the model."""
         if self._names is None:
-            raise RuntimeError('`names` is not set!')
+            raise RuntimeError("`names` is not set!")
         return self._names
 
     @names.setter
     def names(self, names):
         if not isinstance(names, list):
-            raise TypeError('`names` must be a list')
+            raise TypeError("`names` must be a list")
         elif not names:
-            raise ValueError('`names` list is empty!')
+            raise ValueError("`names` list is empty!")
         elif len(names) == 1:
             raise OneDimensionalModelError(
-                'names list has length 1. '
-                'nessai is not designed to handle one-dimensional models due '
-                'to limitations imposed by the normalising flow-based '
-                'proposals it uses. Consider using other methods instead of '
-                'nessai.'
+                "names list has length 1. "
+                "nessai is not designed to handle one-dimensional models due "
+                "to limitations imposed by the normalising flow-based "
+                "proposals it uses. Consider using other methods instead of "
+                "nessai."
             )
         else:
             self._names = names
@@ -103,23 +104,23 @@ class Model(ABC):
     def bounds(self):
         """Dictionary with the lower and upper bounds for each parameter."""
         if self._bounds is None:
-            raise RuntimeError('`bounds` is not set!')
+            raise RuntimeError("`bounds` is not set!")
         return self._bounds
 
     @bounds.setter
     def bounds(self, bounds):
         if not isinstance(bounds, dict):
-            raise TypeError('`bounds` must be a dictionary.')
+            raise TypeError("`bounds` must be a dictionary.")
         elif len(bounds) == 1:
             raise OneDimensionalModelError(
-                'bounds dictionary has length 1. '
-                'nessai is not designed to handle one-dimensional models due '
-                'to limitations imposed by the normalising flow-based '
-                'proposals it uses. Consider using other methods instead of '
-                'nessai.'
+                "bounds dictionary has length 1. "
+                "nessai is not designed to handle one-dimensional models due "
+                "to limitations imposed by the normalising flow-based "
+                "proposals it uses. Consider using other methods instead of "
+                "nessai."
             )
         elif not all([len(b) == 2 for b in bounds.values()]):
-            raise ValueError('Each entry in `bounds` must have length 2.')
+            raise ValueError("Each entry in `bounds` must have length 2.")
         else:
             self._bounds = {p: np.asarray(b) for p, b in bounds.items()}
 
@@ -173,20 +174,20 @@ class Model(ABC):
                     batch = self.log_likelihood(x)
                 except (TypeError, ValueError):
                     logger.debug(
-                        'Evaluating a batch of points returned an error. '
-                        'Assuming the likelihood is not vectorised.'
+                        "Evaluating a batch of points returned an error. "
+                        "Assuming the likelihood is not vectorised."
                     )
                     self._vectorised_likelihood = False
                 else:
                     if np.array_equal(batch, target):
                         logger.debug(
-                            'Individual and batch likelihoods are equal.'
+                            "Individual and batch likelihoods are equal."
                         )
-                        logger.info('Likelihood is vectorised')
+                        logger.info("Likelihood is vectorised")
                         self._vectorised_likelihood = True
                     else:
                         logger.debug(
-                            'Individual and batch likelihoods are not equal.'
+                            "Individual and batch likelihoods are not equal."
                         )
                         logger.debug(target)
                         logger.debug(batch)
@@ -225,31 +226,32 @@ class Model(ABC):
         self.pool = pool
         self.n_pool = n_pool
         if self.pool:
-            logger.info('Using user specified pool')
+            logger.info("Using user specified pool")
             n_pool = get_n_pool(self.pool)
             if n_pool is None and not self.n_pool:
                 logger.warning(
-                    'Could not determine number of processes in pool and '
-                    'user has not specified the number. Likelihood '
-                    'vectorisation will be disabled.'
+                    "Could not determine number of processes in pool and "
+                    "user has not specified the number. Likelihood "
+                    "vectorisation will be disabled."
                 )
                 self.allow_vectorised = False
             elif n_pool:
                 self.n_pool = n_pool
-                logger.debug(f'User pool has {n_pool} processes')
+                logger.debug(f"User pool has {n_pool} processes")
         elif self.n_pool:
             logger.info(
-                f'Starting multiprocessing pool with {n_pool} processes'
+                f"Starting multiprocessing pool with {n_pool} processes"
             )
             import multiprocessing
             from nessai.utils.multiprocessing import initialise_pool_variables
+
             self.pool = multiprocessing.Pool(
                 processes=self.n_pool,
                 initializer=initialise_pool_variables,
-                initargs=(self,)
+                initargs=(self,),
             )
         else:
-            logger.info('pool and n_pool are none, no multiprocessing pool')
+            logger.info("pool and n_pool are none, no multiprocessing pool")
 
     def close_pool(self, code=None):
         """Close the the multiprocessing pool"""
@@ -317,11 +319,13 @@ class Model(ABC):
             and log-prior (logP) and log-likelihood (logL)
         """
         logP = -np.inf
-        while (logP == -np.inf):
+        while logP == -np.inf:
             p = parameters_to_live_point(
-                    np.random.uniform(self.lower_bounds, self.upper_bounds,
-                                      self.dims),
-                    self.names)
+                np.random.uniform(
+                    self.lower_bounds, self.upper_bounds, self.dims
+                ),
+                self.names,
+            )
             logP = self.log_prior(p)
         return p
 
@@ -345,12 +349,14 @@ class Model(ABC):
         n = 0
         while n < N:
             p = numpy_array_to_live_points(
-                    np.random.uniform(self.lower_bounds, self.upper_bounds,
-                                      [N, self.dims]),
-                    self.names)
+                np.random.uniform(
+                    self.lower_bounds, self.upper_bounds, [N, self.dims]
+                ),
+                self.names,
+            )
             flag = np.isfinite(self.log_prior(p))
             m = np.sum(flag)
-            new_points[n:(n + m)] = p[flag][:min(m, N - n)]
+            new_points[n : (n + m)] = p[flag][: min(m, N - n)]
             n += m
         return new_points
 
@@ -369,8 +375,13 @@ class Model(ABC):
             Array with the same length as x where True indicates the point
             is within the prior bounds.
         """
-        return ~np.any([(x[n] < self.bounds[n][0]) | (x[n] > self.bounds[n][1])
-                        for n in self.names], axis=0)
+        return ~np.any(
+            [
+                (x[n] < self.bounds[n][0]) | (x[n] > self.bounds[n][1])
+                for n in self.names
+            ],
+            axis=0,
+        )
 
     def sample_parameter(self, name, n=1):
         """Draw samples for a specific parameter from the prior.
@@ -387,7 +398,7 @@ class Model(ABC):
         n : int, optional
             Number of samples to draw.
         """
-        raise NotImplementedError('User must implement this method!')
+        raise NotImplementedError("User must implement this method!")
 
     def parameter_in_bounds(self, x, name):
         """
@@ -465,19 +476,19 @@ class Model(ABC):
         """
         st = datetime.datetime.now()
         if self.pool is None:
-            logger.debug('Not using pool to evaluate likelihood')
+            logger.debug("Not using pool to evaluate likelihood")
             if self.allow_vectorised and self.vectorised_likelihood:
                 log_likelihood = self.log_likelihood(x)
             else:
-                log_likelihood = \
-                    np.fromiter(map(self.log_likelihood, x), config.LOGL_DTYPE)
+                log_likelihood = np.fromiter(
+                    map(self.log_likelihood, x), config.LOGL_DTYPE
+                )
         else:
-            logger.debug('Using pool to evaluate likelihood')
+            logger.debug("Using pool to evaluate likelihood")
             if self.allow_vectorised and self.vectorised_likelihood:
                 log_likelihood = np.concatenate(
                     self.pool.map(
-                        log_likelihood_wrapper,
-                        np.array_split(x, self.n_pool)
+                        log_likelihood_wrapper, np.array_split(x, self.n_pool)
                     )
                 )
             else:
@@ -485,7 +496,7 @@ class Model(ABC):
                     self.pool.map(log_likelihood_wrapper, x)
                 ).flatten()
         self.likelihood_evaluations += x.size
-        self.likelihood_evaluation_time += (datetime.datetime.now() - st)
+        self.likelihood_evaluation_time += datetime.datetime.now() - st
         return log_likelihood
 
     def unstructured_view(self, x):
@@ -526,71 +537,79 @@ class Model(ABC):
             True if the model was verified as valid.
         """
         if not isinstance(self.names, list):
-            raise TypeError('`names` must be a list')
+            raise TypeError("`names` must be a list")
 
         if not isinstance(self.bounds, dict):
-            raise TypeError('`bounds` must be a dictionary')
+            raise TypeError("`bounds` must be a dictionary")
 
         if not self.names:
             raise ValueError(
-                f'`names` is not set to a valid value: {self.names}'
+                f"`names` is not set to a valid value: {self.names}"
             )
         if not self.bounds or not isinstance(self.bounds, dict):
             raise ValueError(
-                f'`bounds` is not set to a valid value: {self.bounds}'
+                f"`bounds` is not set to a valid value: {self.bounds}"
             )
 
         if self.dims == 1:
             raise OneDimensionalModelError(
-                'model is one-dimensional. '
-                'nessai is not designed to handle one-dimensional models due '
-                'to limitations imposed by the normalising flow-based '
-                'proposals it uses. Consider using other methods instead of '
-                'nessai.'
+                "model is one-dimensional. "
+                "nessai is not designed to handle one-dimensional models due "
+                "to limitations imposed by the normalising flow-based "
+                "proposals it uses. Consider using other methods instead of "
+                "nessai."
             )
 
         for n in self.names:
             if n not in self.bounds.keys():
-                raise RuntimeError(f'Missing bounds for {n}')
+                raise RuntimeError(f"Missing bounds for {n}")
 
-        if (np.isfinite(self.lower_bounds).all() and
-                np.isfinite(self.upper_bounds).all()):
+        if (
+            np.isfinite(self.lower_bounds).all()
+            and np.isfinite(self.upper_bounds).all()
+        ):
             logP = -np.inf
             counter = 0
             while (logP == -np.inf) or (logP == np.inf):
                 x = numpy_array_to_live_points(
-                        np.random.uniform(self.lower_bounds, self.upper_bounds,
-                                          [1, self.dims]),
-                        self.names)
+                    np.random.uniform(
+                        self.lower_bounds, self.upper_bounds, [1, self.dims]
+                    ),
+                    self.names,
+                )
                 logP = self.log_prior(x)
                 counter += 1
                 if counter == 1000:
                     raise RuntimeError(
-                        'Could not draw valid point from within the prior '
-                        'after 10000 tries, check the log prior function.')
+                        "Could not draw valid point from within the prior "
+                        "after 10000 tries, check the log prior function."
+                    )
         else:
-            logger.warning('Model has infinite bounds(s)')
-            logger.warning('Testing with `new_point`')
+            logger.warning("Model has infinite bounds(s)")
+            logger.warning("Testing with `new_point`")
             try:
                 x = self.new_point(1)
                 logP = self.log_prior(x)
             except Exception as e:
                 raise RuntimeError(
-                    'Could not draw a new point and compute the log prior '
-                    f'with error: {e}. \n Check the prior bounds.')
+                    "Could not draw a new point and compute the log prior "
+                    f"with error: {e}. \n Check the prior bounds."
+                )
 
         if self.log_prior(x) is None:
-            raise RuntimeError('Log-prior function did not return '
-                               'a prior value')
+            raise RuntimeError(
+                "Log-prior function did not return " "a prior value"
+            )
         if self.log_likelihood(x) is None:
-            raise RuntimeError('Log-likelihood function did not return '
-                               'a likelihood value')
+            raise RuntimeError(
+                "Log-likelihood function did not return " "a likelihood value"
+            )
 
         logl = np.array([self.log_likelihood(x) for _ in range(16)])
         if not all(logl == logl[0]):
             raise RuntimeError(
-                'Repeated calls to the log-likelihood with the same parameters'
-                ' return different values.'
+                "Repeated calls to the log-likelihood with the same parameters"
+                " return different values."
             )
 
         if self.log_prior(x).dtype == np.dtype("float16"):
@@ -603,5 +622,5 @@ class Model(ABC):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state['pool'] = None
+        state["pool"] = None
         return state

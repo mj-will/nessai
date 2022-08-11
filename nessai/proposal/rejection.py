@@ -19,6 +19,7 @@ class RejectionProposal(AnalyticProposal):
     :py:meth:`nessai.model.Model.new_point_log_prob` when computing the
     probability of each new point.
     """
+
     def __init__(self, *args, **kwargs):
         super(RejectionProposal, self).__init__(*args, **kwargs)
         self._checked_population = True
@@ -76,9 +77,9 @@ class RejectionProposal(AnalyticProposal):
         log_w : :obj:`numpy.ndarray`
             Array of log-weights rescaled such that the maximum value is zero.
         """
-        x['logP'] = self.model.log_prior(x)
+        x["logP"] = self.model.log_prior(x)
         log_q = self.log_proposal(x)
-        log_w = x['logP'] - log_q
+        log_w = x["logP"] - log_q
         log_w -= np.nanmax(log_w)
         return log_w
 
@@ -106,7 +107,8 @@ class RejectionProposal(AnalyticProposal):
         self.samples = x[indices]
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
         self.population_acceptance = self.samples.size / N
-        self.samples['logL'] = \
-            self.model.batch_evaluate_log_likelihood(self.samples)
+        self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
+            self.samples
+        )
         self.populated = True
         self._checked_population = False

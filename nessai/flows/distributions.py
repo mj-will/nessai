@@ -31,9 +31,12 @@ class MultivariateNormal(Distribution):
 
         self.register_buffer(
             "_log_z",
-            torch.tensor(0.5 * np.prod(shape) * np.log(2 * np.pi * var),
-                         dtype=torch.float64),
-            persistent=False)
+            torch.tensor(
+                0.5 * np.prod(shape) * np.log(2 * np.pi * var),
+                dtype=torch.float64,
+            ),
+            persistent=False,
+        )
 
     def _log_prob(self, inputs, context):
         # Note: the context is ignored.
@@ -43,15 +46,19 @@ class MultivariateNormal(Distribution):
                     self._shape, inputs.shape[1:]
                 )
             )
-        neg_energy = -(0.5 / self._var) * \
-            torchutils.sum_except_batch(inputs ** 2, num_batch_dims=1)
+        neg_energy = -(0.5 / self._var) * torchutils.sum_except_batch(
+            inputs**2, num_batch_dims=1
+        )
         return neg_energy - self._log_z
 
     def _sample(self, num_samples, context):
         if context is None:
-            return torch.normal(0, self._std,
-                                size=(num_samples, *self._shape),
-                                device=self._log_z.device)
+            return torch.normal(
+                0,
+                self._std,
+                size=(num_samples, *self._shape),
+                device=self._log_z.device,
+            )
         else:
             raise NotImplementedError
 

@@ -54,6 +54,7 @@ class NeuralSplineFlow(NFlow):
         Additional kwargs parsed to the spline constructor, e.g. `tails` or
         `tail_bound`. See nflows for details
     """
+
     def __init__(
         self,
         features,
@@ -67,16 +68,16 @@ class NeuralSplineFlow(NFlow):
         batch_norm_within_layers=False,
         batch_norm_between_layers=False,
         apply_unconditional_transform=False,
-        linear_transform='permutation',
-        tails='linear',
+        linear_transform="permutation",
+        tails="linear",
         tail_bound=5.0,
-        **kwargs
+        **kwargs,
     ):
 
         if features <= 1:
             raise ValueError(
-                'Coupling based Neural Spline flow requires at least 2 '
-                f'dimensions. Specified dimensions: {features}.'
+                "Coupling based Neural Spline flow requires at least 2 "
+                f"dimensions. Specified dimensions: {features}."
             )
 
         def create_resnet(in_features, out_features):
@@ -94,14 +95,15 @@ class NeuralSplineFlow(NFlow):
         def spline_constructor(i):
             return transforms.PiecewiseRationalQuadraticCouplingTransform(
                 mask=create_alternating_binary_mask(
-                    features=features,
-                    even=(i % 2 == 0)),
+                    features=features, even=(i % 2 == 0)
+                ),
                 transform_net_create_fn=create_resnet,
                 num_bins=num_bins,
                 apply_unconditional_transform=apply_unconditional_transform,
                 tails=tails,
                 tail_bound=tail_bound,
-                **kwargs)
+                **kwargs,
+            )
 
         transforms_list = []
         for i in range(num_layers):

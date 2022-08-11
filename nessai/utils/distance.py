@@ -6,7 +6,7 @@ import numpy as np
 from scipy.spatial import distance
 
 
-def compute_minimum_distances(samples, metric='euclidean'):
+def compute_minimum_distances(samples, metric="euclidean"):
     """
     Compute the distance to the nearest neighbour of each sample
 
