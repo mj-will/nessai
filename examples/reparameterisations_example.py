@@ -10,19 +10,20 @@ from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.utils import setup_logger
 
-output = './outdir/reparameterisations_example/'
+output = "./outdir/reparameterisations_example/"
 logger = setup_logger(output=output)
 
 
 class HalfGaussian(Model):
     """Two-dimensional Gaussian with a bound at y=0."""
+
     def __init__(self):
-        self.names = ['x', 'y']
-        self.bounds = {'x': [-10, 10], 'y': [0, 10]}
+        self.names = ["x", "y"]
+        self.bounds = {"x": [-10, 10], "y": [0, 10]}
 
     def log_prior(self, x):
         """Log-prior"""
-        log_p = np.log(self.in_bounds(x), dtype='float')
+        log_p = np.log(self.in_bounds(x), dtype="float")
         for bounds in self.bounds.values():
             log_p -= np.log(bounds[1] - bounds[0])
         return log_p
@@ -45,12 +46,12 @@ fs = FlowSampler(
     resume=False,
     seed=1234,
     reparameterisations={
-        'x': 'default',
-        'y': {
-            'reparameterisation': 'inversion',
-            'detect_edges_kwargs': {'allowed_bounds': ['lower']},
+        "x": "default",
+        "y": {
+            "reparameterisation": "inversion",
+            "detect_edges_kwargs": {"allowed_bounds": ["lower"]},
         },
-    }
+    },
 )
 
 fs.run()
