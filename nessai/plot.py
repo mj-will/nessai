@@ -113,17 +113,10 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
     else:
         hue = None
 
-    try:
-        fig = sns.PairGrid(df, corner=True, diag_sharey=False)
-        fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
-        fig.map_offdiag(sns.scatterplot, hue=hue,
-                        **pairplot_kwargs['plot_kws'])
-    except TypeError as e:
-        plt.close()
-        logger.warning('Could not produce a plot of the live points. '
-                       'Check the version of Seaborn, Matplotlib and GWpy. '
-                       f'The error was: \n {e}')
-        return None
+    fig = sns.PairGrid(df, corner=True, diag_sharey=False)
+    fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
+    fig.map_offdiag(sns.scatterplot, hue=hue,
+                    **pairplot_kwargs['plot_kws'])
 
     if bounds is not None:
         for i, v in enumerate(bounds.values()):
