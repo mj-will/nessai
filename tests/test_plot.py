@@ -149,16 +149,6 @@ def test_plot_live_points_with_nans(live_points):
     plt.close()
 
 
-def test_plot_live_points_error(live_points):
-    """
-    Test to make sure that an error is not raised if plotting fails
-    because of issues with seaborn and gwpy.
-    """
-    with patch('seaborn.scatterplot', side_effect=TypeError('Mock error')):
-        fig = plot.plot_live_points(live_points)
-    assert fig is None
-
-
 @pytest.mark.parametrize('parameters', [None, ['x', 'y']])
 def test_plot_1d_comparison_unstructured(parameters):
     """Test plotting live points in arrays are not structured."""
