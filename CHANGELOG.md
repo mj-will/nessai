@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Drop support for Python 3.6
+- Remove a temporary fix for [#46](https://github.com/mj-will/nessai/issues/46) that was introduced in [#47](https://github.com/mj-will/nessai/pull/47)
 
 
 ## [0.5.1] - 2022-06-20
