@@ -30,10 +30,11 @@ def test_draw_populated_last_sample(proposal):
     assert proposal.populated is False
 
 
-@pytest.mark.parametrize('update', [False, True])
+@pytest.mark.parametrize("update", [False, True])
 def test_draw_not_populated(proposal, update, wait):
     """Test the draw method when the proposal is not populated"""
     import datetime
+
     proposal.populated = False
     proposal.poolsize = 100
     proposal.population_time = datetime.timedelta()
@@ -51,13 +52,13 @@ def test_draw_not_populated(proposal, update, wait):
 
     proposal.populate = MagicMock(side_effect=mock_populate)
 
-    out = FlowProposal.draw(proposal, 1.)
+    out = FlowProposal.draw(proposal, 1.0)
 
     assert out == 2
     assert proposal.populated is True
-    assert proposal.population_time.total_seconds() > 0.
+    assert proposal.population_time.total_seconds() > 0.0
 
-    proposal.populate.assert_called_once_with(1., N=100)
+    proposal.populate.assert_called_once_with(1.0, N=100)
 
     assert proposal.update_poolsize_scale.called == update
 
@@ -66,8 +67,8 @@ def test_test_draw(proposal):
     """
     Test the method that tests the draw and populate methods when running.
     """
-    test_point = {'x': 1, 'y': 2, 'logP': -0.5}
-    new_point = {'x': 3, 'y': 4, 'logP': -0.5}
+    test_point = {"x": 1, "y": 2, "logP": -0.5}
+    new_point = {"x": 3, "y": 4, "logP": -0.5}
     proposal.model = Mock()
     proposal.model.new_point = MagicMock(return_value=test_point)
     proposal.model.log_prior = MagicMock(return_value=-0.5)
@@ -90,8 +91,10 @@ def test_test_draw(proposal):
 def test_test_draw_integration(model, tmpdir):
     """Integration test for the test draw method"""
     proposal = FlowProposal(
-        model, poolsize=10, output=tmpdir.mkdir('test_draw'),
-        volume_fraction=0.5
+        model,
+        poolsize=10,
+        output=tmpdir.mkdir("test_draw"),
+        volume_fraction=0.5,
     )
     proposal.initialise()
     proposal.test_draw()

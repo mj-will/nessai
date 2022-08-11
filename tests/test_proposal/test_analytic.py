@@ -18,9 +18,9 @@ def proposal():
 
 def test_init(proposal):
     """Test the init method."""
-    with patch('nessai.proposal.analytic.Proposal.__init__') as mock_super:
-        AnalyticProposal.__init__(proposal, 'model', poolsize=10, test=True)
-    mock_super.assert_called_once_with('model', test=True)
+    with patch("nessai.proposal.analytic.Proposal.__init__") as mock_super:
+        AnalyticProposal.__init__(proposal, "model", poolsize=10, test=True)
+    mock_super.assert_called_once_with("model", test=True)
     assert proposal._poolsize == 10
     assert proposal.populated is False
 
@@ -32,25 +32,26 @@ def test_poolsize(proposal):
     assert poolsize == 100
 
 
-@pytest.mark.parametrize('N', [None, 5])
+@pytest.mark.parametrize("N", [None, 5])
 def test_populate(proposal, N):
     """Test the populate process"""
     poolsize = 10
     if N is None:
         samples = numpy_array_to_live_points(
-            np.arange(poolsize)[:, np.newaxis], 'x'
+            np.arange(poolsize)[:, np.newaxis], "x"
         )
         log_p = np.arange(poolsize, 2 * poolsize)
     else:
-        samples = numpy_array_to_live_points(np.arange(N)[:, np.newaxis], 'x')
+        samples = numpy_array_to_live_points(np.arange(N)[:, np.newaxis], "x")
         log_p = np.arange(N, 2 * N)
     log_l = np.random.rand(samples.size)
     proposal.poolsize = poolsize
     proposal.model = Mock()
     proposal.model.new_point = Mock(return_value=samples)
     proposal.model.log_prior = Mock(return_value=log_p)
-    proposal.model.batch_evaluate_log_likelihood = \
-        MagicMock(return_value=log_l)
+    proposal.model.batch_evaluate_log_likelihood = MagicMock(
+        return_value=log_l
+    )
     AnalyticProposal.populate(proposal, N=N)
 
     if N is None:
@@ -61,13 +62,13 @@ def test_populate(proposal, N):
         proposal.samples
     )
 
-    np.testing.assert_array_equal(proposal.samples['logP'], log_p)
+    np.testing.assert_array_equal(proposal.samples["logP"], log_p)
     assert sorted(proposal.indices) == list(range(N))
     assert proposal.populated is True
-    np.testing.assert_array_equal(proposal.samples['logL'], log_l)
+    np.testing.assert_array_equal(proposal.samples["logL"], log_l)
 
 
-@pytest.mark.parametrize('populated', [True, False])
+@pytest.mark.parametrize("populated", [True, False])
 def test_draw(proposal, populated, wait):
     """Test the draw method"""
     N = 5
@@ -83,10 +84,10 @@ def test_draw(proposal, populated, wait):
 
     if not populated:
         proposal.populate.assert_called_once_with(N=N)
-        assert proposal.population_time.total_seconds() > 0.
+        assert proposal.population_time.total_seconds() > 0.0
     else:
         proposal.populate.assert_not_called()
-        assert proposal.population_time.total_seconds() == 0.
+        assert proposal.population_time.total_seconds() == 0.0
     assert proposal.indices == [0, 1, 2, 3]
 
 

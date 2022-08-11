@@ -12,8 +12,8 @@ from nessai.nestedsampler import NestedSampler
 @pytest.fixture
 def old_sample(model):
     s = parameters_to_live_point([5, 5], names=model.names)
-    s['logL'] = 0.0
-    s['logP'] = 0.0
+    s["logL"] = 0.0
+    s["logP"] = 0.0
     return s
 
 
@@ -28,8 +28,8 @@ def sampler(sampler, old_sample):
 def test_yield_sample_accept(sampler, old_sample):
     """Test function when sample is accepted"""
     new_sample = parameters_to_live_point([1, 1], names=sampler.model.names)
-    new_sample['logL'] = 0.0
-    new_sample['logP'] = 0.0
+    new_sample["logL"] = 0.0
+    new_sample["logP"] = 0.0
     sampler.proposal.draw = MagicMock(return_value=new_sample)
 
     count, next_sample = next(NestedSampler.yield_sample(sampler, old_sample))
@@ -42,11 +42,13 @@ def test_yield_sample_accept(sampler, old_sample):
 
 def test_yield_sample_reject(sampler, old_sample):
     """Test function when sample is rejected and a new sample is drawn"""
-    new_samples = [parameters_to_live_point([6, 6], names=sampler.model.names),
-                   parameters_to_live_point([1, 1], names=sampler.model.names)]
+    new_samples = [
+        parameters_to_live_point([6, 6], names=sampler.model.names),
+        parameters_to_live_point([1, 1], names=sampler.model.names),
+    ]
     for s in new_samples:
-        s['logL'] = 0.0
-        s['logP'] = 0.0
+        s["logL"] = 0.0
+        s["logP"] = 0.0
 
     sampler.proposal.draw = MagicMock(side_effect=new_samples)
     sampler.proposal.populated = True

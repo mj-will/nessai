@@ -67,7 +67,7 @@ def test_current_sampling_time(sampler):
     sampler.sampling_start_time = datetime.datetime.now()
     time.sleep(0.01)
     t = NestedSampler.current_sampling_time.__get__(sampler)
-    assert t.total_seconds() > 10.
+    assert t.total_seconds() > 10.0
 
 
 def test_current_sampling_time_finalised(sampler):

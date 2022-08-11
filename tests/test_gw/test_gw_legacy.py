@@ -5,11 +5,16 @@ import pytest
 from nessai.gw import legacy
 
 
-@pytest.mark.parametrize("r, s, zero", [((0, np.pi), 2, 'bound'),
-                                        ((0, 2 * np.pi), 1, 'bound'),
-                                        ((0, 1), np.pi, 'bound'),
-                                        ((-np.pi, np.pi), 1, 'centre')])
-@pytest.mark.parametrize('radial', [False, True])
+@pytest.mark.parametrize(
+    "r, s, zero",
+    [
+        ((0, np.pi), 2, "bound"),
+        ((0, 2 * np.pi), 1, "bound"),
+        ((0, 1), np.pi, "bound"),
+        ((-np.pi, np.pi), 1, "centre"),
+    ],
+)
+@pytest.mark.parametrize("radial", [False, True])
 def test_angle_to_cartesian_to_angle(r, s, zero, radial):
     """
     Test the conversion from angle to cartesian and back for a range
@@ -29,10 +34,15 @@ def test_angle_to_cartesian_to_angle(r, s, zero, radial):
     assert_allclose(cart[-1], -t_out[-1])
 
 
-@pytest.mark.parametrize("r, s, zero", [((0, np.pi), 2, 'bound'),
-                                        ((0, 2 * np.pi), 1, 'bound'),
-                                        ((0, 1), np.pi, 'bound'),
-                                        ((-np.pi, np.pi), 1, 'centre')])
+@pytest.mark.parametrize(
+    "r, s, zero",
+    [
+        ((0, np.pi), 2, "bound"),
+        ((0, 2 * np.pi), 1, "bound"),
+        ((0, 1), np.pi, "bound"),
+        ((-np.pi, np.pi), 1, "centre"),
+    ],
+)
 def test_cartesian_to_angle_to_cartesian(r, s, zero):
     """
     Test the conversion from cartesian to angle and back.
@@ -51,8 +61,9 @@ def test_ra_dec_to_cartesian_to_ra_dec(dl):
     Test the conversion from ra, dec and dl to x, y, z and back. If dl=True
     the radial component is included.
     """
-    sky = np.random.uniform((0, -np.pi / 2, 100),
-                            (2 * np.pi, np.pi / 2, 10000), [1000, 3]).T
+    sky = np.random.uniform(
+        (0, -np.pi / 2, 100), (2 * np.pi, np.pi / 2, 10000), [1000, 3]
+    ).T
     if dl:
         cart = legacy.ra_dec_to_cartesian(*sky)
     else:
@@ -83,8 +94,9 @@ def test_az_zen_to_cartesian_to_az_zen(dl):
     Test the conversion from azimuth, zenith and dl to x, y, z and back.
     If dl=True the radial component if included.
     """
-    sky = np.random.uniform((0, 0, 100),
-                            (2 * np.pi, np.pi, 10000), [1000, 3]).T
+    sky = np.random.uniform(
+        (0, 0, 100), (2 * np.pi, np.pi, 10000), [1000, 3]
+    ).T
     if dl:
         cart = legacy.azimuth_zenith_to_cartesian(*sky)
     else:
@@ -109,7 +121,7 @@ def test_cartesian_to_az_zen_to_cartesian():
     assert_allclose(sky[3], -cart_out[3])
 
 
-@pytest.mark.parametrize("mode", ['split', 'duplicate', 'half'])
+@pytest.mark.parametrize("mode", ["split", "duplicate", "half"])
 def test_zero_one_to_cartesian(mode):
     """
     Test is correctly applied when mapping [0, 1] to
@@ -119,15 +131,15 @@ def test_zero_one_to_cartesian(mode):
     cart = legacy.zero_one_to_cartesian(x, mode=mode)
     x_out = legacy.cartesian_to_zero_one(cart[0], cart[1])
 
-    if mode == 'duplicate':
-        assert_allclose(x, x_out[0][:x.size])
-        assert_allclose(x, x_out[0][x.size:])
+    if mode == "duplicate":
+        assert_allclose(x, x_out[0][: x.size])
+        assert_allclose(x, x_out[0][x.size :])
         assert_equal([c.size for c in cart], [2 * x.size for _ in cart])
     else:
         assert_allclose(x, x_out[0])
         assert_equal([c.size for c in cart], [x.size for _ in cart])
 
-    if mode == 'half':
+    if mode == "half":
         assert (cart[1] >= 0).all()
     else:
         assert ((cart[0] < 0) & (cart[1] < 0)).any()
@@ -142,8 +154,8 @@ def test_zero_one_to_cartesain_incorrect_mode():
     """
     x = np.random.rand(1000)
     with pytest.raises(RuntimeError) as excinfo:
-        legacy.zero_one_to_cartesian(x, mode='roar')
-    assert 'Unknown mode' in str(excinfo.value)
+        legacy.zero_one_to_cartesian(x, mode="roar")
+    assert "Unknown mode" in str(excinfo.value)
 
 
 def test_cartesian_to_zero_one():
@@ -155,7 +167,7 @@ def test_cartesian_to_zero_one():
     assert np.logical_and(x >= 0, x <= 1).all()
 
 
-@pytest.mark.requires('lal')
+@pytest.mark.requires("lal")
 def test_precessing_parameters():
     """
     Test to ensure spin conversions are invertible
@@ -176,10 +188,12 @@ def test_precessing_parameters():
     array_in = (theta_jn, phi_jl, theta_1, theta_2, phi_12, a_1, a_2)
 
     array_inter = legacy.transform_from_precessing_parameters(
-        *array_in, m1, m2, f_ref, phase)
+        *array_in, m1, m2, f_ref, phase
+    )
 
     array_out = legacy.transform_to_precessing_parameters(
-        *array_inter[:-1], m1, m2, f_ref, phase)
+        *array_inter[:-1], m1, m2, f_ref, phase
+    )
 
     np.testing.assert_array_almost_equal(array_in, array_out[:-1])
     np.testing.assert_array_almost_equal(array_inter[-1], -array_out[-1])

@@ -13,7 +13,6 @@ from nessai.proposal.base import Proposal
 
 
 class DummyProposal(Proposal):
-
     def draw(self, old_param):
         pass
 
@@ -48,7 +47,7 @@ def test_initialised(proposal):
     assert val is True
 
 
-@pytest.mark.parametrize('val', [True, False])
+@pytest.mark.parametrize("val", [True, False])
 def test_initialised_setter(proposal, val):
     """Test the setter for initialised."""
     Proposal.initialised.__set__(proposal, val)
@@ -63,11 +62,12 @@ def test_initialise(proposal):
 
 def test_evaluate_likelihoods(proposal):
     """Assert the correct method is called"""
-    samples = numpy_array_to_live_points(np.array([[1], [2]]), ['x'])
+    samples = numpy_array_to_live_points(np.array([[1], [2]]), ["x"])
     proposal.samples = samples
     proposal.model = MagicMock()
-    proposal.model.batch_evaluate_log_likelihood = \
-        MagicMock(return_value=[1, 2])
+    proposal.model.batch_evaluate_log_likelihood = MagicMock(
+        return_value=[1, 2]
+    )
     Proposal.evaluate_likelihoods(proposal)
     proposal.model.batch_evaluate_log_likelihood.assert_called_once_with(
         samples
@@ -86,8 +86,8 @@ def test_test_draw(proposal):
     proposal.model.new_point = Mock(return_value=1)
     proposal.model.log_prior = Mock(return_value=-1)
 
-    new_point = numpy_array_to_live_points(np.array([[1]]), ['x'])
-    new_point['logP'] = -1
+    new_point = numpy_array_to_live_points(np.array([[1]]), ["x"])
+    new_point["logP"] = -1
     proposal.draw = Mock(return_value=new_point)
     Proposal.test_draw(proposal)
 
@@ -102,12 +102,12 @@ def test_test_draw_error(proposal):
     proposal.model.new_point = Mock(return_value=1)
     proposal.model.log_prior = Mock(return_value=-1)
 
-    new_point = numpy_array_to_live_points(np.array([[1]]), ['x'])
-    new_point['logP'] = -2
+    new_point = numpy_array_to_live_points(np.array([[1]]), ["x"])
+    new_point["logP"] = -2
     proposal.draw = Mock(return_value=new_point)
     with pytest.raises(RuntimeError) as excinfo:
         Proposal.test_draw(proposal)
-    assert 'Log prior of new point is incorrect!' in str(excinfo.value)
+    assert "Log prior of new point is incorrect!" in str(excinfo.value)
 
     proposal.model.new_point.assert_called_once()
     proposal.draw.assert_called_once_with(1)
@@ -118,7 +118,7 @@ def test_train(proposal, caplog):
     """Test the train method."""
     caplog.set_level(logging.INFO)
     Proposal.train(proposal, 1, plot=True)
-    assert 'This proposal method cannot be trained' in str(caplog.text)
+    assert "This proposal method cannot be trained" in str(caplog.text)
 
 
 def test_resume(proposal):
@@ -132,7 +132,7 @@ def test_getstate(proposal):
     """Test the get state method called by pickle."""
     proposal.model = Mock()
     state = Proposal.__getstate__(proposal)
-    assert 'model' not in list(state.keys())
+    assert "model" not in list(state.keys())
 
 
 @pytest.mark.integration_test
@@ -141,4 +141,4 @@ def test_pickling(model):
     proposal = DummyProposal(model)
     d = pickle.dumps(proposal)
     out = pickle.loads(d)
-    assert hasattr(out, 'model') is False
+    assert hasattr(out, "model") is False

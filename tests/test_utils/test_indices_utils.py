@@ -8,14 +8,14 @@ import pytest
 from nessai.utils.indices import compute_indices_ks_test, bonferroni_correction
 
 
-@pytest.mark.parametrize("mode", ['D+', 'D-'])
+@pytest.mark.parametrize("mode", ["D+", "D-"])
 def test_ks_test(mode):
     """
     Test KS test for insertion indices with a specified mode
     """
     indices = np.random.randint(0, 1000, 1000)
     out = compute_indices_ks_test(indices, 1000, mode=mode)
-    assert all([o > 0. for o in out])
+    assert all([o > 0.0 for o in out])
 
 
 def test_ks_test_undefined_mode():
@@ -24,14 +24,14 @@ def test_ks_test_undefined_mode():
     """
     indices = np.random.randint(0, 1000, 1000)
     with pytest.raises(RuntimeError):
-        compute_indices_ks_test(indices, 1000, mode='two-sided')
+        compute_indices_ks_test(indices, 1000, mode="two-sided")
 
 
 def test_ks_test_empty_indices():
     """
     Test KS test for insertion indices with empty input array
     """
-    out = compute_indices_ks_test([], 1000, mode='D+')
+    out = compute_indices_ks_test([], 1000, mode="D+")
     assert all(o is None for o in out)
 
 

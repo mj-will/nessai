@@ -20,31 +20,31 @@ def test_get_gw_reparameterisation():
 
     Assert the correct defaults are used.
     """
-    expected = 'out'
+    expected = "out"
     with patch(
-        'nessai.gw.reparameterisations.get_reparameterisation',
+        "nessai.gw.reparameterisations.get_reparameterisation",
         return_value=expected,
     ) as base_fn:
-        out = get_gw_reparameterisation('mass_ratio')
+        out = get_gw_reparameterisation("mass_ratio")
     assert out == expected
-    base_fn.assert_called_once_with('mass_ratio', defaults=default_gw)
+    base_fn.assert_called_once_with("mass_ratio", defaults=default_gw)
 
 
 @pytest.mark.integration_test
 def test_get_gw_reparameterisation_integration():
     """Integration test for get_gw_reparameterisation"""
-    reparam, _ = get_gw_reparameterisation('distance')
+    reparam, _ = get_gw_reparameterisation("distance")
     assert reparam is DistanceReparameterisation
 
 
 @pytest.mark.parametrize(
-    'has_conversion, has_jacobian, has_prime_prior, requires_prime_prior',
+    "has_conversion, has_jacobian, has_prime_prior, requires_prime_prior",
     [
         (False, True, False, False),
         (False, False, False, False),
         (True, False, True, True),
         (True, True, True, False),
-    ]
+    ],
 )
 def test_distance_reparameterisation_init(
     distance_reparam,
@@ -57,9 +57,9 @@ def test_distance_reparameterisation_init(
 
     Tests the different combinations of conversions and jacobians.
     """
-    prior = 'uniform-comoving-volume'
-    parameter = 'parameter'
-    prior_bounds = {'parameter': [10.0, 100.0]}
+    prior = "uniform-comoving-volume"
+    parameter = "parameter"
+    prior_bounds = {"parameter": [10.0, 100.0]}
 
     distance_reparam.detect_edges_kwargs = {}
     distance_reparam.requires_prime_prior = False
@@ -70,7 +70,7 @@ def test_distance_reparameterisation_init(
     mock_converter_class = MagicMock(return_value=mock_converter)
 
     with patch(
-        'nessai.gw.reparameterisations.get_distance_converter',
+        "nessai.gw.reparameterisations.get_distance_converter",
         return_value=mock_converter_class,
     ) as converter_fn:
         DistanceReparameterisation.__init__(
@@ -90,9 +90,9 @@ def test_distance_reparameterisation_init(
 
 def test_distance_reparameterisation_n_parameters_error(distance_reparam):
     """Assert an error is raised in more than one parameter is given."""
-    prior = 'uniform-comoving-volume'
-    parameters = ['x', 'y']
-    prior_bounds = {'x': [10.0, 100.0], 'y': [10.0, 100.0]}
+    prior = "uniform-comoving-volume"
+    parameters = ["x", "y"]
+    prior_bounds = {"x": [10.0, 100.0], "y": [10.0, 100.0]}
     with pytest.raises(RuntimeError) as excinfo:
         DistanceReparameterisation.__init__(
             distance_reparam,
@@ -101,5 +101,6 @@ def test_distance_reparameterisation_n_parameters_error(distance_reparam):
             prior=prior,
         )
 
-    assert 'DistanceReparameterisation only supports one parameter' \
-        in str(excinfo.value)
+    assert "DistanceReparameterisation only supports one parameter" in str(
+        excinfo.value
+    )

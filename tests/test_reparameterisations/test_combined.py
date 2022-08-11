@@ -10,8 +10,8 @@ from nessai.reparameterisations import (
     Angle,
     CombinedReparameterisation,
     Reparameterisation,
-    RescaleToBounds
-    )
+    RescaleToBounds,
+)
 from nessai.livepoint import empty_structured_array
 from nessai.utils.testing import assert_structured_arrays_equal
 
@@ -27,17 +27,17 @@ def test_init_none():
 
 
 def test_init_w_reparam():
-    c = CombinedReparameterisation(RescaleToBounds('x', [0, 1]))
-    assert c.parameters == ['x']
-    assert c.prime_parameters == ['x_prime']
+    c = CombinedReparameterisation(RescaleToBounds("x", [0, 1]))
+    assert c.parameters == ["x"]
+    assert c.prime_parameters == ["x_prime"]
 
 
 def test_add_single_reparameterisations():
     """Test the core functionality of adding reparameterisations"""
-    r = RescaleToBounds(parameters='x', prior_bounds=[0, 1])
+    r = RescaleToBounds(parameters="x", prior_bounds=[0, 1])
     c = CombinedReparameterisation()
     c.add_reparameterisations(r)
-    assert c.parameters == ['x']
+    assert c.parameters == ["x"]
     assert c.has_prime_prior is False
 
 
@@ -45,14 +45,18 @@ def test_add_multiple_reparameterisations(model):
     """
     Test adding multiple reparameterisations and using the reparameterisation.
     """
-    r = [RescaleToBounds(parameters='x', prior_bounds=model.bounds['x'],
-                         prior='uniform'),
-         RescaleToBounds(parameters='y', prior_bounds=model.bounds['y'],
-                         prior='uniform')]
+    r = [
+        RescaleToBounds(
+            parameters="x", prior_bounds=model.bounds["x"], prior="uniform"
+        ),
+        RescaleToBounds(
+            parameters="y", prior_bounds=model.bounds["y"], prior="uniform"
+        ),
+    ]
     reparam = CombinedReparameterisation()
     reparam.add_reparameterisations(r)
 
-    assert reparam.parameters == ['x', 'y']
+    assert reparam.parameters == ["x", "y"]
     assert reparam.has_prime_prior is True
 
     n = 100
@@ -60,8 +64,7 @@ def test_add_multiple_reparameterisations(model):
     x_prime = empty_structured_array(n, names=reparam.prime_parameters)
     log_j = 0
 
-    x_re, x_prime_re, log_j_re = reparam.reparameterise(
-        x, x_prime, log_j)
+    x_re, x_prime_re, log_j_re = reparam.reparameterise(x, x_prime, log_j)
 
     assert reparam.x_prime_log_prior(x_prime_re) is not None
 
@@ -69,8 +72,9 @@ def test_add_multiple_reparameterisations(model):
 
     x_in = empty_structured_array(n, names=reparam.parameters)
 
-    x_inv, x_prime_inv, log_j_inv = \
-        reparam.inverse_reparameterise(x_in, x_prime_re, log_j)
+    x_inv, x_prime_inv, log_j_inv = reparam.inverse_reparameterise(
+        x_in, x_prime_re, log_j
+    )
 
     assert_structured_arrays_equal(x, x_inv)
     assert_structured_arrays_equal(x_prime_re, x_prime_inv)
@@ -80,14 +84,14 @@ def test_add_multiple_reparameterisations(model):
 def test_base_add_reparameterisation_missing_requirements(reparam):
     """Assert an error is raised if a required parameter is missing"""
     r = MagicMock(spec=Reparameterisation)
-    r.requires = ['x']
+    r.requires = ["x"]
 
-    reparam.parameters = ['y']
-    reparam.prime_parameters = ['y_prime']
+    reparam.parameters = ["y"]
+    reparam.prime_parameters = ["y_prime"]
 
     with pytest.raises(RuntimeError) as excinfo:
         CombinedReparameterisation._add_reparameterisation(reparam, r)
-    assert 'missing requirement(s)' in str(excinfo.value)
+    assert "missing requirement(s)" in str(excinfo.value)
 
 
 def test_add_reparameterisation(reparam):
@@ -122,7 +126,7 @@ def test_add_reparameterisations_multiple(reparam):
     reparam._add_reparameterisation.assert_has_calls([call(r1), call(r2)])
 
 
-@pytest.mark.parametrize('has', [False, True])
+@pytest.mark.parametrize("has", [False, True])
 def test_has_prime_prior(reparam, has):
     """Assert correct value is returned for has_prime_prior.
 
@@ -139,7 +143,7 @@ def test_has_prime_prior(reparam, has):
     assert out is has
 
 
-@pytest.mark.parametrize('require', [False, True])
+@pytest.mark.parametrize("require", [False, True])
 def test_requires_prime_prior(reparam, require):
     """Assert correct value is returned for requires prime prior.
 
@@ -220,7 +224,7 @@ def test_x_prime_log_prior(reparam):
 
     x = [1, 2]
 
-    out = CombinedReparameterisation. x_prime_log_prior(reparam, x)
+    out = CombinedReparameterisation.x_prime_log_prior(reparam, x)
 
     assert out == -9
     r1.x_prime_log_prior.assert_called_once_with(x)

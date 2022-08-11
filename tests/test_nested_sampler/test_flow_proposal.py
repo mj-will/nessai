@@ -17,8 +17,8 @@ def test_configure_flow_reset_false(sampler):
     assert not sampler.reset_permutations
 
 
-@pytest.mark.parametrize('weights', [10, 5.0])
-@pytest.mark.parametrize('permutations', [10, 5.0])
+@pytest.mark.parametrize("weights", [10, 5.0])
+@pytest.mark.parametrize("permutations", [10, 5.0])
 def test_configure_flow_reset(sampler, weights, permutations):
     """Assert the attributes evaluate to false if the inputs are false"""
     NestedSampler.configure_flow_reset(sampler, weights, permutations)
@@ -30,14 +30,14 @@ def test_configure_flow_reset_error_weights(sampler):
     """Assert an error is raised in the weights input is invalid"""
     with pytest.raises(TypeError) as excinfo:
         NestedSampler.configure_flow_reset(sampler, None, 5)
-    assert 'weights` must be' in str(excinfo.value)
+    assert "weights` must be" in str(excinfo.value)
 
 
 def test_configure_flow_reset_error_permutations(sampler):
     """Assert an error is raised in the permutations input is invalid"""
     with pytest.raises(TypeError) as excinfo:
         NestedSampler.configure_flow_reset(sampler, 5, None)
-    assert 'permutations` must be' in str(excinfo.value)
+    assert "permutations` must be" in str(excinfo.value)
 
 
 def test_check_training_not_completed_training(sampler):
@@ -106,37 +106,46 @@ def test_check_training_iteration(sampler):
     assert force is False
 
 
-@pytest.mark.parametrize('config', [
-    dict(),
-    dict(train_on_empty=False, populated=False),
-    dict(train_on_empty=True, populated=False, populating=True),
-    dict(mean_acceptance=0.01, acceptance_threshold=0.5,
-         retrain_acceptance=False),
-    dict(mean_acceptance=0.5, acceptance_threshold=0.01,
-         retrain_acceptance=True),
-    dict(iteration=800, last_updated=0, training_frequency=801)
-])
+@pytest.mark.parametrize(
+    "config",
+    [
+        dict(),
+        dict(train_on_empty=False, populated=False),
+        dict(train_on_empty=True, populated=False, populating=True),
+        dict(
+            mean_acceptance=0.01,
+            acceptance_threshold=0.5,
+            retrain_acceptance=False,
+        ),
+        dict(
+            mean_acceptance=0.5,
+            acceptance_threshold=0.01,
+            retrain_acceptance=True,
+        ),
+        dict(iteration=800, last_updated=0, training_frequency=801),
+    ],
+)
 def test_check_training_false(sampler, config):
     """
     Test a range of different scenarios that should all not start training.
     """
     sampler.completed_training = True
-    sampler.train_on_empty = config.get('train_on_empty', False)
+    sampler.train_on_empty = config.get("train_on_empty", False)
     sampler.proposal = MagicMock()
-    sampler.proposal.populated = config.get('populated', False)
-    sampler.proposal.populating = config.get('populating', False)
-    sampler.acceptance_threshold = config.get('acceptance_threshold', 0.1)
-    sampler.mean_block_acceptance = config.get('mean_acceptance', 0.2)
-    sampler.retrain_acceptance = config.get('retrain_acceptance', False)
-    sampler.iteration = config.get('iteration', 3000)
-    sampler.last_updated = config.get('last_updated', 2500)
-    sampler.training_frequency = config.get('training_frequency', 1000)
+    sampler.proposal.populated = config.get("populated", False)
+    sampler.proposal.populating = config.get("populating", False)
+    sampler.acceptance_threshold = config.get("acceptance_threshold", 0.1)
+    sampler.mean_block_acceptance = config.get("mean_acceptance", 0.2)
+    sampler.retrain_acceptance = config.get("retrain_acceptance", False)
+    sampler.iteration = config.get("iteration", 3000)
+    sampler.last_updated = config.get("last_updated", 2500)
+    sampler.training_frequency = config.get("training_frequency", 1000)
     train, force = NestedSampler.check_training(sampler)
     assert train is False
     assert force is False
 
 
-@pytest.mark.parametrize('training_count', [10, 100])
+@pytest.mark.parametrize("training_count", [10, 100])
 def test_check_flow_model_reset_weights(sampler, training_count):
     """Assert flow model only weights are reset"""
     sampler.proposal = MagicMock()
@@ -149,11 +158,12 @@ def test_check_flow_model_reset_weights(sampler, training_count):
     NestedSampler.check_flow_model_reset(sampler)
 
     sampler.proposal.reset_model_weights.assert_called_once_with(
-        weights=True, permutations=False,
+        weights=True,
+        permutations=False,
     )
 
 
-@pytest.mark.parametrize('training_count', [10, 100])
+@pytest.mark.parametrize("training_count", [10, 100])
 def test_check_flow_model_reset_permutations(sampler, training_count):
     """Assert flow model only permutations are reset"""
     sampler.proposal = MagicMock()
@@ -170,7 +180,7 @@ def test_check_flow_model_reset_permutations(sampler, training_count):
     )
 
 
-@pytest.mark.parametrize('training_count', [10, 100])
+@pytest.mark.parametrize("training_count", [10, 100])
 def test_check_flow_model_reset_both(sampler, training_count):
     """Assert flow model only permutations are reset"""
     sampler.proposal = MagicMock()
@@ -183,7 +193,8 @@ def test_check_flow_model_reset_both(sampler, training_count):
     NestedSampler.check_flow_model_reset(sampler)
 
     sampler.proposal.reset_model_weights.assert_called_once_with(
-        weights=True, permutations=True,
+        weights=True,
+        permutations=True,
     )
 
 
@@ -201,7 +212,8 @@ def test_check_flow_model_reset_acceptance(sampler):
     NestedSampler.check_flow_model_reset(sampler)
 
     sampler.proposal.reset_model_weights.assert_called_once_with(
-        weights=True, permutations=True)
+        weights=True, permutations=True
+    )
 
 
 def test_check_flow_model_reset_not_trained(sampler):
@@ -283,8 +295,7 @@ def test_train_proposal_memory(sampler, wait):
     sampler.proposal.train.assert_called_once()
 
     np.testing.assert_array_equal(
-        sampler.proposal.train.call_args[0],
-        np.array([[5, 6, 7, 8, 9, 3, 4]])
+        sampler.proposal.train.call_args[0], np.array([[5, 6, 7, 8, 9, 3, 4]])
     )
 
     assert sampler.training_iterations == [100]

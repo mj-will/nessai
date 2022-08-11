@@ -13,7 +13,7 @@ from nessai.utils.testing import (
 
 def test_invertiblity():
     """Ensure the reparameterisation does not change the values"""
-    reparam = NullReparameterisation(parameters=['x', 'y'])
+    reparam = NullReparameterisation(parameters=["x", "y"])
     n = 100
     x = numpy_array_to_live_points(np.random.rand(n, 2), reparam.parameters)
     x_prime = empty_structured_array(n, names=reparam.prime_parameters)
@@ -25,8 +25,9 @@ def test_invertiblity():
     assert_array_equal(x, x_prime_re)
 
     x_in = empty_structured_array(n, names=reparam.parameters)
-    x_inv, x_prime_inv, log_j_inv = \
-        reparam.inverse_reparameterise(x_in, x_prime_re, log_j)
+    x_inv, x_prime_inv, log_j_inv = reparam.inverse_reparameterise(
+        x_in, x_prime_re, log_j
+    )
 
     assert_array_equal(x, x_inv)
     assert_array_equal(x, x_prime_inv)
