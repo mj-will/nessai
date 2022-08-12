@@ -71,8 +71,10 @@ def rescale_minus_one_to_one(x, xmin, xmax):
     ndarray
         Array of log determinants of Jacobians for each sample
     """
-    return ((2. * (x - xmin) / (xmax - xmin)) - 1,
-            np.log(2) - np.log(xmax - xmin))
+    return (
+        (2.0 * (x - xmin) / (xmax - xmin)) - 1,
+        np.log(2) - np.log(xmax - xmin),
+    )
 
 
 def inverse_rescale_minus_one_to_one(x, xmin, xmax):
@@ -93,13 +95,23 @@ def inverse_rescale_minus_one_to_one(x, xmin, xmax):
     ndarray
         Array of log determinants of Jacobians for each sample
     """
-    return ((xmax - xmin) * ((x + 1) / 2.) + xmin,
-            np.log(xmax - xmin) - np.log(2))
+    return (
+        (xmax - xmin) * ((x + 1) / 2.0) + xmin,
+        np.log(xmax - xmin) - np.log(2),
+    )
 
 
-def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
-                allow_both=False, allow_none=False,
-                allowed_bounds=['lower', 'upper'], test=None):
+def detect_edge(
+    x,
+    x_range=None,
+    percent=0.1,
+    cutoff=0.5,
+    nbins="auto",
+    allow_both=False,
+    allow_none=False,
+    allowed_bounds=["lower", "upper"],
+    test=None,
+):
     """
     Detect edges in input distributions based on the density.
 
@@ -133,45 +145,49 @@ def detect_edge(x, x_range=None, percent=0.1, cutoff=0.5, nbins='auto',
         Returns the boundary to apply the inversion or False is no inversion
         is to be applied
     """
-    bounds = ['lower', 'upper']
+    bounds = ["lower", "upper"]
     if test is not None:
-        logger.debug('Using test in detect_edge')
+        logger.debug("Using test in detect_edge")
         if test in bounds and test not in allowed_bounds:
-            logger.debug(f'{test} is not an allowed bound, returning False')
+            logger.debug(f"{test} is not an allowed bound, returning False")
             return False
         else:
             return test
     if not all(b in bounds for b in allowed_bounds):
-        raise RuntimeError(f'Unknown allowed bounds: {allowed_bounds}')
-    if nbins == 'auto':
+        raise RuntimeError(f"Unknown allowed bounds: {allowed_bounds}")
+    if nbins == "auto":
         nbins = auto_bins(x)
 
     hist, bins = np.histogram(x, bins=nbins, density=True, range=x_range)
     n = max(int(len(bins) * percent), 1)
-    bounds_fraction = \
-        np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (bins[1] - bins[0])
+    bounds_fraction = np.array([np.sum(hist[:n]), np.sum(hist[-n:])]) * (
+        bins[1] - bins[0]
+    )
     max_idx = np.argmax(hist)
     max_density = hist[max_idx] * (bins[1] - bins[0])
-    logger.debug(f'Max. density: {max_density:.3f}')
+    logger.debug(f"Max. density: {max_density:.3f}")
 
     for i, b in enumerate(bounds):
         if b not in allowed_bounds:
             bounds.pop(i)
             bounds_fraction = np.delete(bounds_fraction, i)
 
-    if (np.all(bounds_fraction > cutoff * max_density) and allow_both and
-            len(bounds) > 1):
-        logger.debug('Both bounds above cutoff')
-        return 'both'
-    elif max_idx < n and 'lower' in bounds:
+    if (
+        np.all(bounds_fraction > cutoff * max_density)
+        and allow_both
+        and len(bounds) > 1
+    ):
+        logger.debug("Both bounds above cutoff")
+        return "both"
+    elif max_idx < n and "lower" in bounds:
         return bounds[0]
-    elif max_idx >= (len(bins) - n) and 'upper' in bounds:
+    elif max_idx >= (len(bins) - n) and "upper" in bounds:
         return bounds[-1]
     elif not np.any(bounds_fraction > cutoff * max_density) and allow_none:
-        logger.debug('Density too low at both bounds')
+        logger.debug("Density too low at both bounds")
         return False
     else:
-        logger.debug('No bound preferred, returning bound with higher density')
+        logger.debug("No bound preferred, returning bound with higher density")
         return bounds[np.argmax(bounds_fraction)]
 
 
@@ -195,12 +211,12 @@ def configure_edge_detection(d, detect_edges):
     if d is None:
         d = {}
     if detect_edges:
-        d['allow_none'] = True
+        d["allow_none"] = True
     else:
-        d['allow_none'] = False
-        d['cutoff'] = 0.0
+        d["allow_none"] = False
+        d["cutoff"] = 0.0
     default.update(d)
-    logger.debug(f'detect edges kwargs: {default}')
+    logger.debug(f"detect edges kwargs: {default}")
     return default
 
 
@@ -212,7 +228,7 @@ def determine_rescaled_bounds(
     invert=None,
     inversion=False,
     offset=0,
-    rescale_bounds=[-1, 1]
+    rescale_bounds=[-1, 1],
 ):
     """
     Determine the values of the prior min and max in the rescaled
@@ -242,7 +258,7 @@ def determine_rescaled_bounds(
             :py:class:`~nessai.reparameterisations.RescaleToBounds`.
     """
     if x_min == x_max:
-        raise ValueError('New minimum and maximum are equal')
+        raise ValueError("New minimum and maximum are equal")
     if not inversion:
         scale = rescale_bounds[1] - rescale_bounds[0]
         shift = rescale_bounds[0]
@@ -254,19 +270,19 @@ def determine_rescaled_bounds(
     if not inversion:
         if invert:
             logger.warning(
-                '`invert` is not False or None, but `inversion=False`'
+                "`invert` is not False or None, but `inversion=False`"
             )
         return lower, upper
-    elif (not invert or invert is None):
+    elif not invert or invert is None:
         return 2 * lower - 1, 2 * upper - 1
-    elif invert == 'upper':
+    elif invert == "upper":
         return lower - 1, 1 - lower
-    elif invert == 'lower':
+    elif invert == "lower":
         return -upper, upper
-    elif invert == 'both':
+    elif invert == "both":
         return -0.5, 1.5
     else:
-        raise ValueError(f'Invalid value for `invert`: {invert}')
+        raise ValueError(f"Invalid value for `invert`: {invert}")
 
 
 def logit(x, fuzz=1e-12):
@@ -291,7 +307,7 @@ def logit(x, fuzz=1e-12):
     """
     if fuzz:
         x += fuzz
-        x /= (1 + 2 * fuzz)
+        x /= 1 + 2 * fuzz
     log_j = -np.log(x) - np.log1p(-x)
     if fuzz:
         log_j -= np.log(1 + 2 * fuzz)
@@ -320,10 +336,10 @@ def sigmoid(x, fuzz=1e-12):
     x = np.divide(1, 1 + np.exp(-x))
     log_j = np.log(x) + np.log1p(-x)
     if fuzz:
-        x *= (1 + 2 * fuzz)
+        x *= 1 + 2 * fuzz
         x -= fuzz
         log_j += np.log(1 + 2 * fuzz)
     return x, log_j
 
 
-rescaling_functions = {'logit': (logit, sigmoid)}
+rescaling_functions = {"logit": (logit, sigmoid)}

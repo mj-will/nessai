@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 from nessai.nestedsampler import NestedSampler
 
 
-@pytest.mark.parametrize('track_gradients', [False, True])
-@pytest.mark.parametrize('filename', [None, 'test.png'])
+@pytest.mark.parametrize("track_gradients", [False, True])
+@pytest.mark.parametrize("filename", [None, "test.png"])
 def test_plot_state(sampler, tmpdir, filename, track_gradients):
     """Test making the state plot"""
     x = np.arange(10)
@@ -21,7 +21,7 @@ def test_plot_state(sampler, tmpdir, filename, track_gradients):
     sampler.train_on_empty = False
     sampler.population_iterations = [256, 500, 711, 800]
     sampler.population_acceptance = 4 * [0.5]
-    sampler.population_radii = 4 * [1.]
+    sampler.population_radii = 4 * [1.0]
     sampler.checkpoint_iterations = [600]
     sampler.likelihood_evaluations = x
     sampler.state = MagicMock()
@@ -34,7 +34,7 @@ def test_plot_state(sampler, tmpdir, filename, track_gradients):
     sampler.rolling_p = np.arange(4)
 
     if filename is not None:
-        sampler.output = tmpdir.mkdir('test_plot_state')
+        sampler.output = tmpdir.mkdir("test_plot_state")
         filename = os.path.join(sampler.output, filename)
     fig = NestedSampler.plot_state(sampler, filename)
 
@@ -44,9 +44,9 @@ def test_plot_state(sampler, tmpdir, filename, track_gradients):
         assert fig is not None
 
 
-@pytest.mark.parametrize('samples', [[], [1, 2, 3]])
-@pytest.mark.parametrize('filename', [None, 'trace.png'])
-@patch('nessai.nestedsampler.plot_trace', return_value='fig')
+@pytest.mark.parametrize("samples", [[], [1, 2, 3]])
+@pytest.mark.parametrize("filename", [None, "trace.png"])
+@patch("nessai.nestedsampler.plot_trace", return_value="fig")
 def test_plot_trace(mock_plot, sampler, tmpdir, samples, filename):
     """Test the plot_trace method"""
     sampler.nested_samples = samples
@@ -55,7 +55,7 @@ def test_plot_trace(mock_plot, sampler, tmpdir, samples, filename):
     sampler.output = os.getcwd()
 
     if filename is not None:
-        sampler.output = tmpdir.mkdir('test_plot_trace')
+        sampler.output = tmpdir.mkdir("test_plot_trace")
         filename = os.path.join(sampler.output, filename)
 
     fig = NestedSampler.plot_trace(sampler, filename=filename)
@@ -65,15 +65,13 @@ def test_plot_trace(mock_plot, sampler, tmpdir, samples, filename):
         assert fig is None
     else:
         mock_plot.assert_called_once_with(
-            [2, 3, 4],
-            samples,
-            filename=filename
+            [2, 3, 4], samples, filename=filename
         )
-        assert fig == 'fig'
+        assert fig == "fig"
 
 
-@pytest.mark.parametrize('filename', [None, 'trace.png'])
-@patch('nessai.nestedsampler.plot_indices', return_value='fig')
+@pytest.mark.parametrize("filename", [None, "trace.png"])
+@patch("nessai.nestedsampler.plot_indices", return_value="fig")
 def test_plot_insertion_indices(mock_plot, sampler, filename):
     """Test plotting the insetion indices"""
     nlive = 10
@@ -81,14 +79,9 @@ def test_plot_insertion_indices(mock_plot, sampler, filename):
     sampler.nlive = nlive
     sampler.insertion_indices = indices
     fig = NestedSampler.plot_insertion_indices(
-        sampler,
-        filename=filename,
-        k=True
+        sampler, filename=filename, k=True
     )
-    assert fig == 'fig'
+    assert fig == "fig"
     mock_plot.assert_called_once_with(
-        indices,
-        nlive,
-        filename=filename,
-        k=True
+        indices, nlive, filename=filename, k=True
     )

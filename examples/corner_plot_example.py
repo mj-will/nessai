@@ -16,15 +16,15 @@ from nessai.plot import corner_plot
 from nessai.utils import setup_logger
 
 
-output = './outdir/corner_plot_example/'
+output = "./outdir/corner_plot_example/"
 logger = setup_logger(output=output)
 
 
 # Generate the data
-truth = {'mu': 1.7, 'sigma': 0.7}
-bounds = {'mu': [-3, 3], 'sigma': [0.01, 3]}
+truth = {"mu": 1.7, "sigma": 0.7}
+bounds = {"mu": [-3, 3], "sigma": [0.01, 3]}
 n_points = 1000
-data = np.random.normal(truth['mu'], truth['sigma'], size=n_points)
+data = np.random.normal(truth["mu"], truth["sigma"], size=n_points)
 
 
 class GaussianLikelihood(Model):
@@ -39,6 +39,7 @@ class GaussianLikelihood(Model):
     bounds : dict
         The prior bounds.
     """
+
     def __init__(self, data, bounds):
         self.names = list(bounds.keys())
         self.bounds = bounds
@@ -46,7 +47,7 @@ class GaussianLikelihood(Model):
 
     def log_prior(self, x):
         """Uniform prior on both parameters."""
-        log_p = np.log(self.in_bounds(x), dtype='float')
+        log_p = np.log(self.in_bounds(x), dtype="float")
         for bounds in self.bounds.values():
             log_p -= np.log(bounds[1] - bounds[0])
         return log_p
@@ -54,8 +55,8 @@ class GaussianLikelihood(Model):
     def log_likelihood(self, x):
         """Gaussian likelihood."""
         log_l = np.sum(
-            - np.log(x['sigma']) -
-            0.5 * ((self.data - x['mu']) / x['sigma']) ** 2
+            -np.log(x["sigma"])
+            - 0.5 * ((self.data - x["mu"]) / x["sigma"]) ** 2
         )
         return log_l
 
@@ -76,5 +77,5 @@ corner_plot(
     include=list(truth.keys()),
     truths=list(truth.values()),
     labels=[r"$\mu$", r"$\sigma$"],
-    filename=os.path.join(output, 'posterior_w_truth.png'),
+    filename=os.path.join(output, "posterior_w_truth.png"),
 )

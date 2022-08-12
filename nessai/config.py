@@ -5,11 +5,11 @@ Global configuration for nessai.
 import numpy as np
 
 # Settings for live points
-LOGL_DTYPE = 'f8'
-IT_DTYPE = 'i4'
-DEFAULT_FLOAT_DTYPE = 'f8'
+LOGL_DTYPE = "f8"
+IT_DTYPE = "i4"
+DEFAULT_FLOAT_DTYPE = "f8"
 DEFAULT_FLOAT_VALUE = np.nan
-CORE_PARAMETERS = ['logP', 'logL', 'it']
+CORE_PARAMETERS = ["logP", "logL", "it"]
 CORE_PARAMETERS_DEFAULTS = [np.nan, np.nan, 0]
 CORE_PARAMETERS_DTYPE = [DEFAULT_FLOAT_DTYPE, LOGL_DTYPE, IT_DTYPE]
 EXTRA_PARAMETERS = []
@@ -25,13 +25,13 @@ DISABLE_STYLE = False
 Useful since all plotting functions use the
 :py:func:`~nessai.plot.nessai_style` decorator by default.
 """
-SNS_STYLE = 'ticks'
+SNS_STYLE = "ticks"
 """Default seaborn style."""
-BASE_COLOUR = '#02979d'
+BASE_COLOUR = "#02979d"
 """Base colour for plots."""
-HIGHLIGHT_COLOUR = '#f5b754'
+HIGHLIGHT_COLOUR = "#f5b754"
 """Highlight colour for plots."""
-LINE_COLOURS = ['#4575b4', '#d73027', '#fad117', '#ff8c00']
+LINE_COLOURS = ["#4575b4", "#d73027", "#fad117", "#ff8c00"]
 """Default line colours."""
-LINE_STYLES = ['-', '--', ':', '-.']
+LINE_STYLES = ["-", "--", ":", "-."]
 """Default line styles."""

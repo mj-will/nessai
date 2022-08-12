@@ -33,19 +33,22 @@ def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
     if max_threads is not None:
         if pytorch_threads is not None and pytorch_threads > max_threads:
             raise RuntimeError(
-                f'More threads assigned to PyTorch ({pytorch_threads}) '
-                f'than are available ({max_threads})'
+                f"More threads assigned to PyTorch ({pytorch_threads}) "
+                f"than are available ({max_threads})"
             )
         if n_pool is not None and n_pool >= max_threads:
             raise RuntimeError(
-                f'More threads assigned to pool ({n_pool}) than are '
-                f'available ({max_threads})'
+                f"More threads assigned to pool ({n_pool}) than are "
+                f"available ({max_threads})"
             )
-        if (n_pool is not None and pytorch_threads is not None and
-                (pytorch_threads + n_pool) > max_threads):
+        if (
+            n_pool is not None
+            and pytorch_threads is not None
+            and (pytorch_threads + n_pool) > max_threads
+        ):
             raise RuntimeError(
-                f'More threads assigned to PyTorch ({pytorch_threads}) '
-                f'and pool ({n_pool}) than are available ({max_threads})'
+                f"More threads assigned to PyTorch ({pytorch_threads}) "
+                f"and pool ({n_pool}) than are available ({max_threads})"
             )
 
     if pytorch_threads is None:
@@ -57,5 +60,6 @@ def configure_threads(max_threads=None, pytorch_threads=None, n_pool=None):
 
     if pytorch_threads is not None:
         logger.debug(
-            f'Setting maximum number of PyTorch threads to {pytorch_threads}')
+            f"Setting maximum number of PyTorch threads to {pytorch_threads}"
+        )
         torch.set_num_threads(pytorch_threads)

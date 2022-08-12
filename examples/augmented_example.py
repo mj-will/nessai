@@ -10,19 +10,20 @@ from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.utils import setup_logger
 
-output = './outdir/augmented_example/'
+output = "./outdir/augmented_example/"
 logger = setup_logger(output=output)
 
 
 class MultimodalModel(Model):
     """A multimodal gaussian model."""
+
     def __init__(self, dims=2):
         self.names = [str(i) for i in range(dims)]
         self.bounds = {i: [-10, 10] for i in self.names}
 
     def log_prior(self, x):
         """Log-prior"""
-        log_p = np.log(self.in_bounds(x), dtype='float')
+        log_p = np.log(self.in_bounds(x), dtype="float")
         for bounds in self.bounds.values():
             log_p -= np.log(bounds[1] - bounds[0])
         return log_p
@@ -44,7 +45,7 @@ fs = FlowSampler(
     resume=False,
     seed=1234,
     augment_dims=2,
-    flow_class='AugmentedFlowProposal',
+    flow_class="AugmentedFlowProposal",
 )
 
 # And go!

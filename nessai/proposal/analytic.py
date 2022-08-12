@@ -25,6 +25,7 @@ class AnalyticProposal(Proposal):
     kwargs :
         Keyword arguments passed to the parent class.
     """
+
     def __init__(self, *args, poolsize=1000, **kwargs):
         super(AnalyticProposal, self).__init__(*args, **kwargs)
         self.populated = False
@@ -51,10 +52,11 @@ class AnalyticProposal(Proposal):
         if N is None:
             N = self.poolsize
         self.samples = self.model.new_point(N=N)
-        self.samples['logP'] = self.model.log_prior(self.samples)
+        self.samples["logP"] = self.model.log_prior(self.samples)
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
-        self.samples['logL'] = \
-            self.model.batch_evaluate_log_likelihood(self.samples)
+        self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
+            self.samples
+        )
         self.populated = True
 
     def draw(self, old_sample, **kwargs):
@@ -73,7 +75,7 @@ class AnalyticProposal(Proposal):
         if not self.populated:
             st = datetime.datetime.now()
             self.populate(**kwargs)
-            self.population_time += (datetime.datetime.now() - st)
+            self.population_time += datetime.datetime.now() - st
         index = self.indices.pop()
         new_sample = self.samples[index]
         if not self.indices:

@@ -25,8 +25,9 @@ def logsubexp(x, y):
         Inputs
     """
     if np.any(x < y):
-        raise RuntimeError('cannot take log of negative number '
-                           f'{str(x)!s} - {str(y)!s}')
+        raise RuntimeError(
+            "cannot take log of negative number " f"{str(x)!s} - {str(y)!s}"
+        )
 
     return x + np.log1p(-np.exp(y - x))
 
@@ -65,6 +66,7 @@ class _NSIntegralState:
         If true the gradient of the change in logL w.r.t logX is saved each
         time `increment` is called.
     """
+
     def __init__(self, nlive, track_gradients=True):
         self.nlive = nlive
         self.reset()
@@ -77,10 +79,10 @@ class _NSIntegralState:
         self.logZ = -np.inf
         self.oldZ = -np.inf
         self.logw = 0
-        self.info = [0.]
+        self.info = [0.0]
         # Start with a dummy sample enclosing the whole prior
-        self.logLs = [-np.inf]   # Likelihoods sampled
-        self.log_vols = [0.0]    # Volumes enclosed by contours
+        self.logLs = [-np.inf]  # Likelihoods sampled
+        self.log_vols = [0.0]  # Volumes enclosed by contours
         self.gradients = [0]
 
     def increment(self, logL, nlive=None):
@@ -88,21 +90,24 @@ class _NSIntegralState:
         Increment the state of the evidence integrator
         Simply uses rectangle rule for initial estimate
         """
-        if (logL <= self.logLs[-1]):
-            logger.warning('NS integrator received non-monotonic logL.'
-                           f'{self.logLs[-1]:.5f} -> {logL:.5f}')
+        if logL <= self.logLs[-1]:
+            logger.warning(
+                "NS integrator received non-monotonic logL."
+                f"{self.logLs[-1]:.5f} -> {logL:.5f}"
+            )
         if nlive is None:
             nlive = self.nlive
         oldZ = self.logZ
-        logt = - 1.0 / nlive
+        logt = -1.0 / nlive
         Wt = self.logw + logL + np.log1p(-np.exp(logt))
         self.logZ = np.logaddexp(self.logZ, Wt)
         # Update information estimate
         if np.isfinite(oldZ) and np.isfinite(self.logZ) and np.isfinite(logL):
-            info = np.exp(Wt - self.logZ) * logL \
-                  + np.exp(oldZ - self.logZ) \
-                  * (self.info[-1] + oldZ) \
-                  - self.logZ
+            info = (
+                np.exp(Wt - self.logZ) * logL
+                + np.exp(oldZ - self.logZ) * (self.info[-1] + oldZ)
+                - self.logZ
+            )
             if np.isnan(info):
                 info = 0
             self.info.append(info)
@@ -112,8 +117,10 @@ class _NSIntegralState:
         self.logLs.append(logL)
         self.log_vols.append(self.logw)
         if self.track_gradients:
-            self.gradients.append((self.logLs[-1] - self.logLs[-2])
-                                  / (self.log_vols[-1] - self.log_vols[-2]))
+            self.gradients.append(
+                (self.logLs[-1] - self.logLs[-2])
+                / (self.log_vols[-1] - self.log_vols[-2])
+            )
 
     def finalise(self):
         """
@@ -121,8 +128,9 @@ class _NSIntegralState:
         Call at end of sampling run to refine estimate
         """
         # Trapezoidal rule
-        self.logZ = log_integrate_log_trap(np.array(self.logLs),
-                                           np.array(self.log_vols))
+        self.logZ = log_integrate_log_trap(
+            np.array(self.logLs), np.array(self.log_vols)
+        )
         return self.logZ
 
     @nessai_style()
@@ -138,16 +146,18 @@ class _NSIntegralState:
         """
         fig = plt.figure()
         plt.plot(self.log_vols, self.logLs)
-        plt.title(f'log Z={self.logZ:.2f} '
-                  f'H={self.info[-1] * np.log2(np.e):.2f} bits')
-        plt.grid(which='both')
-        plt.xlabel('log prior-volume')
-        plt.ylabel('log-likelihood')
+        plt.title(
+            f"log Z={self.logZ:.2f} "
+            f"H={self.info[-1] * np.log2(np.e):.2f} bits"
+        )
+        plt.grid(which="both")
+        plt.xlabel("log prior-volume")
+        plt.ylabel("log-likelihood")
         plt.xlim([self.log_vols[-1], self.log_vols[0]])
 
         if filename is not None:
-            fig.savefig(filename, bbox_inches='tight')
+            fig.savefig(filename, bbox_inches="tight")
             plt.close()
-            logger.info(f'Saved nested sampling plot as {filename}')
+            logger.info(f"Saved nested sampling plot as {filename}")
         else:
             return fig

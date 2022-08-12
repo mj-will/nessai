@@ -12,7 +12,7 @@ from nessai.model import Model
 from nessai.utils import setup_logger
 
 
-output = './outdir/eggbox/'
+output = "./outdir/eggbox/"
 logger = setup_logger(output=output)
 
 
@@ -30,7 +30,7 @@ class EggboxModel(Model):
 
     def log_prior(self, x):
         """Log-prior."""
-        log_p = np.log(self.in_bounds(x), dtype='float')
+        log_p = np.log(self.in_bounds(x), dtype="float")
         for bounds in self.bounds.values():
             log_p -= np.log(bounds[1] - bounds[0])
         return log_p
@@ -43,8 +43,8 @@ class EggboxModel(Model):
 
 
 flow_config = dict(
-    patience=50,     # Make sure the flow trains for longer
-    model_config=dict(n_blocks=6, n_neurons=8)
+    patience=50,  # Make sure the flow trains for longer
+    model_config=dict(n_blocks=6, n_neurons=8),
 )
 
 # Sampling the Eggbox will be inefficient, so we increase the maximum size of
@@ -56,12 +56,12 @@ fs = FlowSampler(
     flow_config=flow_config,
     resume=False,
     seed=1234,
-    flow_class='AugmentedFlowProposal',
-    augment_features=2,          # Add two augment parameters
-    maximum_uninformed='inf',    # Run initial sampling until it's inefficient
-    max_poolsize_scale=50,       # Increase the maximum poolsize
+    flow_class="AugmentedFlowProposal",
+    augment_features=2,  # Add two augment parameters
+    maximum_uninformed="inf",  # Run initial sampling until it's inefficient
+    max_poolsize_scale=50,  # Increase the maximum poolsize
     max_threads=3,
-    n_pool=2
+    n_pool=2,
 )
 
 fs.run()

@@ -20,15 +20,14 @@ _requires_dependency_cache = dict()
 @pytest.fixture()
 def model():
     class TestModel(Model):
-
         def __init__(self):
-            self.bounds = {'x': [-5, 5], 'y': [-5, 5]}
-            self.names = ['x', 'y']
+            self.bounds = {"x": [-5, 5], "y": [-5, 5]}
+            self.names = ["x", "y"]
 
         def log_prior(self, x):
-            log_p = np.log(self.in_bounds(x), dtype='float')
+            log_p = np.log(self.in_bounds(x), dtype="float")
             for n in self.names:
-                log_p -= (self.bounds[n][1] - self.bounds[n][0])
+                log_p -= self.bounds[n][1] - self.bounds[n][0]
             return log_p
 
         def log_likelihood(self, x):
@@ -43,11 +42,15 @@ def model():
 @pytest.fixture()
 def flow_config():
     d = dict(
-            max_epochs=5,
-            model_config=dict(n_blocks=2, n_neurons=2, n_layers=1,
-                              device_tag='cpu',
-                              kwargs=dict(batch_norm_between_layers=False))
-            )
+        max_epochs=5,
+        model_config=dict(
+            n_blocks=2,
+            n_neurons=2,
+            n_layers=1,
+            device_tag="cpu",
+            kwargs=dict(batch_norm_between_layers=False),
+        ),
+    )
     return d
 
 
@@ -57,8 +60,10 @@ def wait():
 
     Time resolution on Windows is less than Linux and macOS
     """
+
     def func(*args, **kwargs):
         time.sleep(0.01)
+
     return func
 
 
@@ -83,20 +88,20 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers",
         "requires(package): mark test to only run if the package can be "
-        "imported"
+        "imported",
     )
     config.addinivalue_line(
         "markers",
         "skip_on_windows: mark test to indicated it should be skipped on "
-        "Windows"
+        "Windows",
     )
 
 
 def pytest_runtest_setup(item):
-    for mark in item.iter_markers(name='cuda'):
+    for mark in item.iter_markers(name="cuda"):
         if not torch.cuda.is_available():
-            pytest.skip('Test requires CUDA')
-    for mark in item.iter_markers(name='requires'):
+            pytest.skip("Test requires CUDA")
+    for mark in item.iter_markers(name="requires"):
         name = mark.args[0]
         if name in _requires_dependency_cache:
             skip_it = _requires_dependency_cache[name]
@@ -109,9 +114,9 @@ def pytest_runtest_setup(item):
 
             _requires_dependency_cache[name] = skip_it
 
-        reason = 'Missing dependency: {}'.format(name)
+        reason = "Missing dependency: {}".format(name)
         if skip_it:
             pytest.skip(reason)
-    for mark in item.iter_markers(name='skip_on_windows'):
+    for mark in item.iter_markers(name="skip_on_windows"):
         if sys.platform == "win32":
             pytest.skip("Test does not run on Windows")

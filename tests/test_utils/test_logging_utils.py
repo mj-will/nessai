@@ -11,11 +11,11 @@ from nessai.utils.logging import setup_logger
 
 def teardown_function():
     """Reset the logger after each test"""
-    logger = logging.getLogger('nessai')
+    logger = logging.getLogger("nessai")
     logger.handlers = []
     logger.addHandler(logging.NullHandler())
     try:
-        os.remove('test.log')
+        os.remove("test.log")
     except OSError:
         pass
 
@@ -29,7 +29,7 @@ def test_setup_logger_no_label():
     assert not any([type(h) == logging.FileHandler for h in logger.handlers])
 
 
-@pytest.mark.parametrize('output', ['logger_dir', None])
+@pytest.mark.parametrize("output", ["logger_dir", None])
 def test_setup_logger_with_label(tmp_path, output):
     """Test behaviour when label is not None.
 
@@ -38,23 +38,23 @@ def test_setup_logger_with_label(tmp_path, output):
     if output:
         output = tmp_path / output
         output.mkdir()
-    logger = setup_logger(label='test', output=output)
+    logger = setup_logger(label="test", output=output)
     if output is None:
         output = os.getcwd()
-    assert os.path.exists(os.path.join(output, 'test.log'))
+    assert os.path.exists(os.path.join(output, "test.log"))
     assert any([type(h) == logging.FileHandler for h in logger.handlers])
 
 
 def test_setup_logger_with_mkdir(tmp_path):
     """Assert the output directory is created if missing"""
-    output = tmp_path / 'logger_dir'
-    setup_logger(label='test', output=output)
-    assert os.path.exists(os.path.join(output, 'test.log'))
+    output = tmp_path / "logger_dir"
+    setup_logger(label="test", output=output)
+    assert os.path.exists(os.path.join(output, "test.log"))
 
 
 @pytest.mark.parametrize(
-    'log_level, value',
-    [('ERROR', 40), ('WARNING', 30), ('INFO', 20), ('DEBUG', 10), (15, 15)]
+    "log_level, value",
+    [("ERROR", 40), ("WARNING", 30), ("INFO", 20), ("DEBUG", 10), (15, 15)],
 )
 def test_setup_logger_levels(log_level, value):
     """Verify logging levels are correctly set."""
@@ -65,5 +65,5 @@ def test_setup_logger_levels(log_level, value):
 def test_setup_logger_unknown_level():
     """Verify an error is raised for an unknown level"""
     with pytest.raises(ValueError) as excinfo:
-        setup_logger(log_level='test', label=None)
-    assert 'log_level test not understood' in str(excinfo.value)
+        setup_logger(log_level="test", label=None)
+    assert "log_level test not understood" in str(excinfo.value)

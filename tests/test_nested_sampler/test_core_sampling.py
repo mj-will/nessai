@@ -8,7 +8,7 @@ from unittest.mock import call, MagicMock
 
 from nessai.livepoint import (
     numpy_array_to_live_points,
-    parameters_to_live_point
+    parameters_to_live_point,
 )
 from nessai.nestedsampler import NestedSampler
 from nessai.utils.testing import assert_structured_arrays_equal
@@ -16,8 +16,8 @@ from nessai.utils.testing import assert_structured_arrays_equal
 
 @pytest.fixture
 def live_points():
-    x = numpy_array_to_live_points(np.arange(4)[:, np.newaxis], names=['x'])
-    x['logL'] = np.arange(4)
+    x = numpy_array_to_live_points(np.arange(4)[:, np.newaxis], names=["x"])
+    x["logL"] = np.arange(4)
     return x
 
 
@@ -110,10 +110,10 @@ def test_finalise(sampler, live_points):
     NestedSampler.finalise(sampler)
 
     calls = [
-       call(0, nlive=4),
-       call(1, nlive=3),
-       call(2, nlive=2),
-       call(3, nlive=1),
+        call(0, nlive=4),
+        call(1, nlive=3),
+        call(2, nlive=2),
+        call(3, nlive=1),
     ]
 
     sampler.state.increment.assert_has_calls(calls)
@@ -126,8 +126,8 @@ def test_finalise(sampler, live_points):
 def test_consume_sample(sampler, live_points):
     """Test the default behaviour of consume sample"""
     sampler.live_points = live_points
-    new_sample = np.squeeze(parameters_to_live_point((0.5,), ['x']))
-    new_sample['logL'] = 0.5
+    new_sample = np.squeeze(parameters_to_live_point((0.5,), ["x"]))
+    new_sample["logL"] = 0.5
     sampler.yield_sample = MagicMock()
     sampler.yield_sample.return_value = iter([(1, new_sample)])
 
@@ -151,13 +151,14 @@ def test_consume_sample(sampler, live_points):
 def test_consume_sample_reject(sampler, live_points):
     """Test the default behaviour of consume sample"""
     sampler.live_points = live_points
-    reject_sample = parameters_to_live_point((-0.5,), ['x'])
-    reject_sample['logL'] = -0.5
-    new_sample = np.squeeze(parameters_to_live_point((0.5,), ['x']))
-    new_sample['logL'] = 0.5
+    reject_sample = parameters_to_live_point((-0.5,), ["x"])
+    reject_sample["logL"] = -0.5
+    new_sample = np.squeeze(parameters_to_live_point((0.5,), ["x"]))
+    new_sample["logL"] = 0.5
     sampler.yield_sample = MagicMock()
-    sampler.yield_sample.return_value = \
-        iter([(1, reject_sample), (1, new_sample)])
+    sampler.yield_sample.return_value = iter(
+        [(1, reject_sample), (1, new_sample)]
+    )
 
     sampler.insert_live_point = MagicMock(return_value=0)
     sampler.check_state = MagicMock()
@@ -178,13 +179,23 @@ def test_consume_sample_reject(sampler, live_points):
 
 
 @pytest.mark.parametrize(
-    'config',
+    "config",
     [
-        {'tolerance': 0.1, 'condition': 0.01, 'call_finalise': True,
-         'call_while': False, 'close_pool': True},
-        {'iteration': 10, 'max_iteration': 10, 'call_finalise': False,
-         'call_while': True, 'close_pool': False}
-    ]
+        {
+            "tolerance": 0.1,
+            "condition": 0.01,
+            "call_finalise": True,
+            "call_while": False,
+            "close_pool": True,
+        },
+        {
+            "iteration": 10,
+            "max_iteration": 10,
+            "call_finalise": False,
+            "call_while": True,
+            "close_pool": False,
+        },
+    ],
 )
 def test_nested_sampling_loop(sampler, config):
     """Test the main nested sampling loop.
@@ -193,14 +204,14 @@ def test_nested_sampling_loop(sampler, config):
     """
     sampler.prior_sampling = False
     sampler.initialised = False
-    sampler.condition = config.get('condition', 0.5)
-    sampler.tolerance = config.get('tolerance', 0.1)
-    sampler.close_pool = config.get('close_pool', True)
-    sampler.max_iteration = config.get('max_iteration')
-    sampler.iteration = config.get('iteration', 0)
-    sampler.sampling_time = 0.
-    sampler.training_time = 0.
-    sampler.proposal_population_time = 0.
+    sampler.condition = config.get("condition", 0.5)
+    sampler.tolerance = config.get("tolerance", 0.1)
+    sampler.close_pool = config.get("close_pool", True)
+    sampler.max_iteration = config.get("max_iteration")
+    sampler.iteration = config.get("iteration", 0)
+    sampler.sampling_time = 0.0
+    sampler.training_time = 0.0
+    sampler.proposal_population_time = 0.0
     sampler.likelihood_calls = 1
     sampler.nested_samples = [1, 2]
 
@@ -226,8 +237,8 @@ def test_nested_sampling_loop(sampler, config):
     sampler.initialise.assert_called_once_with(live_points=True)
     sampler.check_resume.assert_called_once()
 
-    if config.get('call_while', True):
-        if config.get('iteration', 0):
+    if config.get("call_while", True):
+        if config.get("iteration", 0):
             sampler.update_state.call_count == 2
         else:
             sampler.update_state.assert_called_once()
@@ -238,7 +249,7 @@ def test_nested_sampling_loop(sampler, config):
         sampler.consume_sample.assert_not_called()
         sampler.update_state.assert_not_called()
 
-    if config.get('call_finalise'):
+    if config.get("call_finalise"):
         sampler.finalise.assert_called_once()
     else:
         sampler.finalise.assert_not_called()

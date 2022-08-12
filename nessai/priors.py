@@ -35,7 +35,7 @@ def log_2d_cartesian_prior(x, y, k=np.pi):
         Range over which the angles used to obtain the Cartesian coordinates
         are defined.
     """
-    return - np.log(k) - ((x ** 2 + y ** 2) / 2)
+    return -np.log(k) - ((x**2 + y**2) / 2)
 
 
 def log_2d_cartesian_prior_sine(x, y, k=np.pi):
@@ -56,8 +56,8 @@ def log_2d_cartesian_prior_sine(x, y, k=np.pi):
         angle reparameterisations.
     """
     if k != np.pi:
-        raise RuntimeError('x prime prior is incompatible with k != pi')
-    r = x ** 2 + y ** 2
+        raise RuntimeError("x prime prior is incompatible with k != pi")
+    r = x**2 + y**2
     y[y < 0] = 0
     return np.log(y / 2) - 0.5 * np.log(r) - (r / 2)
 
@@ -74,4 +74,4 @@ def log_3d_cartesian_prior(x, y, z):
     x, y, z : array_like
         Cartesian coordinates
     """
-    return - 1.5 * np.log(2 * np.pi) - (x ** 2 + y ** 2 + z ** 2) / 2
+    return -1.5 * np.log(2 * np.pi) - (x**2 + y**2 + z**2) / 2

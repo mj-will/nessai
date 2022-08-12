@@ -10,7 +10,7 @@ from nessai.livepoint import dict_to_live_points
 from nessai.model import Model
 from nessai.utils import setup_logger
 
-output = './outdir/unbounded_prior/'
+output = "./outdir/unbounded_prior/"
 logger = setup_logger(output=output)
 
 # We define the model as usual but also need to redefine `new_point` since by
@@ -23,11 +23,12 @@ class GaussianModel(Model):
 
     The prior is Uniform[-10, 10] on x and a unit-Gaussian on y.
     """
+
     def __init__(self):
         # Names of parameters to sample
-        self.names = ['x', 'y']
+        self.names = ["x", "y"]
         # Prior bounds for each parameter
-        self.bounds = {'x': [-10, 10], 'y': [-np.inf, np.inf]}
+        self.bounds = {"x": [-10, 10], "y": [-np.inf, np.inf]}
 
     def log_prior(self, x):
         """
@@ -36,11 +37,11 @@ class GaussianModel(Model):
         Checks if the points are in bounds.
         """
         # Check if the values are in the priors bounds, will return -inf if not
-        log_p = np.log(self.in_bounds(x), dtype='float')
+        log_p = np.log(self.in_bounds(x), dtype="float")
         # Uniform on x
-        log_p -= np.log(self.bounds['x'][1] - self.bounds['x'][0])
+        log_p -= np.log(self.bounds["x"][1] - self.bounds["x"][0])
         # Gaussian on y
-        log_p += norm(scale=5).logpdf(x['y'])
+        log_p += norm(scale=5).logpdf(x["y"])
         return log_p
 
     def new_point(self, N=1):
@@ -52,10 +53,10 @@ class GaussianModel(Model):
         # There are various ways to create live points in nessai, such as
         # from dictionaries and numpy arrays. See nessai.livepoint for options
         d = {
-            'x': np.random.uniform(
-                self.bounds['x'][0], self.bounds['x'][1], N
+            "x": np.random.uniform(
+                self.bounds["x"][0], self.bounds["x"][1], N
             ),
-            'y': norm(scale=5).rvs(size=N)
+            "y": norm(scale=5).rvs(size=N),
         }
         return dict_to_live_points(d)
 

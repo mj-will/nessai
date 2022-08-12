@@ -14,5 +14,5 @@ __all__ = [
     "RealNVP",
     "configure_model",
     "reset_weights",
-    "reset_permutations"
+    "reset_permutations",
 ]

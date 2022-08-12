@@ -12,7 +12,7 @@ from nessai.gw.utils import (
     DistanceConverter,
     NullDistanceConverter,
     PowerLawConverter,
-    get_distance_converter
+    get_distance_converter,
 )
 
 
@@ -51,8 +51,10 @@ def test_converter_error():
     """Assert an error is raised if the methods are not implemented"""
     with pytest.raises(TypeError) as excinfo:
         DistanceConverter()
-    assert "abstract methods from_uniform_parameter, to_uniform_parameter" \
+    assert (
+        "abstract methods from_uniform_parameter, to_uniform_parameter"
         in str(excinfo.value)
+    )
 
 
 def test_null_converter_init(null_converter, caplog):
@@ -64,8 +66,9 @@ def test_null_converter_init(null_converter, caplog):
 def test_null_converter_to_uniform(null_converter):
     """Test the null distance converter to uniform"""
     d = np.arange(10)
-    d_out, log_j = \
-        NullDistanceConverter.to_uniform_parameter(null_converter, d)
+    d_out, log_j = NullDistanceConverter.to_uniform_parameter(
+        null_converter, d
+    )
     np.testing.assert_array_equal(d_out, d)
     np.testing.assert_equal(log_j, 0)
 
@@ -73,8 +76,9 @@ def test_null_converter_to_uniform(null_converter):
 def test_null_converter_from_uniform(null_converter):
     """Test the null distance converter from uniform"""
     d = np.arange(10)
-    d_out, log_j = \
-        NullDistanceConverter.from_uniform_parameter(null_converter, d)
+    d_out, log_j = NullDistanceConverter.from_uniform_parameter(
+        null_converter, d
+    )
     np.testing.assert_array_equal(d_out, d)
     np.testing.assert_equal(log_j, 0)
 
@@ -84,10 +88,10 @@ def test_power_law_converter_missing_power():
 
     with pytest.raises(RuntimeError) as excinfo:
         PowerLawConverter(power=None)
-    assert 'Must specify the power' in str(excinfo.value)
+    assert "Must specify the power" in str(excinfo.value)
 
 
-@pytest.mark.parametrize('power, func', [(1, np.sqrt), (2, np.cbrt)])
+@pytest.mark.parametrize("power, func", [(1, np.sqrt), (2, np.cbrt)])
 def test_power_law_converter_init(power_law_converter, power, func):
     """Test the init method with powers of 1 or 2"""
     PowerLawConverter.__init__(power_law_converter, power=power, scale=200)
@@ -96,9 +100,10 @@ def test_power_law_converter_init(power_law_converter, power, func):
     assert power_law_converter.scale == 200
 
 
-@pytest.mark.parametrize('power', [3, 4, 5])
-def test_power_law_converter_init_power_greater_than_2(power_law_converter,
-                                                       power):
+@pytest.mark.parametrize("power", [3, 4, 5])
+def test_power_law_converter_init_power_greater_than_2(
+    power_law_converter, power
+):
     """Test the init method for powers > 2"""
     x = 3
     PowerLawConverter.__init__(power_law_converter, power=power, scale=200)
@@ -107,11 +112,8 @@ def test_power_law_converter_init_power_greater_than_2(power_law_converter,
 
 
 @pytest.mark.parametrize(
-    'd, scale, power, expected',
-    [
-        (1.0, 1.0, 3, np.log(4)),
-        (1000.0, 1000.0, 2, -5.80914299)
-    ]
+    "d, scale, power, expected",
+    [(1.0, 1.0, 3, np.log(4)), (1000.0, 1000.0, 2, -5.80914299)],
 )
 def test_power_law_jacobian(power_law_converter, d, scale, power, expected):
     """Test the power law Jacobian"""
@@ -122,14 +124,12 @@ def test_power_law_jacobian(power_law_converter, d, scale, power, expected):
 
 
 @pytest.mark.parametrize(
-    'd, scale, power, expected',
-    [
-        (1.0, 1.0, 3, -np.log(4)),
-        (1.0, 1000.0, 2, 5.80914299)
-    ]
+    "d, scale, power, expected",
+    [(1.0, 1.0, 3, -np.log(4)), (1.0, 1000.0, 2, 5.80914299)],
 )
-def test_power_law_jacobian_inverse(power_law_converter, d, scale, power,
-                                    expected):
+def test_power_law_jacobian_inverse(
+    power_law_converter, d, scale, power, expected
+):
     """Test the power law Jacobian"""
     power_law_converter._power = power + 1
     power_law_converter.scale = scale
@@ -162,7 +162,7 @@ def test_power_law_from_uniform_parameter(power_law_converter):
     assert lj == -2
 
 
-@pytest.mark.requires('astropy')
+@pytest.mark.requires("astropy")
 def test_comoving_vol_init(comoving_vol_converter):
     """Test the init method"""
     d_min = 100
@@ -179,15 +179,21 @@ def test_comoving_vol_init(comoving_vol_converter):
     z_values = np.arange(n_interp + 2)
 
     # Patch hell - There has to be a better way
-    with patch('nessai.gw.utils.cosmo.Planck15', return_value=MagicMock()), \
-         patch('nessai.gw.utils.cosmo.Planck15.comoving_distance',
-               side_effect=[dc_min, dc_max]) as cd_mock, \
-         patch('nessai.gw.utils.cosmo.Planck15.luminosity_distance',
-               side_effect=[dl_array]) as ld_mock, \
-         patch('nessai.gw.utils.cosmo.z_at_value', side_effect=z_values), \
-         patch('numpy.linspace', return_value=dc_array) as linspace_mock, \
-         patch('nessai.gw.utils.interpolate.splrep',
-               side_effect=['dc2dl', 'dl2dc']) as interp_mock:
+    with patch(
+        "nessai.gw.utils.cosmo.Planck15", return_value=MagicMock()
+    ), patch(
+        "nessai.gw.utils.cosmo.Planck15.comoving_distance",
+        side_effect=[dc_min, dc_max],
+    ) as cd_mock, patch(
+        "nessai.gw.utils.cosmo.Planck15.luminosity_distance",
+        side_effect=[dl_array],
+    ) as ld_mock, patch(
+        "nessai.gw.utils.cosmo.z_at_value", side_effect=z_values
+    ), patch(
+        "numpy.linspace", return_value=dc_array
+    ) as linspace_mock, patch(
+        "nessai.gw.utils.interpolate.splrep", side_effect=["dc2dl", "dl2dc"]
+    ) as interp_mock:
         ComovingDistanceConverter.__init__(
             comoving_vol_converter,
             d_min=d_min,
@@ -203,22 +209,21 @@ def test_comoving_vol_init(comoving_vol_converter):
     assert comoving_vol_converter.dc_max == 2000
     linspace_mock.assert_called_once_with(2, 2000, 10)
 
-    interp_mock.assert_has_calls([
-        call(dc_array, dl_array.value),
-        call(dl_array.value, dc_array)
-    ])
-    assert comoving_vol_converter.interp_dc2dl == 'dc2dl'
-    assert comoving_vol_converter.interp_dl2dc == 'dl2dc'
+    interp_mock.assert_has_calls(
+        [call(dc_array, dl_array.value), call(dl_array.value, dc_array)]
+    )
+    assert comoving_vol_converter.interp_dc2dl == "dc2dl"
+    assert comoving_vol_converter.interp_dl2dc == "dl2dc"
 
 
-@pytest.mark.requires('astropy')
+@pytest.mark.requires("astropy")
 def test_comoving_vol_init_invalid_cosmology(comoving_vol_converter):
     """Test the init method when an invalid cosmology is given"""
     with pytest.raises(RuntimeError) as excinfo:
         ComovingDistanceConverter.__init__(
-            comoving_vol_converter, cosmology='Planck'
+            comoving_vol_converter, cosmology="Planck"
         )
-    assert 'Could not get specified cosmology' in str(excinfo.value)
+    assert "Could not get specified cosmology" in str(excinfo.value)
 
 
 def test_comoving_vol_to_uniform(comoving_vol_converter):
@@ -227,8 +232,9 @@ def test_comoving_vol_to_uniform(comoving_vol_converter):
     grid = Mock()
     comoving_vol_converter.interp_dl2dc = grid
     comoving_vol_converter.scale = 100
-    with patch('nessai.gw.utils.interpolate.splev', return_value=200) \
-            as interp_mock:
+    with patch(
+        "nessai.gw.utils.interpolate.splev", return_value=200
+    ) as interp_mock:
         du, lj = ComovingDistanceConverter.to_uniform_parameter(
             comoving_vol_converter, d
         )
@@ -243,8 +249,9 @@ def test_comoving_vol_from_uniform(comoving_vol_converter):
     grid = Mock()
     comoving_vol_converter.interp_dc2dl = grid
     comoving_vol_converter.scale = 5
-    with patch('nessai.gw.utils.interpolate.splev', return_value=20) \
-            as interp_mock:
+    with patch(
+        "nessai.gw.utils.interpolate.splev", return_value=20
+    ) as interp_mock:
         du, lj = ComovingDistanceConverter.from_uniform_parameter(
             comoving_vol_converter, d
         )
@@ -255,13 +262,13 @@ def test_comoving_vol_from_uniform(comoving_vol_converter):
 
 
 @pytest.mark.parametrize(
-    'prior, cls',
+    "prior, cls",
     [
-        ('uniform-comoving-volume', ComovingDistanceConverter),
-        ('power-law', PowerLawConverter),
-        ('other', NullDistanceConverter),
+        ("uniform-comoving-volume", ComovingDistanceConverter),
+        ("power-law", PowerLawConverter),
+        ("other", NullDistanceConverter),
         (None, NullDistanceConverter),
-    ]
+    ],
 )
 def test_get_distance_converter(prior, cls):
     """Assert the correct class is returned."""
@@ -269,7 +276,7 @@ def test_get_distance_converter(prior, cls):
     assert cls_out == cls
 
 
-@pytest.mark.parametrize('power', [1, 2, 3, 4])
+@pytest.mark.parametrize("power", [1, 2, 3, 4])
 @pytest.mark.flaky(run=5)
 @pytest.mark.integration_test
 def test_power_law_converter_distribution(power):
@@ -280,11 +287,11 @@ def test_power_law_converter_distribution(power):
     c = PowerLawConverter(power, scale=1)
     x = stats.powerlaw(power + 1).rvs(size=10000)
     y, _ = c.to_uniform_parameter(x)
-    d, p = stats.kstest(y, 'uniform')
+    d, p = stats.kstest(y, "uniform")
     assert p >= 0.05
 
 
-@pytest.mark.parametrize('power', [1, 2, 3, 4])
+@pytest.mark.parametrize("power", [1, 2, 3, 4])
 @pytest.mark.integration_test
 def test_power_law_converter_inversion(power):
     """
@@ -297,17 +304,13 @@ def test_power_law_converter_inversion(power):
     np.testing.assert_array_almost_equal(x, x_out)
 
 
-@pytest.mark.requires('astropy')
-@pytest.mark.parametrize('cosmology', ['Planck15', 'WMAP7'])
+@pytest.mark.requires("astropy")
+@pytest.mark.parametrize("cosmology", ["Planck15", "WMAP7"])
 @pytest.mark.integration_test
 def test_comoving_distance_converter_integration(cosmology):
     """Integration test for the comoving distance prior converter."""
     cdc = ComovingDistanceConverter(
-        d_min=10,
-        d_max=1000,
-        cosmology=cosmology,
-        scale=100,
-        n_interp=10
+        d_min=10, d_max=1000, cosmology=cosmology, scale=100, n_interp=10
     )
     u, lju = cdc.to_uniform_parameter(500)
     dl, ljd = cdc.from_uniform_parameter(500)
@@ -317,10 +320,10 @@ def test_comoving_distance_converter_integration(cosmology):
     assert ljd == 0
 
 
-@pytest.mark.requires('astropy')
-@pytest.mark.parametrize('cosmology', ['Planck15', 'WMAP7'])
-@pytest.mark.parametrize('scale', [1, 1000])
-@pytest.mark.parametrize('n_interp', [200, 500])
+@pytest.mark.requires("astropy")
+@pytest.mark.parametrize("cosmology", ["Planck15", "WMAP7"])
+@pytest.mark.parametrize("scale", [1, 1000])
+@pytest.mark.parametrize("n_interp", [200, 500])
 @pytest.mark.integration_test
 def test_comoving_distance_converter_inversion(cosmology, scale, n_interp):
     """Integration test to verify the conversion is invertible."""
@@ -329,7 +332,7 @@ def test_comoving_distance_converter_inversion(cosmology, scale, n_interp):
         d_max=5000,
         cosmology=cosmology,
         scale=scale,
-        n_interp=n_interp
+        n_interp=n_interp,
     )
     dl = np.random.uniform(100, 5000, 100)
     u, _ = cdc.to_uniform_parameter(dl)

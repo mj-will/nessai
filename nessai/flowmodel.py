@@ -67,14 +67,11 @@ def update_config(d):
         n_neurons=None,
         n_blocks=4,
         n_layers=2,
-        ftype='RealNVP',
-        device_tag='cpu',
+        ftype="RealNVP",
+        device_tag="cpu",
         flow=None,
         inference_device_tag=None,
-        kwargs=dict(
-            batch_norm_between_layers=True,
-            linear_transform='lu'
-        )
+        kwargs=dict(batch_norm_between_layers=True, linear_transform="lu"),
     )
 
     default = dict(
@@ -87,30 +84,32 @@ def update_config(d):
         patience=20,
         noise_scale=0.0,
         use_dataloader=False,
-        optimiser='adamw',
-        optimiser_kwargs={}
+        optimiser="adamw",
+        optimiser_kwargs={},
     )
 
     if d is None:
-        default['model_config'] = default_model
+        default["model_config"] = default_model
     else:
         if not isinstance(d, dict):
-            raise TypeError('Must pass a dictionary to update the default '
-                            'trainer settings')
+            raise TypeError(
+                "Must pass a dictionary to update the default "
+                "trainer settings"
+            )
         else:
             default.update(d)
-            default_model.update(d.get('model_config', {}))
-            if default_model['n_neurons'] is None:
-                if default_model['n_inputs'] is not None:
-                    default_model['n_neurons'] = 2 * default_model['n_inputs']
+            default_model.update(d.get("model_config", {}))
+            if default_model["n_neurons"] is None:
+                if default_model["n_inputs"] is not None:
+                    default_model["n_neurons"] = 2 * default_model["n_inputs"]
                 else:
-                    default_model['n_neurons'] = 8
+                    default_model["n_neurons"] = 8
 
-            default['model_config'] = default_model
+            default["model_config"] = default_model
 
     if (
-        not isinstance(default['noise_scale'], float) and
-        not default['noise_scale'] == 'adaptive'
+        not isinstance(default["noise_scale"], float)
+        and not default["noise_scale"] == "adaptive"
     ):
         raise ValueError(
             "noise_scale must be a float or 'adaptive'. "
@@ -138,9 +137,10 @@ class FlowModel:
     output : str, optional
         Path for output, this includes weights files and the loss plot.
     """
+
     model_config = None
 
-    def __init__(self, config=None, output='./'):
+    def __init__(self, config=None, output="./"):
         self.model = None
         self.initialised = False
         self.output = output
@@ -169,14 +169,16 @@ class FlowModel:
         for k, v in list(config.items()):
             if type(v) == np.ndarray:
                 config[k] = np.array_str(config[k])
-        for k, v in list(config['model_config'].items()):
+        for k, v in list(config["model_config"].items()):
             if type(v) == np.ndarray:
-                config['model_config'][k] = \
-                    np.array_str(config['model_config'][k])
+                config["model_config"][k] = np.array_str(
+                    config["model_config"][k]
+                )
 
-        if 'flow' in config['model_config']:
-            config['model_config']['flow'] = \
-                str(config['model_config']['flow'])
+        if "flow" in config["model_config"]:
+            config["model_config"]["flow"] = str(
+                config["model_config"]["flow"]
+            )
 
         with open(output_file, "w") as f:
             json.dump(config, f, indent=4, cls=NessaiJSONEncoder)
@@ -192,7 +194,7 @@ class FlowModel:
             Dictionary with parameters that are used to update the defaults.
         """
         config = update_config(config)
-        logger.debug(f'Flow configuration: {config}')
+        logger.debug(f"Flow configuration: {config}")
         for key, value in config.items():
             setattr(self, key, value)
         self.save_input(config)
@@ -204,7 +206,7 @@ class FlowModel:
         """
         pass
 
-    def get_optimiser(self, optimiser='adam', **kwargs):
+    def get_optimiser(self, optimiser="adam", **kwargs):
         """
         Get the optimiser and ensure it is always correctly initialised.
 
@@ -214,12 +216,12 @@ class FlowModel:
             Instance of the Adam optimiser from torch.optim
         """
         optimisers = {
-            'adam': (torch.optim.Adam, {'weight_decay': 1e-6}),
-            'adamw': (torch.optim.AdamW, {}),
-            'sgd': (torch.optim.SGD, {})
+            "adam": (torch.optim.Adam, {"weight_decay": 1e-6}),
+            "adamw": (torch.optim.AdamW, {}),
+            "sgd": (torch.optim.SGD, {}),
         }
         if self.model is None:
-            raise RuntimeError('Cannot initialise optimiser before model')
+            raise RuntimeError("Cannot initialise optimiser before model")
         optim, default_kwargs = optimisers.get(optimiser.lower())
         default_kwargs.update(kwargs)
         return optim(self.model.parameters(), lr=self.lr, **default_kwargs)
@@ -237,15 +239,16 @@ class FlowModel:
         """
         self.update_mask()
         self.model, self.device = configure_model(self.model_config)
-        logger.debug(f'Training device: {self.device}')
+        logger.debug(f"Training device: {self.device}")
         self.inference_device = torch.device(
-            self.model_config.get('inference_device_tag', self.device)
+            self.model_config.get("inference_device_tag", self.device)
             or self.device
         )
-        logger.debug(f'Inference device: {self.inference_device}')
+        logger.debug(f"Inference device: {self.inference_device}")
 
         self._optimiser = self.get_optimiser(
-            self.optimiser, **self.optimiser_kwargs)
+            self.optimiser, **self.optimiser_kwargs
+        )
         self.initialised = True
 
     def move_to(self, device, update_default=False):
@@ -296,34 +299,34 @@ class FlowModel:
         # setup data loading
         n = int((1 - val_size) * samples.shape[0])
         x_train, x_val = samples[:n], samples[n:]
-        logger.debug(f'{x_train.shape} training samples')
-        logger.debug(f'{x_val.shape} validation samples')
+        logger.debug(f"{x_train.shape} training samples")
+        logger.debug(f"{x_val.shape} validation samples")
 
         if not type(batch_size) is int:
-            if batch_size == 'all':
+            if batch_size == "all":
                 self.batch_size = x_train.shape[0]
             else:
-                raise RuntimeError(f'Unknown batch size: {batch_size}')
+                raise RuntimeError(f"Unknown batch size: {batch_size}")
         else:
             self.batch_size = batch_size
         dtype = torch.get_default_dtype()
         if use_dataloader:
-            logger.debug('Using dataloaders')
+            logger.debug("Using dataloaders")
             train_tensor = torch.from_numpy(x_train).type(dtype)
             train_dataset = torch.utils.data.TensorDataset(train_tensor)
             train_data = torch.utils.data.DataLoader(
-                train_dataset, batch_size=self.batch_size, shuffle=True)
+                train_dataset, batch_size=self.batch_size, shuffle=True
+            )
 
             val_tensor = torch.from_numpy(x_val).type(dtype)
             val_dataset = torch.utils.data.TensorDataset(val_tensor)
             val_data = torch.utils.data.DataLoader(
-                val_dataset, batch_size=x_val.shape[0], shuffle=False)
+                val_dataset, batch_size=x_val.shape[0], shuffle=False
+            )
         else:
-            logger.debug('Using tensors')
-            train_data = \
-                torch.from_numpy(x_train).type(dtype).to(self.device)
-            val_data = \
-                torch.from_numpy(x_val).type(dtype).to(self.device)
+            logger.debug("Using tensors")
+            train_data = torch.from_numpy(x_train).type(dtype).to(self.device)
+            val_data = torch.from_numpy(x_val).type(dtype).to(self.device)
 
         return train_data, val_data
 
@@ -350,9 +353,10 @@ class FlowModel:
         model.train()
         train_loss = 0
 
-        if hasattr(model, 'loss_function'):
+        if hasattr(model, "loss_function"):
             loss_fn = model.loss_function
         else:
+
             def loss_fn(data):
                 return -model.log_prob(data).mean()
 
@@ -401,9 +405,10 @@ class FlowModel:
         model.eval()
         val_loss = 0
 
-        if hasattr(model, 'loss_function'):
+        if hasattr(model, "loss_function"):
             loss_fn = model.loss_function
         else:
+
             def loss_fn(data):
                 return -model.log_prob(data).mean()
 
@@ -422,8 +427,15 @@ class FlowModel:
                 val_loss += loss_fn(val_data).item()
             return val_loss
 
-    def train(self, samples, max_epochs=None, patience=None, output=None,
-              val_size=None, plot=True):
+    def train(
+        self,
+        samples,
+        max_epochs=None,
+        patience=None,
+        output=None,
+        val_size=None,
+        plot=True,
+    ):
         """
         Train the flow on a set of samples.
 
@@ -460,9 +472,9 @@ class FlowModel:
         if val_size is None:
             val_size = self.val_size
 
-        if self.noise_scale == 'adaptive':
+        if self.noise_scale == "adaptive":
             noise_scale = 0.2 * np.mean(compute_minimum_distances(samples))
-            logger.debug(f'Using adaptive scale: {noise_scale:.3f}')
+            logger.debug(f"Using adaptive scale: {noise_scale:.3f}")
         else:
             noise_scale = self.noise_scale
 
@@ -472,14 +484,15 @@ class FlowModel:
             samples,
             val_size=val_size,
             batch_size=self.batch_size,
-            use_dataloader=self.use_dataloader
+            use_dataloader=self.use_dataloader,
         )
 
         if max_epochs is None:
             max_epochs = self.max_epochs
         if self.annealing:
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                    self._optimiser, max_epochs)
+                self._optimiser, max_epochs
+            )
         if patience is None:
             patience = self.patience
         best_epoch = 0
@@ -493,22 +506,21 @@ class FlowModel:
         if plot:
             history = dict(loss=[], val_loss=[])
 
-        current_weights_file = os.path.join(output, 'model.pt')
-        logger.debug(f'Training with {samples.shape[0]} samples')
+        current_weights_file = os.path.join(output, "model.pt")
+        logger.debug(f"Training with {samples.shape[0]} samples")
         for epoch in range(1, max_epochs + 1):
 
             loss = self._train(
                 train_data,
                 noise_scale=noise_scale,
-                is_dataloader=self.use_dataloader
+                is_dataloader=self.use_dataloader,
             )
             val_loss = self._validate(
-                val_data,
-                is_dataloader=self.use_dataloader
+                val_data, is_dataloader=self.use_dataloader
             )
             if plot:
-                history['loss'].append(loss)
-                history['val_loss'].append(val_loss)
+                history["loss"].append(loss)
+                history["val_loss"].append(val_loss)
 
             if val_loss < best_val_loss:
                 best_epoch = epoch
@@ -517,10 +529,11 @@ class FlowModel:
 
             if not epoch % 50:
                 logger.info(
-                    f'Epoch {epoch}: loss: {loss:.3} val loss: {val_loss:.3}')
+                    f"Epoch {epoch}: loss: {loss:.3} val loss: {val_loss:.3}"
+                )
 
             if epoch - best_epoch > patience:
-                logger.info(f'Epoch {epoch}: Reached patience')
+                logger.info(f"Epoch {epoch}: Reached patience")
                 break
 
         # Make sure caches are reset
@@ -533,7 +546,7 @@ class FlowModel:
 
         if plot:
             plot_loss(
-                epoch, history, filename=os.path.join(output, 'loss.png')
+                epoch, history, filename=os.path.join(output, "loss.png")
             )
 
     def save_weights(self, weights_file):
@@ -547,7 +560,7 @@ class FlowModel:
             Path to to file to save weights. Recommended file type is ``.pt``.
         """
         if os.path.exists(weights_file):
-            shutil.move(weights_file, weights_file + '.old')
+            shutil.move(weights_file, weights_file + ".old")
 
         torch.save(self.model.state_dict(), weights_file)
         self.weights_file = weights_file
@@ -583,7 +596,7 @@ class FlowModel:
         """
         if weights_file is None:
             weights_file = self.weights_file
-        logger.debug(f'Reloading weights from {weights_file}')
+        logger.debug(f"Reloading weights from {weights_file}")
         self.load_weights(weights_file)
 
     def reset_model(self, weights=True, permutations=False):
@@ -598,20 +611,21 @@ class FlowModel:
             If true any permutations (linear transforms) are reset.
         """
         if not any([weights, permutations]):
-            logger.debug('Nothing to reset')
+            logger.debug("Nothing to reset")
             return
         if weights and permutations:
-            logger.debug('Complete reset of model')
+            logger.debug("Complete reset of model")
             self.model, self.device = configure_model(self.model_config)
         elif weights:
             self.model.apply(reset_weights)
-            logger.debug('Reset weights')
+            logger.debug("Reset weights")
         elif permutations:
             self.model.apply(reset_permutations)
-            logger.debug('Reset linear transforms')
+            logger.debug("Reset linear transforms")
         self._optimiser = self.get_optimiser(
-            self.optimiser, **self.optimiser_kwargs)
-        logger.debug('Resetting optimiser')
+            self.optimiser, **self.optimiser_kwargs
+        )
+        logger.debug("Resetting optimiser")
 
     def forward_and_log_prob(self, x):
         """
@@ -631,7 +645,8 @@ class FlowModel:
             Log probabilities for each samples
         """
         x = (
-            torch.from_numpy(x).type(torch.get_default_dtype())
+            torch.from_numpy(x)
+            .type(torch.get_default_dtype())
             .to(self.model.device)
         )
         self.model.eval()
@@ -669,7 +684,7 @@ class FlowModel:
             sample.
         """
         if self.model is None:
-            raise RuntimeError('Model is not initialised yet!')
+            raise RuntimeError("Model is not initialised yet!")
         if self.model.training:
             self.model.eval()
         if z is None:
@@ -684,7 +699,8 @@ class FlowModel:
             with torch.no_grad():
                 if isinstance(z, np.ndarray):
                     z = (
-                        torch.from_numpy(z).type(torch.get_default_dtype())
+                        torch.from_numpy(z)
+                        .type(torch.get_default_dtype())
                         .to(self.model.device)
                     )
                 log_prob = log_prob_fn(z)
@@ -697,8 +713,8 @@ class FlowModel:
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state['initialised'] = False
-        del state['optimiser']
-        del state['model']
-        del state['model_config']
+        state["initialised"] = False
+        del state["optimiser"]
+        del state["model"]
+        del state["model_config"]
         return state

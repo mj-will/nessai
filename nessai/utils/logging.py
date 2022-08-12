@@ -6,7 +6,7 @@ import logging
 import os
 
 
-def setup_logger(output=None, label='nessai', log_level='WARNING'):
+def setup_logger(output=None, label="nessai", log_level="WARNING"):
     """
     Setup the logger.
 
@@ -28,23 +28,29 @@ def setup_logger(output=None, label='nessai', log_level='WARNING'):
         Instance of the Logger class.
     """
     from .. import __version__ as version
+
     if type(log_level) is str:
         try:
             level = getattr(logging, log_level.upper())
         except AttributeError:
-            raise ValueError('log_level {} not understood'.format(log_level))
+            raise ValueError("log_level {} not understood".format(log_level))
     else:
         level = int(log_level)
 
-    logger = logging.getLogger('nessai')
+    logger = logging.getLogger("nessai")
     logger.setLevel(level)
 
-    if any([type(h) == logging.StreamHandler for h in logger.handlers]) \
-            is False:
+    if (
+        any([type(h) == logging.StreamHandler for h in logger.handlers])
+        is False
+    ):
         stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(name)s %(levelname)-8s: %(message)s',
-            datefmt='%m-%d %H:%M'))
+        stream_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s %(name)s %(levelname)-8s: %(message)s",
+                datefmt="%m-%d %H:%M",
+            )
+        )
         stream_handler.setLevel(level)
         logger.addHandler(stream_handler)
 
@@ -54,11 +60,14 @@ def setup_logger(output=None, label='nessai', log_level='WARNING'):
                 if not os.path.exists(output):
                     os.makedirs(output, exist_ok=True)
             else:
-                output = '.'
-            log_file = os.path.join(output, f'{label}.log')
+                output = "."
+            log_file = os.path.join(output, f"{label}.log")
             file_handler = logging.FileHandler(log_file)
-            file_handler.setFormatter(logging.Formatter(
-                '%(asctime)s %(levelname)-8s: %(message)s', datefmt='%H:%M'))
+            file_handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s %(levelname)-8s: %(message)s", datefmt="%H:%M"
+                )
+            )
 
             file_handler.setLevel(level)
             logger.addHandler(file_handler)
@@ -66,6 +75,6 @@ def setup_logger(output=None, label='nessai', log_level='WARNING'):
     for handler in logger.handlers:
         handler.setLevel(level)
 
-    logger.info(f'Running Nessai version {version}')
+    logger.info(f"Running Nessai version {version}")
 
     return logger

@@ -37,14 +37,15 @@ def test_model_error():
     pool = Pool(1)
     with pytest.raises(AttributeError) as excinfo:
         pool.map(log_likelihood_wrapper, [1, 2, 3])
-    assert "'NoneType' object has no attribute 'log_likelihood'" \
-        in str(excinfo.value)
+    assert "'NoneType' object has no attribute 'log_likelihood'" in str(
+        excinfo.value
+    )
     pool.close()
     pool.terminate()
 
 
 def test_get_n_pool_processes():
-    """"Assert the correct value is returned if the pool has a `_processes`
+    """ "Assert the correct value is returned if the pool has a `_processes`
     attribute.
     """
     pool = MagicMock(spec=Pool)
@@ -53,7 +54,7 @@ def test_get_n_pool_processes():
 
 
 def test_get_n_pool_ray():
-    """"Assert the correct value is returned if the pool has a `_actor_pool`
+    """ "Assert the correct value is returned if the pool has a `_actor_pool`
     attribute (e.g. ray.util.multiprocessing.Pool).
     """
     pool = MagicMock()
@@ -63,7 +64,7 @@ def test_get_n_pool_ray():
 
 
 def test_get_n_pool_unknown():
-    """"Assert None is returned if the type of pool is not known."""
+    """ "Assert None is returned if the type of pool is not known."""
     pool = MagicMock()
     del pool._processes
     del pool._actor_pool

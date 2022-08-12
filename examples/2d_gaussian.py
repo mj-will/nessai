@@ -12,7 +12,7 @@ from nessai.utils import setup_logger
 # Setup the logger - credit to the Bilby team for this neat function!
 # see: https://git.ligo.org/lscsoft/bilby
 
-output = './outdir/2d_gaussian_example/'
+output = "./outdir/2d_gaussian_example/"
 logger = setup_logger(output=output)
 
 # Define the model, in this case we use a simple 2D gaussian
@@ -27,11 +27,12 @@ logger = setup_logger(output=output)
 
 class GaussianModel(Model):
     """A simple two-dimensional Gaussian likelihood."""
+
     def __init__(self):
         # Names of parameters to sample
-        self.names = ['x', 'y']
+        self.names = ["x", "y"]
         # Prior bounds for each parameter
-        self.bounds = {'x': [-10, 10], 'y': [-10, 10]}
+        self.bounds = {"x": [-10, 10], "y": [-10, 10]}
 
     def log_prior(self, x):
         """
@@ -40,7 +41,7 @@ class GaussianModel(Model):
         """
         # Check if values are in bounds, returns True/False
         # Then take the log to get 0/-inf and make sure the dtype is float
-        log_p = np.log(self.in_bounds(x), dtype='float')
+        log_p = np.log(self.in_bounds(x), dtype="float")
         # Iterate through each parameter (x and y)
         # since the live points are a structured array we can
         # get each value using just the name

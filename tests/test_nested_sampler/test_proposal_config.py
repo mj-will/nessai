@@ -11,7 +11,7 @@ from nessai.proposal import (
     AnalyticProposal,
     AugmentedFlowProposal,
     RejectionProposal,
-    FlowProposal
+    FlowProposal,
 )
 from nessai.gw.proposal import (
     AugmentedGWFlowProposal,
@@ -22,7 +22,7 @@ from nessai.gw.legacy import LegacyGWFlowProposal
 
 @pytest.fixture
 def sampler(sampler, tmpdir):
-    sampler.output = tmpdir.mkdir('test')
+    sampler.output = tmpdir.mkdir("test")
     sampler.plot = False
     sampler.n_pool = None
     sampler.acceptance_threshold = 0.01
@@ -30,8 +30,7 @@ def sampler(sampler, tmpdir):
 
 
 @pytest.mark.parametrize(
-    'maximum, result',
-    [[None, 200], [False, 0], [100, 100], ['inf', np.inf]]
+    "maximum, result", [[None, 200], [False, 0], [100, 100], ["inf", np.inf]]
 )
 def test_uninformed_maximum(sampler, maximum, result):
     """
@@ -39,7 +38,8 @@ def test_uninformed_maximum(sampler, maximum, result):
     the maximum number of uninformed iterations.
     """
     NestedSampler.configure_uninformed_proposal(
-        sampler, None, False, maximum, None)
+        sampler, None, False, maximum, None
+    )
     assert sampler.maximum_uninformed == result
 
     if maximum is False:
@@ -51,7 +51,8 @@ def test_uninformed_maximum(sampler, maximum, result):
 def test_uninformed_threshold(sampler):
     """Test the check uninformed threshold is set correctly"""
     NestedSampler.configure_uninformed_proposal(
-        sampler, None, False, None, 0.5)
+        sampler, None, False, None, 0.5
+    )
     assert sampler.uninformed_acceptance_threshold == 0.5
 
 
@@ -62,11 +63,12 @@ def test_uninformed_threshold_default_below(sampler):
     """
     sampler.acceptance_threshold = 0.05
     NestedSampler.configure_uninformed_proposal(
-        sampler, None, False, None, None)
+        sampler, None, False, None, None
+    )
     assert sampler.uninformed_acceptance_threshold == 0.5
 
 
-@pytest.mark.parametrize('threshold', [0.1, 0.2])
+@pytest.mark.parametrize("threshold", [0.1, 0.2])
 def test_uninformed_threshold_default_(sampler, threshold):
     """
     Test to check that the threshold is set to the same value if it is above
@@ -74,7 +76,8 @@ def test_uninformed_threshold_default_(sampler, threshold):
     """
     sampler.acceptance_threshold = threshold
     NestedSampler.configure_uninformed_proposal(
-        sampler, None, False, None, None)
+        sampler, None, False, None, None
+    )
     assert sampler.uninformed_acceptance_threshold == threshold
 
 
@@ -84,7 +87,8 @@ def test_uninformed_no_analytic_priors(sampler):
     priors.
     """
     NestedSampler.configure_uninformed_proposal(
-        sampler, None, False, None, None)
+        sampler, None, False, None, None
+    )
     assert isinstance(sampler._uninformed_proposal, RejectionProposal)
 
 
@@ -94,7 +98,8 @@ def test_uninformed_analytic_priors(sampler):
     priors.
     """
     NestedSampler.configure_uninformed_proposal(
-        sampler, None, True, None, None)
+        sampler, None, True, None, None
+    )
     assert isinstance(sampler._uninformed_proposal, AnalyticProposal)
 
 
@@ -103,12 +108,12 @@ def test_uninformed_proposal_class(sampler):
     from nessai.proposal.base import Proposal
 
     class TestProposal(Proposal):
-
         def draw(self, point):
             pass
 
     NestedSampler.configure_uninformed_proposal(
-        sampler, TestProposal, False, None, None)
+        sampler, TestProposal, False, None, None
+    )
     assert isinstance(sampler._uninformed_proposal, TestProposal)
 
 
@@ -119,19 +124,19 @@ def test_no_flow_proposal_class(sampler):
 
 
 @pytest.mark.parametrize(
-    'flow_class, result_class',
+    "flow_class, result_class",
     [
-        ['FlowProposal', FlowProposal],
-        ['AugmentedFlowProposal', AugmentedFlowProposal],
-        ['GWFlowProposal', GWFlowProposal],
-        ['AugmentedGWFlowProposal', AugmentedGWFlowProposal],
-        ['LegacyGWFlowProposal', LegacyGWFlowProposal],
-        ['flowproposal', FlowProposal],
-        ['augmentedflowproposal', AugmentedFlowProposal],
-        ['gwflowproposal', GWFlowProposal],
-        ['augmentedgwflowproposal', AugmentedGWFlowProposal],
-        ['legacygwflowproposal', LegacyGWFlowProposal]
-    ]
+        ["FlowProposal", FlowProposal],
+        ["AugmentedFlowProposal", AugmentedFlowProposal],
+        ["GWFlowProposal", GWFlowProposal],
+        ["AugmentedGWFlowProposal", AugmentedGWFlowProposal],
+        ["LegacyGWFlowProposal", LegacyGWFlowProposal],
+        ["flowproposal", FlowProposal],
+        ["augmentedflowproposal", AugmentedFlowProposal],
+        ["gwflowproposal", GWFlowProposal],
+        ["augmentedgwflowproposal", AugmentedGWFlowProposal],
+        ["legacygwflowproposal", LegacyGWFlowProposal],
+    ],
 )
 def test_flow__class(flow_class, result_class, sampler):
     """Test the correct class is imported and used"""
@@ -142,8 +147,8 @@ def test_flow__class(flow_class, result_class, sampler):
 def test_unknown_flow_class(sampler):
     """Test to check the error raised if an unknown class is used"""
     with pytest.raises(ValueError) as excinfo:
-        NestedSampler.configure_flow_proposal(sampler, 'GWProposal', {}, False)
-    assert 'Unknown flow class' in str(excinfo.value)
+        NestedSampler.configure_flow_proposal(sampler, "GWProposal", {}, False)
+    assert "Unknown flow class" in str(excinfo.value)
 
 
 def test_flow_class_not_subclass(sampler):
@@ -151,14 +156,16 @@ def test_flow_class_not_subclass(sampler):
     Test to check an error is raised in the class does not inherit from
     FlowProposal
     """
+
     class FakeProposal:
         pass
+
     with pytest.raises(RuntimeError) as excinfo:
         NestedSampler.configure_flow_proposal(sampler, FakeProposal, {}, False)
-    assert 'inherits' in str(excinfo.value)
+    assert "inherits" in str(excinfo.value)
 
 
-@pytest.mark.parametrize('val', [(0.1, 10), (0.8, 200)])
+@pytest.mark.parametrize("val", [(0.1, 10), (0.8, 200)])
 def test_proposal_switch(sampler, val):
     """Test the method for switching proposals"""
     sampler.mean_block_acceptance = 0.5

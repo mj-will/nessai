@@ -14,7 +14,7 @@ try:
     import astropy.units as u
 except ImportError:
     logger.debug(
-        'Could not import astropy, running with reduced functionality'
+        "Could not import astropy, running with reduced functionality"
     )
 
 
@@ -25,6 +25,7 @@ class DistanceConverter(ABC):
     See :py:obj:`nessai.gw.reparameterisations.DistanceReparameterisation` \
         for more details on how the distance converters are used.
     """
+
     has_conversion = False
     """
     Indicates if the converter class includes a conversion. This is used when
@@ -76,11 +77,12 @@ class NullDistanceConverter(DistanceConverter):
 
     Used for cases where the prior on distance is not specified.
     """
+
     has_jacobian = True
 
     def __init__(self, **kwargs):
         if kwargs:
-            logger.warning(f'Kwargs {kwargs} will be ignored for distance')
+            logger.warning(f"Kwargs {kwargs} will be ignored for distance")
 
     def to_uniform_parameter(self, d):
         """Applies the identity transformation.
@@ -130,13 +132,14 @@ class PowerLawConverter(DistanceConverter):
         Factor used to rescale distance prior to converting to the uniform
         parameter.
     """
+
     has_conversion = True
     has_jacobian = True
 
     def __init__(self, power=None, scale=1000.0, **kwargs):
         if power is None:
             raise RuntimeError(
-                'Must specify the power to use in the power-law'
+                "Must specify the power to use in the power-law"
             )
         self.power = power
         self.scale = scale
@@ -150,12 +153,18 @@ class PowerLawConverter(DistanceConverter):
             self._f = lambda x: x ** (1 / self._power)
 
     def _log_jacobian(self, d):
-        return - self._power * np.log(self.scale) + np.log(self._power) + \
-                (self._power - 1) * np.log(d)
+        return (
+            -self._power * np.log(self.scale)
+            + np.log(self._power)
+            + (self._power - 1) * np.log(d)
+        )
 
     def _log_jacobian_inv(self, d):
-        return np.log(self.scale) - np.log(self._power) + \
-                (1 / self._power - 1) * np.log(d)
+        return (
+            np.log(self.scale)
+            - np.log(self._power)
+            + (1 / self._power - 1) * np.log(d)
+        )
 
     def to_uniform_parameter(self, d):
         """Convert distance to a parameter with a uniform prior.
@@ -216,19 +225,28 @@ class ComovingDistanceConverter(DistanceConverter):
         [100, 5000] 200 seems to the minimum for the conversion to be
         invertible up to 6 decimal places. The recommended setting is at 500.
     """
+
     has_conversion = True
     has_jacobian = False
 
-    def __init__(self, d_min=None, d_max=None, units='Mpc',
-                 cosmology='Planck15', scale=1000.0, pad=0.05, n_interp=500):
+    def __init__(
+        self,
+        d_min=None,
+        d_max=None,
+        units="Mpc",
+        cosmology="Planck15",
+        scale=1000.0,
+        pad=0.05,
+        n_interp=500,
+    ):
         self.units = u.Unit(units)
         try:
             self.cosmology = getattr(cosmo, cosmology)
-            logger.info(f'Using cosmology: {cosmology}')
+            logger.info(f"Using cosmology: {cosmology}")
         except AttributeError:
             raise RuntimeError(
-                f'Could not get specified cosmology ({cosmology}) from '
-                '`astropy.cosmology`. See astropy documentation for details.'
+                f"Could not get specified cosmology ({cosmology}) from "
+                "`astropy.cosmology`. See astropy documentation for details."
             )
         self.scale = np.float64(scale)
         self.pad = pad
@@ -237,21 +255,30 @@ class ComovingDistanceConverter(DistanceConverter):
         self.dl_min = (1 - self.pad) * d_min
         self.dl_max = (1 + self.pad) * d_max
 
-        logger.debug(f'Min and max distances: [{self.dl_min}, {self.dl_max}]')
+        logger.debug(f"Min and max distances: [{self.dl_min}, {self.dl_max}]")
 
-        self.dc_min = self.cosmology.comoving_distance(cosmo.z_at_value(
-            self.cosmology.luminosity_distance, self.dl_min * self.units)
+        self.dc_min = self.cosmology.comoving_distance(
+            cosmo.z_at_value(
+                self.cosmology.luminosity_distance, self.dl_min * self.units
+            )
         ).value
-        self.dc_max = self.cosmology.comoving_distance(cosmo.z_at_value(
-            self.cosmology.luminosity_distance, self.dl_max * self.units)
+        self.dc_max = self.cosmology.comoving_distance(
+            cosmo.z_at_value(
+                self.cosmology.luminosity_distance, self.dl_max * self.units
+            )
         ).value
 
-        logger.debug('Making distance look up table')
+        logger.debug("Making distance look up table")
 
         dc_array = np.linspace(self.dc_min, self.dc_max, self.n_interp)
         dl_array = self.cosmology.luminosity_distance(
-            [cosmo.z_at_value(self.cosmology.comoving_distance, d * self.units)
-                for d in dc_array]).value
+            [
+                cosmo.z_at_value(
+                    self.cosmology.comoving_distance, d * self.units
+                )
+                for d in dc_array
+            ]
+        ).value
 
         self.interp_dc2dl = interpolate.splrep(dc_array, dl_array)
         self.interp_dl2dc = interpolate.splrep(dl_array, dc_array)
@@ -270,9 +297,11 @@ class ComovingDistanceConverter(DistanceConverter):
             Distance and the log Jacobian determinant, which will always be
             zero.
         """
-        return ((interpolate.splev(d, self.interp_dl2dc, ext=3) /
-                 self.scale) ** 3.,
-                np.zeros_like(d))
+        return (
+            (interpolate.splev(d, self.interp_dl2dc, ext=3) / self.scale)
+            ** 3.0,
+            np.zeros_like(d),
+        )
 
     def from_uniform_parameter(self, d):
         """Convert from a uniform parameter to luminosity distance.
@@ -288,9 +317,12 @@ class ComovingDistanceConverter(DistanceConverter):
             Distance and the log Jacobian determinant, which will always be
             zero.
         """
-        return (interpolate.splev(self.scale * np.cbrt(d),
-                                  self.interp_dc2dl, ext=3),
-                np.zeros_like(d))
+        return (
+            interpolate.splev(
+                self.scale * np.cbrt(d), self.interp_dc2dl, ext=3
+            ),
+            np.zeros_like(d),
+        )
 
 
 def get_distance_converter(prior):
@@ -309,10 +341,10 @@ def get_distance_converter(prior):
     :obj:`nessai.gw.utils.DistanceConverter`
         The corresponding distance converter.
     """
-    if prior == 'uniform-comoving-volume':
+    if prior == "uniform-comoving-volume":
         return ComovingDistanceConverter
-    if prior == 'power-law':
+    if prior == "power-law":
         return PowerLawConverter
     else:
-        logger.info(f'Prior {prior} is not known for distance')
+        logger.info(f"Prior {prior} is not known for distance")
         return NullDistanceConverter

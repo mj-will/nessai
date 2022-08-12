@@ -63,7 +63,7 @@ def auto_bins(x, max_bins=50):
     """
     x = np.asarray(x)
     if not x.size:
-        raise RuntimeError('Input array is empty!')
+        raise RuntimeError("Input array is empty!")
     fd_bw = _hist_bin_fd(x)
     sturges_bw = _hist_bin_sturges(x)
     if fd_bw:

@@ -20,8 +20,8 @@ def test_compute_weights():
 
 def test_draw_posterior_samples():
     """Test drawing posterior samples."""
-    samples = numpy_array_to_live_points(np.random.randn(20, 1), ['x'])
-    samples['logL'] = np.log(np.random.rand(20))
-    samples['logP'] = np.zeros(20)
+    samples = numpy_array_to_live_points(np.random.randn(20, 1), ["x"])
+    samples["logL"] = np.log(np.random.rand(20))
+    samples["logP"] = np.zeros(20)
     p = draw_posterior_samples(samples, 10)
     assert np.isin(p, samples).all()

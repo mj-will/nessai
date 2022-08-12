@@ -28,5 +28,5 @@ def test_LULinear_weight_inverse():
 def test_LUlinear_CUDA():
     """Test to verify that CUDA works"""
     transform = LULinear(2)
-    transform.to('cuda')
+    transform.to("cuda")
     transform.weight_inverse()

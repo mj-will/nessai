@@ -19,9 +19,11 @@ from .utils import auto_bins
 logger = logging.getLogger(__name__)
 
 _rcparams = sns.plotting_context("notebook")
-_rcparams.update({
-    'legend.frameon': False,
-})
+_rcparams.update(
+    {
+        "legend.frameon": False,
+    }
+)
 
 
 def nessai_style(line_styles=True):
@@ -38,6 +40,7 @@ def nessai_style(line_styles=True):
     line_styles : boolean
         Use custom line styles.
     """
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -47,12 +50,15 @@ def nessai_style(line_styles=True):
             if line_styles:
                 c += cycler(linestyle=config.LINE_STYLES)
             d = {
-                'axes.prop_cycle': c,
+                "axes.prop_cycle": c,
             }
-            with sns.axes_style(config.SNS_STYLE), \
-                 mpl.rc_context({**_rcparams, **d}):
+            with sns.axes_style(config.SNS_STYLE), mpl.rc_context(
+                {**_rcparams, **d}
+            ):
                 return func(*args, **kwargs)
+
         return wrapper
+
     if callable(line_styles):
         return decorator(line_styles)
     else:
@@ -60,8 +66,9 @@ def nessai_style(line_styles=True):
 
 
 @nessai_style()
-def plot_live_points(live_points, filename=None, bounds=None, c=None,
-                     **kwargs):
+def plot_live_points(
+    live_points, filename=None, bounds=None, c=None, **kwargs
+):
     """
     Plot a set of live points in a corner-like plot.
 
@@ -83,10 +90,11 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
         diagonal plots can be configured with ``diag_kws`` and ``plot_kws``.
     """
     pairplot_kwargs = dict(
-        corner=True, kind='scatter',
+        corner=True,
+        kind="scatter",
         diag_kws=dict(
-            histtype='step',
-            bins='auto',
+            histtype="step",
+            bins="auto",
             lw=1.5,
             density=True,
             color=config.BASE_COLOUR,
@@ -94,37 +102,43 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
         plot_kws=dict(
             s=1.0,
             edgecolor=None,
-            palette='viridis',
+            palette="viridis",
             color=config.BASE_COLOUR,
-        )
+        ),
     )
     pairplot_kwargs.update(kwargs)
 
     df = pd.DataFrame(live_points)
-    df = df.dropna(axis='columns', how='all')
+    df = df.dropna(axis="columns", how="all")
     df = df[np.isfinite(df).all(1)]
 
     if c is not None:
         hue = df[c]
         if np.all(hue == hue[0]):
             logger.warning(
-                f'Selected hue variable: {c} is constant! Disabling.')
+                f"Selected hue variable: {c} is constant! Disabling."
+            )
             hue = None
     else:
         hue = None
 
     fig = sns.PairGrid(df, corner=True, diag_sharey=False)
-    fig.map_diag(plt.hist, **pairplot_kwargs['diag_kws'])
-    fig.map_offdiag(sns.scatterplot, hue=hue,
-                    **pairplot_kwargs['plot_kws'])
+    fig.map_diag(plt.hist, **pairplot_kwargs["diag_kws"])
+    fig.map_offdiag(sns.scatterplot, hue=hue, **pairplot_kwargs["plot_kws"])
 
     if bounds is not None:
         for i, v in enumerate(bounds.values()):
             fig.axes[i, i].axvline(
-                v[0], ls=':', alpha=0.5, color=config.HIGHLIGHT_COLOUR,
+                v[0],
+                ls=":",
+                alpha=0.5,
+                color=config.HIGHLIGHT_COLOUR,
             )
             fig.axes[i, i].axvline(
-                v[1], ls=':', alpha=0.5, color=config.HIGHLIGHT_COLOUR,
+                v[1],
+                ls=":",
+                alpha=0.5,
+                color=config.HIGHLIGHT_COLOUR,
             )
 
     if filename is not None:
@@ -135,9 +149,16 @@ def plot_live_points(live_points, filename=None, bounds=None, c=None,
 
 
 @nessai_style()
-def plot_1d_comparison(*live_points, parameters=None, labels=None,
-                       colours=None, bounds=None, hist_kwargs={},
-                       filename=None, convert_to_live_points=False):
+def plot_1d_comparison(
+    *live_points,
+    parameters=None,
+    labels=None,
+    colours=None,
+    bounds=None,
+    hist_kwargs={},
+    filename=None,
+    convert_to_live_points=False,
+):
     """
     Plot 1d histograms comparing different sets of live points
 
@@ -171,12 +192,15 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         if parameters is None:
             parameters = [i for i in range(live_points[0].shape[-1])]
         for i in range(len(live_points)):
-            live_points[i] = \
-                {k: v for k, v in zip(parameters, live_points[i].T)}
+            live_points[i] = {
+                k: v for k, v in zip(parameters, live_points[i].T)
+            }
 
     elif any(lp.dtype.names is None for lp in live_points):
-        raise RuntimeError('Live points are not structured arrays'
-                           'Set `convert_to_live_points=True`.')
+        raise RuntimeError(
+            "Live points are not structured arrays"
+            "Set `convert_to_live_points=True`."
+        )
     elif parameters is None:
         parameters = live_points[0].dtype.names
 
@@ -184,7 +208,7 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         labels = [str(i) for i in range(len(live_points))]
     elif not len(labels) == len(live_points):
         raise ValueError(
-            'Length of labels list must match number of arrays being plotted.'
+            "Length of labels list must match number of arrays being plotted."
         )
 
     if colours is None:
@@ -192,11 +216,12 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
         colours = int(np.ceil(len(live_points) / len(colours))) * colours
     elif not len(colours) == len(live_points):
         raise ValueError(
-            'Length of colours list must match number of arrays being plotted.'
+            "Length of colours list must match number of arrays being plotted."
         )
 
-    fig, axs = plt.subplots(len(parameters), 1, sharey=False,
-                            figsize=(3, 3 * len(parameters)))
+    fig, axs = plt.subplots(
+        len(parameters), 1, sharey=False, figsize=(3, 3 * len(parameters))
+    )
 
     if len(parameters) > 1:
         axs = axs.ravel()
@@ -215,7 +240,7 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
                 finite_points.append(lp[f][idx])
                 include.append(j)
         if not include:
-            logger.warning(f'No finite points for {f}, skipping.')
+            logger.warning(f"No finite points for {f}, skipping.")
             continue
 
         xmin = np.min([p.min() for p in finite_points])
@@ -226,30 +251,34 @@ def plot_1d_comparison(*live_points, parameters=None, labels=None,
             axs[i].hist(
                 p,
                 bins=auto_bins(p),
-                histtype='step',
+                histtype="step",
                 range=(xmin, xmax),
                 density=True,
                 label=labels[orig_idx],
                 color=colours[orig_idx],
-                **hist_kwargs
+                **hist_kwargs,
             )
         axs[i].set_xlabel(f)
         if bounds is not None and f in bounds:
-            axs[i].axvline(bounds[f][0], ls=':', alpha=0.5, color='k')
-            axs[i].axvline(bounds[f][1], ls=':', alpha=0.5, color='k')
+            axs[i].axvline(bounds[f][0], ls=":", alpha=0.5, color="k")
+            axs[i].axvline(bounds[f][1], ls=":", alpha=0.5, color="k")
 
     if len(labels) > 1:
         handles, labels = plt.gca().get_legend_handles_labels()
         legend_labels = dict(zip(labels, handles))
-        fig.legend(legend_labels.values(), legend_labels.keys(),
-                   frameon=False, ncol=len(labels),
-                   loc='upper center',
-                   bbox_to_anchor=(0, 0.1 / len(parameters), 1, 1),
-                   bbox_transform=plt.gcf().transFigure)
+        fig.legend(
+            legend_labels.values(),
+            legend_labels.keys(),
+            frameon=False,
+            ncol=len(labels),
+            loc="upper center",
+            bbox_to_anchor=(0, 0.1 / len(parameters), 1, 1),
+            bbox_transform=plt.gcf().transFigure,
+        )
 
     plt.tight_layout()
     if filename is not None:
-        fig.savefig(filename, bbox_inches='tight')
+        fig.savefig(filename, bbox_inches="tight")
         plt.close(fig)
     else:
         return fig
@@ -274,44 +303,89 @@ def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
     """
     indices = np.asarray(indices)
     if not indices.size or not nlive:
-        logger.warning('Not producing indices plot.')
+        logger.warning("Not producing indices plot.")
         return
 
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    nbins = min(len(np.histogram_bin_edges(indices, 'auto')) - 1, 1000)
+    nbins = min(len(np.histogram_bin_edges(indices, "auto")) - 1, 1000)
     if plot_breakdown:
         for i in range(len(indices) // nlive):
-            ax[1].hist(indices[i * nlive:(i+1) * nlive], bins=nlive,
-                       histtype='step', density=True, alpha=0.1, color='black',
-                       lw=0.5, cumulative=True, range=(0, nlive-1))
+            ax[1].hist(
+                indices[i * nlive : (i + 1) * nlive],
+                bins=nlive,
+                histtype="step",
+                density=True,
+                alpha=0.1,
+                color="black",
+                lw=0.5,
+                cumulative=True,
+                range=(0, nlive - 1),
+            )
 
-    ax[0].hist(indices, density=True, color='tab:blue', linewidth=1.25,
-               histtype='step', bins=nbins, label='produced',
-               range=(0, nlive-1))
-    ax[1].hist(indices, density=True, color='tab:blue', linewidth=1.25,
-               histtype='step', bins=nlive, label='produced',
-               cumulative=True, range=(0, nlive-1))
+    ax[0].hist(
+        indices,
+        density=True,
+        color="tab:blue",
+        linewidth=1.25,
+        histtype="step",
+        bins=nbins,
+        label="produced",
+        range=(0, nlive - 1),
+    )
+    ax[1].hist(
+        indices,
+        density=True,
+        color="tab:blue",
+        linewidth=1.25,
+        histtype="step",
+        bins=nlive,
+        label="produced",
+        cumulative=True,
+        range=(0, nlive - 1),
+    )
 
     if nlive is not None:
-        ax[0].axhline(1 / nlive, color='black', linewidth=1.25,
-                      linestyle='-', label='pmf', alpha=0.5)
-        ax[0].axhline((1 + (nbins / len(indices)) ** 0.5) / nlive,
-                      color='black', linewidth=1.25, linestyle=':', alpha=0.5,
-                      label='1-sigma')
-        ax[0].axhline((1 - (nbins / len(indices)) ** 0.5) / nlive,
-                      color='black', linewidth=1.25, linestyle=':', alpha=0.5)
-        ax[1].plot([0, nlive], [0, 1], color='black', linewidth=1.25,
-                   linestyle=':', label='cmf')
+        ax[0].axhline(
+            1 / nlive,
+            color="black",
+            linewidth=1.25,
+            linestyle="-",
+            label="pmf",
+            alpha=0.5,
+        )
+        ax[0].axhline(
+            (1 + (nbins / len(indices)) ** 0.5) / nlive,
+            color="black",
+            linewidth=1.25,
+            linestyle=":",
+            alpha=0.5,
+            label="1-sigma",
+        )
+        ax[0].axhline(
+            (1 - (nbins / len(indices)) ** 0.5) / nlive,
+            color="black",
+            linewidth=1.25,
+            linestyle=":",
+            alpha=0.5,
+        )
+        ax[1].plot(
+            [0, nlive],
+            [0, 1],
+            color="black",
+            linewidth=1.25,
+            linestyle=":",
+            label="cmf",
+        )
 
-    ax[0].legend(loc='lower right')
-    ax[1].legend(loc='lower right')
-    ax[0].set_xlim([0, nlive-1])
-    ax[1].set_xlim([0, nlive-1])
-    ax[0].set_xlabel('Insertion indices')
-    ax[1].set_xlabel('Insertion indices')
+    ax[0].legend(loc="lower right")
+    ax[1].legend(loc="lower right")
+    ax[0].set_xlim([0, nlive - 1])
+    ax[1].set_xlim([0, nlive - 1])
+    ax[0].set_xlabel("Insertion indices")
+    ax[1].set_xlabel("Insertion indices")
 
     if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
+        plt.savefig(filename, bbox_inches="tight")
         plt.close(fig)
     else:
         return fig
@@ -334,19 +408,19 @@ def plot_loss(epoch, history, filename=None):
     """
     fig, ax = plt.subplots()
     epochs = np.arange(1, epoch + 1, 1)
-    plt.plot(epochs, history['loss'], label='Loss')
-    plt.plot(epochs, history['val_loss'], label='Val. loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Negative log-likelihood')
+    plt.plot(epochs, history["loss"], label="Loss")
+    plt.plot(epochs, history["val_loss"], label="Val. loss")
+    plt.xlabel("Epochs")
+    plt.ylabel("Negative log-likelihood")
     plt.legend()
     plt.tight_layout()
-    if any(h < 0 for h in history['loss']):
-        plt.yscale('symlog')
+    if any(h < 0 for h in history["loss"]):
+        plt.yscale("symlog")
     else:
-        plt.yscale('log')
+        plt.yscale("log")
 
     if filename is not None:
-        plt.savefig(filename, bbox_inches='tight')
+        plt.savefig(filename, bbox_inches="tight")
         plt.close(fig)
     else:
         return fig
@@ -373,7 +447,7 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
     """
     nested_samples = np.asarray(nested_samples)
     if not nested_samples.dtype.names:
-        raise TypeError('Nested samples must be a structured array')
+        raise TypeError("Nested samples must be a structured array")
 
     names = nested_samples.dtype.names
     if labels is None:
@@ -381,25 +455,27 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
 
     if not len(labels) == len(names):
         raise RuntimeError(
-            'Missing labels. List of labels does not have enough entries '
-            f'({len(labels)}) for parameters: {nested_samples.dtype.names}')
+            "Missing labels. List of labels does not have enough entries "
+            f"({len(labels)}) for parameters: {nested_samples.dtype.names}"
+        )
 
-    fig, axes = plt.subplots(len(labels), 1, figsize=(5, 3 * len(labels)),
-                             sharex=True)
+    fig, axes = plt.subplots(
+        len(labels), 1, figsize=(5, 3 * len(labels)), sharex=True
+    )
     if len(labels) > 1:
         axes = axes.ravel()
     else:
         axes = [axes]
 
     for i, name in enumerate(names):
-        axes[i].plot(log_x, nested_samples[name], ',')
+        axes[i].plot(log_x, nested_samples[name], ",")
         axes[i].set_ylabel(labels[i])
 
-    axes[-1].set_xlabel('log X')
+    axes[-1].set_xlabel("log X")
     axes[-1].invert_xaxis()
 
     if filename is not None:
-        fig.savefig(filename, bbox_inches='tight')
+        fig.savefig(filename, bbox_inches="tight")
         plt.close(fig)
     else:
         return fig
@@ -420,17 +496,14 @@ def plot_histogram(samples, label=None, filename=None, **kwargs):
     kwargs :
         Keyword arguments passed to `matplotlib.pyplot.hist`.
     """
-    default_kwargs = dict(
-        histtype='step',
-        bins=auto_bins(samples)
-    )
+    default_kwargs = dict(histtype="step", bins=auto_bins(samples))
     default_kwargs.update(kwargs)
     fig = plt.figure()
     plt.hist(samples, **default_kwargs)
     if label is not None:
         plt.xlabel(label)
     if filename is not None:
-        fig.savefig(filename, bbox_inches='tight')
+        fig.savefig(filename, bbox_inches="tight")
         plt.close(fig)
     else:
         return fig
@@ -444,7 +517,7 @@ def corner_plot(
     labels=None,
     truths=None,
     filename=None,
-    **kwargs
+    **kwargs,
 ):
     """Produce a corner plot for a structured array.
 
@@ -476,7 +549,7 @@ def corner_plot(
         color=config.BASE_COLOUR,
         truth_color=config.HIGHLIGHT_COLOUR,
         quantiles=[0.16, 0.84],
-        levels=(1 - np.exp(-0.5), 1 - np.exp(-2), 1 - np.exp(-9 / 2.)),
+        levels=(1 - np.exp(-0.5), 1 - np.exp(-2), 1 - np.exp(-9 / 2.0)),
         plot_density=True,
         plot_datapoints=True,
         fill_contours=True,
@@ -487,7 +560,7 @@ def corner_plot(
         default_kwargs.update(kwargs)
 
     if include and exclude:
-        raise ValueError('Cannot specify both `include` and `exclude`')
+        raise ValueError("Cannot specify both `include` and `exclude`")
 
     if exclude:
         include = [n for n in array.dtype.names if n not in exclude]
@@ -501,8 +574,10 @@ def corner_plot(
     unstruct_array = live_points_to_array(array)
 
     has_range = np.array(
-        [(~np.isnan(v).all()) and (~(np.nanmin(v) == np.nanmax(v)))
-         for v in unstruct_array.T],
+        [
+            (~np.isnan(v).all()) and (~(np.nanmin(v) == np.nanmax(v)))
+            for v in unstruct_array.T
+        ],
         dtype=bool,
     )
     if not all(has_range):
@@ -525,7 +600,7 @@ def corner_plot(
     )
 
     if filename is not None:
-        fig.savefig(filename, bbox_inches='tight')
+        fig.savefig(filename, bbox_inches="tight")
         plt.close(fig)
     else:
         return fig

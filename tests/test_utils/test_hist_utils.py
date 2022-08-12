@@ -22,4 +22,4 @@ def test_auto_bins_no_samples():
     """Test to ensure the function produces a result with one sample"""
     with pytest.raises(RuntimeError) as excinfo:
         assert auto_bins([])
-    assert 'Input array is empty!' in str(excinfo.value)
+    assert "Input array is empty!" in str(excinfo.value)

@@ -7,8 +7,9 @@ from .augmented import AugmentedFlowProposal
 from .flowproposal import FlowProposal
 from .rejection import RejectionProposal
 
-__all__ = ["AnalyticProposal",
-           "AugmentedFlowProposal",
-           "FlowProposal",
-           "RejectionProposal"
-           ]
+__all__ = [
+    "AnalyticProposal",
+    "AugmentedFlowProposal",
+    "FlowProposal",
+    "RejectionProposal",
+]

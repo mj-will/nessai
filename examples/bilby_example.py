@@ -9,8 +9,8 @@ import numpy as np
 # The output from the sampler will be saved to:
 # '$outdir/$label_nessai/'
 # alongside the usual bilby outputs
-outdir = './outdir/'
-label = 'bilby_example'
+outdir = "./outdir/"
+label = "bilby_example"
 
 # Setup the bilby logger this will also configure the nessai logger.
 bilby.core.utils.setup_logger(outdir=outdir, label=label)
@@ -19,23 +19,21 @@ bilby.core.utils.setup_logger(outdir=outdir, label=label)
 
 
 class SimpleGaussianLikelihood(bilby.Likelihood):
-
     def __init__(self):
         """A very simple Gaussian likelihood"""
-        super().__init__(parameters={'x': None, 'y': None})
+        super().__init__(parameters={"x": None, "y": None})
 
     def log_likelihood(self):
         """Log-likelihood."""
-        return (
-            -0.5 * (self.parameters['x'] ** 2. + self.parameters['y'] ** 2.)
-            - np.log(2.0 * np.pi)
-        )
+        return -0.5 * (
+            self.parameters["x"] ** 2.0 + self.parameters["y"] ** 2.0
+        ) - np.log(2.0 * np.pi)
 
 
 # Define priors (this provides the bounds that are then used in nessai)
 priors = dict(
-    x=bilby.core.prior.Uniform(-10, 10, 'x'),
-    y=bilby.core.prior.Uniform(-10, 10, 'y')
+    x=bilby.core.prior.Uniform(-10, 10, "x"),
+    y=bilby.core.prior.Uniform(-10, 10, "y"),
 )
 
 # Instantiate the likelihood
@@ -52,8 +50,8 @@ result = bilby.run_sampler(
     plot=True,
     likelihood=likelihood,
     priors=priors,
-    sampler='nessai',
-    injection_parameters={'x': 0.0, 'y': 0.0},
+    sampler="nessai",
+    injection_parameters={"x": 0.0, "y": 0.0},
     analytic_priors=True,
-    seed=1234
+    seed=1234,
 )

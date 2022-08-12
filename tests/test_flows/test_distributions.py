@@ -1,4 +1,3 @@
-
 import numpy as np
 from scipy import stats
 import torch
@@ -48,7 +47,7 @@ def test_log_prob_invalid_shape(dist, dims):
     with pytest.raises(ValueError) as excinfo:
         dist._log_prob(torch.from_numpy(x).float(), None)
 
-    assert 'Expected input of shape' in str(excinfo.value)
+    assert "Expected input of shape" in str(excinfo.value)
 
 
 @pytest.mark.flaky(run=5)

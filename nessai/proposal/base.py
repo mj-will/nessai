@@ -18,6 +18,7 @@ class Proposal(ABC):
     model: obj
         User-defined model
     """
+
     def __init__(self, model):
         self.model = model
         self.populated = True
@@ -56,8 +57,9 @@ class Proposal(ABC):
 
     def evaluate_likelihoods(self):
         """Evaluate the likelihoods for the pool of live points."""
-        self.samples['logL'] = \
-            self.model.batch_evaluate_log_likelihood(self.samples)
+        self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
+            self.samples
+        )
 
     @abstractmethod
     def draw(self, old_param):
@@ -71,15 +73,15 @@ class Proposal(ABC):
         Test the draw method to ensure it returns a sample in the correct
         format and the the log prior is computed.
         """
-        logger.debug(f'Testing {self.__class__.__name__} draw method')
+        logger.debug(f"Testing {self.__class__.__name__} draw method")
 
         test_point = self.model.new_point()
         new_point = self.draw(test_point)
 
-        if new_point['logP'] != self.model.log_prior(new_point):
-            raise RuntimeError('Log prior of new point is incorrect!')
+        if new_point["logP"] != self.model.log_prior(new_point):
+            raise RuntimeError("Log prior of new point is incorrect!")
 
-        logger.debug(f'{self.__class__.__name__} passed draw test')
+        logger.debug(f"{self.__class__.__name__} passed draw test")
 
     def train(self, x, **kwargs):
         """
@@ -92,7 +94,7 @@ class Proposal(ABC):
         kwargs:
             Any of keyword arguments
         """
-        logger.info('This proposal method cannot be trained')
+        logger.info("This proposal method cannot be trained")
 
     def resume(self, model):
         """
@@ -102,5 +104,5 @@ class Proposal(ABC):
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        del state['model']
+        del state["model"]
         return state

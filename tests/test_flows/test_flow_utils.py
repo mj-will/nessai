@@ -13,7 +13,7 @@ from nessai.flows.utils import (
     silu,
     reset_weights,
     reset_permutations,
-    MLP
+    MLP,
 )
 
 
@@ -21,17 +21,14 @@ from nessai.flows.utils import (
 def config():
     """Minimal config needed for configure_model to work"""
     return dict(
-        n_inputs=2,
-        n_neurons=4,
-        n_blocks=2,
-        n_layers=1,
-        ftype='realnvp'
+        n_inputs=2, n_neurons=4, n_blocks=2, n_layers=1, ftype="realnvp"
     )
 
 
 def test_silu():
     """Test the silu activation"""
     from scipy.special import expit
+
     x = torch.randn(100)
     y = silu(x)
     expected = x.numpy() * expit(x.numpy())
@@ -49,6 +46,7 @@ def test_reset_weights_with_reset_parameters():
 def test_reset_weights_batch_norm():
     """Test the reset weights function for an instance of batch norm"""
     from nflows.transforms.normalization import BatchNorm
+
     x = torch.randn(20, 2)
     module = BatchNorm(2, eps=0.1)
     module.train()
@@ -68,12 +66,13 @@ def test_reset_weights_other_module(caplog):
     caplog.set_level(logging.WARNING)
     module = object
     reset_weights(module)
-    assert 'Could not reset' in caplog.text
+    assert "Could not reset" in caplog.text
 
 
 def test_weight_reset_permutation():
     """Test to make sure random permutation is reset correctly"""
     from nflows.transforms.permutations import RandomPermutation
+
     x = torch.arange(10).reshape(1, -1)
     m = RandomPermutation(features=10)
     y_init, _ = m(x)
@@ -89,8 +88,7 @@ def test_mlp_forward():
     mlp = create_autospec(MLP)
     x = torch.tensor(1)
     y = torch.tensor(2)
-    with patch('nflows.nn.nets.MLP.forward',
-               return_value=y) as parent:
+    with patch("nflows.nn.nets.MLP.forward", return_value=y) as parent:
         out = MLP.forward(mlp, x, context=None)
     parent.assert_called_once_with(x)
     assert out == y
@@ -102,50 +100,52 @@ def test_mlp_forward_context():
     x = torch.tensor(1)
     with pytest.raises(NotImplementedError) as excinfo:
         MLP.forward(mlp, x, context=x)
-    assert 'MLP with conditional inputs is not implemented.' in \
-        str(excinfo.value)
+    assert "MLP with conditional inputs is not implemented." in str(
+        excinfo.value
+    )
 
 
 def test_configure_model_basic(config):
     """Test configure model with the most basic config."""
-    config['kwargs'] = dict(num_bins=2)
-    with patch('nessai.flows.realnvp.RealNVP') as mock_flow:
+    config["kwargs"] = dict(num_bins=2)
+    with patch("nessai.flows.realnvp.RealNVP") as mock_flow:
         configure_model(config)
 
     mock_flow.assert_called_with(
-        config['n_inputs'],
-        config['n_neurons'],
-        config['n_blocks'],
-        config['n_layers'],
-        num_bins=2
+        config["n_inputs"],
+        config["n_neurons"],
+        config["n_blocks"],
+        config["n_layers"],
+        num_bins=2,
     )
 
 
 @pytest.mark.parametrize(
-    'flow_inputs',
+    "flow_inputs",
     [
-        {'ftype': 'realnvp', 'expected': 'realnvp.RealNVP'},
-        {'ftype': 'frealnvp', 'expected': 'realnvp.RealNVP'},
-        {'ftype': 'spline', 'expected': 'nsf.NeuralSplineFlow'},
-        {'ftype': 'nsf', 'expected': 'nsf.NeuralSplineFlow'},
-        {'ftype': 'maf', 'expected': 'maf.MaskedAutoregressiveFlow'}
-    ]
+        {"ftype": "realnvp", "expected": "realnvp.RealNVP"},
+        {"ftype": "frealnvp", "expected": "realnvp.RealNVP"},
+        {"ftype": "spline", "expected": "nsf.NeuralSplineFlow"},
+        {"ftype": "nsf", "expected": "nsf.NeuralSplineFlow"},
+        {"ftype": "maf", "expected": "maf.MaskedAutoregressiveFlow"},
+    ],
 )
 def test_configure_model_flows(config, flow_inputs):
     """Test the different flows."""
-    config['ftype'] = flow_inputs['ftype']
+    config["ftype"] = flow_inputs["ftype"]
     with patch(f"nessai.flows.{flow_inputs['expected']}") as mock_flow:
         model, _ = configure_model(config)
     mock_flow.assert_called_with(
-        config['n_inputs'],
-        config['n_neurons'],
-        config['n_blocks'],
-        config['n_layers'],
+        config["n_inputs"],
+        config["n_neurons"],
+        config["n_blocks"],
+        config["n_layers"],
     )
 
 
 def test_configure_model_flow_class(config):
     """Test using a custom class of flow."""
+
     class TestFlow:
         def __init__(self, n_inputs, n_neurons, n_blocks, n_layers):
             self.n_inputs = n_inputs
@@ -156,28 +156,29 @@ def test_configure_model_flow_class(config):
         def to(self, input):
             pass
 
-    config['flow'] = TestFlow
+    config["flow"] = TestFlow
     model, _ = configure_model(config)
     assert isinstance(model, TestFlow)
-    assert model.n_inputs == config['n_inputs']
-    assert model.n_neurons == config['n_neurons']
-    assert model.n_blocks == config['n_blocks']
-    assert model.n_layers == config['n_layers']
+    assert model.n_inputs == config["n_inputs"]
+    assert model.n_neurons == config["n_neurons"]
+    assert model.n_blocks == config["n_blocks"]
+    assert model.n_layers == config["n_layers"]
 
 
 def test_configure_model_device_cuda(config):
-    config['device_tag'] = 'cuda'
-    expected_device = torch.device('cuda')
+    config["device_tag"] = "cuda"
+    expected_device = torch.device("cuda")
     mock_model = MagicMock()
-    with patch('nessai.flows.realnvp.RealNVP',
-               return_value=mock_model) as mock_flow:
+    with patch(
+        "nessai.flows.realnvp.RealNVP", return_value=mock_model
+    ) as mock_flow:
         model, device = configure_model(config)
 
     mock_flow.assert_called_with(
-        config['n_inputs'],
-        config['n_neurons'],
-        config['n_blocks'],
-        config['n_layers'],
+        config["n_inputs"],
+        config["n_neurons"],
+        config["n_blocks"],
+        config["n_layers"],
     )
 
     mock_model.to.assert_called_once_with(expected_device)
@@ -186,33 +187,33 @@ def test_configure_model_device_cuda(config):
 
 
 @pytest.mark.parametrize(
-    'act',
+    "act",
     [
-        {'act': 'relu', 'expected': F.relu},
-        {'act': 'tanh', 'expected': F.tanh},
-        {'act': 'silu', 'expected': silu},
-        {'act': 'swish', 'expected': silu}
-    ]
+        {"act": "relu", "expected": F.relu},
+        {"act": "tanh", "expected": F.tanh},
+        {"act": "silu", "expected": silu},
+        {"act": "swish", "expected": silu},
+    ],
 )
 def test_configure_model_activation_functions(config, act):
     """Test the different activation functions."""
-    config['kwargs'] = dict(activation=act['act'])
+    config["kwargs"] = dict(activation=act["act"])
 
-    with patch('nessai.flows.realnvp.RealNVP') as mock_flow:
+    with patch("nessai.flows.realnvp.RealNVP") as mock_flow:
         configure_model(config)
 
     mock_flow.assert_called_with(
-        config['n_inputs'],
-        config['n_neurons'],
-        config['n_blocks'],
-        config['n_layers'],
-        activation=act['expected']
+        config["n_inputs"],
+        config["n_neurons"],
+        config["n_blocks"],
+        config["n_layers"],
+        activation=act["expected"],
     )
 
 
 def test_configure_model_ftype_error(config):
     """Assert unknown types of flow raise an error."""
-    config.pop('ftype')
+    config.pop("ftype")
     with pytest.raises(RuntimeError) as excinfo:
         configure_model(config)
     assert "Must specify either 'flow' or 'ftype'." in str(excinfo.value)
@@ -220,21 +221,21 @@ def test_configure_model_ftype_error(config):
 
 def test_configure_model_input_type_error(config):
     """Assert incorrect type for n_inputs raises an error."""
-    config['n_inputs'] = '10'
+    config["n_inputs"] = "10"
     with pytest.raises(TypeError) as excinfo:
         configure_model(config)
-    assert 'Number of inputs (n_inputs) must be an int' in str(excinfo.value)
+    assert "Number of inputs (n_inputs) must be an int" in str(excinfo.value)
 
 
 def test_configure_model_unknown_activation(config):
     """Assert unknown activation functions raise an error"""
-    config['kwargs'] = dict(activation='test')
+    config["kwargs"] = dict(activation="test")
     with pytest.raises(RuntimeError) as excinfo:
         configure_model(config)
     assert "Unknown activation function: 'test'" in str(excinfo.value)
 
 
-@pytest.mark.parametrize('linear_transform', ['lu', 'permutation', 'svd'])
+@pytest.mark.parametrize("linear_transform", ["lu", "permutation", "svd"])
 def test_create_linear_transform(linear_transform):
     """Test creating a linear transform."""
     lt = create_linear_transform(linear_transform, 2)
@@ -244,5 +245,5 @@ def test_create_linear_transform(linear_transform):
 def test_create_linear_transform_unknown():
     """Assert an error is raised if an invalid input is given."""
     with pytest.raises(ValueError) as excinfo:
-        create_linear_transform('not_a_transform', 2)
-    assert 'Unknown linear transform: not_a_transform' in str(excinfo.value)
+        create_linear_transform("not_a_transform", 2)
+    assert "Unknown linear transform: not_a_transform" in str(excinfo.value)

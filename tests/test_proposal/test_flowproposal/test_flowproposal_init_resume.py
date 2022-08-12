@@ -8,21 +8,19 @@ from unittest.mock import patch, MagicMock
 from nessai.proposal import FlowProposal
 
 
-@pytest.mark.parametrize('kwargs',
-                         [{'prior': 'uniform'},
-                          {'draw_latent_kwargs': {'var': 4}}
-                          ])
+@pytest.mark.parametrize(
+    "kwargs", [{"prior": "uniform"}, {"draw_latent_kwargs": {"var": 4}}]
+)
 def test_init(model, kwargs):
     """Test init with some kwargs"""
     fp = FlowProposal(model, poolsize=1000, **kwargs)
     assert fp.model == model
     # Make sure the dummy kwargs is ignored and not added
-    assert getattr(fp, 'prior', None) is None
+    assert getattr(fp, "prior", None) is None
 
 
 @pytest.mark.parametrize(
-    'value, expected',
-    [(True, True), (False, False), (None, False)]
+    "value, expected", [(True, True), (False, False), (None, False)]
 )
 def test_init_use_default_reparams(model, proposal, value, expected):
     """Assert use_default_reparameterisations is set correctly"""
@@ -33,15 +31,15 @@ def test_init_use_default_reparams(model, proposal, value, expected):
     assert proposal.use_default_reparameterisations is expected
 
 
-@pytest.mark.parametrize('ef, fuzz', [(2.0, 3.0**0.5), (False, 2.0)])
+@pytest.mark.parametrize("ef, fuzz", [(2.0, 3.0**0.5), (False, 2.0)])
 def test_initialise(tmpdir, proposal, ef, fuzz):
     """Test the initialise method"""
-    p = tmpdir.mkdir('test')
-    proposal.output = os.path.join(p, 'output')
+    p = tmpdir.mkdir("test")
+    proposal.output = os.path.join(p, "output")
     proposal.rescaled_dims = 2
     proposal.expansion_fraction = ef
     proposal.fuzz = 2.0
-    proposal.flow_config = {'model_config': {}}
+    proposal.flow_config = {"model_config": {}}
     proposal.set_rescaling = MagicMock()
     proposal.verify_rescaling = MagicMock()
     proposal.update_flow_config = MagicMock()
@@ -49,7 +47,7 @@ def test_initialise(tmpdir, proposal, ef, fuzz):
     fm = MagicMock()
     fm.initialise = MagicMock()
 
-    with patch('nessai.proposal.flowproposal.FlowModel', new=fm) as mock_fm:
+    with patch("nessai.proposal.flowproposal.FlowModel", new=fm) as mock_fm:
         FlowProposal.initialise(proposal)
 
     proposal.set_rescaling.assert_called_once()
@@ -63,26 +61,28 @@ def test_initialise(tmpdir, proposal, ef, fuzz):
     assert proposal.populated is False
     assert proposal.initialised
     assert proposal.fuzz == fuzz
-    assert os.path.exists(os.path.join(p, 'output'))
+    assert os.path.exists(os.path.join(p, "output"))
 
 
 def test_resume(proposal):
     """Test the resume method."""
     from numpy import array, array_equal
+
     proposal.initialise = MagicMock()
     proposal.mask = [1, 0]
     proposal.update_bounds = False
     proposal.weights_file = None
     model = MagicMock()
-    with patch('nessai.proposal.base.Proposal.resume') as mock:
-        FlowProposal.resume(proposal, model, {'model_config': {'kwargs': {}}})
+    with patch("nessai.proposal.base.Proposal.resume") as mock:
+        FlowProposal.resume(proposal, model, {"model_config": {"kwargs": {}}})
     mock.assert_called_once_with(model)
     proposal.initialise.assert_called_once()
-    assert array_equal(proposal.flow_config['model_config']['kwargs']['mask'],
-                       array([1, 0]))
+    assert array_equal(
+        proposal.flow_config["model_config"]["kwargs"]["mask"], array([1, 0])
+    )
 
 
-@patch('os.path.exists', return_value=True)
+@patch("os.path.exists", return_value=True)
 def test_resume_w_weights(osexist, proposal):
     """Test the resume method with weights"""
     proposal.initialise = MagicMock()
@@ -91,16 +91,16 @@ def test_resume_w_weights(osexist, proposal):
     proposal.update_bounds = False
     proposal.weights_file = None
     model = MagicMock()
-    with patch('nessai.proposal.base.Proposal.resume') as mock:
-        FlowProposal.resume(proposal, model, {}, weights_file='weights.pt')
+    with patch("nessai.proposal.base.Proposal.resume") as mock:
+        FlowProposal.resume(proposal, model, {}, weights_file="weights.pt")
     mock.assert_called_once_with(model)
-    osexist.assert_called_once_with('weights.pt')
+    osexist.assert_called_once_with("weights.pt")
     proposal.initialise.assert_called_once()
-    proposal.flow.reload_weights.assert_called_once_with('weights.pt')
+    proposal.flow.reload_weights.assert_called_once_with("weights.pt")
 
 
-@pytest.mark.parametrize('data', [[1], None])
-@pytest.mark.parametrize('count', [0, 1])
+@pytest.mark.parametrize("data", [[1], None])
+@pytest.mark.parametrize("count", [0, 1])
 def test_resume_w_update_bounds(proposal, data, count):
     """Test the resume method with update bounds"""
     proposal.initialise = MagicMock()
@@ -113,19 +113,20 @@ def test_resume_w_update_bounds(proposal, data, count):
     proposal.check_state = MagicMock()
     model = MagicMock()
     if count and data is None:
-        with pytest.raises(RuntimeError) as excinfo, \
-             patch('nessai.proposal.base.Proposal.resume') as mock:
+        with pytest.raises(RuntimeError) as excinfo, patch(
+            "nessai.proposal.base.Proposal.resume"
+        ) as mock:
             FlowProposal.resume(proposal, model, {})
-        assert 'Could not resume' in str(excinfo.value)
+        assert "Could not resume" in str(excinfo.value)
     else:
-        with patch('nessai.proposal.base.Proposal.resume') as mock:
+        with patch("nessai.proposal.base.Proposal.resume") as mock:
             FlowProposal.resume(proposal, model, {})
         if data:
             proposal.check_state.assert_called_once_with(data)
     mock.assert_called_once_with(model)
 
 
-@pytest.mark.parametrize('populated', [False, True])
+@pytest.mark.parametrize("populated", [False, True])
 def test_get_state(proposal, populated):
     """Test the get state method used for pickling the proposal.
 
@@ -139,22 +140,22 @@ def test_get_state(proposal, populated):
     proposal._flow_config = {}
     proposal.initialised = True
     proposal.flow = MagicMock()
-    proposal.flow.weights_file = 'file'
+    proposal.flow.weights_file = "file"
 
     state = FlowProposal.__getstate__(proposal)
 
-    assert state['resume_populated'] is populated
-    assert state['initialised'] is False
-    assert state['weights_file'] == 'file'
-    assert '_reparameterisation' not in state
-    assert 'model' not in state
-    assert 'flow' not in state
-    assert '_flow_config' not in state
+    assert state["resume_populated"] is populated
+    assert state["initialised"] is False
+    assert state["weights_file"] == "file"
+    assert "_reparameterisation" not in state
+    assert "model" not in state
+    assert "flow" not in state
+    assert "_flow_config" not in state
 
 
 @pytest.mark.integration_test
-@pytest.mark.parametrize('reparameterisation', [False, True])
-@pytest.mark.parametrize('init', [False, True])
+@pytest.mark.parametrize("reparameterisation", [False, True])
+@pytest.mark.parametrize("init", [False, True])
 def test_resume_pickle(model, tmpdir, reparameterisation, init):
     """Test pickling and resuming the proposal.
 
@@ -162,15 +163,21 @@ def test_resume_pickle(model, tmpdir, reparameterisation, init):
     initialise has been called.
     """
     import pickle
-    output = tmpdir.mkdir('test_integration')
+
+    output = tmpdir.mkdir("test_integration")
     if reparameterisation:
-        reparameterisations = {'default': {'parameters': model.names}}
+        reparameterisations = {"default": {"parameters": model.names}}
     else:
         reparameterisations = None
 
-    proposal = FlowProposal(model, poolsize=1000, plot=False,
-                            expansion_fraction=1, output=output,
-                            reparameterisations=reparameterisations)
+    proposal = FlowProposal(
+        model,
+        poolsize=1000,
+        plot=False,
+        expansion_fraction=1,
+        output=output,
+        reparameterisations=reparameterisations,
+    )
     if init:
         proposal.initialise()
 
@@ -195,7 +202,7 @@ def test_reset(proposal):
     proposal.samples = 2
     proposal.populated = True
     proposal.populated_count = 10
-    proposal._edges = {'x': 2}
+    proposal._edges = {"x": 2}
     FlowProposal.reset(proposal)
     assert proposal.x is None
     assert proposal.samples is None
@@ -204,7 +211,7 @@ def test_reset(proposal):
     assert proposal.r is None
     assert proposal.alt_dist is None
     assert proposal._checked_population
-    assert proposal._edges['x'] is None
+    assert proposal._edges["x"] is None
 
 
 @pytest.mark.timeout(60)
@@ -219,10 +226,10 @@ def test_reset_integration(tmpdir, model):
             kwargs=dict(
                 batch_norm_between_layers=False,
                 linear_transform=None,
-            )
+            ),
         )
     )
-    output = str(tmpdir.mkdir('reset_integration'))
+    output = str(tmpdir.mkdir("reset_integration"))
     poolsize = 2
     drawsize = 100
     proposal = FlowProposal(
@@ -233,7 +240,7 @@ def test_reset_integration(tmpdir, model):
         poolsize=poolsize,
         drawsize=drawsize,
         expansion_fraction=None,
-        latent_prior='truncated_gaussian',
+        latent_prior="truncated_gaussian",
         constant_volume_mode=True,
     )
 
@@ -245,8 +252,8 @@ def test_reset_integration(tmpdir, model):
         poolsize=poolsize,
         drawsize=drawsize,
         expansion_fraction=None,
-        latent_prior='truncated_gaussian',
-        constant_volume_mode=True
+        latent_prior="truncated_gaussian",
+        constant_volume_mode=True,
     )
     proposal.initialise()
     modified_proposal.initialise()
@@ -257,15 +264,15 @@ def test_reset_integration(tmpdir, model):
     d1 = proposal.__getstate__()
     d2 = modified_proposal.__getstate__()
     for d in [d1, d2]:
-        del d['_min']
-        del d['_max']
-        del d['rescale']
-        del d['inverse_rescale']
+        del d["_min"]
+        del d["_max"]
+        del d["rescale"]
+        del d["inverse_rescale"]
 
     assert d1 == d2
 
 
-@pytest.mark.parametrize('rescale', [True, False])
+@pytest.mark.parametrize("rescale", [True, False])
 @pytest.mark.timeout(10)
 @pytest.mark.flaky(run=3)
 @pytest.mark.integration_test
@@ -275,9 +282,10 @@ def test_test_draw(tmpdir, model, rescale):
     This method checks that samples can be drawn from the flow and then
     resets the flows. This test makes sure the flow is correctly reset.
     """
-    output = tmpdir.mkdir('test')
+    output = tmpdir.mkdir("test")
     fp = FlowProposal(
-        model, output=output, poolsize=100, rescale_parameters=rescale)
+        model, output=output, poolsize=100, rescale_parameters=rescale
+    )
     fp.initialise()
     # Call these since they are worked out the first time they're called
     fp.x_dtype, fp.x_prime_dtype

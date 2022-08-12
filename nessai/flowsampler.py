@@ -47,67 +47,81 @@ class FlowSampler:
     kwargs :
         Keyword arguments passed to :obj:`~nessai.nestedsampler.NestedSampler`.
     """
+
     def __init__(
         self,
         model,
-        output='./',
+        output="./",
         resume=True,
-        resume_file='nested_sampler_resume.pkl',
+        resume_file="nested_sampler_resume.pkl",
         weights_file=None,
         signal_handling=True,
         exit_code=130,
         max_threads=1,
-        **kwargs
+        **kwargs,
     ):
 
         configure_threads(
             max_threads=max_threads,
-            pytorch_threads=kwargs.get('pytorch_threads', None),
-            n_pool=kwargs.get('n_pool', None)
-            )
+            pytorch_threads=kwargs.get("pytorch_threads", None),
+            n_pool=kwargs.get("n_pool", None),
+        )
 
         self.exit_code = exit_code
 
-        self.output = os.path.join(output, '')
+        self.output = os.path.join(output, "")
         if resume:
             if not resume_file:
                 raise RuntimeError(
-                    '`resume_file` must be specified if resume=True. '
-                    f'Current value: {resume_file}'
+                    "`resume_file` must be specified if resume=True. "
+                    f"Current value: {resume_file}"
                 )
-            if not any((os.path.exists(os.path.join(self.output, f)) for f in
-                        [resume_file, resume_file + '.old'])):
-                logger.warning('No files to resume from, starting sampling')
-                self.ns = NestedSampler(model, output=self.output,
-                                        resume_file=resume_file, **kwargs)
+            if not any(
+                (
+                    os.path.exists(os.path.join(self.output, f))
+                    for f in [resume_file, resume_file + ".old"]
+                )
+            ):
+                logger.warning("No files to resume from, starting sampling")
+                self.ns = NestedSampler(
+                    model,
+                    output=self.output,
+                    resume_file=resume_file,
+                    **kwargs,
+                )
             else:
                 try:
                     self.ns = NestedSampler.resume(
                         os.path.join(self.output, resume_file),
                         model,
-                        flow_config=kwargs.get('flow_config'),
+                        flow_config=kwargs.get("flow_config"),
                         weights_file=weights_file,
                     )
                 except (FileNotFoundError, RuntimeError) as e:
                     logger.error(
-                        f'Could not load resume file from: {self.output} '
-                        f'with error {e}')
+                        f"Could not load resume file from: {self.output} "
+                        f"with error {e}"
+                    )
                     try:
-                        resume_file += '.old'
+                        resume_file += ".old"
                         self.ns = NestedSampler.resume(
                             os.path.join(self.output, resume_file),
                             model,
-                            flow_config=kwargs.get('flow_config'),
+                            flow_config=kwargs.get("flow_config"),
                             weights_file=weights_file,
                         )
                     except RuntimeError as e:
-                        logger.error('Could not load old resume '
-                                     f'file from: {self.output}')
-                        raise RuntimeError('Could not resume sampler '
-                                           f'with error: {e}')
+                        logger.error(
+                            "Could not load old resume "
+                            f"file from: {self.output}"
+                        )
+                        raise RuntimeError(
+                            "Could not resume sampler " f"with error: {e}"
+                        )
         else:
-            self.ns = NestedSampler(model, output=self.output,
-                                    resume_file=resume_file, **kwargs)
+            self.ns = NestedSampler(
+                model, output=self.output, resume_file=resume_file, **kwargs
+            )
 
         self.save_kwargs(kwargs)
 
@@ -117,11 +131,11 @@ class FlowSampler:
                 signal.signal(signal.SIGINT, self.safe_exit)
                 signal.signal(signal.SIGALRM, self.safe_exit)
             except AttributeError:
-                logger.critical('Cannot set signal attributes on this system')
+                logger.critical("Cannot set signal attributes on this system")
         else:
             logger.warning(
-                'Signal handling is disabled. nessai will not automatically '
-                'checkpoint when exitted.'
+                "Signal handling is disabled. nessai will not automatically "
+                "checkpoint when exitted."
             )
 
     def run(self, plot=True, save=True):
@@ -136,19 +150,20 @@ class FlowSampler:
             Toggle automatic saving of results
         """
         self.ns.initialise()
-        self.logZ, self.nested_samples = \
-            self.ns.nested_sampling_loop()
-        logger.info((f'Total sampling time: {self.ns.sampling_time}'))
+        self.logZ, self.nested_samples = self.ns.nested_sampling_loop()
+        logger.info((f"Total sampling time: {self.ns.sampling_time}"))
 
-        logger.info('Starting post processing')
-        logger.info('Computing posterior samples')
-        self.posterior_samples = draw_posterior_samples(self.nested_samples,
-                                                        self.ns.nlive)
-        logger.info(f'Returned {self.posterior_samples.size} '
-                    'posterior samples')
+        logger.info("Starting post processing")
+        logger.info("Computing posterior samples")
+        self.posterior_samples = draw_posterior_samples(
+            self.nested_samples, self.ns.nlive
+        )
+        logger.info(
+            f"Returned {self.posterior_samples.size} " "posterior samples"
+        )
 
         if save:
-            self.save_results(os.path.join(self.output, 'result.json'))
+            self.save_results(os.path.join(self.output, "result.json"))
 
         if plot:
             from nessai import plot
@@ -156,17 +171,17 @@ class FlowSampler:
             plot.plot_live_points(
                 self.posterior_samples,
                 filename=os.path.join(
-                    self.output, 'posterior_distribution.png'
+                    self.output, "posterior_distribution.png"
                 ),
             )
 
             plot.plot_indices(
                 self.ns.insertion_indices,
                 self.ns.nlive,
-                filename=os.path.join(self.output, 'insertion_indices.png')
+                filename=os.path.join(self.output, "insertion_indices.png"),
             )
 
-            self.ns.state.plot(os.path.join(self.output, 'logXlogL.png'))
+            self.ns.state.plot(os.path.join(self.output, "logXlogL.png"))
 
     def save_kwargs(self, kwargs):
         """
@@ -180,7 +195,7 @@ class FlowSampler:
             Dictionary of kwargs to save.
         """
         d = kwargs.copy()
-        with open(os.path.join(self.output, 'config.json'), 'w') as wf:
+        with open(os.path.join(self.output, "config.json"), "w") as wf:
             json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
 
     def save_results(self, filename):
@@ -192,49 +207,50 @@ class FlowSampler:
         filename : str
             Name of file to save results to.
         """
-        iterations = np.arange(len(self.ns.min_likelihood)) \
-            * (self.ns.nlive // 10)
+        iterations = np.arange(len(self.ns.min_likelihood)) * (
+            self.ns.nlive // 10
+        )
         iterations[-1] = self.ns.iteration
         d = dict()
-        d['version'] = version
-        d['history'] = dict(
-                iterations=iterations,
-                min_likelihood=self.ns.min_likelihood,
-                max_likelihood=self.ns.max_likelihood,
-                likelihood_evaluations=self.ns.likelihood_evaluations,
-                logZ=self.ns.logZ_history,
-                dZ=self.ns.dZ_history,
-                mean_acceptance=self.ns.mean_acceptance_history,
-                rolling_p=self.ns.rolling_p,
-                population=dict(
-                    iterations=self.ns.population_iterations,
-                    acceptance=self.ns.population_acceptance
-                    ),
-                training_iterations=self.ns.training_iterations
-
-                )
-        d['insertion_indices'] = self.ns.insertion_indices
-        d['nested_samples'] = live_points_to_dict(self.nested_samples)
-        d['posterior_samples'] = live_points_to_dict(self.posterior_samples)
-        d['log_evidence'] = self.ns.log_evidence
-        d['information'] = self.ns.information
-        d['sampling_time'] = self.ns.sampling_time.total_seconds()
-        d['training_time'] = self.ns.training_time.total_seconds()
-        d['population_time'] = self.ns.proposal_population_time.total_seconds()
+        d["version"] = version
+        d["history"] = dict(
+            iterations=iterations,
+            min_likelihood=self.ns.min_likelihood,
+            max_likelihood=self.ns.max_likelihood,
+            likelihood_evaluations=self.ns.likelihood_evaluations,
+            logZ=self.ns.logZ_history,
+            dZ=self.ns.dZ_history,
+            mean_acceptance=self.ns.mean_acceptance_history,
+            rolling_p=self.ns.rolling_p,
+            population=dict(
+                iterations=self.ns.population_iterations,
+                acceptance=self.ns.population_acceptance,
+            ),
+            training_iterations=self.ns.training_iterations,
+        )
+        d["insertion_indices"] = self.ns.insertion_indices
+        d["nested_samples"] = live_points_to_dict(self.nested_samples)
+        d["posterior_samples"] = live_points_to_dict(self.posterior_samples)
+        d["log_evidence"] = self.ns.log_evidence
+        d["information"] = self.ns.information
+        d["sampling_time"] = self.ns.sampling_time.total_seconds()
+        d["training_time"] = self.ns.training_time.total_seconds()
+        d["population_time"] = self.ns.proposal_population_time.total_seconds()
         if self.ns.likelihood_evaluation_time.total_seconds():
-            d['likelihood_evaluation_time'] = \
-                self.ns.likelihood_evaluation_time.total_seconds()
+            d[
+                "likelihood_evaluation_time"
+            ] = self.ns.likelihood_evaluation_time.total_seconds()
 
-        with open(filename, 'w') as wf:
+        with open(filename, "w") as wf:
             json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
 
     def safe_exit(self, signum=None, frame=None):
         """
         Safely exit. This includes closing the multiprocessing pool.
         """
-        logger.warning(f'Trying to safely exit with code {signum}')
+        logger.warning(f"Trying to safely exit with code {signum}")
         self.ns.model.close_pool(code=signum)
         self.ns.checkpoint()
 
-        logger.warning(f'Exiting with code: {self.exit_code}')
+        logger.warning(f"Exiting with code: {self.exit_code}")
         sys.exit(self.exit_code)

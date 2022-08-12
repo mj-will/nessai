@@ -14,13 +14,13 @@ from nessai.nestedsampler import NestedSampler
 @pytest.fixture
 def complete_sampler(model, tmpdir):
     """Complete instance of NestedSampler"""
-    output = tmpdir.mkdir('output')
+    output = tmpdir.mkdir("output")
     ns = NestedSampler(model, output=output, poolsize=10)
     ns.initialise()
     return ns
 
 
-@pytest.mark.parametrize('periodic', [False, True])
+@pytest.mark.parametrize("periodic", [False, True])
 def test_checkpoint(sampler, periodic, wait):
     """Test checkpointing method.
 
@@ -33,9 +33,9 @@ def test_checkpoint(sampler, periodic, wait):
     wait()
     sampler.sampling_start_time = now
     sampler.sampling_time = datetime.timedelta()
-    sampler.resume_file = 'test.pkl'
+    sampler.resume_file = "test.pkl"
 
-    with patch('nessai.nestedsampler.safe_file_dump') as sfd_mock:
+    with patch("nessai.nestedsampler.safe_file_dump") as sfd_mock:
         NestedSampler.checkpoint(sampler, periodic=periodic)
 
     sfd_mock.assert_called_once_with(
@@ -43,7 +43,7 @@ def test_checkpoint(sampler, periodic, wait):
     )
 
     assert sampler.sampling_start_time > now
-    assert sampler.sampling_time.total_seconds() > 0.
+    assert sampler.sampling_time.total_seconds() > 0.0
 
     if periodic:
         assert sampler.checkpoint_iterations == [10]
@@ -91,9 +91,10 @@ def test_resume(model):
     obj._uninformed_proposal = MagicMock()
     obj._flow_proposal = MagicMock()
     obj.likelihood_evaluations = [2, 3]
-    with patch('pickle.load', return_value=obj) as mock_pickle, \
-         patch('builtins.open'):
-        out = NestedSampler.resume('test.pkl', model)
+    with patch("pickle.load", return_value=obj) as mock_pickle, patch(
+        "builtins.open"
+    ):
+        out = NestedSampler.resume("test.pkl", model)
 
     mock_pickle.assert_called_once()
 
@@ -109,7 +110,7 @@ def test_get_state(sampler):
     """
     sampler.model = MagicMock()
     state = NestedSampler.__getstate__(sampler)
-    assert 'model' not in state
+    assert "model" not in state
 
 
 @pytest.mark.integration_test
@@ -117,7 +118,8 @@ def test_checkpoint_integration(complete_sampler):
     """Integration test for checkpointing the sampler."""
     complete_sampler.checkpoint()
     resume_file = os.path.join(
-        complete_sampler.output, complete_sampler.resume_file)
+        complete_sampler.output, complete_sampler.resume_file
+    )
     assert os.path.exists(resume_file)
 
 
@@ -127,7 +129,8 @@ def test_checkpoint_resume_integration(complete_sampler, model):
     complete_sampler.likelihood_evaluations = [1, 2]
     complete_sampler.checkpoint()
     resume_file = os.path.join(
-        complete_sampler.output, complete_sampler.resume_file)
+        complete_sampler.output, complete_sampler.resume_file
+    )
     assert os.path.exists(resume_file)
     ns = NestedSampler.resume(resume_file, model)
     assert ns is not None

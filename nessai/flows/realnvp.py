@@ -62,6 +62,7 @@ class RealNVP(NFlow):
         Linear transform to use between coupling layers. Not recommended when
         using a custom mask.
     """
+
     def __init__(
         self,
         features,
@@ -70,7 +71,7 @@ class RealNVP(NFlow):
         num_blocks_per_layer,
         mask=None,
         context_features=None,
-        net='resnet',
+        net="resnet",
         use_volume_preserving=False,
         activation=F.relu,
         dropout_probability=0.0,
@@ -82,8 +83,8 @@ class RealNVP(NFlow):
 
         if features <= 1:
             raise ValueError(
-                'RealNVP requires at least 2 dimensions. '
-                f'Specified dimensions: {features}.'
+                "RealNVP requires at least 2 dimensions. "
+                f"Specified dimensions: {features}."
             )
 
         if use_volume_preserving:
@@ -97,9 +98,9 @@ class RealNVP(NFlow):
         else:
             mask = np.array(mask)
             if not mask.shape[-1] == features:
-                raise ValueError('Mask does not match number of features')
+                raise ValueError("Mask does not match number of features")
             if mask.ndim == 2 and not mask.shape[0] == num_layers:
-                raise ValueError('Mask does not match number of layers')
+                raise ValueError("Mask does not match number of layers")
 
             mask = torch.from_numpy(mask).type(torch.get_default_dtype())
 
@@ -110,7 +111,7 @@ class RealNVP(NFlow):
                 mask *= -1
             mask = mask_array
 
-        if net.lower() == 'resnet':
+        if net.lower() == "resnet":
             from nflows.nn.nets import ResidualNet
 
             def create_net(in_features, out_features):
@@ -122,29 +123,34 @@ class RealNVP(NFlow):
                     num_blocks=num_blocks_per_layer,
                     activation=activation,
                     dropout_probability=dropout_probability,
-                    use_batch_norm=batch_norm_within_layers
-                    )
-        elif net.lower() == 'mlp':
+                    use_batch_norm=batch_norm_within_layers,
+                )
+
+        elif net.lower() == "mlp":
             from .utils import MLP
+
             if batch_norm_within_layers:
-                logger.warning('Batch norm within layers not supported for '
-                               'MLP, will be ignored')
+                logger.warning(
+                    "Batch norm within layers not supported for "
+                    "MLP, will be ignored"
+                )
             if dropout_probability:
-                logger.warning('Dropout not supported for MLP, '
-                               'will be ignored')
+                logger.warning(
+                    "Dropout not supported for MLP, " "will be ignored"
+                )
             hidden_features = num_blocks_per_layer * [hidden_features]
 
             def create_net(in_features, out_features):
                 return MLP(
-                        (in_features,),
-                        (out_features,),
-                        hidden_features,
-                        activation=activation)
+                    (in_features,),
+                    (out_features,),
+                    hidden_features,
+                    activation=activation,
+                )
 
         else:
             raise ValueError(
-                f'Unknown nn type: {net}. '
-                'Choose from: {resnet, mlp}.'
+                f"Unknown nn type: {net}. " "Choose from: {resnet, mlp}."
             )
 
         layers = []

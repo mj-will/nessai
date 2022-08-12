@@ -5,17 +5,9 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 
-from nessai.flows import (
-    RealNVP,
-    MaskedAutoregressiveFlow,
-    NeuralSplineFlow
-    )
+from nessai.flows import RealNVP, MaskedAutoregressiveFlow, NeuralSplineFlow
 
-flows = [
-    RealNVP,
-    MaskedAutoregressiveFlow,
-    NeuralSplineFlow
-]
+flows = [RealNVP, MaskedAutoregressiveFlow, NeuralSplineFlow]
 
 
 @pytest.fixture(params=[2, 4])
@@ -61,13 +53,13 @@ def flow_class(request):
 
 
 @pytest.mark.parametrize(
-    'kwargs',
+    "kwargs",
     [
         dict(batch_norm_between_layers=True),
         dict(batch_norm_within_layers=True),
         dict(activation=F.relu),
-        dict(dropout_probability=0.5)
-    ]
+        dict(dropout_probability=0.5),
+    ],
 )
 def test_init(flow_class, kwargs):
     """Test init method with common kwargs"""
@@ -137,7 +129,8 @@ def test_sample_and_log_prob(flow, n, data_dim):
         log_prob_target = flow.log_prob(x)
     assert x.shape == (n, data_dim)
     np.testing.assert_array_almost_equal(
-        log_prob.numpy(), log_prob_target.numpy(), decimal=5)
+        log_prob.numpy(), log_prob_target.numpy(), decimal=5
+    )
 
 
 @pytest.mark.flaky(run=10)
@@ -149,7 +142,8 @@ def test_invertibility(flow, x):
 
     np.testing.assert_array_almost_equal(x.numpy(), x_out.numpy(), decimal=5)
     np.testing.assert_array_almost_equal(
-        log_J.numpy(), -log_J_out.numpy(), decimal=5)
+        log_J.numpy(), -log_J_out.numpy(), decimal=5
+    )
 
 
 @pytest.mark.flaky(run=5)

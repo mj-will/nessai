@@ -49,8 +49,8 @@ def sampler(sampler):
     return sampler
 
 
-@pytest.mark.parametrize('switch', [False, True])
-@pytest.mark.parametrize('uninformed', [False, True])
+@pytest.mark.parametrize("switch", [False, True])
+@pytest.mark.parametrize("uninformed", [False, True])
 def test_check_state_force(sampler, switch, uninformed):
     """Test the behaviour of check_state with force=True.
 
@@ -72,8 +72,8 @@ def test_check_state_force(sampler, switch, uninformed):
     sampler.check_training.assert_not_called()
 
 
-@pytest.mark.parametrize('force', [False, True])
-@pytest.mark.parametrize('train', [False, True])
+@pytest.mark.parametrize("force", [False, True])
+@pytest.mark.parametrize("train", [False, True])
 def test_check_state_train(sampler, force, train):
     """Test the behaviour of check_state with force=False and `check_training`
     returns True, False, True, True, False, True, or False, False.
@@ -94,7 +94,7 @@ def test_check_state_train(sampler, force, train):
         sampler.train_proposal.assert_not_called()
 
 
-@patch('nessai.nestedsampler.NestedSampler.checkpoint')
+@patch("nessai.nestedsampler.NestedSampler.checkpoint")
 def test_update_state_checked_acceptance(mock, sampler):
     """Test the behaviour of update state if `_checked_population` is False.
 
@@ -137,9 +137,9 @@ def test_update_state_history(sampler):
     assert sampler.proposal.ns_acceptance == 0.5
 
 
-@pytest.mark.parametrize('checkpointing', [False, True])
-@pytest.mark.parametrize('plot', [False, True])
-@patch('nessai.nestedsampler.plot_indices')
+@pytest.mark.parametrize("checkpointing", [False, True])
+@pytest.mark.parametrize("plot", [False, True])
+@patch("nessai.nestedsampler.plot_indices")
 def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
     """Test the update that happens every nlive iterations.
 
@@ -165,20 +165,22 @@ def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
         sampler.checkpoint.assert_not_called()
     sampler.check_insertion_indices.assert_called_once()
     assert sampler.block_iteration == 0
-    assert sampler.block_acceptance == 0.
+    assert sampler.block_acceptance == 0.0
     assert sampler.likelihood_evaluations == [10, 100]
     assert sampler.population_acceptance == [0.5]
 
     if plot:
         sampler.plot_state.assert_called_once_with(
-            filename=os.path.join(os.getcwd(), 'state.png')
+            filename=os.path.join(os.getcwd(), "state.png")
         )
         sampler.plot_trace.assert_called_once()
         mock_plot.assert_called_once_with(
-            sampler.insertion_indices[-100:], 100, plot_breakdown=False,
+            sampler.insertion_indices[-100:],
+            100,
+            plot_breakdown=False,
             filename=os.path.join(
-                os.getcwd(), 'diagnostics', 'insertion_indices_100.png'
-            )
+                os.getcwd(), "diagnostics", "insertion_indices_100.png"
+            ),
         )
     else:
         assert not sampler.plot_state.called
@@ -186,8 +188,8 @@ def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
         assert not mock_plot.called
 
 
-@pytest.mark.parametrize('checkpointing', [False, True])
-@patch('nessai.nestedsampler.plot_indices')
+@pytest.mark.parametrize("checkpointing", [False, True])
+@patch("nessai.nestedsampler.plot_indices")
 def test_update_state_force(mock_plot, checkpointing, sampler):
     """Test the update that happens if force=True.
 
@@ -213,7 +215,7 @@ def test_update_state_force(mock_plot, checkpointing, sampler):
     assert not sampler.called
     sampler.plot_trace.assert_called_once()
     sampler.plot_state.assert_called_once_with(
-        filename=os.path.join(os.getcwd(), 'state.png')
+        filename=os.path.join(os.getcwd(), "state.png")
     )
 
     assert sampler.max_likelihood == [100.0, 150.0]

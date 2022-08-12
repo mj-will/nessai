@@ -6,7 +6,7 @@ import numpy as np
 from scipy import stats
 
 
-def compute_indices_ks_test(indices, nlive, mode='D+'):
+def compute_indices_ks_test(indices, nlive, mode="D+"):
     """
     Compute the two-sided KS test for discrete insertion indices for a given
     number of live points
@@ -30,12 +30,12 @@ def compute_indices_ks_test(indices, nlive, mode='D+'):
         u, c = np.unique(indices, return_counts=True)
         counts[u] = c
         cdf = np.cumsum(counts) / len(indices)
-        if mode == 'D+':
+        if mode == "D+":
             D = np.max(np.arange(1.0, nlive + 1) / nlive - cdf)
-        elif mode == 'D-':
+        elif mode == "D-":
             D = np.max(cdf - np.arange(0.0, nlive) / nlive)
         else:
-            raise RuntimeError(f'{mode} is not a valid mode. Choose D+ or D-')
+            raise RuntimeError(f"{mode} is not a valid mode. Choose D+ or D-")
         p = stats.ksone.sf(D, len(indices))
         return D, p
     else:

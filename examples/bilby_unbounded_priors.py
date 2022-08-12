@@ -6,33 +6,31 @@
 import bilby
 import numpy as np
 
-outdir = './outdir/'
-label = 'bilby_unbounded_priors'
+outdir = "./outdir/"
+label = "bilby_unbounded_priors"
 
 # Setup the bilby logger
-bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level='WARNING')
+bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level="WARNING")
 
 # Define a likelihood using Bilby
 
 
 class SimpleGaussianLikelihood(bilby.Likelihood):
-
     def __init__(self):
         """A very simple Gaussian likelihood"""
-        super().__init__(parameters={'x': None, 'y': None})
+        super().__init__(parameters={"x": None, "y": None})
 
     def log_likelihood(self):
         """Log-likelihood."""
-        return (
-            -0.5 * (self.parameters['x'] ** 2. + self.parameters['y'] ** 2.)
-            - np.log(2.0 * np.pi)
-        )
+        return -0.5 * (
+            self.parameters["x"] ** 2.0 + self.parameters["y"] ** 2.0
+        ) - np.log(2.0 * np.pi)
 
 
 # Define priors, we'll use Gaussians since they're unbounded.
 priors = dict(
-    x=bilby.core.prior.Gaussian(0, 5, 'x'),
-    y=bilby.core.prior.Gaussian(0, 10, 'y')
+    x=bilby.core.prior.Gaussian(0, 5, "x"),
+    y=bilby.core.prior.Gaussian(0, 10, "y"),
 )
 
 # Instantiate the likelihood
@@ -53,10 +51,11 @@ result = bilby.run_sampler(
     plot=True,
     likelihood=likelihood,
     priors=priors,
-    sampler='nessai',
-    injection_parameters={'x': 0.0, 'y': 0.0},
+    sampler="nessai",
+    injection_parameters={"x": 0.0, "y": 0.0},
     reparameterisations={
-        'scale': {'parameters': ['x', 'y'], 'scale': [5, 10]}},
+        "scale": {"parameters": ["x", "y"], "scale": [5, 10]}
+    },
     analytic_priors=True,
-    seed=1234
+    seed=1234,
 )

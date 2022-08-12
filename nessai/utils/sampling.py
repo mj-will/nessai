@@ -49,7 +49,7 @@ def draw_surface_nsphere(dims, r=1, N=1000):
         Array of samples with shape (N, dims)
     """
     x = np.random.randn(N, dims)
-    R = np.sqrt(np.sum(x ** 2., axis=1))[:, np.newaxis]
+    R = np.sqrt(np.sum(x**2.0, axis=1))[:, np.newaxis]
     z = x / R
     return r * z
 
@@ -156,5 +156,5 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1):
     u = np.random.uniform(0, u_max, N)
     p = sigma * stats.chi.ppf(u, df=dims)
     x = np.random.randn(p.size, dims)
-    points = (p * x.T / np.sqrt(np.sum(x**2., axis=1))).T
+    points = (p * x.T / np.sqrt(np.sum(x**2.0, axis=1))).T
     return points

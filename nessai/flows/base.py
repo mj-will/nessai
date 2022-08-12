@@ -12,6 +12,7 @@ class BaseFlow(Module, ABC):
 
     If implementing flows using distributions and transforms see NFlow.
     """
+
     device = None
 
     def to(self, device):
@@ -140,6 +141,7 @@ class NFlow(BaseFlow):
         and computing the log probability. Must have `log_prob` and
         `sample` methods. See nflows for details
     """
+
     def __init__(self, transform, distribution):
         super().__init__()
         from nflows.transforms import Transform
@@ -147,13 +149,13 @@ class NFlow(BaseFlow):
 
         if not isinstance(transform, Transform):
             raise TypeError(
-                'transform must inherit from `nflows.transforms.Transform'
+                "transform must inherit from `nflows.transforms.Transform"
             )
 
         if not isinstance(distribution, Distribution):
             raise TypeError(
-                'distribution must inherit from '
-                '`nflows.transforms.Distribution'
+                "distribution must inherit from "
+                "`nflows.transforms.Distribution"
             )
 
         self._transform = transform
