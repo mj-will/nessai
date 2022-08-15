@@ -12,7 +12,7 @@ import numpy as np
 
 from . import __version__ as version
 from .livepoint import live_points_to_dict
-from .nestedsampler import NestedSampler
+from .samplers.nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
 from .utils import NessaiJSONEncoder, configure_threads
 

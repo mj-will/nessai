@@ -15,12 +15,12 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from . import config
-from .livepoint import empty_structured_array
-from .plot import plot_indices, plot_trace, nessai_style
-from .evidence import _NSIntegralState
-from .proposal import FlowProposal
-from .utils import (
+from .. import config
+from ..livepoint import empty_structured_array
+from ..plot import plot_indices, plot_trace, nessai_style
+from ..evidence import _NSIntegralState
+from ..proposal import FlowProposal
+from ..utils import (
     safe_file_dump,
     compute_indices_ks_test,
     rolling_mean,
@@ -394,9 +394,9 @@ class NestedSampler:
 
         if uninformed_proposal is None:
             if analytic_priors:
-                from .proposal import AnalyticProposal as uninformed_proposal
+                from ..proposal import AnalyticProposal as uninformed_proposal
             else:
-                from .proposal import RejectionProposal as uninformed_proposal
+                from ..proposal import RejectionProposal as uninformed_proposal
 
                 kwargs["poolsize"] = self.nlive
 
@@ -430,17 +430,17 @@ class NestedSampler:
             if isinstance(flow_class, str):
                 flow_class = flow_class.lower()
                 if flow_class == "gwflowproposal":
-                    from .gw.proposal import GWFlowProposal as flow_class
+                    from ..gw.proposal import GWFlowProposal as flow_class
                 elif flow_class == "augmentedgwflowproposal":
-                    from .gw.proposal import (
+                    from ..gw.proposal import (
                         AugmentedGWFlowProposal as flow_class,
                     )
                 elif flow_class == "legacygwflowproposal":
-                    from .gw.legacy import LegacyGWFlowProposal as flow_class
+                    from ..gw.legacy import LegacyGWFlowProposal as flow_class
                 elif flow_class == "flowproposal":
                     flow_class = FlowProposal
                 elif flow_class == "augmentedflowproposal":
-                    from .proposal import AugmentedFlowProposal
+                    from ..proposal import AugmentedFlowProposal
 
                     flow_class = AugmentedFlowProposal
                 else:
