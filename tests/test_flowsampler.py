@@ -2,6 +2,7 @@
 """
 Tests for the FlowSampler class.
 """
+import json
 import os
 import signal
 import sys
@@ -334,28 +335,12 @@ def test_save_kwargs(flow_sampler, tmpdir, test_class):
 
 def test_save_results(flow_sampler, tmpdir):
     """Test the save results method"""
-    from datetime import timedelta
-
     output = str(tmpdir.mkdir("test"))
     filename = os.path.join(output, "result.json")
+    d = dict(a=1)
 
     ns = MagicMock()
-    ns.nlive = 1
-    ns.iteration = 3
-    ns.min_likelihood = [-3, -2, 1]
-    ns.max_likelihood = [1, 2, 3]
-    ns.likelihood_evaluations = 3
-    ns.logZ_history = [1, 2, 3]
-    ns.mean_acceptance_history = [1, 2, 3]
-    ns.rolling_p = [0.5]
-    ns.population_iterations = []
-    ns.population_acceptance = []
-    ns.training_iterations = []
-    ns.insertion_indices = []
-    ns.sampling_time = timedelta()
-    ns.training_time = timedelta()
-    ns.proposal_population_time = timedelta()
-    ns.likelihood_evaluation_time = timedelta(2)
+    ns.get_result_dictionary = MagicMock(return_value=d)
 
     flow_sampler.ns = ns
     flow_sampler.posterior_samples = np.array([0.1], dtype=[("x", "f8")])
@@ -364,6 +349,12 @@ def test_save_results(flow_sampler, tmpdir):
     FlowSampler.save_results(flow_sampler, filename)
 
     assert os.path.exists(filename)
+    ns.get_result_dictionary.assert_called_once()
+    with open(filename, "r") as fp:
+        out = json.load(fp)
+
+    assert out["a"] == 1
+    assert "posterior_samples" in out
 
 
 def test_safe_exit(flow_sampler):

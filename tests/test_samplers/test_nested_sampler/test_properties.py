@@ -30,20 +30,6 @@ def test_information(sampler):
     assert NestedSampler.information.__get__(sampler) == 3
 
 
-def test_likelihood_calls(sampler):
-    """Check likelihood calls from model are returned"""
-    sampler.model = MagicMock()
-    sampler.model.likelihood_evaluations = 10
-    assert NestedSampler.likelihood_calls.__get__(sampler) == 10
-
-
-def test_likelihood_evaluation_time(sampler):
-    """Assert the time is the some of the time for individual proposals"""
-    sampler.model = MagicMock()
-    sampler.model.likelihood_evaluation_time = 1.0
-    assert NestedSampler.likelihood_evaluation_time.__get__(sampler) == 1.0
-
-
 def test_population_time(sampler):
     """Assert the time is the some of the time for individual proposals"""
     sampler._uninformed_proposal = MagicMock()
