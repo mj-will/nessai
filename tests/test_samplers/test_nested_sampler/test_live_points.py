@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
 
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 def test_insert_live_point(sampler):
@@ -65,7 +65,10 @@ def test_populate_live_points_none_returned(sampler):
 
 
 @pytest.mark.parametrize("rolling", [False, True])
-@patch("nessai.nestedsampler.compute_indices_ks_test", return_value=(0.1, 0.5))
+@patch(
+    "nessai.samplers.nestedsampler.compute_indices_ks_test",
+    return_value=(0.1, 0.5),
+)
 def test_insertion_indices(mock_fn, rolling, sampler):
     """Test computing the distribution of insertion indices"""
     sampler.rolling_p = []
@@ -87,7 +90,10 @@ def test_insertion_indices(mock_fn, rolling, sampler):
         )
 
 
-@patch("nessai.nestedsampler.compute_indices_ks_test", return_value=(0, None))
+@patch(
+    "nessai.samplers.nestedsampler.compute_indices_ks_test",
+    return_value=(0, None),
+)
 def test_insertion_indices_p_none(mock_fn, sampler):
     """Test computing the distribution of insertion indices if p is None"""
     sampler.rolling_p = []
@@ -102,7 +108,10 @@ def test_insertion_indices_p_none(mock_fn, sampler):
 
 @pytest.mark.parametrize("filename", [None, "file.txt"])
 @patch("numpy.savetxt")
-@patch("nessai.nestedsampler.compute_indices_ks_test", return_value=(0.1, 0.5))
+@patch(
+    "nessai.samplers.nestedsampler.compute_indices_ks_test",
+    return_value=(0.1, 0.5),
+)
 def test_insertion_indices_save(mock_fn, mock_save, filename, sampler):
     """Test saving the insertion indices"""
     sampler.output = os.getcwd()

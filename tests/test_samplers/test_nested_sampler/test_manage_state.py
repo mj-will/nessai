@@ -6,7 +6,7 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch
 
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture
@@ -94,7 +94,7 @@ def test_check_state_train(sampler, force, train):
         sampler.train_proposal.assert_not_called()
 
 
-@patch("nessai.nestedsampler.NestedSampler.checkpoint")
+@patch("nessai.samplers.nestedsampler.NestedSampler.checkpoint")
 def test_update_state_checked_acceptance(mock, sampler):
     """Test the behaviour of update state if `_checked_population` is False.
 
@@ -139,7 +139,7 @@ def test_update_state_history(sampler):
 
 @pytest.mark.parametrize("checkpointing", [False, True])
 @pytest.mark.parametrize("plot", [False, True])
-@patch("nessai.nestedsampler.plot_indices")
+@patch("nessai.samplers.nestedsampler.plot_indices")
 def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
     """Test the update that happens every nlive iterations.
 
@@ -189,7 +189,7 @@ def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
 
 
 @pytest.mark.parametrize("checkpointing", [False, True])
-@patch("nessai.nestedsampler.plot_indices")
+@patch("nessai.samplers.nestedsampler.plot_indices")
 def test_update_state_force(mock_plot, checkpointing, sampler):
     """Test the update that happens if force=True.
 

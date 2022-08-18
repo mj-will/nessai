@@ -8,7 +8,7 @@ import pickle
 import pytest
 from unittest.mock import patch, MagicMock
 
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def test_checkpoint(sampler, periodic, wait):
     sampler.sampling_time = datetime.timedelta()
     sampler.resume_file = "test.pkl"
 
-    with patch("nessai.nestedsampler.safe_file_dump") as sfd_mock:
+    with patch("nessai.samplers.nestedsampler.safe_file_dump") as sfd_mock:
         NestedSampler.checkpoint(sampler, periodic=periodic)
 
     sfd_mock.assert_called_once_with(

@@ -10,7 +10,7 @@ from nessai.livepoint import (
     numpy_array_to_live_points,
     parameters_to_live_point,
 )
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 from nessai.utils.testing import assert_structured_arrays_equal
 
 

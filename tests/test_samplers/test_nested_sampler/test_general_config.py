@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from unittest.mock import patch, MagicMock
 
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 def test_init(sampler):

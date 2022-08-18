@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import MagicMock
 
 from nessai.livepoint import parameters_to_live_point
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture()
