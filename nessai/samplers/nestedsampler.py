@@ -7,21 +7,20 @@ from copy import copy
 import datetime
 import logging
 import os
-import pickle
+from typing import Union
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import numpy as np
-import torch
 from tqdm import tqdm
 
+from .base import BaseNestedSampler
 from .. import config
-from ..livepoint import empty_structured_array
+from ..livepoint import empty_structured_array, live_points_to_dict
 from ..plot import plot_indices, plot_trace, nessai_style
 from ..evidence import _NSIntegralState
 from ..proposal import FlowProposal
 from ..utils import (
-    safe_file_dump,
     compute_indices_ks_test,
     rolling_mean,
 )
@@ -29,10 +28,9 @@ from ..utils import (
 logger = logging.getLogger(__name__)
 
 
-class NestedSampler:
+class NestedSampler(BaseNestedSampler):
     """
     Nested Sampler class.
-    Initialisation arguments:
 
     Parameters
     ----------
@@ -162,25 +160,26 @@ class NestedSampler:
         **kwargs,
     ):
 
-        logger.info("Initialising nested sampler")
+        super().__init__(
+            model,
+            nlive,
+            output=output,
+            seed=seed,
+            checkpointing=checkpointing,
+            resume_file=resume_file,
+            plot=plot,
+            n_pool=n_pool,
+            pool=pool,
+        )
 
-        self.info_enabled = logger.isEnabledFor(logging.INFO)
+        self._close_pool = close_pool
 
-        model.verify_model()
-
-        self.model = model
-        self.model.configure_pool(pool=pool, n_pool=n_pool)
-        self.close_pool = close_pool
-
-        self.nlive = nlive
         self.live_points = None
         self.prior_sampling = prior_sampling
-        self.setup_random_seed(seed)
         self.accepted = 0
         self.rejected = 1
         self.initialised = False
 
-        self.checkpointing = checkpointing
         self.checkpoint_on_training = checkpoint_on_training
         self.iteration = 0
         self.acceptance_history = deque(maxlen=(nlive // 10))
@@ -202,18 +201,12 @@ class NestedSampler:
         self.nested_samples = []
         self.logZ = None
         self.state = _NSIntegralState(self.nlive, track_gradients=plot)
-        self.plot = plot
-        self.resume_file = self.setup_output(output, resume_file)
-        self.output = output
 
         # Timing
         self.training_time = datetime.timedelta()
-        self.sampling_time = datetime.timedelta()
-        self.sampling_start_time = datetime.datetime.now()
 
         # Resume flags
         self.completed_training = True
-        self.finalised = False
 
         # History
         self.likelihood_evaluations = []
@@ -269,14 +262,6 @@ class NestedSampler:
         return self.state.info[-1]
 
     @property
-    def likelihood_calls(self):
-        return self.model.likelihood_evaluations
-
-    @property
-    def likelihood_evaluation_time(self):
-        return self.model.likelihood_evaluation_time
-
-    @property
     def proposal_population_time(self):
         t = self._uninformed_proposal.population_time
         t += self._flow_proposal.population_time
@@ -285,15 +270,6 @@ class NestedSampler:
     @property
     def acceptance(self):
         return self.iteration / self.likelihood_calls
-
-    @property
-    def current_sampling_time(self):
-        if self.finalised:
-            return self.sampling_time
-        else:
-            return self.sampling_time + (
-                datetime.datetime.now() - self.sampling_start_time
-            )
 
     @property
     def last_updated(self):
@@ -466,45 +442,24 @@ class NestedSampler:
             **kwargs,
         )
 
-    def setup_output(self, output, resume_file=None):
-        """
-        Set up the output folder
+    def configure_output(
+        self, output: Union[str, None], resume_file: Union[str, None] = None
+    ):
+        """Configure the output folder
+
+        Creates a "diagnostics" directory plotting is enabled.
 
         Parameters
         ----------
         output : str
             Directory where the results will be stored
-        resume_file : optional
+        resume_file : str, optional
             Specific file to use for checkpointing. If not specified the
             default is used (nested_sampler_resume.pkl)
-
-        Returns
-        -------
-        resume_file : str
-            File used for checkpointing
         """
-        if not os.path.exists(output):
-            os.makedirs(output, exist_ok=True)
-
-        if resume_file is None:
-            resume_file = os.path.join(output, "nested_sampler_resume.pkl")
-        else:
-            resume_file = os.path.join(output, resume_file)
-
+        super().configure_output(output, resume_file)
         if self.plot:
-            os.makedirs(os.path.join(output, "diagnostics", ""), exist_ok=True)
-
-        return resume_file
-
-    def setup_random_seed(self, seed):
-        """
-        initialise the random seed
-        """
-        self.seed = seed
-        if self.seed is not None:
-            logger.debug(f"Setting random seed to {seed}")
-            np.random.seed(seed=self.seed)
-            torch.manual_seed(self.seed)
+            os.makedirs(os.path.join(output, "diagnostics"), exist_ok=True)
 
     def configure_flow_reset(self, reset_weights, reset_permutations):
         """Configure how often the flow parameters are reset.
@@ -556,12 +511,6 @@ class NestedSampler:
                 newline="\n",
                 delimiter=" ",
             )
-
-    def log_likelihood(self, x):
-        """
-        Wrapper for the model likelihood so evaluations are counted
-        """
-        return self.model.log_likelihood(x)
 
     def yield_sample(self, oldparam):
         """
@@ -1152,26 +1101,6 @@ class NestedSampler:
 
         self.proposal.ns_acceptance = self.mean_block_acceptance
 
-    def checkpoint(self, periodic=False):
-        """
-        Checkpoint the classes internal state
-
-        Parameters
-        ----------
-        periodic : bool
-            Indicates if the checkpoint is regular periodic checkpointing
-            or forced by a signal. If forced by a signal, it will show up on
-            the state plot.
-        """
-        if not periodic:
-            self.checkpoint_iterations += [self.iteration]
-        self.sampling_time += (
-            datetime.datetime.now() - self.sampling_start_time
-        )
-        logger.critical("Checkpointing nested sampling")
-        safe_file_dump(self, self.resume_file, pickle, save_existing=True)
-        self.sampling_start_time = datetime.datetime.now()
-
     def check_resume(self):
         """
         Check the normalising flow is correctly configured is the sampler
@@ -1227,8 +1156,8 @@ class NestedSampler:
             self.initialise(live_points=True)
 
         if self.prior_sampling:
-            if self.close_pool:
-                self.model.close_pool()
+            if self._close_pool:
+                self.close_pool()
             self.finalise()
             return self.log_evidence, np.array(self.nested_samples)
 
@@ -1266,8 +1195,8 @@ class NestedSampler:
         # This includes updating the total sampling time
         self.checkpoint(periodic=True)
 
-        if self.close_pool:
-            self.model.close_pool()
+        if self._close_pool:
+            self.close_pool()
 
         logger.info(f"Total sampling time: {self.sampling_time}")
         logger.info(f"Total training time: {self.training_time}")
@@ -1281,6 +1210,36 @@ class NestedSampler:
         )
 
         return self.state.logZ, np.array(self.nested_samples)
+
+    def get_result_dictionary(self):
+        """Return a dictionary that contains results"""
+        d = super().get_result_dictionary()
+        iterations = np.arange(len(self.min_likelihood)) * (self.nlive // 10)
+        iterations[-1] = self.iteration
+        d["history"] = dict(
+            iterations=iterations,
+            min_likelihood=self.min_likelihood,
+            max_likelihood=self.max_likelihood,
+            likelihood_evaluations=self.likelihood_evaluations,
+            logZ=self.logZ_history,
+            dZ=self.dZ_history,
+            mean_acceptance=self.mean_acceptance_history,
+            rolling_p=self.rolling_p,
+            population=dict(
+                iterations=self.population_iterations,
+                acceptance=self.population_acceptance,
+            ),
+            training_iterations=self.training_iterations,
+        )
+        d["insertion_indices"] = self.insertion_indices
+        d["nested_samples"] = live_points_to_dict(
+            np.array(self.nested_samples)
+        )
+        d["log_evidence"] = self.log_evidence
+        d["information"] = self.information
+        d["training_time"] = self.training_time.total_seconds()
+        d["population_time"] = self.proposal_population_time.total_seconds()
+        return d
 
     @classmethod
     def resume(cls, filename, model, flow_config=None, weights_file=None):
@@ -1304,23 +1263,9 @@ class NestedSampler:
         obj
             Instance of NestedSampler
         """
-        logger.critical("Resuming NestedSampler from " + filename)
-        with open(filename, "rb") as f:
-            obj = pickle.load(f)
-        model.likelihood_evaluations += obj.likelihood_evaluations[-1]
-        obj.model = model
+        obj = super().resume(filename, model)
         obj._uninformed_proposal.resume(model)
         if flow_config is None:
             flow_config = {}
         obj._flow_proposal.resume(model, flow_config, weights_file)
-
-        obj.resumed = True
         return obj
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        del state["model"]
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__ = state
