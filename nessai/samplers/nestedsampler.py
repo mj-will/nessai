@@ -247,12 +247,6 @@ class NestedSampler(BaseNestedSampler):
         # If maximum uninformed is greater than 0, the it will be used for
         # another n iterations or until it becomes inefficient
 
-        self.store_live_points = False
-        if self.store_live_points:
-            self.live_points_dir = f"{self.output}/live_points/"
-            os.makedirs(self.live_points_dir, exist_ok=True)
-            self.replacement_points = []
-
     @property
     def log_evidence(self):
         return self.state.logZ
@@ -646,12 +640,6 @@ class NestedSampler(BaseNestedSampler):
 
         self.live_points = np.sort(live_points, order="logL")
         self.live_points["it"] = 0
-        if self.store_live_points:
-            np.savetxt(
-                self.live_points_dir + "/initial_live_points.dat",
-                self.live_points,
-                header="\t".join(self.live_points.dtype.names),
-            )
 
     def initialise(self, live_points=True):
         """
