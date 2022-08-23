@@ -4,6 +4,7 @@ Test utilities related to logging.
 """
 import logging
 import os
+from unittest.mock import patch
 import pytest
 
 from nessai.utils.logging import setup_logger
@@ -67,3 +68,24 @@ def test_setup_logger_unknown_level():
     with pytest.raises(ValueError) as excinfo:
         setup_logger(log_level="test", label=None)
     assert "log_level test not understood" in str(excinfo.value)
+
+
+def test_filehandler_kwargs(tmp_path):
+    """Assert filehandler kwargs are passed to the handler."""
+    output = tmp_path / "logger_dir"
+    with patch("logging.FileHandler") as mock:
+        setup_logger(output=output, filehandler_kwargs={"mode": "w"})
+    mock.assert_called_once_with(
+        os.path.join(output, "nessai.log"),
+        mode="w",
+    )
+
+
+def test_filehandler_no_kwargs(tmp_path):
+    """Assert case of no kwargs for the file handler works as intended."""
+    output = tmp_path / "logger_dir"
+    with patch("logging.FileHandler") as mock:
+        setup_logger(output=output, filehandler_kwargs=None)
+    mock.assert_called_once_with(
+        os.path.join(output, "nessai.log"),
+    )
