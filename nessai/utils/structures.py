@@ -31,3 +31,24 @@ def replace_in_list(target_list, targets, replacements):
     for t, r in zip(targets, replacements):
         i = target_list.index(t)
         target_list[i] = r
+
+
+def get_subset_arrays(indices, *args):
+    """Return a subset of a set of arrays.
+
+    Assumes all arrays are the same length.
+
+    Parameters
+    ----------
+    indices : array
+        Array of indices or boolean array of same length as input arrays
+    args : arrays
+        Set of arrays to index.
+
+    Returns
+    -------
+    tuple
+        A tuple contain the corresponding array for each input array. The order
+        is preserved.
+    """
+    return tuple(a[indices] for a in args)
