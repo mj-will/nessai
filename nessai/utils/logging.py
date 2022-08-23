@@ -6,7 +6,9 @@ import logging
 import os
 
 
-def setup_logger(output=None, label="nessai", log_level="WARNING"):
+def setup_logger(
+    output=None, label="nessai", log_level="WARNING", filehandler_kwargs=None
+):
     """
     Setup the logger.
 
@@ -21,6 +23,9 @@ def setup_logger(output=None, label="nessai", log_level="WARNING"):
         Label for this instance of the logger.
     log_level : {'ERROR', 'WARNING', 'INFO', 'DEBUG'}, optional
         Level of logging passed to logger.
+    filehandler_kwargs : dict, optional
+        Keyword arguments for configuring the FileHandler. See logging
+        documentation for details.
 
     Returns
     -------
@@ -62,7 +67,9 @@ def setup_logger(output=None, label="nessai", log_level="WARNING"):
             else:
                 output = "."
             log_file = os.path.join(output, f"{label}.log")
-            file_handler = logging.FileHandler(log_file)
+            if filehandler_kwargs is None:
+                filehandler_kwargs = {}
+            file_handler = logging.FileHandler(log_file, **filehandler_kwargs)
             file_handler.setFormatter(
                 logging.Formatter(
                     "%(asctime)s %(levelname)-8s: %(message)s", datefmt="%H:%M"
