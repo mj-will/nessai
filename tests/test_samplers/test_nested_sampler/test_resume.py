@@ -50,7 +50,8 @@ def test_check_resume_no_indices(sampler):
     assert sampler._flow_proposal.populated is False
 
 
-def test_resume(model):
+@pytest.mark.parametrize("flow_config", [None, dict(a=1)])
+def test_resume(model, flow_config):
     """Test the resume method"""
     obj = MagicMock()
     obj.model = model
@@ -60,7 +61,6 @@ def test_resume(model):
     obj._flow_proposal.resume = MagicMock()
 
     weights_file = "weight.pt"
-    flow_config = dict(a=1)
 
     with patch(
         "nessai.samplers.base.BaseNestedSampler.resume", return_value=obj
@@ -78,7 +78,7 @@ def test_resume(model):
     )
     obj._flow_proposal.resume.assert_called_once_with(
         model,
-        flow_config,
+        flow_config if flow_config else {},
         weights_file,
     )
 

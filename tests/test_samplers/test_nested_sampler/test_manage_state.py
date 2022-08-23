@@ -6,6 +6,7 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch
 
+from nessai.livepoint import parameters_to_live_point
 from nessai.samplers.nestedsampler import NestedSampler
 
 
@@ -222,3 +223,40 @@ def test_update_state_force(mock_plot, checkpointing, sampler):
     assert sampler.population_acceptance == [0.5]
     assert sampler.block_acceptance == 0.5
     assert sampler.block_iteration == 5
+
+
+def test_get_result_dictionary(sampler):
+    """Assert the correct dictionary is returned"""
+    from datetime import timedelta
+
+    base_result = dict(seed=1234)
+
+    sampler.nlive = 1
+    sampler.iteration = 3
+    sampler.min_likelihood = [-3, -2, 1]
+    sampler.max_likelihood = [1, 2, 3]
+    sampler.likelihood_evaluations = 3
+    sampler.logZ_history = [1, 2, 3]
+    sampler.mean_acceptance_history = [1, 2, 3]
+    sampler.rolling_p = [0.5]
+    sampler.population_iterations = []
+    sampler.population_acceptance = []
+    sampler.training_iterations = []
+    sampler.insertion_indices = []
+    sampler.training_time = timedelta()
+    sampler.proposal_population_time = timedelta()
+    sampler.nested_samples = [
+        parameters_to_live_point((1, 2), ["x", "y"]),
+        parameters_to_live_point((3, 4), ["x", "y"]),
+    ]
+
+    with patch(
+        "nessai.samplers.base.BaseNestedSampler.get_result_dictionary",
+        return_value=base_result,
+    ) as mock:
+        out = NestedSampler.get_result_dictionary(sampler)
+
+    mock.assert_called_once()
+
+    assert out["seed"] == 1234
+    assert "history" in out
