@@ -7,31 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2022-08-24
+
 ### Added
 
-- Add a warning in `Model.verify_model` when `Model.log_prior` returns an array that has `float16` precision.
-- Add more functionality for configuring live point fields and defaults.
-- Record iteration at which live points are drawn in `it` field of live points.
-- Add `nessai.config` for storing package wide defaults.
-- Add `nessai.utils.testing` submodule which contains functions to use during testing.
-- Add `nessai.livepoint.unstructured_view` and `nessai.model.Model.unstructured_view` for constructing unstructured views of live points.
-- Add `nessai.plot.corner_plot` as an alternative to `plot_live_points` that uses `corner` instead of `seaborn`
-- Add `filehandler_kwargs` to `nessai.utils.logging.setup_logger` which allows the user to configure the `FileHandler` in the logger.
+- Add a warning in `Model.verify_model` when `Model.log_prior` returns an array that has `float16` precision. ([#175](https://github.com/mj-will/nessai/pull/175))
+- Add more functionality for configuring live point fields and defaults. ([#170](https://github.com/mj-will/nessai/pull/170))
+- Record iteration at which live points are drawn in `it` field of live points. ([#170](https://github.com/mj-will/nessai/pull/170))
+- Add `nessai.config` for storing package wide defaults. ([#170](https://github.com/mj-will/nessai/pull/170))
+- Add `nessai.utils.testing` submodule which contains functions to use during testing. ([#170](https://github.com/mj-will/nessai/pull/170))
+- Add `nessai.livepoint.unstructured_view` and `nessai.model.Model.unstructured_view` for constructing unstructured views of live points. ([#178](https://github.com/mj-will/nessai/pull/178))
+- Add `nessai.plot.corner_plot` as an alternative to `plot_live_points` that uses `corner` instead of `seaborn`. ([#189](https://github.com/mj-will/nessai/pull/189))
+- Add new examples. ([#195](https://github.com/mj-will/nessai/pull/195), [#198](https://github.com/mj-will/nessai/pull/198))
+- Add `filehandler_kwargs` to `nessai.utils.logging.setup_logger` which allows the user to configure the `FileHandler` in the logger. ([#204](https://github.com/mj-will/nessai/pull/204))
 
 ### Changed
 
-- Change default values for log-likelihood and log-prior in empty live points to be `np.nan` instead of zero.
-- `nessai.livepoint.get_dtype` now returns an instance of `numpy.dtype`
-- Style for plots is no longer set globally and can be disabled completely.
+- Change default values for log-likelihood and log-prior in empty live points to be `np.nan` instead of zero. ([#170](https://github.com/mj-will/nessai/pull/170))
+- `nessai.livepoint.get_dtype` now returns an instance of `numpy.dtype`. ([#170](https://github.com/mj-will/nessai/pull/170))
+- Style for plots is no longer set globally and can be disabled completely. ([#194](https://github.com/mj-will/nessai/pull/194))
+- Update examples. ([#190](https://github.com/mj-will/nessai/pull/190))
+- Changed behaviour of `from nessai import *` to no longer imports any modules. ([#201](https://github.com/mj-will/nessai/pull/201))
 
 ### Fixed
 
-- Fixed a bug in `FlowProposal.populate` which occurred when the pool of samples was not empty (closes [#176](https://github.com/mj-will/nessai/issues/176))
+- Fixed a bug in `FlowProposal.populate` which occurred when the pool of samples was not empty (closes [#176](https://github.com/mj-will/nessai/issues/176)) ([#177](https://github.com/mj-will/nessai/pull/177))
+- Fixed a bug in `nessai.model.Model.new_point` where the incorrect number of points were returned. ([#200](https://github.com/mj-will/nessai/pull/200))
 
 ### Removed
 
-- Drop support for Python 3.6
-- Remove a temporary fix for [#46](https://github.com/mj-will/nessai/issues/46) that was introduced in [#47](https://github.com/mj-will/nessai/pull/47)
+- Drop support for Python 3.6. ([#188](https://github.com/mj-will/nessai/pull/188))
+- Remove a temporary fix for [#46](https://github.com/mj-will/nessai/issues/46) that was introduced in [#47](https://github.com/mj-will/nessai/pull/47). ([#202](https://github.com/mj-will/nessai/pull/202))
 
 
 ## [0.5.1] - 2022-06-20
@@ -379,7 +385,8 @@ First public release.
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/mj-will/nessai/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/mj-will/nessai/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mj-will/nessai/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mj-will/nessai/compare/v0.3.3...v0.4.0
