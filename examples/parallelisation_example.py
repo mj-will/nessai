@@ -70,7 +70,7 @@ fs = FlowSampler(
     output=output,
     resume=False,
     seed=1234,
-    max_threads=3,  # Maximum number of threads
+    pytorch_threads=2,  # Allow pytorch to use 2 threads
     n_pool=2,  # Threads for evaluating the likelihood
 )
 
