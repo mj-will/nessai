@@ -42,11 +42,10 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
     output = str(output)
     resume = resume
     exit_code = 131
-    max_threads = 2
+    pytorch_threads = 2
     resume_file = "test.pkl"
     kwargs = dict(
         nlive=1000,
-        pytorch_threads=1,
     )
 
     flow_sampler.save_kwargs = MagicMock()
@@ -60,15 +59,14 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
             output=output,
             resume=resume,
             exit_code=exit_code,
-            max_threads=max_threads,
+            pytorch_threads=pytorch_threads,
             resume_file=resume_file,
             **kwargs,
         )
 
     mock_threads.assert_called_once_with(
-        max_threads=max_threads,
-        pytorch_threads=1,
-        n_pool=None,
+        pytorch_threads=pytorch_threads,
+        max_threads=None,
     )
 
     mock.assert_called_once_with(
@@ -98,7 +96,7 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
     output.mkdir()
     resume = True
     exit_code = 131
-    max_threads = 2
+    pytorch_threads = 2
     resume_file = "test.pkl"
     weights_file = "model.pt"
     flow_config = dict(lr=0.1)
@@ -116,7 +114,6 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
 
     kwargs = dict(
         nlive=1000,
-        pytorch_threads=1,
         flow_config=flow_config,
     )
 
@@ -133,16 +130,15 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
             output=output,
             resume=resume,
             exit_code=exit_code,
-            max_threads=max_threads,
+            pytorch_threads=pytorch_threads,
             resume_file=resume_file,
             weights_file=weights_file,
             **kwargs,
         )
 
     mock_threads.assert_called_once_with(
-        max_threads=max_threads,
-        pytorch_threads=1,
-        n_pool=None,
+        pytorch_threads=pytorch_threads,
+        max_threads=None,
     )
 
     mock_resume.assert_called_with(

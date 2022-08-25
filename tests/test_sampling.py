@@ -36,7 +36,6 @@ def test_sampling_with_rescale(model, flow_config, tmpdir):
         seed=1234,
         max_iteration=11,
         poolsize=10,
-        max_threads=1,
     )
     fp.run()
     assert fp.ns.proposal.flow.weights_file is not None
@@ -62,7 +61,6 @@ def test_sampling_with_inversion(model, flow_config, tmpdir):
         seed=1234,
         max_iteration=11,
         poolsize=10,
-        max_threads=1,
         boundary_inversion=True,
         update_bounds=True,
     )
@@ -169,7 +167,7 @@ def test_sampling_with_n_pool(model, flow_config, tmpdir, mp_context):
             seed=1234,
             max_iteration=11,
             poolsize=10,
-            max_threads=3,
+            pytorch_threads=2,
             n_pool=2,
         )
     fp.run()
