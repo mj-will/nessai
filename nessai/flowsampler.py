@@ -37,9 +37,9 @@ class FlowSampler:
     weights_files : str, optional
         Weights files used to resume sampler that replaces the weights file
         saved internally.
-    max_threads : int, optional
-        Maximum number of threads to use. If ``None`` torch uses all available
-        threads.
+    pytorch_threads : int
+        Maximum number of threads to use for torch. If ``None`` torch uses all
+        available threads.
     signal_handling : bool
         Enable or disable signal handling.
     exit_code : int, optional
@@ -57,14 +57,13 @@ class FlowSampler:
         weights_file=None,
         signal_handling=True,
         exit_code=130,
-        max_threads=1,
+        pytorch_threads=1,
         **kwargs,
     ):
 
         configure_threads(
-            max_threads=max_threads,
-            pytorch_threads=kwargs.get("pytorch_threads", None),
-            n_pool=kwargs.get("n_pool", None),
+            max_threads=kwargs.get("max_threads", None),
+            pytorch_threads=pytorch_threads,
         )
 
         self.exit_code = exit_code
