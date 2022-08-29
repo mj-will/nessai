@@ -4,7 +4,6 @@ import datetime
 import os
 import pickle
 import pytest
-import time
 from unittest.mock import MagicMock, create_autospec, patch
 
 from nessai.samplers.base import BaseNestedSampler
@@ -72,12 +71,12 @@ def test_likelihood_evaluation_time(sampler):
     assert out is time
 
 
-def test_current_sampling_time(sampler):
+def test_current_sampling_time(sampler, wait):
     """Test the current sampling time"""
     sampler.finalised = False
     sampler.sampling_time = datetime.timedelta(seconds=10)
     sampler.sampling_start_time = datetime.datetime.now()
-    time.sleep(0.01)
+    wait()
     t = BaseNestedSampler.current_sampling_time.__get__(sampler)
     assert t.total_seconds() > 10.0
 
@@ -127,32 +126,37 @@ def test_configure_output(sampler, tmpdir):
     """Test setting up the output directories"""
     p = tmpdir.mkdir("outputs")
     sampler.plot = False
-    BaseNestedSampler.configure_output(sampler, f"{p}/tests")
-    assert os.path.exists(f"{p}/tests")
-    assert sampler.resume_file == f"{p}/tests/nested_sampler_resume.pkl"
+    path = os.path.join(p, "tests")
+    BaseNestedSampler.configure_output(sampler, path)
+    assert os.path.exists(path)
+    assert sampler.resume_file == os.path.join(
+        path, "nested_sampler_resume.pkl"
+    )
 
 
 def test_configure_output_none(sampler, tmpdir):
     """Test setting up the output directories if the output is None"""
     p = tmpdir.mkdir("outputs")
     sampler.plot = False
-    with patch("os.getcwd", return_value=str(f"{p}/test_cwd/")) as mock:
+    path = os.path.join(p, "test_cwd")
+    with patch("os.getcwd", return_value=path) as mock:
         BaseNestedSampler.configure_output(sampler, None)
 
     mock.assert_called_once()
-    assert sampler.output == f"{p}/test_cwd/"
+    assert sampler.output == path
 
 
 def test_configure_output_w_resume(sampler, tmpdir):
     """Test output configuration with a specified resume file"""
     p = tmpdir.mkdir("outputs")
     sampler.plot = False
-    BaseNestedSampler.configure_output(sampler, f"{p}/tests", "resume.pkl")
-    assert sampler.resume_file == f"{p}/tests/resume.pkl"
+    path = os.path.join(p, "tests")
+    BaseNestedSampler.configure_output(sampler, path, "resume.pkl")
+    assert sampler.resume_file == os.path.join(path, "resume.pkl")
 
 
 @pytest.mark.parametrize("periodic", [False, True])
-def test_checkpoint(sampler, periodic):
+def test_checkpoint(sampler, wait, periodic):
     """Test checkpointing method.
 
     Make sure a file is produced and that the sampling time is updated.
@@ -166,6 +170,7 @@ def test_checkpoint(sampler, periodic):
     sampler.resume_file = "test.pkl"
 
     with patch("nessai.samplers.base.safe_file_dump") as sfd_mock:
+        wait()
         BaseNestedSampler.checkpoint(sampler, periodic=periodic)
 
     sfd_mock.assert_called_once_with(
