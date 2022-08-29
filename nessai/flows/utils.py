@@ -201,7 +201,7 @@ def create_pre_transform(pre_transform, features, **kwargs):
 
     Parameters
     ----------
-    pre_transform : str, {logit, batch_norm, affine}
+    pre_transform : str, {logit, batch_norm}
         Name of the transform
     features : int
         Number of input features
@@ -210,8 +210,6 @@ def create_pre_transform(pre_transform, features, **kwargs):
     """
     if pre_transform == "logit":
         return transforms.Logit(**kwargs)
-    elif pre_transform == "affine":
-        return transforms.PointwiseAffineTransform(**kwargs)
     elif pre_transform == "batch_norm":
         return transforms.BatchNorm(features=features, **kwargs)
     else:
