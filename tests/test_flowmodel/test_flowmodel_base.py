@@ -39,6 +39,15 @@ def test_init_no_config(tmpdir):
     assert fm.model_config == default_config["model_config"]
 
 
+def test_init_no_output(model, tmpdir):
+    """Assert the current working directory is used by default"""
+    output = str(tmpdir.mkdir("default_output"))
+    with patch("os.getcwd", return_value=output) as mock:
+        FlowModel.__init__(model, output=None)
+    mock.assert_called_once()
+    assert model.output is output
+
+
 def test_init_config_class(tmpdir):
     """Test the init and save methods when specifying `flow` as a class"""
     from nessai.flows import RealNVP
