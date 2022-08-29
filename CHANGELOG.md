@@ -7,11 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## Changed
+### Added
+
+- Add more structure utils (`get_subset_arrays`, `isfinite_struct`)
+
+### Changed
 
 - Change how threading is handled to no longer use `max_threads`.
 
-## Deprecated
+### Deprecated
 
 - Setting `max_threads` is deprecated and will be removed in a future release.
 
