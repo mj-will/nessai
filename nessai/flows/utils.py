@@ -194,3 +194,25 @@ def create_linear_transform(linear_transform, features):
             f"Unknown linear transform: {linear_transform}. "
             "Choose from: {permutation, lu, svd}."
         )
+
+
+def create_pre_transform(pre_transform, features, **kwargs):
+    """Create a pre transform.
+
+    Parameters
+    ----------
+    pre_transform : str, {logit, batch_norm, affine}
+        Name of the transform
+    features : int
+        Number of input features
+    kwargs :
+        Keyword arguments passed to the transform class.
+    """
+    if pre_transform == "logit":
+        return transforms.Logit(**kwargs)
+    elif pre_transform == "affine":
+        return transforms.PointwiseAffineTransform(**kwargs)
+    elif pre_transform == "batch_norm":
+        return transforms.BatchNorm(features=features, **kwargs)
+    else:
+        raise ValueError(f"Unknown pre-transform: {pre_transform}")
