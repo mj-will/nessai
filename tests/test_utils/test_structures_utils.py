@@ -2,9 +2,14 @@
 """
 Tests for utilities related to python structures such as lists.
 """
+import numpy as np
 import pytest
 
-from nessai.utils.structures import replace_in_list
+from nessai.utils.structures import (
+    get_subset_arrays,
+    isfinite_struct,
+    replace_in_list,
+)
 
 
 def test_replace_in_list():
@@ -57,3 +62,51 @@ def test_missing_targets():
     with pytest.raises(ValueError) as excinfo:
         replace_in_list([1, 2], 4, 3)
     assert "Targets [4] not in list: [1, 2]" in str(excinfo.value)
+
+
+def test_get_subset_arrays():
+    """Assert the correct subsets are returned."""
+    a = np.array([1, 2, 3])
+    b = np.array([4, 5, 6])
+    indices = np.array([1, 2])
+    a_out, b_out = get_subset_arrays(indices, a, b)
+    np.testing.assert_equal(a_out, a[indices])
+    np.testing.assert_equal(b_out, b[indices])
+
+
+def test_get_subset_arrays_empty():
+    """Assert output is empty if no arrays are provided"""
+    out = get_subset_arrays(np.array([1, 2]))
+    assert out == ()
+
+
+@pytest.mark.parametrize(
+    "names, expected",
+    [
+        (None, [False, True, False]),
+        (["x", "y", "z"], [False, True, False]),
+        (["x"], [True, True, True]),
+        (["y"], [False, True, True]),
+        (["z"], [True, True, False]),
+    ],
+)
+def test_isfinite_struct(names, expected):
+    """Assert the correct array is returned"""
+    x = np.array(
+        [(0, np.inf, 0), (1, 1, 1), (2, 2, np.nan)],
+        dtype=[("x", "f8"), ("y", "f8"), ("z", "f8")],
+    )
+    out = isfinite_struct(x, names=names)
+    assert len(out) == 3
+    np.testing.assert_equal(out, np.array(expected))
+
+
+@pytest.mark.integration_test
+def test_isfinite_struct_invalid_name():
+    """Assert an error is raised if a name is invalid.
+
+    Numpy should raise a ValueError if the name is not a field in the array.
+    """
+    x = np.array([(1,), (2,)], dtype=[("x", "i4")])
+    with pytest.raises(ValueError):
+        isfinite_struct(x, ["y"])
