@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 from nessai.flows.utils import (
     configure_model,
     create_linear_transform,
+    create_pre_transform,
     silu,
     reset_weights,
     reset_permutations,
@@ -224,3 +225,17 @@ def test_create_linear_transform_unknown():
     with pytest.raises(ValueError) as excinfo:
         create_linear_transform("not_a_transform", 2)
     assert "Unknown linear transform: not_a_transform" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("pre_transform", ["logit", "batch_norm", "affine"])
+def test_create_pre_transform(pre_transform):
+    """Test creating a pre-transform"""
+    out = create_pre_transform(pre_transform, 2)
+    assert out is not None
+
+
+def test_create_pre_transform_unknown():
+    """Assert an error is raised for an unknown pre-transform"""
+    with pytest.raises(ValueError) as excinfo:
+        create_pre_transform("not_a_transform", 2)
+    assert "Unknown pre-transform: not_a_transform" in str(excinfo.value)
