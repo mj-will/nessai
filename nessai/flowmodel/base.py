@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class FlowModel:
     """
-    Object that contains the normalsing flows and handles training and data
+    Object that contains the normalising flows and handles training and data
     pre-processing.
 
     Does NOT use structured arrays for live points, \
@@ -36,12 +36,15 @@ class FlowModel:
         Configuration used for the normalising flow. If None, default values
         are used.
     output : str, optional
-        Path for output, this includes weights files and the loss plot.
+        Path for output, this includes weights files and the loss plot. If
+        not specified, the current working directory is used.
     """
 
     model_config = None
 
-    def __init__(self, config=None, output="./"):
+    def __init__(self, config=None, output=None):
+        if output is None:
+            output = os.getcwd()
         self.model = None
         self.initialised = False
         self.output = output
