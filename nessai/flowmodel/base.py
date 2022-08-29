@@ -11,112 +11,13 @@ import shutil
 import torch
 from torch.nn.utils import clip_grad_norm_
 
+from .utils import update_config
+
 from ..flows import configure_model, reset_weights, reset_permutations
 from ..plot import plot_loss
 from ..utils import NessaiJSONEncoder, compute_minimum_distances
 
 logger = logging.getLogger(__name__)
-
-
-def update_config(d):
-    """
-    Update the configuration dictionary to include the defaults.
-
-    Notes
-    -----
-    The default configuration is::
-
-        lr=0.001
-        annealing=False
-        batch_size=100
-        val_size=0.1
-        max_epochs=500
-        patience=20
-        noise_scale=0.0,
-        use_dataloader=False,
-        optimiser='adam',
-        optimiser_kwargs={}
-        model_config=default_model
-
-    where ``default model`` is::
-
-        n_neurons=32
-        n_blocks=4
-        n_layers=2
-        ftype='RealNVP'
-        device_tag='cpu',
-        flow=None,
-        inference_device_tag=None,
-        kwargs={batch_norm_between_layers=True, linear_transform='lu'}
-
-    The kwargs can contain any additional keyword arguments that are specific
-    to the type of flow being used.
-
-    Parameters
-    ----------
-    d : dict
-        Dictionary with configuration
-
-    Returns
-    -------
-    dict
-        Dictionary with updated default configuration
-    """
-    default_model = dict(
-        n_inputs=None,
-        n_neurons=None,
-        n_blocks=4,
-        n_layers=2,
-        ftype="RealNVP",
-        device_tag="cpu",
-        flow=None,
-        inference_device_tag=None,
-        kwargs=dict(batch_norm_between_layers=True, linear_transform="lu"),
-    )
-
-    default = dict(
-        lr=0.001,
-        annealing=False,
-        clip_grad_norm=5,
-        batch_size=1000,
-        val_size=0.1,
-        max_epochs=500,
-        patience=20,
-        noise_scale=0.0,
-        use_dataloader=False,
-        optimiser="adamw",
-        optimiser_kwargs={},
-    )
-
-    if d is None:
-        default["model_config"] = default_model
-    else:
-        if not isinstance(d, dict):
-            raise TypeError(
-                "Must pass a dictionary to update the default "
-                "trainer settings"
-            )
-        else:
-            default.update(d)
-            default_model.update(d.get("model_config", {}))
-            if default_model["n_neurons"] is None:
-                if default_model["n_inputs"] is not None:
-                    default_model["n_neurons"] = 2 * default_model["n_inputs"]
-                else:
-                    default_model["n_neurons"] = 8
-
-            default["model_config"] = default_model
-
-    if (
-        not isinstance(default["noise_scale"], float)
-        and not default["noise_scale"] == "adaptive"
-    ):
-        raise ValueError(
-            "noise_scale must be a float or 'adaptive'. "
-            f"Received: {default['noise_scale']}"
-        )
-
-    return default
 
 
 class FlowModel:
