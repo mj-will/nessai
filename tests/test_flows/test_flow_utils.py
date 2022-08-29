@@ -227,7 +227,7 @@ def test_create_linear_transform_unknown():
     assert "Unknown linear transform: not_a_transform" in str(excinfo.value)
 
 
-@pytest.mark.parametrize("pre_transform", ["logit", "batch_norm", "affine"])
+@pytest.mark.parametrize("pre_transform", ["logit", "batch_norm"])
 def test_create_pre_transform(pre_transform):
     """Test creating a pre-transform"""
     out = create_pre_transform(pre_transform, 2)
