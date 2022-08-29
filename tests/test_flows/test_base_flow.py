@@ -3,15 +3,24 @@
 Test the base flow class
 """
 import pytest
-from unittest.mock import create_autospec, patch
+from unittest.mock import MagicMock, create_autospec, patch
 
 from nessai.flows.base import BaseFlow, NFlow
 from nflows.transforms import Transform
+from nflows.distributions import Distribution
 
 
 @pytest.fixture
 def flow():
     return create_autospec(BaseFlow)
+
+
+@pytest.fixture
+def nflow():
+    nflow = create_autospec(NFlow)
+    nflow._transform = MagicMock(spec=Transform)
+    nflow._distribution = MagicMock(spec=Distribution)
+    return nflow
 
 
 def test_base_flow_abstract_methods():
@@ -39,6 +48,25 @@ def test_base_flow_methods(method, flow):
     """Test to make sure all of the method in the base class raise errors"""
     with pytest.raises(NotImplementedError):
         getattr(BaseFlow, method)(flow, None)
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "freeze_transform",
+        "unfreeze_transform",
+    ],
+)
+def test_base_flow_methods_no_args(method, flow):
+    """Assert methods with args and are not implemented raise an error"""
+    with pytest.raises(NotImplementedError):
+        getattr(BaseFlow, method)(flow)
+
+
+@pytest.mark.parametrize("method", ["end_iteration", "finalise"])
+def test_base_flow_pass_methods(method, flow):
+    """Test the methods that don't do anything in the base class."""
+    assert getattr(BaseFlow, method)(flow) is None
 
 
 def test_base_flow_to(flow):
@@ -70,3 +98,45 @@ def test_nflow_base_distribution():
     with pytest.raises(TypeError) as excinfo:
         NFlow(Transform(), Test())
     assert "distribution must inherit" in str(excinfo.value)
+
+
+def test_nflow_finalise(nflow):
+    """Assert the methods are called"""
+    nflow._transform.finalise = MagicMock()
+    nflow._distribution.finalise = MagicMock()
+    NFlow.finalise(nflow)
+    nflow._transform.finalise.assert_called_once()
+    nflow._distribution.finalise.assert_called_once()
+
+
+def test_nflow_finalise_not_called(nflow):
+    """Assert no error is raised the methods are missing"""
+    NFlow.finalise(nflow)
+
+
+def test_nflow_end_iteration(nflow):
+    """Assert the methods are called"""
+    nflow._transform.end_iteration = MagicMock()
+    nflow._distribution.end_iteration = MagicMock()
+    NFlow.end_iteration(nflow)
+    nflow._transform.end_iteration.assert_called_once()
+    nflow._distribution.end_iteration.assert_called_once()
+
+
+def test_nflow_end_iteration_not_called(nflow):
+    """Assert no error is raised the methods are missing"""
+    NFlow.end_iteration(nflow)
+
+
+def test_nflow_freeze(nflow):
+    """Assert the transform is frozen"""
+    nflow._transform.requires_grad_ = MagicMock()
+    NFlow.freeze_transform(nflow)
+    nflow._transform.requires_grad_.assert_called_once_with(False)
+
+
+def test_nflow_unfreeze(nflow):
+    """Assert the transform is unfrozen"""
+    nflow._transform.requires_grad_ = MagicMock()
+    NFlow.unfreeze_transform(nflow)
+    nflow._transform.requires_grad_.assert_called_once_with(True)
