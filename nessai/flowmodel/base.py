@@ -11,9 +11,9 @@ import shutil
 import torch
 from torch.nn.utils import clip_grad_norm_
 
-from .flows import configure_model, reset_weights, reset_permutations
-from .plot import plot_loss
-from .utils import NessaiJSONEncoder, compute_minimum_distances
+from ..flows import configure_model, reset_weights, reset_permutations
+from ..plot import plot_loss
+from ..utils import NessaiJSONEncoder, compute_minimum_distances
 
 logger = logging.getLogger(__name__)
 
