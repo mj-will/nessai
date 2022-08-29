@@ -10,14 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add more structure utils (`get_subset_arrays`, `isfinite_struct`)
+- Add `nessai.sampler.base.BaseNestedSampler` class.
 
 ### Changed
 
 - Change how threading is handled to no longer use `max_threads`.
+- Refactor `nessai.nestedsampler` into the `nessai.samplers` submodule.
 
 ### Deprecated
 
 - Setting `max_threads` is deprecated and will be removed in a future release.
+
 ### Removed
 
 - Removed unused code for saving live points in `NestedSampler`
