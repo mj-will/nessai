@@ -8,7 +8,6 @@ import torch
 import torch.nn.functional as F
 
 from nflows import transforms
-from nflows.nn.nets import MLP as NFlowsMLP
 
 from .distributions import MultivariateNormal
 from .transforms import LULinear
@@ -160,34 +159,6 @@ def reset_permutations(module):
         module._initialize(identity_init=True)
     elif isinstance(module, transforms.RandomPermutation):
         module._permutation = torch.randperm(len(module._permutation))
-
-
-class MLP(NFlowsMLP):
-    """
-    MLP which can be called with context.
-    """
-
-    def forward(self, inputs, context=None):
-        """Forward method that allows for kwargs such as context.
-
-        Parameters
-        ----------
-        inputs : :obj:`torch.tensor`
-            Inputs to the MLP
-        context : None
-            Conditional inputs, must be None. Only implemented to the
-            function is compatible with other methods.
-
-        Raises
-        ------
-        RuntimeError
-            If the context is not None.
-        """
-        if context is not None:
-            raise NotImplementedError(
-                "MLP with conditional inputs is not implemented."
-            )
-        return super().forward(inputs)
 
 
 def create_linear_transform(linear_transform, features):
