@@ -452,8 +452,9 @@ class ImportanceFlowProposal(Proposal):
         logger.debug(
             f'Mean log q for each each flow: {log_q_all.mean(axis=0)}'
         )
+        weights = n_samples / np.sum(n_samples)
 
-        log_Q = logsumexp(log_q_all, b=n_samples, axis=1)
+        log_Q = logsumexp(log_q_all, b=weights, axis=1)
 
         if np.isnan(log_Q).any():
             raise ValueError('There is a NaN in log g!')
@@ -633,6 +634,7 @@ class ImportanceFlowProposal(Proposal):
         log_q_current = log_prob_fn(x)
 
         if log_q is None:
+            assert False
             logger.warning(
                 'Updating points with method prone to numerical errors'
             )
@@ -648,9 +650,11 @@ class ImportanceFlowProposal(Proposal):
                 log_q_current[:, np.newaxis] + log_j[:, np.newaxis]
             ], axis=1)
 
+            weights = self.poolsize / self.poolsize.sum()
+
             log_Q = logsumexp(
                 log_q,
-                b=self.poolsize,
+                b=weights,
                 axis=1,
             )
 
@@ -670,9 +674,10 @@ class ImportanceFlowProposal(Proposal):
         return log_q
 
     def _compute_meta_proposal_from_log_q(self, log_q):
+        weights = self.poolsize / np.sum(self.poolsize)
         return logsumexp(
             log_q,
-            b=self.poolsize,
+            b=weights,
             axis=1,
         )
 

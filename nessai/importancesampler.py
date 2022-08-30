@@ -31,7 +31,10 @@ from .utils.information import (
     differential_entropy,
     relative_entropy_from_log,
 )
-from .utils.optimise import optimise_meta_proposal_weights
+from .utils.optimise import (
+    compute_posterior_proposal_weights,
+    optimise_meta_proposal_weights
+)
 from .utils.rescaling import logistic_function
 from .utils.stats import (
     effective_sample_size,
@@ -87,6 +90,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         dH=['dH', 'dH_all', 'entropy'],
         ratio=['ratio', 'ratio_all'],
         ratio_ns=['ratio_ns'],
+        dPW=['dPW', 'proposal_importance'],
+        Z_err=['Z_err', 'evidence_error'],
     )
     """Dictionary of available stopping criteria and their aliases."""
 
@@ -94,6 +99,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self,
         model: Model,
         nlive: int = 3000,
+        n_initial: Optional[int] = None,
         output: Optional[str] = None,
         seed: Optional[int] = None,
         checkpointing: bool = True,
@@ -122,15 +128,19 @@ class ImportanceNestedSampler(BaseNestedSampler):
         stopping_criterion: str = 'ratio_ns',
         check_criteria: Literal['any', 'all'] = 'any',
         level_kwargs: Optional[dict] = None,
+        update_kwargs: Optional[dict] = None,
         annealing_target: Optional[float] = None,
         annealing_beta: Optional[float] = None,
         sigmoid_weights: bool = False,
         weighted_kl: bool = False,
         draw_constant: bool = False,
+        train_final_flow: bool = False,
+        bootstrap: bool = False,
         **kwargs: Any
     ):
 
         self.add_fields()
+        self.prev = None
 
         super().__init__(
             model,
@@ -155,6 +165,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._stop_any = None
         self._current_proposal_entropy = None
 
+        self.n_initial = self.nlive if n_initial is None else n_initial
         self.min_samples = min_samples
         self.min_remove = min_remove
         self.checkpoint_frequency = checkpoint_frequency
@@ -171,12 +182,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.leaky = leaky
         self.level_method = level_method
         self.level_kwargs = {} if level_kwargs is None else level_kwargs
+        self.update_kwargs = {} if update_kwargs is None else update_kwargs
         self.beta = None
         self.logX = 0.0
         self.min_logL = -np.inf
         self.logL_pre = -np.inf
         self.logL = -np.inf
         self.draw_constant = draw_constant
+        self._train_final_flow = train_final_flow
+        self.bootstrap = bootstrap
+        self.adjusted_log_evidence = None
+        self.adjusted_log_evidence_error = None
         self.weighted_kl = weighted_kl,
         self.sigmoid_weights = sigmoid_weights
         self.sigmoid_midpoint = None
@@ -191,7 +207,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._logZ_lp = -np.inf
         self._current_entropy = 0.0
 
-        self._normalised_evidence = self._check_normalisation(kwargs)
+        self._normalised_evidence = False   # self._check_normalisation(kwargs)
         self.state = _INSIntegralState(normalised=self._normalised_evidence)
 
         self.final_state = None
@@ -264,8 +280,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         # Q is not normalised, so must normalise weight use meta constant
         log_p = (
-            self.all_samples['logW']
-            + np.log(self.proposal.normalisation_constant)
+            self.all_samples['logW'].copy()
+            # + np.log(self.proposal.normalisation_constant)
         )
         return differential_entropy(log_p)
 
@@ -374,7 +390,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         proposal = ImportanceFlowProposal(
             self.model,
             output,
-            self.nlive,
+            self.n_initial,
             **kwargs
         )
         return proposal
@@ -444,6 +460,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.beta = None
             self.annealing_target = None
 
+        # self.annealing = True
+
     def _rel_entr(self, x):
         return relative_entropy_from_log(x['logL'], x['logQ'])
 
@@ -474,20 +492,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
         The live points are automatically sorted and assigned the iteration
         number -1.
         """
-        live_points = np.empty(self.nlive, dtype=get_dtype(self.model.names))
+        live_points = np.empty(
+            self.n_initial, dtype=get_dtype(self.model.names)
+        )
         n = 0
-        logger.debug(f'Drawing {self.nlive} initial points')
-        while n < self.nlive:
+        logger.debug(f'Drawing {self.n_initial} initial points')
+        while n < self.n_initial:
             points = self.model.from_unit_hypercube(
                 numpy_array_to_live_points(
-                    np.random.rand(self.nlive, self.model.dims),
+                    np.random.rand(self.n_initial, self.model.dims),
                     self.model.names
                 )
             )
             points['logP'] = self.model.log_prior(points)
             accept = np.isfinite(points['logP'])
             n_it = accept.sum()
-            m = min(n_it, self.nlive - n)
+            m = min(n_it, self.n_initial - n)
             live_points[n:(n + m)] = points[accept][:m]
             n += m
 
@@ -499,10 +519,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         live_points['it'] = -np.ones(live_points.size)
         # Since log_Q is computed in the unit-cube
-        live_points['logQ'] = np.log(self.nlive)
+        live_points['logQ'] = np.log(live_points.size)
         live_points['logW'] = - live_points['logQ']
         self.live_points = self.sort_points(live_points)
-        self._log_q_lp = np.zeros([self.nlive, 1])
+        self._log_q_lp = np.zeros([live_points.size, 1])
 
     def initialise(self) -> None:
         """Initialise the nested sampler.
@@ -533,6 +553,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 logZ=[],
                 logZ_ns=[],
                 logZ_lp=[],
+                level_importance=[],
                 n_added=[],
                 n_removed=[],
                 n_post=[],
@@ -644,11 +665,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
             log_weights = \
                 self.live_points['logW'] \
                 + self.live_points['logL'] \
-                + np.log(self.proposal.normalisation_constant)
+                # + np.log(self.proposal.normalisation_constant)
         else:
             log_weights = \
                 self.live_points['logW'] \
-                + np.log(self.proposal.normalisation_constant)
+                # + np.log(self.proposal.normalisation_constant)
         if use_log_weights:
             p = log_weights
         else:
@@ -745,26 +766,42 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
 
         if self.annealing:
-            log_w = self.training_points['logW'] \
-                    + np.log(self.proposal.normalisation_constant)
+            log_w = self.training_points['logW'].copy() \
+                    # + np.log(self.proposal.normalisation_constant)
 
-            if self.annealing_target:
-                self.beta = self.get_annealing_beta(
-                    self.training_points['logL'],
-                    log_w,
-                    target_vol=self.annealing_target,
-                    beta0=self.beta,
-                )
-                self.history['annealing_beta'].append(self.beta)
-            w = np.exp(log_w)
-            lr = np.exp(
-                self.beta
-                * (
-                    self.training_points['logL']
-                    - self.training_points['logL'].max()
-                )
-            )
-            weights = (w * lr) / np.sum(w)
+            ess = effective_sample_size(log_w)
+            target = 0.8 * ess
+            target = min(target, ess)
+
+            def func(beta):
+                lw = log_w + beta * self.training_points['logL']
+                return effective_sample_size(lw) - target
+
+            try:
+                final_beta = optimize.bisect(func, 0.0, 1.0)
+            except ValueError:
+                return False
+            # assert False
+
+            weights = np.exp(log_w + final_beta * self.training_points['logL'])
+
+            # if self.annealing_target:
+            #     self.beta = self.get_annealing_beta(
+            #         self.training_points['logL'],
+            #         log_w,
+            #         target_vol=self.annealing_target,
+            #         beta0=self.beta,
+            #     )
+            #     self.history['annealing_beta'].append(self.beta)
+            # w = np.exp(log_w)
+            # lr = np.exp(
+            #     self.beta
+            #     * (
+            #         self.training_points['logL']
+            #         - self.training_points['logL'].max()
+            #     )
+            # )
+            # weights = (w * lr) / np.sum(w)
         elif self.replace_all:
             weights = - np.exp(self.training_log_q[:, -1])
         elif self.sigmoid_weights:
@@ -774,12 +811,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     - self.training_points['logL'][-1]
                 ),
                 x0=self.sigmoid_midpoint - self.training_points['logL'][-1],
-                k=0.5,
+                k=self.update_kwargs.get('sigmoid_gradient', 1.0),
             )
-            weights += config.eps
+            weights = np.clip(weights, config.eps, None)
         elif self.weighted_kl:
-            log_w = self.training_points['logW'] \
-                + np.log(self.proposal.normalisation_constant)
+            log_w = self.training_points['logW'].copy()
+            #    + np.log(self.proposal.normalisation_constant)
             log_w -= logsumexp(log_w)
             weights = np.exp(log_w)
         else:
@@ -797,6 +834,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         self.history['kl_proposals'].append(kl)
         self.update_level_time += (timer() - st)
+        return True
 
     def update_live_points(
         self,
@@ -886,6 +924,30 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return (samples['logL'] < self.min_logL).sum() / samples.size
 
+    def compute_importance(self, G=0.5):
+        samples = self.all_samples
+        log_q_i = np.concatenate([self._log_q_ns, self._log_q_lp], axis=0)
+        assert len(log_q_i) == len(samples)
+        imp_post = np.empty(log_q_i.shape[1])
+        imp_z = np.empty(log_q_i.shape[1])
+        for i, it in enumerate(range(-1, log_q_i.shape[-1] - 1)):
+            sidx = np.where(samples['it'] == it)[0]
+            zidx = np.where(samples['it'] >= it)[0]
+            assert len(sidx) > 0
+            imp_post[i] = np.exp(
+                logsumexp(samples['logL'][sidx] + samples['logW'][sidx])
+                - np.log(len(sidx)))
+            imp_z[i] = np.exp(
+                logsumexp(samples['logL'][zidx] + samples['logW'][zidx])
+                - np.log(len(zidx))
+            )
+        print('Imp_z', imp_z)
+        print('Imp_post', imp_post)
+        imp_z /= imp_z.sum()
+        imp_post /= imp_post.sum()
+        imp = (1 - G) * imp_z + G * imp_post
+        return imp, imp_post, imp_z
+
     def add_and_update_points(self, n: int):
         """Add new points to the current set of live points.
 
@@ -907,8 +969,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         # Update the constant for computing stopping criterion or when N
         # doesn't cancel
-        self.state.log_meta_constant = \
-            np.log(self.proposal.normalisation_constant)
+        # self.state.log_meta_constant = \
+        #     np.log(self.proposal.normalisation_constant)
+        self.state.log_meta_constant = 0.0
 
         self._log_q_lp = self.update_live_points()
         self.update_nested_samples()
@@ -965,9 +1028,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self._log_q_lp = np.insert(
                 self._log_q_lp, idx, log_q[cut:], axis=0
             )
+
         self.live_points_ess = effective_sample_size(
-            self.live_points['logW']
-            + np.log(self.proposal.normalisation_constant)
+            self.live_points['logW'].copy()
+            # + np.log(self.proposal.normalisation_constant)
         )
         self.history['leakage_live_points'].append(
             self.compute_leakage(self.live_points)
@@ -1029,6 +1093,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         assert counts.sum() == orig_n_total
         weights = counts / orig_n_total
         original_unnorm_weight = counts.copy()
+        norm_weight = original_unnorm_weight / original_unnorm_weight.sum()
 
         logger.debug(f'Final counts: {counts}')
         logger.debug(f'Final weights: {weights}')
@@ -1090,12 +1155,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
             batch_log_q = log_q[idx_keep]
             assert batch_samples.size == orig_n_total
 
-            log_Q = logsumexp(batch_log_q, b=original_unnorm_weight, axis=1)
+            log_Q = logsumexp(batch_log_q, b=norm_weight, axis=1)
             # Weights are normalised because the total number of samples is the
             # same.
             batch_samples['logQ'] = log_Q
             batch_samples['logW'] = -log_Q
-            state = _INSIntegralState()
+            state = _INSIntegralState(normalised=False)
+            state.log_meta_constant = 0.0
             state.update_evidence(batch_samples)
             log_evidences[i] = state.log_evidence
             log_evidence_errors[i] = state.log_evidence_error
@@ -1106,8 +1172,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         logger.info(f'Mean log evidence: {mean_log_evidence:.3f}')
         logger.info(f'SE log evidence: {standard_error:.3f}')
-        self.adjusted_log_evidence = mean_log_evidence
-        self.adjusted_log_evidence_error = standard_error
+        if self.bootstrap:
+            self.adjusted_log_evidence = mean_log_evidence
+            self.adjusted_log_evidence_error = standard_error
 
     def finalise(self) -> None:
         """Finalise the sampling process."""
@@ -1116,6 +1183,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             return
         logger.info('Finalising')
 
+        if self._train_final_flow:
+            self.train_final_flow()
+
         self.add_to_nested_samples(self.live_points, self._log_q_lp)
         self.live_points = None
         self.state.update_evidence(
@@ -1123,7 +1193,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             live_points=self.live_points,
         )
 
-        self.adjust_final_samples()
+        if self.bootstrap:
+            self.adjust_final_samples()
 
         final_kl = self.kl_divergence()
         logger.warning(
@@ -1178,6 +1249,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
             (self._current_entropy - previous_entropy) / self._current_entropy
         )
         self.ess = self.state.effective_n_posterior_samples
+
+        proposal_weights = compute_posterior_proposal_weights(self.all_samples)
+        print()
+        self.dPW = proposal_weights[-1] / proposal_weights[-2]
+
+        self.Z_err = self.log_evidence_error
 
         logger.debug(f'Current entropy: {self._current_entropy:.3f}')
         logger.debug(f'Relative change in entropy: {self.dH:.3f}')
@@ -1253,12 +1330,24 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
             self.min_logL = self.live_points[n_remove]['logL'].copy()
             self.remove_points(n_remove)
-            self.update_level()
+            updated = self.update_level()
+            if not updated:
+                logger.warning("Stopping")
+                break
             if self.draw_constant or self.replace_all:
                 n_add = self.nlive
             else:
                 n_add = n_remove
             self.add_and_update_points(n_add)
+
+            s = self.all_samples
+            weights = compute_posterior_proposal_weights(self.all_samples)
+            print(weights)
+            logZ = logsumexp(s['logL'] + s['logW']) - np.log(s.size)
+            print(logZ)
+            self.imp, self.imp_post, self.imp_z = \
+                self.compute_importance(G=0.5)
+
             self.state.update_evidence(self.nested_samples, self.live_points)
             self.iteration += 1
             self.criterion = self.compute_stopping_criterion()
@@ -1365,6 +1454,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         use_counts: bool = False,
         optimise_weights: bool = False,
         optimise_kwargs: Optional[dict] = None,
+        optimisation_method: Literal["evidence", "kl"] = "kl",
     ):
         """Draw final unbiased samples until a desired ESS is reached.
 
@@ -1428,6 +1518,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         max_samples = int(max_samples_ratio * self.nested_samples.size)
 
+        max_logL = np.max(self.nested_samples['logL'])
+
         logger.debug(f'Expected efficiency: {eff:.3f}')
         if not any([n_post, n_draw]):
             n_draw = self.nested_samples.size
@@ -1457,13 +1549,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(f'Batch size: {batch_size}')
 
         if optimise_weights:
-            if optimise_kwargs is None:
-                optimise_kwargs = {}
-            weights = optimise_meta_proposal_weights(
-                self.nested_samples,
-                self._log_q_ns,
-                **optimise_kwargs,
-            )
+            weights = self.imp_post
+            if optimisation_method == 'evidence':
+                pass
+            elif optimisation_method == 'kl':
+                if optimise_kwargs is None:
+                    optimise_kwargs = {}
+                weights = optimise_meta_proposal_weights(
+                    self.nested_samples,
+                    self._log_q_ns,
+                    initial_weights=weights,
+                    **optimise_kwargs,
+                )
+            else:
+                raise ValueError(optimisation_method)
             target_counts = None
         elif use_counts:
             logger.warning('Using counts is not recommended!')
@@ -1521,6 +1620,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
             it_samples['logL'] = \
                 self.model.batch_evaluate_log_likelihood(it_samples)
+
+            if np.any(it_samples['logL'] > max_logL):
+                logger.critical(
+                    f"Max logL increased from {max_logL:.3f} to "
+                    f"{it_samples['logL'].max():.3f}"
+                )
+
             samples = np.concatenate([samples, it_samples])
 
             log_Q = logsumexp(log_q, b=weights, axis=1)
@@ -1551,6 +1657,34 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.redraw_time += (timer() - start_time)
         return self.final_state.logZ, samples
 
+    def train_final_flow(self):
+        """Train a final flow using all of the nested samples"""
+        logger.warning('Training final flow')
+        from .flowmodel import FlowModel
+        weights = np.exp(self.state.log_posterior_weights)
+        weights /= weights.sum()
+        samples, log_j = self.proposal.rescale(self.nested_samples)
+        flow = FlowModel(
+            output=os.path.join(self.output, 'levels', 'final_level', ''),
+            config=self.proposal.flow_config,
+        )
+        flow.initialise()
+        flow.train(samples, weights=weights)
+
+        x_p_out, log_prob = flow.sample_and_log_prob(self.nested_samples.size)
+        x_out, log_j_out = self.proposal.inverse_rescale(x_p_out)
+        x_out['logQ'] = log_prob - log_j_out
+        x_out['logW'] = - x_out['logQ']
+        x_out['logL'] = self.model.batch_evaluate_log_likelihood(x_out)
+
+        state = _INSIntegralState(normalised=False)
+        state.log_meta_constant = 0.0
+        state.update_evidence(x_out)
+
+        print(state.log_evidence)
+        print(state.log_evidence_error)
+        print(state.effective_n_posterior_samples)
+
     def plot_state(
         self,
         filename: Optional[str] = None
@@ -1565,7 +1699,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             If specified the figure will be saved, otherwise the figure is
             returned.
         """
-        n_subplots = 9
+        n_subplots = 10
         if self.annealing_target:
             n_subplots += 1
 
@@ -1649,6 +1783,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         ax[m].set_ylabel('ESS')
         ax[m].legend(frameon=False)
+
+        m += 1
+
+        its_start = np.arange(-1, self.iteration)
+        ax[m].plot(its_start, self.imp, label='Importance')
+        ax[m].plot(its_start, self.imp_post, label='Posterior')
+        ax[m].plot(its_start, self.imp_z, label='Evidence')
+        ax[m].legend(frameon=False)
+        ax[m].set_ylabel("Level importance")
 
         m += 1
 
@@ -1758,7 +1901,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
 
         parameters = list(self.nested_samples.dtype.names)
-        for p in ['logW', 'it']:
+        for p in ['logW']:
             parameters.remove(p)
         n = len(parameters)
 
