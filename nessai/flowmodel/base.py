@@ -561,6 +561,47 @@ class FlowModel:
         log_prob = log_prob.detach().cpu().numpy()
         return z, log_prob
 
+    def log_prob(self, x: np.ndarray) -> np.ndarray:
+        """Compute the log-probability of a sample.
+
+        Parameters
+        ----------
+        x : ndarray
+            Array of samples in the X-prime space.
+
+        Returns
+        -------
+        ndarray
+            Array of log-probabilities.
+        """
+        x = (
+            torch.from_numpy(x)
+            .type(torch.get_default_dtype())
+            .to(self.model.device)
+        )
+        self.model.eval()
+        with torch.no_grad():
+            log_prob = self.model.log_prob(x)
+        log_prob = log_prob.cpu().numpy().astype(np.float64)
+        return log_prob
+
+    def sample(self, n: int = 1) -> np.ndarray:
+        """Sample from the flow.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples to draw
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of samples
+        """
+        with torch.no_grad():
+            x = self.model.sample(int(n))
+        return x.cpu().numpy().astype(np.float64)
+
     def sample_and_log_prob(self, N=1, z=None, alt_dist=None):
         """
         Generate samples from samples drawn from the base distribution or
