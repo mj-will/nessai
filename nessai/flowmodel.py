@@ -412,6 +412,7 @@ class FlowModel:
                 raise RuntimeError(f'Unknown batch size: {batch_size}')
 
         batch_size = self.check_batch_size(x_train, batch_size)
+        val_batch_size = min(len(x_val), batch_size) if len(x_val) else None
 
         dtype = torch.get_default_dtype()
         logger.debug(f'Using dtype {dtype} for tensors')
@@ -434,7 +435,7 @@ class FlowModel:
 
             val_dataset = torch.utils.data.TensorDataset(*val_tensors)
             val_data = torch.utils.data.DataLoader(
-                val_dataset, shuffle=False)
+                val_dataset, batch_size=val_batch_size, shuffle=False)
         else:
             logger.debug('Using tensors')
             train_data = \
