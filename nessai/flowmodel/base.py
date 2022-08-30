@@ -733,8 +733,8 @@ class FlowModel:
         with torch.no_grad():
             z, log_prob = self.model.forward_and_log_prob(x)
 
-        z = z.detach().cpu().numpy()
-        log_prob = log_prob.detach().cpu().numpy()
+        z = z.detach().cpu().numpy().astype(np.float64)
+        log_prob = log_prob.detach().cpu().numpy().astype(np.float64)
         return z, log_prob
 
     def log_prob(self, x: np.ndarray) -> np.ndarray:
@@ -828,8 +828,8 @@ class FlowModel:
                 x, log_J = self.model.inverse(z, context=None)
                 log_prob -= log_J
 
-        x = x.detach().cpu().numpy()
-        log_prob = log_prob.detach().cpu().numpy()
+        x = x.detach().cpu().numpy().astype(np.float64)
+        log_prob = log_prob.detach().cpu().numpy().astype(np.float64)
         return x, log_prob
 
     def __getstate__(self):
