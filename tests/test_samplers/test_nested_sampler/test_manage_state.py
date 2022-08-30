@@ -6,7 +6,8 @@ import os
 import pytest
 from unittest.mock import MagicMock, patch
 
-from nessai.nestedsampler import NestedSampler
+from nessai.livepoint import parameters_to_live_point
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture
@@ -94,7 +95,7 @@ def test_check_state_train(sampler, force, train):
         sampler.train_proposal.assert_not_called()
 
 
-@patch("nessai.nestedsampler.NestedSampler.checkpoint")
+@patch("nessai.samplers.nestedsampler.NestedSampler.checkpoint")
 def test_update_state_checked_acceptance(mock, sampler):
     """Test the behaviour of update state if `_checked_population` is False.
 
@@ -139,7 +140,7 @@ def test_update_state_history(sampler):
 
 @pytest.mark.parametrize("checkpointing", [False, True])
 @pytest.mark.parametrize("plot", [False, True])
-@patch("nessai.nestedsampler.plot_indices")
+@patch("nessai.samplers.nestedsampler.plot_indices")
 def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
     """Test the update that happens every nlive iterations.
 
@@ -189,7 +190,7 @@ def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
 
 
 @pytest.mark.parametrize("checkpointing", [False, True])
-@patch("nessai.nestedsampler.plot_indices")
+@patch("nessai.samplers.nestedsampler.plot_indices")
 def test_update_state_force(mock_plot, checkpointing, sampler):
     """Test the update that happens if force=True.
 
@@ -222,3 +223,40 @@ def test_update_state_force(mock_plot, checkpointing, sampler):
     assert sampler.population_acceptance == [0.5]
     assert sampler.block_acceptance == 0.5
     assert sampler.block_iteration == 5
+
+
+def test_get_result_dictionary(sampler):
+    """Assert the correct dictionary is returned"""
+    from datetime import timedelta
+
+    base_result = dict(seed=1234)
+
+    sampler.nlive = 1
+    sampler.iteration = 3
+    sampler.min_likelihood = [-3, -2, 1]
+    sampler.max_likelihood = [1, 2, 3]
+    sampler.likelihood_evaluations = 3
+    sampler.logZ_history = [1, 2, 3]
+    sampler.mean_acceptance_history = [1, 2, 3]
+    sampler.rolling_p = [0.5]
+    sampler.population_iterations = []
+    sampler.population_acceptance = []
+    sampler.training_iterations = []
+    sampler.insertion_indices = []
+    sampler.training_time = timedelta()
+    sampler.proposal_population_time = timedelta()
+    sampler.nested_samples = [
+        parameters_to_live_point((1, 2), ["x", "y"]),
+        parameters_to_live_point((3, 4), ["x", "y"]),
+    ]
+
+    with patch(
+        "nessai.samplers.base.BaseNestedSampler.get_result_dictionary",
+        return_value=base_result,
+    ) as mock:
+        out = NestedSampler.get_result_dictionary(sampler)
+
+    mock.assert_called_once()
+
+    assert out["seed"] == 1234
+    assert "history" in out

@@ -2,13 +2,11 @@
 """
 Tests related to resuming.
 """
-import datetime
 import os
-import pickle
 import pytest
 from unittest.mock import patch, MagicMock
 
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture
@@ -18,37 +16,6 @@ def complete_sampler(model, tmpdir):
     ns = NestedSampler(model, output=output, poolsize=10)
     ns.initialise()
     return ns
-
-
-@pytest.mark.parametrize("periodic", [False, True])
-def test_checkpoint(sampler, periodic, wait):
-    """Test checkpointing method.
-
-    Make sure a file is produced and that the sampling time is updated.
-    Also checks to make sure that the iteration is recorded when periodic=False
-    """
-    sampler.checkpoint_iterations = [10]
-    sampler.iteration = 20
-    now = datetime.datetime.now()
-    wait()
-    sampler.sampling_start_time = now
-    sampler.sampling_time = datetime.timedelta()
-    sampler.resume_file = "test.pkl"
-
-    with patch("nessai.nestedsampler.safe_file_dump") as sfd_mock:
-        NestedSampler.checkpoint(sampler, periodic=periodic)
-
-    sfd_mock.assert_called_once_with(
-        sampler, sampler.resume_file, pickle, save_existing=True
-    )
-
-    assert sampler.sampling_start_time > now
-    assert sampler.sampling_time.total_seconds() > 0.0
-
-    if periodic:
-        assert sampler.checkpoint_iterations == [10]
-    else:
-        assert sampler.checkpoint_iterations == [10, 20]
 
 
 def test_check_resume(sampler):
@@ -83,24 +50,37 @@ def test_check_resume_no_indices(sampler):
     assert sampler._flow_proposal.populated is False
 
 
-def test_resume(model):
+@pytest.mark.parametrize("flow_config", [None, dict(a=1)])
+def test_resume(model, flow_config):
     """Test the resume method"""
     obj = MagicMock()
-    obj.model = None
-    model.likelihood_evaluations = 1
+    obj.model = model
     obj._uninformed_proposal = MagicMock()
+    obj._uninformed_proposal.resume = MagicMock()
     obj._flow_proposal = MagicMock()
-    obj.likelihood_evaluations = [2, 3]
-    with patch("pickle.load", return_value=obj) as mock_pickle, patch(
-        "builtins.open"
-    ):
-        out = NestedSampler.resume("test.pkl", model)
+    obj._flow_proposal.resume = MagicMock()
 
-    mock_pickle.assert_called_once()
+    weights_file = "weight.pt"
 
-    assert out.model == model
-    assert model.likelihood_evaluations == 4
-    assert obj.resumed is True
+    with patch(
+        "nessai.samplers.base.BaseNestedSampler.resume", return_value=obj
+    ) as mock:
+        out = NestedSampler.resume(
+            "test.pkl",
+            model,
+            flow_config=flow_config,
+            weights_file=weights_file,
+        )
+    assert out is obj
+    mock.assert_called_once_with("test.pkl", model)
+    obj._uninformed_proposal.resume.assert_called_once_with(
+        model,
+    )
+    obj._flow_proposal.resume.assert_called_once_with(
+        model,
+        flow_config if flow_config else {},
+        weights_file,
+    )
 
 
 def test_get_state(sampler):

@@ -10,14 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add more structure utils (`get_subset_arrays`, `isfinite_struct`)
+- Add `nessai.sampler.base.BaseNestedSampler` class.
 
 ### Changed
 
 - Change how threading is handled to no longer use `max_threads`.
+- Refactor `nessai.nestedsampler` into the `nessai.samplers` submodule.
 
 ### Deprecated
 
 - Setting `max_threads` is deprecated and will be removed in a future release.
+
+### Removed
+
+- Removed unused code for saving live points in `NestedSampler`
+
 
 ## [0.6.0] - 2022-08-24
 
@@ -50,7 +57,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Drop support for Python 3.6. ([#188](https://github.com/mj-will/nessai/pull/188))
 - Remove a temporary fix for [#46](https://github.com/mj-will/nessai/issues/46) that was introduced in [#47](https://github.com/mj-will/nessai/pull/47). ([#202](https://github.com/mj-will/nessai/pull/202))
-
 
 ## [0.5.1] - 2022-06-20
 

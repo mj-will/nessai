@@ -6,7 +6,7 @@ import os
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.mark.parametrize("track_gradients", [False, True])
@@ -46,7 +46,7 @@ def test_plot_state(sampler, tmpdir, filename, track_gradients):
 
 @pytest.mark.parametrize("samples", [[], [1, 2, 3]])
 @pytest.mark.parametrize("filename", [None, "trace.png"])
-@patch("nessai.nestedsampler.plot_trace", return_value="fig")
+@patch("nessai.samplers.nestedsampler.plot_trace", return_value="fig")
 def test_plot_trace(mock_plot, sampler, tmpdir, samples, filename):
     """Test the plot_trace method"""
     sampler.nested_samples = samples
@@ -71,7 +71,7 @@ def test_plot_trace(mock_plot, sampler, tmpdir, samples, filename):
 
 
 @pytest.mark.parametrize("filename", [None, "trace.png"])
-@patch("nessai.nestedsampler.plot_indices", return_value="fig")
+@patch("nessai.samplers.nestedsampler.plot_indices", return_value="fig")
 def test_plot_insertion_indices(mock_plot, sampler, filename):
     """Test plotting the insetion indices"""
     nlive = 10

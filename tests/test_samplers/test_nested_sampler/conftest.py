@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import create_autospec
 
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture(scope="function")

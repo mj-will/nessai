@@ -8,11 +8,8 @@ import os
 import signal
 import sys
 
-import numpy as np
-
-from . import __version__ as version
 from .livepoint import live_points_to_dict
-from .nestedsampler import NestedSampler
+from .samplers.nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
 from .utils import NessaiJSONEncoder, configure_threads
 
@@ -45,7 +42,8 @@ class FlowSampler:
     exit_code : int, optional
         Exit code to use when forceably exiting the sampler.
     kwargs :
-        Keyword arguments passed to :obj:`~nessai.nestedsampler.NestedSampler`.
+        Keyword arguments passed to
+        :obj:`~nessai.samplers.nestedsampler.NestedSampler`.
     """
 
     def __init__(
@@ -206,40 +204,8 @@ class FlowSampler:
         filename : str
             Name of file to save results to.
         """
-        iterations = np.arange(len(self.ns.min_likelihood)) * (
-            self.ns.nlive // 10
-        )
-        iterations[-1] = self.ns.iteration
-        d = dict()
-        d["version"] = version
-        d["history"] = dict(
-            iterations=iterations,
-            min_likelihood=self.ns.min_likelihood,
-            max_likelihood=self.ns.max_likelihood,
-            likelihood_evaluations=self.ns.likelihood_evaluations,
-            logZ=self.ns.logZ_history,
-            dZ=self.ns.dZ_history,
-            mean_acceptance=self.ns.mean_acceptance_history,
-            rolling_p=self.ns.rolling_p,
-            population=dict(
-                iterations=self.ns.population_iterations,
-                acceptance=self.ns.population_acceptance,
-            ),
-            training_iterations=self.ns.training_iterations,
-        )
-        d["insertion_indices"] = self.ns.insertion_indices
-        d["nested_samples"] = live_points_to_dict(self.nested_samples)
+        d = self.ns.get_result_dictionary()
         d["posterior_samples"] = live_points_to_dict(self.posterior_samples)
-        d["log_evidence"] = self.ns.log_evidence
-        d["information"] = self.ns.information
-        d["sampling_time"] = self.ns.sampling_time.total_seconds()
-        d["training_time"] = self.ns.training_time.total_seconds()
-        d["population_time"] = self.ns.proposal_population_time.total_seconds()
-        if self.ns.likelihood_evaluation_time.total_seconds():
-            d[
-                "likelihood_evaluation_time"
-            ] = self.ns.likelihood_evaluation_time.total_seconds()
-
         with open(filename, "w") as wf:
             json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
 

@@ -10,7 +10,7 @@ from nessai.livepoint import (
     numpy_array_to_live_points,
     parameters_to_live_point,
 )
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 from nessai.utils.testing import assert_structured_arrays_equal
 
 
@@ -38,16 +38,6 @@ def sampler(sampler):
     sampler.acceptance_history = []
     sampler.info_enabled = True
     return sampler
-
-
-def test_log_likelihood(sampler):
-    """Test the log-likelihood method.
-
-    This method is unused in the sampler and there only for the user.
-    """
-    sampler.model.log_likelihood = MagicMock()
-    NestedSampler.log_likelihood(sampler, [0.1])
-    sampler.model.log_likelihood.assert_called_once_with([0.1])
 
 
 def test_initialise(sampler):
@@ -206,7 +196,7 @@ def test_nested_sampling_loop(sampler, config):
     sampler.initialised = False
     sampler.condition = config.get("condition", 0.5)
     sampler.tolerance = config.get("tolerance", 0.1)
-    sampler.close_pool = config.get("close_pool", True)
+    sampler._close_pool = config.get("close_pool", True)
     sampler.max_iteration = config.get("max_iteration")
     sampler.iteration = config.get("iteration", 0)
     sampler.sampling_time = 0.0
@@ -215,8 +205,7 @@ def test_nested_sampling_loop(sampler, config):
     sampler.likelihood_calls = 1
     sampler.nested_samples = [1, 2]
 
-    sampler.model = MagicMock()
-    sampler.model.close_pool = MagicMock()
+    sampler.close_pool = MagicMock()
 
     sampler.proposal = MagicMock()
     sampler.proposal.pool = True
@@ -257,10 +246,10 @@ def test_nested_sampling_loop(sampler, config):
     sampler.check_insertion_indices.assert_called_once_with(rolling=False)
     sampler.checkpoint.assert_called_once_with(periodic=True)
 
-    if sampler.close_pool:
-        sampler.model.close_pool.assert_called_once()
+    if sampler._close_pool:
+        sampler.close_pool.assert_called_once()
     else:
-        sampler.model.close_pool.assert_not_called()
+        sampler.close_pool.assert_not_called()
 
 
 @pytest.mark.parametrize("close_pool", [False, True])
@@ -269,17 +258,17 @@ def test_nested_sampling_loop_prior_sampling(sampler, close_pool):
     sampler.initialised = False
     sampler.nested_samples = sampler.model.new_point(10)
     sampler.prior_sampling = True
-    sampler.close_pool = close_pool
-    sampler.model.close_pool = MagicMock()
+    sampler._close_pool = close_pool
+    sampler.close_pool = MagicMock()
     sampler.finalise = MagicMock()
     sampler.log_evidence = -5.99
 
     evidence, samples = NestedSampler.nested_sampling_loop(sampler)
     sampler.initialise.assert_called_once_with(live_points=True)
     if close_pool:
-        sampler.model.close_pool.assert_called_once()
+        sampler.close_pool.assert_called_once()
     else:
-        sampler.model.close_pool.assert_not_called()
+        sampler.close_pool.assert_not_called()
     sampler.finalise.assert_called_once()
     assert_structured_arrays_equal(samples, sampler.nested_samples)
     assert evidence == -5.99

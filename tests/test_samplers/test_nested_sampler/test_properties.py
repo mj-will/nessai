@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
-from nessai.nestedsampler import NestedSampler
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture()
@@ -28,20 +28,6 @@ def test_information(sampler):
     """Check most recent information estimate is returned"""
     sampler.state.info = [1, 2, 3]
     assert NestedSampler.information.__get__(sampler) == 3
-
-
-def test_likelihood_calls(sampler):
-    """Check likelihood calls from model are returned"""
-    sampler.model = MagicMock()
-    sampler.model.likelihood_evaluations = 10
-    assert NestedSampler.likelihood_calls.__get__(sampler) == 10
-
-
-def test_likelihood_evaluation_time(sampler):
-    """Assert the time is the some of the time for individual proposals"""
-    sampler.model = MagicMock()
-    sampler.model.likelihood_evaluation_time = 1.0
-    assert NestedSampler.likelihood_evaluation_time.__get__(sampler) == 1.0
 
 
 def test_population_time(sampler):
