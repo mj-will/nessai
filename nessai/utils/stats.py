@@ -113,3 +113,42 @@ def weighted_quantile(
     weighted_quantiles = np.cumsum(weights) - 0.5 * weights
     weighted_quantiles /= np.sum(weights)
     return np.interp(quantiles, weighted_quantiles, values)
+
+
+def posterior_importance(samples: np.ndarray) -> float:
+    """Compute the unnormalised posterior importance weight.
+
+    Parameters
+    ----------
+    samples : structured_array
+        Array of samples
+
+    Returns
+    -------
+    float
+        Unnormalised posterior importance
+    """
+    return np.exp(
+        logsumexp(samples['logL'] + samples['logW']) - np.log(len(samples))
+    )
+
+
+def evidence_importance(samples: np.ndarray, log_q: np.ndarray) -> float:
+    """Compute the unnormalised evidence importance
+
+    Parameters
+    ----------
+    samples : structured_array
+        Array of samples
+    log_q : numpy.ndarray
+        Array of proposal log-probabilities for the level from which the
+        samples where drawn.
+
+    Returns
+    -------
+    float
+        Unnormalised evidence importance
+    """
+    return np.exp(
+        logsumexp(samples['logL'] - log_q) - np.log(len(samples))
+    )
