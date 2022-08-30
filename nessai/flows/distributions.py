@@ -238,3 +238,65 @@ class ResampledGaussian(Distribution):
         self.estimate_normalisation_constant(
             n_samples=n_samples, n_batches=n_batches
         )
+
+
+class DiagonalNormal(Distribution):
+    """A diagonal multivariate Normal with trainable parameters.
+
+    Based on the implementation in nflows.
+
+    Parameters
+    ----------
+    shape : tuple
+        Shape on the input variables.
+    """
+
+    def __init__(self, shape):
+        super().__init__()
+        assert len(shape) == 1
+        self._shape = torch.Size(shape)
+        self.mean_ = nn.Parameter(torch.zeros(shape).reshape(1, -1))
+        self.log_std_ = nn.Parameter(torch.zeros(shape).reshape(1, -1))
+        self.register_buffer(
+            "_log_z",
+            torch.tensor(
+                0.5 * np.prod(shape) * np.log(2 * np.pi), dtype=torch.float64
+            ),
+            persistent=False,
+            )
+
+    def _log_prob(self, inputs, context):
+        if inputs.shape[1:] != self._shape:
+            raise ValueError(
+                "Expected input of shape {}, got {}".format(
+                    self._shape, inputs.shape[1:]
+                )
+            )
+
+        # Compute parameters.
+        means = self.mean_
+        log_stds = self.log_std_
+
+        # Compute log prob.
+        norm_inputs = (inputs - means) * torch.exp(-log_stds)
+        log_prob = -0.5 * torchutils.sum_except_batch(
+            norm_inputs ** 2, num_batch_dims=1
+        )
+        log_prob -= torchutils.sum_except_batch(log_stds, num_batch_dims=1)
+        log_prob -= self._log_z
+        return log_prob
+
+    def _sample(self, num_samples, context):
+        if context is not None:
+            raise NotImplementedError()
+        # This is not optimal and could be improved significantly.
+        with torch.no_grad():
+            dist = torch.distributions.MultivariateNormal(
+                self.mean_.data.flatten(),
+                np.exp(2 * self.log_std_.flatten()) * torch.eye(self._shape[0])
+            )
+            out = dist.sample((num_samples,))
+        return out
+
+    def _mean(self, context):
+        return self.mean
