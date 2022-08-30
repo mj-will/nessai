@@ -49,7 +49,7 @@ def update_config(d):
             default["model_config"] = default_model
 
     if default["noise_type"] is not None and default["noise_scale"] is None:
-        raise ValueError(
+        raise RuntimeError(
             "`noise_scale` must be specified when `noise_type` is given."
         )
     if isinstance(default["noise_scale"], float):
@@ -58,7 +58,7 @@ def update_config(d):
     elif default["noise_scale"] is not None:
         raise TypeError(
             "`noise_scale` must be a float. "
-            "'Got type: {type(default['noise_scale'])}"
+            f"'Got type: {type(default['noise_scale'])}"
         )
 
     return default
