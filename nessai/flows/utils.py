@@ -2,12 +2,15 @@
 """
 Various utilities for implementing normalising flows.
 """
+import inspect
 import logging
+from typing import Optional, Type, Union
+
+from nflows import transforms
+from nflows.distributions import Distribution
 import numpy as np
 import torch
 import torch.nn.functional as F
-
-from nflows import transforms
 
 from .distributions import MultivariateNormal
 from .transforms import LULinear
@@ -24,6 +27,110 @@ def silu(x):
     Elfwing et al 2017: https://arxiv.org/abs/1702.03118v3
     """
     return torch.mul(x, torch.sigmoid(x))
+
+
+def get_base_distribution(
+    n_inputs: int, distribution: Union[str, Type[Distribution]], **kwargs
+) -> Distribution:
+    """Get the base distribution for a flow.
+
+    Includes special configuration for certain distributions.
+
+    Parameters
+    ----------
+    n_inputs : int
+        Number of inputs to the distribution.
+    distribution : Union[str, Type[nflows.distribution.Distribution]]
+        Distribution class or name of known distribution
+    kwargs : Any
+        Keyword arguments used when creating an instance of distribution.
+    """
+    distributions = {
+        "mvn": MultivariateNormal,
+        "normal": MultivariateNormal,
+    }
+
+    DistClass = None
+
+    if isinstance(distribution, str):
+        DistClass = distributions.get(distribution.lower())
+        if not DistClass:
+            raise ValueError(f"Unknown distribution: {distribution}")
+    elif inspect.isclass(distribution):
+        logger.debug("Distribution is class. Creating an instance.")
+        DistClass = distribution
+
+    if DistClass:
+        logger.debug("Creating instance of the base distribution")
+        dist = DistClass([n_inputs], **kwargs)
+    elif distribution is None:
+        dist = None
+    else:
+        dist = distribution
+    return dist
+
+
+def get_n_neurons(
+    n_neurons: Optional[int] = None,
+    n_inputs: Optional[int] = None,
+    default: int = 8,
+) -> int:
+    """Get the number of neurons.
+
+    Notes
+    -----
+    If :code:`n_inputs` is also specified then the options for
+    :code:`n_neurons` are either a value that can be converted to an
+    :code:`int` or one of the following:
+
+        - :code:`'auto'` or :code:`'double'`: uses twice the number of inputs
+        - :code:`'equal'`: uses the number of inputs
+        - :code:`'half'`: uses half the number of inputs
+        - :code:`None`: falls back to :code:`'auto'`
+
+    Parameters
+    ----------
+    n_neurons : Optional[int]
+        Number of neurons.
+    n_inputs: Optional[int]
+        Number of inputs.
+    default : int
+        Default value if :code:`n_neurons` and :code:`n_inputs` are not given.
+
+    Returns
+    -------
+    int
+        Number of neurons.
+
+    Raises
+    ------
+    ValueError
+        Raised if the number of inputs could not be converted to an integer.
+    """
+    if n_inputs is None:
+        if n_neurons is None:
+            n = default
+        else:
+            n = n_neurons
+    else:
+        if n_neurons is None or n_neurons in {"auto", "double"}:
+            n = 2 * n_inputs
+        elif n_neurons == "equal":
+            n = n_inputs
+        elif n_neurons == "half":
+            n = n_inputs // 2
+        else:
+            n = n_neurons
+    try:
+        n = int(n)
+    except ValueError:
+        raise ValueError(
+            "Could not get number of neurons. `n_neurons` was set to "
+            f"`{n_neurons}` which could not be translated to a valid int. If "
+            "using `auto`, `double`, `equal` or `half`, check that `n_inputs` "
+            "is set."
+        )
+    return n
 
 
 def configure_model(config):
@@ -44,6 +151,11 @@ def configure_model(config):
     }
     activations = {"relu": F.relu, "tanh": F.tanh, "swish": silu, "silu": silu}
 
+    config = config.copy()
+
+    if not isinstance(config["n_inputs"], int):
+        raise TypeError("Number of inputs (n_inputs) must be an int")
+
     k = config.get("kwargs", None)
     if k is not None:
         if "activation" in k and isinstance(k["activation"], str):
@@ -52,16 +164,18 @@ def configure_model(config):
             except KeyError as e:
                 raise RuntimeError(f"Unknown activation function: {e}")
 
-        if "var" in k and "distribution" not in k:
-            k["distribution"] = MultivariateNormal(
-                [config["n_inputs"]], var=k["var"]
-            )
-            k.pop("var")
-
         kwargs.update(k)
 
-    if not isinstance(config["n_inputs"], int):
-        raise TypeError("Number of inputs (n_inputs) must be an int")
+    dist_kwargs = config.pop("distribution_kwargs", None)
+    if dist_kwargs is None:
+        dist_kwargs = {}
+    distribution = get_base_distribution(
+        config["n_inputs"],
+        config.pop("distribution", None),
+        **dist_kwargs,
+    )
+    if distribution:
+        kwargs["distribution"] = distribution
 
     fc = config.get("flow", None)
     ftype = config.get("ftype", None)
@@ -103,7 +217,7 @@ def configure_model(config):
         except RuntimeError as e:
             device = torch.device("cpu")
             logger.warning(
-                "Could not send the normailising flow to the "
+                "Could not send the normalising flow to the "
                 f"specified device {config['device']} send to CPU "
                 f"instead. Error raised: {e}"
             )
