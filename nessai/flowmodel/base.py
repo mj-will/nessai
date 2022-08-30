@@ -634,7 +634,7 @@ class FlowModel:
             self.model.eval()
         if z is None:
             with torch.no_grad():
-                x, log_prob = self.model.sample_and_log_prob(N)
+                x, log_prob = self.model.sample_and_log_prob(int(N))
         else:
             if alt_dist is not None:
                 log_prob_fn = alt_dist.log_prob
