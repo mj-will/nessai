@@ -397,6 +397,8 @@ class FlowModel:
         # setup data loading
         n = int((1 - val_size) * samples.shape[0])
         x_train, x_val = samples[:n], samples[n:]
+        if val_size == 0:
+            assert len(x_val) == 0
         if weights is not None:
             weights_train = weights[:n]
             weights_val = weights[n:]
@@ -432,7 +434,7 @@ class FlowModel:
 
             val_dataset = torch.utils.data.TensorDataset(*val_tensors)
             val_data = torch.utils.data.DataLoader(
-                val_dataset, batch_size=x_val.shape[0], shuffle=False)
+                val_dataset, shuffle=False)
         else:
             logger.debug('Using tensors')
             train_data = \
@@ -566,6 +568,8 @@ class FlowModel:
         float
             Mean of training loss for each batch.
         """
+        if not len(val_data):
+            return np.nan
         model = self.model
         model.eval()
         val_loss = 0
@@ -658,6 +662,13 @@ class FlowModel:
             logger.info("Initialising")
             self.initialise()
 
+        if not np.isfinite(samples).all():
+            raise ValueError("Training data is not finite")
+
+        logger.debug("Data summary:")
+        logger.debug(f"Mean: {np.mean(samples, axis=0)}")
+        logger.debug(f"Standard deviation: {np.std(samples, axis=0, ddof=1)}")
+
         if output is None:
             output = self.output
         else:
@@ -665,6 +676,11 @@ class FlowModel:
 
         if val_size is None:
             val_size = self.val_size
+
+        if val_size == 0.0:
+            validate = False
+        else:
+            validate = True
 
         if self.noise_type == 'adaptive':
             noise_scale = \
@@ -735,7 +751,7 @@ class FlowModel:
                 history['loss'].append(loss)
                 history['val_loss'].append(val_loss)
 
-            if val_loss < best_val_loss:
+            if validate and (val_loss < best_val_loss):
                 best_epoch = epoch
                 best_val_loss = val_loss
                 best_model = copy.deepcopy(self.model.state_dict())
@@ -744,7 +760,7 @@ class FlowModel:
                 logger.info(
                     f'Epoch {epoch}: loss: {loss:.3} val loss: {val_loss:.3}')
 
-            if epoch - best_epoch > patience:
+            if validate and (epoch - best_epoch > patience):
                 logger.info(f'Epoch {epoch}: Reached patience')
                 break
 
@@ -753,12 +769,13 @@ class FlowModel:
                 self.model.unfreeze_transform()
 
         logger.debug('Finished training')
-        logger.debug(f'Loading best model from epoch {best_epoch}')
 
         # Make sure cache for LU is reset.
         self.model.train()
         self.model.eval()
-        self.model.load_state_dict(best_model)
+        if validate:
+            logger.debug(f'Loading best model from epoch {best_epoch}')
+            self.model.load_state_dict(best_model)
         self.finalise()
 
         self.save_weights(current_weights_file)
