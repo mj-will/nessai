@@ -48,13 +48,17 @@ def update_config(d):
             )
             default["model_config"] = default_model
 
-    if (
-        not isinstance(default["noise_scale"], float)
-        and not default["noise_scale"] == "adaptive"
-    ):
+    if default["noise_type"] is not None and default["noise_scale"] is None:
         raise ValueError(
-            "noise_scale must be a float or 'adaptive'. "
-            f"Received: {default['noise_scale']}"
+            "`noise_scale` must be specified when `noise_type` is given."
+        )
+    if isinstance(default["noise_scale"], float):
+        if default["noise_type"] is None:
+            default["noise_type"] = "constant"
+    elif default["noise_scale"] is not None:
+        raise TypeError(
+            "`noise_scale` must be a float. "
+            "'Got type: {type(default['noise_scale'])}"
         )
 
     return default
