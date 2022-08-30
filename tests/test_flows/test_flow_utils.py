@@ -11,6 +11,8 @@ from nessai.flows.utils import (
     configure_model,
     create_linear_transform,
     create_pre_transform,
+    get_base_distribution,
+    get_n_neurons,
     silu,
     reset_weights,
     reset_permutations,
@@ -33,6 +35,72 @@ def test_silu():
     y = silu(x)
     expected = x.numpy() * expit(x.numpy())
     np.testing.assert_array_almost_equal(y, expected)
+
+
+def test_get_base_distribution_none():
+    """Assert that if the distribution is None, None is returned"""
+    assert get_base_distribution(2, None) is None
+
+
+def test_get_base_distribution_class_instance():
+    """Assert that if the distribution is a class instance it is returned"""
+    dist = MagicMock()
+    assert get_base_distribution(2, dist) is dist
+
+
+def test_get_base_distribution_class():
+    """Assert that if the distribution is a class is it correctly called"""
+    from nessai.flows.distributions import MultivariateNormal
+
+    dist_cls = MultivariateNormal
+    dist = get_base_distribution(2, dist_cls, var=2)
+    assert isinstance(dist, MultivariateNormal)
+    assert dist._var == 2
+
+
+def test_get_base_distribution_str():
+    """Assert that if the distribution is a str it is correctly called"""
+    from nessai.flows.distributions import MultivariateNormal
+
+    dist = get_base_distribution(2, "mvn", var=2)
+    assert isinstance(dist, MultivariateNormal)
+    assert dist._var == 2
+
+
+@pytest.mark.parametrize(
+    "n_neurons, n_inputs, expected",
+    [
+        (16, 2, 16),
+        ("auto", 2, 4),
+        ("double", 2, 4),
+        (None, 2, 4),
+        ("equal", 2, 2),
+        ("half", 4, 2),
+        (None, None, 8),
+    ],
+)
+def test_get_n_neurons(n_neurons, n_inputs, expected):
+    """Assert the correct values are returned"""
+    out = get_n_neurons(n_neurons=n_neurons, n_inputs=n_inputs)
+    assert isinstance(out, int)
+    assert out == expected
+
+
+@pytest.mark.parametrize(
+    "n_neurons, n_inputs",
+    [
+        ("auto", None),
+        ("half", None),
+        ("equal", None),
+        ("double", None),
+        ("invalid", 4),
+    ],
+)
+def test_get_n_neurons_value_error(n_neurons, n_inputs):
+    """Assert a ValueError is raised if invalid inputs are given"""
+    with pytest.raises(ValueError) as excinfo:
+        get_n_neurons(n_neurons=n_neurons, n_inputs=n_inputs)
+    assert "Could not get number of neurons" in str(excinfo.value)
 
 
 def test_reset_weights_with_reset_parameters():
