@@ -14,6 +14,7 @@ from .importancesampler import ImportanceNestedSampler
 from .livepoint import live_points_to_dict
 from .posterior import draw_posterior_samples
 from .utils import NessaiJSONEncoder, configure_threads
+from .utils.torchutils import set_torch_default_type
 
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ class FlowSampler:
         importance_sampler=False,
         close_pool=True,
         eps=None,
+        torch_dtype=None,
         **kwargs
     ):
 
@@ -78,6 +80,8 @@ class FlowSampler:
         if self.eps is not None:
             logger.info(f'Setting eps to {self.eps}')
             config.eps = self.eps
+
+        self.torch_dtype = set_torch_default_type(torch_dtype)
 
         if importance_sampler:
             SamplerClass = ImportanceNestedSampler
