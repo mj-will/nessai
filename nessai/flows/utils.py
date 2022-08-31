@@ -218,7 +218,7 @@ def configure_model(config):
             device = torch.device("cpu")
             logger.warning(
                 "Could not send the normalising flow to the "
-                f"specified device {config['device']} send to CPU "
+                f"specified device {config['device_tag']} send to CPU "
                 f"instead. Error raised: {e}"
             )
     logger.debug("Flow model:")
