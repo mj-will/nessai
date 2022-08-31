@@ -67,6 +67,13 @@ def test_get_base_distribution_str():
     assert dist._var == 2
 
 
+def test_get_base_distribution_error():
+    """Assert an unknown dist raises an error."""
+    with pytest.raises(ValueError) as excinfo:
+        get_base_distribution(2, "not_a_distribution")
+    assert "Unknown distribution: not_a_distribution" in str(excinfo.value)
+
+
 @pytest.mark.parametrize(
     "n_neurons, n_inputs, expected",
     [
@@ -149,6 +156,18 @@ def test_weight_reset_permutation():
     y_reset, _ = m(x)
     assert not (p == m._permutation.numpy()).all()
     assert not (y_init.numpy() == y_reset.numpy()).all()
+
+
+def test_reset_permutation_lu():
+    """Assert LULinear is reset correctly"""
+    from nflows.transforms import LULinear
+    from nflows.transforms.linear import LinearCache
+
+    lu = MagicMock(spec=LULinear)
+    lu.cache = MagicMock(spec=LinearCache)
+    reset_permutations(lu)
+    lu.cache.invalidate.assert_called_once()
+    lu._initialize.assert_called_once_with(identity_init=True)
 
 
 def test_configure_model_basic(config):
@@ -257,6 +276,18 @@ def test_configure_model_activation_functions(config, act):
     )
 
 
+def test_configure_model_distribution(config):
+    """Assert distribution is added to the kwargs"""
+    config["distribution"] = "mvn"
+    dist = MagicMock()
+    with patch(
+        "nessai.flows.utils.get_base_distribution", return_value=dist
+    ), patch("nessai.flows.realnvp.RealNVP") as mock:
+        configure_model(config)
+    assert "distribution" in mock.call_args[1]
+    assert mock.call_args[1]["distribution"] is dist
+
+
 def test_configure_model_ftype_error(config):
     """Assert unknown types of flow raise an error."""
     config.pop("ftype")
@@ -279,6 +310,24 @@ def test_configure_model_unknown_activation(config):
     with pytest.raises(RuntimeError) as excinfo:
         configure_model(config)
     assert "Unknown activation function: 'test'" in str(excinfo.value)
+
+
+def test_configure_model_invalid_device(caplog, config):
+    """Assert warning is raised and the device is set to CPU"""
+    from nessai.flows.base import NFlow
+
+    config["device_tag"] = "cpu"
+    flow = MagicMock(spec=NFlow)
+
+    def raise_error(input):
+        raise RuntimeError("An error")
+
+    flow.to = MagicMock(side_effect=raise_error)
+    with caplog.at_level(logging.WARNING), patch(
+        "nessai.flows.realnvp.RealNVP", return_value=flow
+    ):
+        configure_model(config)
+    assert "Could not send the normalising flow to" in caplog.text
 
 
 @pytest.mark.parametrize("linear_transform", ["lu", "permutation", "svd"])
