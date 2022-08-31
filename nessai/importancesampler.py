@@ -1205,9 +1205,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.warning(
             f'Final ESS: {self.state.effective_n_posterior_samples:.3f}'
         )
+        self.finalised = True
         self.checkpoint(periodic=True)
         self.produce_plots()
-        self.finalised = True
 
     def add_level_post_sampling(self, samples: np.ndarray, n: int) -> None:
         """Add a level to the nested sampler after initial sampling has \
@@ -1251,7 +1251,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.ess = self.state.effective_n_posterior_samples
 
         proposal_weights = compute_posterior_proposal_weights(self.all_samples)
-        print()
         self.dPW = proposal_weights[-1] / proposal_weights[-2]
 
         self.Z_err = self.log_evidence_error
@@ -1289,11 +1288,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def nested_sampling_loop(self):
         """Main nested sampling loop."""
-        self.initialise()
-        logger.warning('Starting the nested sampling loop')
         if self.finalised:
             logger.warning('Sampler has already finished sampling! Aborting')
             return self.log_evidence, self.nested_samples
+        self.initialise()
+        logger.warning('Starting the nested sampling loop')
 
         while True:
             if (
@@ -1340,11 +1339,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 n_add = n_remove
             self.add_and_update_points(n_add)
 
-            s = self.all_samples
-            weights = compute_posterior_proposal_weights(self.all_samples)
-            print(weights)
-            logZ = logsumexp(s['logL'] + s['logW']) - np.log(s.size)
-            print(logZ)
             self.imp, self.imp_post, self.imp_z = \
                 self.compute_importance(G=0.5)
 
@@ -1680,10 +1674,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         state = _INSIntegralState(normalised=False)
         state.log_meta_constant = 0.0
         state.update_evidence(x_out)
-
-        print(state.log_evidence)
-        print(state.log_evidence_error)
-        print(state.effective_n_posterior_samples)
 
     def plot_state(
         self,
