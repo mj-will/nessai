@@ -4,7 +4,15 @@ Tests for the stats related utilities.
 """
 import numpy as np
 
-from nessai.utils.stats import rolling_mean
+from nessai.utils.stats import effective_sample_size, rolling_mean
+
+
+def test_ess():
+    """Test the effective sample size"""
+    log_w = np.zeros(10)
+    np.testing.assert_almost_equal(effective_sample_size(log_w), 10)
+    # Make the input array remains unchanged
+    assert (log_w == 0.0).all()
 
 
 def test_rolling_mean():
