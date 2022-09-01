@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add more structure utils (`get_subset_arrays`, `isfinite_struct`)
 - Add `nessai.sampler.base.BaseNestedSampler` class.
+- Add option to use multinomial resampling to `nessai.posterior.draw_posterior_samples`.
 
 ### Changed
 
