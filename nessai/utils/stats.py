@@ -3,6 +3,26 @@
 Utilities related to statistics.
 """
 import numpy as np
+from scipy.special import logsumexp
+
+
+def effective_sample_size(log_w):
+    """Compute Kish's effective sample size.
+
+    Parameters
+    ----------
+    log_w : array_like
+        Log-weights.
+
+    Returns
+    -------
+    float
+        The effective sample size.
+    """
+    log_w = np.array(log_w)
+    log_w -= logsumexp(log_w)
+    n = np.exp(-logsumexp(2 * log_w))
+    return n
 
 
 def rolling_mean(x, N=10):
