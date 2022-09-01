@@ -52,6 +52,7 @@ class FlowModel:
         self.model = None
         self.initialised = False
         self.output = output
+        os.makedirs(self.output, exist_ok=True)
         self.setup_from_input_dict(config)
         self.weights_file = None
 
@@ -573,8 +574,7 @@ class FlowModel:
         logger.info(f"Patience: {patience}")
         logger.info(f"Training with {samples.shape[0]} samples")
 
-        if plot:
-            history = dict(loss=[], val_loss=[])
+        history = dict(loss=[], val_loss=[])
 
         current_weights_file = os.path.join(output, "model.pt")
 
@@ -591,9 +591,8 @@ class FlowModel:
                 is_dataloader=use_dataloader,
                 weighted=weighted,
             )
-            if plot:
-                history["loss"].append(loss)
-                history["val_loss"].append(val_loss)
+            history["loss"].append(loss)
+            history["val_loss"].append(val_loss)
 
             if validate and (val_loss < best_val_loss):
                 best_epoch = epoch
