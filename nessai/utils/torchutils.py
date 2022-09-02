@@ -3,7 +3,6 @@
 Utilities for configuring torch.
 """
 import logging
-from typing import Literal, Union
 
 import torch
 
@@ -15,21 +14,20 @@ dtype_mapping = {
 }
 
 
-def set_torch_default_dtype(
-    dtype: Union[Literal["float32", "float64"], torch.dtype, None],
-) -> torch.dtype:
+def set_torch_default_dtype(dtype) -> torch.dtype:
     """Set the default dtype for torch tenors.
 
     If dtype is None, returns the default dtype.
 
     Parameters
     ----------
-    dtype
+    dtype : {"float32", "float64", torch.dtype}
         The new default dtype for torch.
 
     Returns
     -------
-    The torch dtype used to set the default.
+    torch.dtype
+        The torch dtype used to set the default.
     """
     if dtype is None:
         return torch.get_default_dtype()
