@@ -12,7 +12,7 @@ from nflows.distributions import StandardNormal
 from nflows import transforms
 
 from .base import NFlow
-from .utils import create_linear_transform
+from .utils import create_linear_transform, create_pre_transform
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,11 @@ class RealNVP(NFlow):
     linear_transform : {'permutation', 'lu', 'svd', None}
         Linear transform to use between coupling layers. Not recommended when
         using a custom mask.
+    pre_transform : str
+        Linear transform to use before the first transform.
+    pre_transform_kwargs : dict
+        Keyword arguments to pass to the transform class used for the pre-
+        transform.
     """
 
     def __init__(
@@ -78,6 +83,8 @@ class RealNVP(NFlow):
         batch_norm_within_layers=False,
         batch_norm_between_layers=False,
         linear_transform=None,
+        pre_transform=None,
+        pre_transform_kwargs=None,
         distribution=None,
     ):
 
@@ -127,7 +134,7 @@ class RealNVP(NFlow):
                 )
 
         elif net.lower() == "mlp":
-            from .utils import MLP
+            from .nets import MLP
 
             if batch_norm_within_layers:
                 logger.warning(
@@ -154,6 +161,16 @@ class RealNVP(NFlow):
             )
 
         layers = []
+
+        if pre_transform is not None:
+            if pre_transform_kwargs is None:
+                pre_transform_kwargs = {}
+            layers.append(
+                create_pre_transform(
+                    pre_transform, features, **pre_transform_kwargs
+                )
+            )
+
         for i in range(num_layers):
             if linear_transform is not None:
                 layers.append(

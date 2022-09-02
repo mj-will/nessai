@@ -5,15 +5,17 @@ import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-from unittest.mock import MagicMock, create_autospec, patch
+from unittest.mock import MagicMock, patch
 
 from nessai.flows.utils import (
     configure_model,
     create_linear_transform,
+    create_pre_transform,
+    get_base_distribution,
+    get_n_neurons,
     silu,
     reset_weights,
     reset_permutations,
-    MLP,
 )
 
 
@@ -33,6 +35,79 @@ def test_silu():
     y = silu(x)
     expected = x.numpy() * expit(x.numpy())
     np.testing.assert_array_almost_equal(y, expected)
+
+
+def test_get_base_distribution_none():
+    """Assert that if the distribution is None, None is returned"""
+    assert get_base_distribution(2, None) is None
+
+
+def test_get_base_distribution_class_instance():
+    """Assert that if the distribution is a class instance it is returned"""
+    dist = MagicMock()
+    assert get_base_distribution(2, dist) is dist
+
+
+def test_get_base_distribution_class():
+    """Assert that if the distribution is a class is it correctly called"""
+    from nessai.flows.distributions import MultivariateNormal
+
+    dist_cls = MultivariateNormal
+    dist = get_base_distribution(2, dist_cls, var=2)
+    assert isinstance(dist, MultivariateNormal)
+    assert dist._var == 2
+
+
+def test_get_base_distribution_str():
+    """Assert that if the distribution is a str it is correctly called"""
+    from nessai.flows.distributions import MultivariateNormal
+
+    dist = get_base_distribution(2, "mvn", var=2)
+    assert isinstance(dist, MultivariateNormal)
+    assert dist._var == 2
+
+
+def test_get_base_distribution_error():
+    """Assert an unknown dist raises an error."""
+    with pytest.raises(ValueError) as excinfo:
+        get_base_distribution(2, "not_a_distribution")
+    assert "Unknown distribution: not_a_distribution" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "n_neurons, n_inputs, expected",
+    [
+        (16, 2, 16),
+        ("auto", 2, 4),
+        ("double", 2, 4),
+        (None, 2, 4),
+        ("equal", 2, 2),
+        ("half", 4, 2),
+        (None, None, 8),
+    ],
+)
+def test_get_n_neurons(n_neurons, n_inputs, expected):
+    """Assert the correct values are returned"""
+    out = get_n_neurons(n_neurons=n_neurons, n_inputs=n_inputs)
+    assert isinstance(out, int)
+    assert out == expected
+
+
+@pytest.mark.parametrize(
+    "n_neurons, n_inputs",
+    [
+        ("auto", None),
+        ("half", None),
+        ("equal", None),
+        ("double", None),
+        ("invalid", 4),
+    ],
+)
+def test_get_n_neurons_value_error(n_neurons, n_inputs):
+    """Assert a ValueError is raised if invalid inputs are given"""
+    with pytest.raises(ValueError) as excinfo:
+        get_n_neurons(n_neurons=n_neurons, n_inputs=n_inputs)
+    assert "Could not get number of neurons" in str(excinfo.value)
 
 
 def test_reset_weights_with_reset_parameters():
@@ -83,26 +158,16 @@ def test_weight_reset_permutation():
     assert not (y_init.numpy() == y_reset.numpy()).all()
 
 
-def test_mlp_forward():
-    """Test the MLP implementation of forward"""
-    mlp = create_autospec(MLP)
-    x = torch.tensor(1)
-    y = torch.tensor(2)
-    with patch("nflows.nn.nets.MLP.forward", return_value=y) as parent:
-        out = MLP.forward(mlp, x, context=None)
-    parent.assert_called_once_with(x)
-    assert out == y
+def test_reset_permutation_lu():
+    """Assert LULinear is reset correctly"""
+    from nflows.transforms import LULinear
+    from nflows.transforms.linear import LinearCache
 
-
-def test_mlp_forward_context():
-    """Assert an error is raised in the context is not None"""
-    mlp = create_autospec(MLP)
-    x = torch.tensor(1)
-    with pytest.raises(NotImplementedError) as excinfo:
-        MLP.forward(mlp, x, context=x)
-    assert "MLP with conditional inputs is not implemented." in str(
-        excinfo.value
-    )
+    lu = MagicMock(spec=LULinear)
+    lu.cache = MagicMock(spec=LinearCache)
+    reset_permutations(lu)
+    lu.cache.invalidate.assert_called_once()
+    lu._initialize.assert_called_once_with(identity_init=True)
 
 
 def test_configure_model_basic(config):
@@ -211,6 +276,18 @@ def test_configure_model_activation_functions(config, act):
     )
 
 
+def test_configure_model_distribution(config):
+    """Assert distribution is added to the kwargs"""
+    config["distribution"] = "mvn"
+    dist = MagicMock()
+    with patch(
+        "nessai.flows.utils.get_base_distribution", return_value=dist
+    ), patch("nessai.flows.realnvp.RealNVP") as mock:
+        configure_model(config)
+    assert "distribution" in mock.call_args[1]
+    assert mock.call_args[1]["distribution"] is dist
+
+
 def test_configure_model_ftype_error(config):
     """Assert unknown types of flow raise an error."""
     config.pop("ftype")
@@ -235,6 +312,24 @@ def test_configure_model_unknown_activation(config):
     assert "Unknown activation function: 'test'" in str(excinfo.value)
 
 
+def test_configure_model_invalid_device(caplog, config):
+    """Assert warning is raised and the device is set to CPU"""
+    from nessai.flows.base import NFlow
+
+    config["device_tag"] = "cpu"
+    flow = MagicMock(spec=NFlow)
+
+    def raise_error(input):
+        raise RuntimeError("An error")
+
+    flow.to = MagicMock(side_effect=raise_error)
+    with caplog.at_level(logging.WARNING), patch(
+        "nessai.flows.realnvp.RealNVP", return_value=flow
+    ):
+        configure_model(config)
+    assert "Could not send the normalising flow to" in caplog.text
+
+
 @pytest.mark.parametrize("linear_transform", ["lu", "permutation", "svd"])
 def test_create_linear_transform(linear_transform):
     """Test creating a linear transform."""
@@ -247,3 +342,17 @@ def test_create_linear_transform_unknown():
     with pytest.raises(ValueError) as excinfo:
         create_linear_transform("not_a_transform", 2)
     assert "Unknown linear transform: not_a_transform" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("pre_transform", ["logit", "batch_norm"])
+def test_create_pre_transform(pre_transform):
+    """Test creating a pre-transform"""
+    out = create_pre_transform(pre_transform, 2)
+    assert out is not None
+
+
+def test_create_pre_transform_unknown():
+    """Assert an error is raised for an unknown pre-transform"""
+    with pytest.raises(ValueError) as excinfo:
+        create_pre_transform("not_a_transform", 2)
+    assert "Unknown pre-transform: not_a_transform" in str(excinfo.value)

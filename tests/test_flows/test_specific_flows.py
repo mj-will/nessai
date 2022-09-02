@@ -24,6 +24,8 @@ from nessai.flows import (
         dict(linear_transform=None),
         dict(mask=np.array([[1, -1], [-1, 1]])),
         dict(mask=[1, -1]),
+        dict(pre_transform="batch_norm"),
+        dict(pre_transform="batch_norm", pre_transform_kwargs=dict(eps=1e-8)),
     ],
 )
 def test_with_realnvp_kwargs(kwargs):

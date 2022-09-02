@@ -122,6 +122,43 @@ class BaseFlow(Module, ABC):
         """
         raise NotImplementedError()
 
+    def finalise(self):
+        """Finalise the flow after training.
+
+        Will be called after training the flow and loading the best weights.
+        For example, can be used to finalise the Monte Carlo estimate of the
+        normalising constant used in a LARS based flow.
+
+        By default does nothing and should be implemented by the user.
+        """
+        pass
+
+    def end_iteration(self):
+        """Update the model at the end of an iteration.
+
+        Will be called between training and validation.
+
+        By default does nothing and should be overridden by an class that
+        inherit from this class.
+        """
+        pass
+
+    @abstractmethod
+    def freeze_transform(self):
+        """Freeze the transform part of the flow.
+
+        Must be implemented by the child class.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def unfreeze_transform(self):
+        """Unfreeze the transform part of the flow.
+
+        Must be implemented by the child class.
+        """
+        raise NotImplementedError()
+
 
 class NFlow(BaseFlow):
     """
@@ -235,3 +272,32 @@ class NFlow(BaseFlow):
         samples, logabsdet = self._transform.inverse(z, context=context)
 
         return samples, log_prob - logabsdet
+
+    def finalise(self):
+        """Finalise the flow after training.
+
+        Checks if the base distribution or transform have finalise methods
+        and calls them.
+        """
+        if hasattr(self._distribution, "finalise"):
+            self._distribution.finalise()
+        if hasattr(self._transform, "finalise"):
+            self._transform.finalise()
+
+    def end_iteration(self):
+        """Update the model at the end of an iteration.
+
+        Will be called between training and validation.
+        """
+        if hasattr(self._distribution, "end_iteration"):
+            self._distribution.end_iteration()
+        if hasattr(self._transform, "end_iteration"):
+            self._transform.end_iteration()
+
+    def freeze_transform(self):
+        """Freeze the transform part of the flow"""
+        self._transform.requires_grad_(False)
+
+    def unfreeze_transform(self):
+        """Unfreeze the transform part of the flow"""
+        self._transform.requires_grad_(True)
