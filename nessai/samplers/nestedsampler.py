@@ -252,6 +252,10 @@ class NestedSampler(BaseNestedSampler):
         return self.state.logZ
 
     @property
+    def log_evidence_error(self):
+        return self.state.log_evidence_error
+
+    @property
     def information(self):
         return self.state.info[-1]
 
