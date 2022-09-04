@@ -69,7 +69,7 @@ def test_resume(model, flow_config):
             "test.pkl",
             model,
             flow_config=flow_config,
-            weights_file=weights_file,
+            weights_path=weights_file,
         )
     assert out is obj
     mock.assert_called_once_with("test.pkl", model)
