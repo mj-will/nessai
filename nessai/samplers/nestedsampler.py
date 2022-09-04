@@ -160,7 +160,7 @@ class NestedSampler(BaseNestedSampler):
         resume_file=None,
         seed=None,
         pool=None,
-        close_pool=True,
+        close_pool=False,
         n_pool=None,
         plot=True,
         proposal_plots=False,
