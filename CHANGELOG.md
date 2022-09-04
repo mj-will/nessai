@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Change how threading is handled to no longer use `max_threads`.
 - Refactor `nessai.nestedsampler` into the `nessai.samplers` submodule.
+- Change how `noise_scale` is configured `FlowModel`. User can now specify `noise_type` and `noise_scale`.
+
+### Fixed
+
+- Fixed a bug in `nessai.flows.utils.configure_model` that only occurred when the specified `device_tag` is invalid.
 
 ### Fixed
 

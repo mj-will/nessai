@@ -3,6 +3,7 @@
 Utilities for configuring FlowModel.
 """
 from .config import DEFAULT_MODEL_CONFIG, DEFAULT_FLOW_CONFIG
+from ..flows.utils import get_n_neurons
 
 
 def update_config(d):
@@ -41,21 +42,23 @@ def update_config(d):
         else:
             default.update(d)
             default_model.update(d.get("model_config", {}))
-            if default_model["n_neurons"] is None:
-                if default_model["n_inputs"] is not None:
-                    default_model["n_neurons"] = 2 * default_model["n_inputs"]
-                else:
-                    default_model["n_neurons"] = 8
-
+            default_model["n_neurons"] = get_n_neurons(
+                n_neurons=default_model.get("n_neurons"),
+                n_inputs=default_model.get("n_inputs"),
+            )
             default["model_config"] = default_model
 
-    if (
-        not isinstance(default["noise_scale"], float)
-        and not default["noise_scale"] == "adaptive"
-    ):
-        raise ValueError(
-            "noise_scale must be a float or 'adaptive'. "
-            f"Received: {default['noise_scale']}"
+    if default["noise_type"] is not None and default["noise_scale"] is None:
+        raise RuntimeError(
+            "`noise_scale` must be specified when `noise_type` is given."
+        )
+    if isinstance(default["noise_scale"], float):
+        if default["noise_type"] is None:
+            default["noise_type"] = "constant"
+    elif default["noise_scale"] is not None:
+        raise TypeError(
+            "`noise_scale` must be a float. "
+            f"'Got type: {type(default['noise_scale'])}"
         )
 
     return default

@@ -14,6 +14,7 @@ from torch.nn.utils import clip_grad_norm_
 from .utils import update_config
 
 from ..flows import configure_model, reset_weights, reset_permutations
+from ..flows.base import BaseFlow
 from ..plot import plot_loss
 from ..utils import NessaiJSONEncoder, compute_minimum_distances
 
@@ -41,6 +42,9 @@ class FlowModel:
     """
 
     model_config = None
+    noise_scale = None
+    noise_type = None
+    model: BaseFlow = None
 
     def __init__(self, config=None, output=None):
         if output is None:
@@ -48,12 +52,14 @@ class FlowModel:
         self.model = None
         self.initialised = False
         self.output = output
+        os.makedirs(self.output, exist_ok=True)
         self.setup_from_input_dict(config)
         self.weights_file = None
 
         self.device = None
         self.inference_device = None
         self.use_dataloader = False
+        self._batch_size = None
 
     def save_input(self, config, output_file=None):
         """
@@ -171,7 +177,53 @@ class FlowModel:
         if update_default:
             self.device = device
 
-    def prep_data(self, samples, val_size, batch_size, use_dataloader=False):
+    @staticmethod
+    def check_batch_size(x, batch_size, min_fraction=0.1):
+        """Check that the batch size is valid.
+
+        Tries to ensure that the last batch is at least a minimum fraction of
+        the size of the batch size.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            Training data.
+        batch_size : int
+            The user-specified batch size
+        min_fraction : float
+            Fraction of user-specified batch size to use a lower limit.
+        """
+        logger.debug("Checking batch size")
+        if batch_size == 1:
+            raise ValueError("Cannot use a batch size of 1!")
+        min_batch_size = int(min_fraction * batch_size)
+        final_batch_size = len(x) % batch_size
+        if final_batch_size and (final_batch_size < min_batch_size):
+            logger.debug(
+                "Adjusting batch size to ensure final batch has at least "
+                f"{min_batch_size} samples in it."
+            )
+            while True:
+                batch_size -= 1
+                final_batch_size = len(x) % batch_size
+                if batch_size < 2:
+                    raise RuntimeError("Could not find a valid batch size")
+                elif (final_batch_size == 0) or (
+                    final_batch_size >= min_batch_size
+                ):
+                    break
+                elif (batch_size <= min_batch_size) and final_batch_size > 1:
+                    logger.warning(
+                        f"Batch size is less than {min_batch_size} but valid. "
+                        f"Setting batch size to: {batch_size}"
+                    )
+                    break
+        logger.debug(f"Using valid batch size of: {batch_size}")
+        return batch_size
+
+    def prep_data(
+        self, samples, val_size, batch_size, weights=None, use_dataloader=False
+    ):
         """
         Prep data and return dataloaders for training
 
@@ -186,6 +238,9 @@ class FlowModel:
             Batch size used when constructing dataloaders.
         use_dataloader : bool, optional
             If True data is returned in a dataloader else a tensor is returned.
+        weights : array_like, optional
+            Array of weights for each sample, weights will used when computing
+            the loss.
 
         Returns
         -------
@@ -195,46 +250,88 @@ class FlowModel:
         if not self.initialised:
             self.initialise()
 
+        if not np.isfinite(samples).all():
+            raise ValueError("Cannot train with non-finite samples!")
+
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
+        if weights is not None:
+            if not np.isfinite(weights).all():
+                raise ValueError("Weights contain non-finite values!")
+            weights = weights[idx]
+            use_dataloader = True
 
         logger.debug("N input samples: {}".format(len(samples)))
 
         # setup data loading
+        if val_size is None:
+            val_size = 0
         n = int((1 - val_size) * samples.shape[0])
         x_train, x_val = samples[:n], samples[n:]
+        if weights is not None:
+            weights_train = weights[:n]
+            weights_val = weights[n:]
         logger.debug(f"{x_train.shape} training samples")
         logger.debug(f"{x_val.shape} validation samples")
 
         if not type(batch_size) is int:
-            if batch_size == "all":
-                self.batch_size = x_train.shape[0]
+            if batch_size == "all" or batch_size is None:
+                batch_size = x_train.shape[0]
             else:
                 raise RuntimeError(f"Unknown batch size: {batch_size}")
-        else:
-            self.batch_size = batch_size
+
+        batch_size = self.check_batch_size(x_train, batch_size)
+        self._batch_size = batch_size
+        # Validation size cannot be bigger than the batch size
+        val_batch_size = min(len(x_val), batch_size) if len(x_val) else None
+
         dtype = torch.get_default_dtype()
+        logger.debug(f"Using dtype {dtype} for tensors")
         if use_dataloader:
             logger.debug("Using dataloaders")
-            train_tensor = torch.from_numpy(x_train).type(dtype)
-            train_dataset = torch.utils.data.TensorDataset(train_tensor)
+            train_tensors = [torch.from_numpy(x_train).type(dtype)]
+            val_tensors = [torch.from_numpy(x_val).type(dtype)]
+
+            if weights is not None:
+                train_tensors.append(
+                    torch.from_numpy(weights_train).type(dtype)
+                )
+                val_tensors.append(torch.from_numpy(weights_val).type(dtype))
+
+            train_dataset = torch.utils.data.TensorDataset(*train_tensors)
             train_data = torch.utils.data.DataLoader(
-                train_dataset, batch_size=self.batch_size, shuffle=True
+                train_dataset, batch_size=batch_size, shuffle=True
             )
 
-            val_tensor = torch.from_numpy(x_val).type(dtype)
-            val_dataset = torch.utils.data.TensorDataset(val_tensor)
+            val_dataset = torch.utils.data.TensorDataset(*val_tensors)
             val_data = torch.utils.data.DataLoader(
-                val_dataset, batch_size=x_val.shape[0], shuffle=False
+                val_dataset, batch_size=val_batch_size, shuffle=False
             )
         else:
             logger.debug("Using tensors")
             train_data = torch.from_numpy(x_train).type(dtype).to(self.device)
             val_data = torch.from_numpy(x_val).type(dtype).to(self.device)
 
-        return train_data, val_data
+        return train_data, val_data, batch_size
 
-    def _train(self, train_data, noise_scale=0.0, is_dataloader=False):
+    def end_iteration(self):
+        """Calls any functions that should be applied at the end of the \
+            iteration.
+
+        This functions is called after the flow has been updated on all batches
+        of data but before the validation step.
+
+        Calls :py:meth:`nessai.flows.base.BaseFlow.end_iteration`
+        """
+        self.model.end_iteration()
+
+    def _train(
+        self,
+        train_data,
+        noise_scale=0.0,
+        is_dataloader=False,
+        weighted=False,
+    ):
         """
         Loop over the data and update the weights
 
@@ -247,6 +344,9 @@ class FlowModel:
             Scale of Gaussian noise added to data.
         is_dataloader : bool, optional
             Must be True when using a dataloader
+        weighted : bool
+            If True the weighted KL will be used to compute the loss. Requires
+            data to include weights.
 
         Returns
         -------
@@ -259,6 +359,13 @@ class FlowModel:
 
         if hasattr(model, "loss_function"):
             loss_fn = model.loss_function
+        elif weighted:
+
+            def loss_fn(data, weights):
+                return -torch.sum(model.log_prob(data) * weights) / torch.sum(
+                    weights
+                )
+
         else:
 
             def loss_fn(data):
@@ -266,17 +373,23 @@ class FlowModel:
 
         if not is_dataloader:
             p = torch.randperm(train_data.shape[0])
-            train_data = train_data[p, :].split(self.batch_size)
+            train_data = train_data[p, :].split(self._batch_size)
 
         n = 0
         for data in train_data:
             if is_dataloader:
-                data = data[0].to(self.device)
+                x = data[0].to(self.device)
+            else:
+                x = data
             if noise_scale:
-                data += noise_scale * torch.randn_like(data)
+                x = x + noise_scale * torch.randn_like(x)
             for param in model.parameters():
                 param.grad = None
-            loss = loss_fn(data)
+            if weighted:
+                weights = data[1].to(self.device)
+                loss = loss_fn(x, weights)
+            else:
+                loss = loss_fn(x)
             train_loss += loss.item()
             loss.backward()
             if self.clip_grad_norm:
@@ -284,12 +397,14 @@ class FlowModel:
             self._optimiser.step()
             n += 1
 
+        self.end_iteration()
+
         if self.annealing:
             self.scheduler.step()
 
         return train_loss / n
 
-    def _validate(self, val_data, is_dataloader=False):
+    def _validate(self, val_data, is_dataloader=False, weighted=False):
         """
         Loop over the data and get validation loss
 
@@ -299,18 +414,30 @@ class FlowModel:
             Dataloader with data to validate on
         is_dataloader : bool, optional
             Boolean to indicate if the data is a dataloader
+        weighted : bool
+            If True the weighted KL will be used to compute the loss. Requires
+            data to include weights.
 
         Returns
         -------
         float
             Mean of training loss for each batch.
         """
+        if not len(val_data):
+            return np.nan
         model = self.model
         model.eval()
         val_loss = 0
 
         if hasattr(model, "loss_function"):
             loss_fn = model.loss_function
+        elif weighted:
+
+            def loss_fn(data, weights):
+                return -torch.sum(model.log_prob(data) * weights) / torch.sum(
+                    weights
+                )
+
         else:
 
             def loss_fn(data):
@@ -320,9 +447,14 @@ class FlowModel:
             n = 0
             for data in val_data:
                 if is_dataloader:
-                    data = data[0].to(self.device)
-                with torch.no_grad():
-                    val_loss += loss_fn(data).item()
+                    x = data[0].to(self.device)
+                if weighted:
+                    weights = data[1].to(self.device)
+                    with torch.no_grad():
+                        val_loss += loss_fn(x, weights).item()
+                else:
+                    with torch.no_grad():
+                        val_loss += loss_fn(x).item()
                 n += 1
 
             return val_loss / n
@@ -331,9 +463,15 @@ class FlowModel:
                 val_loss += loss_fn(val_data).item()
             return val_loss
 
+    def finalise(self):
+        """Method to finalise the flow before using it for inference."""
+        logger.debug("Finalising model before inference.")
+        self.model.finalise()
+
     def train(
         self,
         samples,
+        weights=None,
         max_epochs=None,
         patience=None,
         output=None,
@@ -350,6 +488,8 @@ class FlowModel:
         ----------
         samples : ndarray
             Unstructured numpy array containing data to train on
+        weights : array_like
+            Array of weights to use with the weight KL when computing the loss.
         max_epochs : int, optional
             Maximum number of epochs that is used instead of value
             in the configuration.
@@ -363,10 +503,22 @@ class FlowModel:
             specified when the object is initialised
         plot : bool, optional
             Boolean to enable or disable plotting the loss function
+
+        Returns
+        -------
+        history : dict
+            Dictionary that contains the training and validation losses.
         """
         if not self.initialised:
             logger.info("Initialising")
             self.initialise()
+
+        if not np.isfinite(samples).all():
+            raise ValueError("Training data is not finite")
+
+        logger.debug("Data summary:")
+        logger.debug(f"Mean: {np.mean(samples, axis=0)}")
+        logger.debug(f"Standard deviation: {np.std(samples, axis=0, ddof=1)}")
 
         if output is None:
             output = self.output
@@ -376,19 +528,33 @@ class FlowModel:
         if val_size is None:
             val_size = self.val_size
 
-        if self.noise_scale == "adaptive":
-            noise_scale = 0.2 * np.mean(compute_minimum_distances(samples))
-            logger.debug(f"Using adaptive scale: {noise_scale:.3f}")
+        if val_size == 0.0:
+            validate = False
         else:
+            validate = True
+
+        if self.noise_type == "adaptive":
+            noise_scale = self.noise_scale * np.mean(
+                compute_minimum_distances(samples)
+            )
+            logger.debug(f"Using adaptive scale: {noise_scale:.3f}")
+        elif self.noise_type == "constant":
             noise_scale = self.noise_scale
+        else:
+            logger.debug("No noise will be added in training")
+            noise_scale = None
 
         self.move_to(self.device)
 
-        train_data, val_data = self.prep_data(
+        weighted = True if weights is not None else False
+        use_dataloader = self.use_dataloader or weighted
+
+        train_data, val_data, _ = self.prep_data(
             samples,
             val_size=val_size,
             batch_size=self.batch_size,
-            use_dataloader=self.use_dataloader,
+            weights=weights,
+            use_dataloader=use_dataloader,
         )
 
         if max_epochs is None:
@@ -406,27 +572,29 @@ class FlowModel:
         logger.info("Training parameters:")
         logger.info(f"Max. epochs: {max_epochs}")
         logger.info(f"Patience: {patience}")
+        logger.info(f"Training with {samples.shape[0]} samples")
 
-        if plot:
-            history = dict(loss=[], val_loss=[])
+        history = dict(loss=[], val_loss=[])
 
         current_weights_file = os.path.join(output, "model.pt")
-        logger.debug(f"Training with {samples.shape[0]} samples")
+
         for epoch in range(1, max_epochs + 1):
 
             loss = self._train(
                 train_data,
                 noise_scale=noise_scale,
-                is_dataloader=self.use_dataloader,
+                is_dataloader=use_dataloader,
+                weighted=weighted,
             )
             val_loss = self._validate(
-                val_data, is_dataloader=self.use_dataloader
+                val_data,
+                is_dataloader=use_dataloader,
+                weighted=weighted,
             )
-            if plot:
-                history["loss"].append(loss)
-                history["val_loss"].append(val_loss)
+            history["loss"].append(loss)
+            history["val_loss"].append(val_loss)
 
-            if val_loss < best_val_loss:
+            if validate and (val_loss < best_val_loss):
                 best_epoch = epoch
                 best_val_loss = val_loss
                 best_model = copy.deepcopy(self.model.state_dict())
@@ -436,14 +604,20 @@ class FlowModel:
                     f"Epoch {epoch}: loss: {loss:.3} val loss: {val_loss:.3}"
                 )
 
-            if epoch - best_epoch > patience:
+            if validate and (epoch - best_epoch > patience):
                 logger.info(f"Epoch {epoch}: Reached patience")
                 break
 
-        # Make sure caches are reset
+        logger.debug("Finished training")
+
+        # Make sure cache for LU is reset.
         self.model.train()
         self.model.eval()
-        self.model.load_state_dict(best_model)
+        if validate:
+            logger.debug(f"Loading best model from epoch {best_epoch}")
+            self.model.load_state_dict(best_model)
+        self.finalise()
+
         self.save_weights(current_weights_file)
         self.move_to(self.inference_device)
         self.model.eval()
@@ -452,6 +626,7 @@ class FlowModel:
             plot_loss(
                 epoch, history, filename=os.path.join(output, "loss.png")
             )
+        return history
 
     def save_weights(self, weights_file):
         """
@@ -557,9 +732,50 @@ class FlowModel:
         with torch.no_grad():
             z, log_prob = self.model.forward_and_log_prob(x)
 
-        z = z.detach().cpu().numpy()
-        log_prob = log_prob.detach().cpu().numpy()
+        z = z.detach().cpu().numpy().astype(np.float64)
+        log_prob = log_prob.detach().cpu().numpy().astype(np.float64)
         return z, log_prob
+
+    def log_prob(self, x: np.ndarray) -> np.ndarray:
+        """Compute the log-probability of a sample.
+
+        Parameters
+        ----------
+        x : ndarray
+            Array of samples in the X-prime space.
+
+        Returns
+        -------
+        ndarray
+            Array of log-probabilities.
+        """
+        x = (
+            torch.from_numpy(x)
+            .type(torch.get_default_dtype())
+            .to(self.model.device)
+        )
+        self.model.eval()
+        with torch.no_grad():
+            log_prob = self.model.log_prob(x)
+        log_prob = log_prob.cpu().numpy().astype(np.float64)
+        return log_prob
+
+    def sample(self, n: int = 1) -> np.ndarray:
+        """Sample from the flow.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples to draw
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of samples
+        """
+        with torch.no_grad():
+            x = self.model.sample(int(n))
+        return x.cpu().numpy().astype(np.float64)
 
     def sample_and_log_prob(self, N=1, z=None, alt_dist=None):
         """
@@ -593,7 +809,7 @@ class FlowModel:
             self.model.eval()
         if z is None:
             with torch.no_grad():
-                x, log_prob = self.model.sample_and_log_prob(N)
+                x, log_prob = self.model.sample_and_log_prob(int(N))
         else:
             if alt_dist is not None:
                 log_prob_fn = alt_dist.log_prob
@@ -611,8 +827,8 @@ class FlowModel:
                 x, log_J = self.model.inverse(z, context=None)
                 log_prob -= log_J
 
-        x = x.detach().cpu().numpy()
-        log_prob = log_prob.detach().cpu().numpy()
+        x = x.detach().cpu().numpy().astype(np.float64)
+        log_prob = log_prob.detach().cpu().numpy().astype(np.float64)
         return x, log_prob
 
     def __getstate__(self):

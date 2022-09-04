@@ -3,6 +3,7 @@
 Test the FlowModel utils.
 """
 import pytest
+from unittest.mock import patch
 
 from nessai.flowmodel import update_config
 
@@ -20,17 +21,37 @@ def test_update_config_invalid_type():
     assert "Must pass a dictionary" in str(excinfo.value)
 
 
-@pytest.mark.parametrize("noise_scale", ["auto", 4])
-def test_update_config_invalid_noise_scale(noise_scale):
-    """Assert an error is raised if noise_scale is not a float or adapative."""
-    config = {"noise_scale": noise_scale}
-    with pytest.raises(ValueError) as excinfo:
+def test_update_config_invalid_noise_scale():
+    """Assert an error is raised if noise_scale is not a float"""
+    config = {"noise_scale": "auto", "noise_type": "adaptive"}
+    with pytest.raises(TypeError) as excinfo:
         update_config(config)
-    assert "noise_scale must be a float or" in str(excinfo.value)
+    assert "`noise_scale` must be a float" in str(excinfo.value)
+
+
+def test_update_config_missing_noise_type():
+    """Assert noise type is set if only `noise_scale` is given"""
+    config = {"noise_scale": 1.0}
+    out = update_config(config)
+    assert out["noise_type"] == "constant"
+
+
+def test_update_config_missing_noise_scale():
+    """Assert an error is raised if noise_scaling is missing when noise_type is
+    set.
+    """
+    config = {"noise_type": "constant"}
+    with pytest.raises(RuntimeError) as excinfo:
+        update_config(config)
+    assert "`noise_scale` must be specified" in str(excinfo.value)
 
 
 def test_update_config_n_neurons():
-    """Assert the n_neurons is set to 2x n_inputs"""
+    """Assert `get_n_neurons` is called"""
     config = dict(model_config=dict(n_inputs=10))
-    config = update_config(config)
+    with patch(
+        "nessai.flowmodel.utils.get_n_neurons", return_value=20
+    ) as mock:
+        config = update_config(config)
+    mock.assert_called_once_with(n_neurons=None, n_inputs=10)
     assert config["model_config"]["n_neurons"] == 20
