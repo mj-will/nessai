@@ -24,6 +24,12 @@ def test_log_evidence(sampler):
     assert NestedSampler.log_evidence.__get__(sampler) == -2
 
 
+def test_log_evidence_error(sampler):
+    """Check the log-evidence error is returned"""
+    sampler.state.log_evidence_error = 0.1
+    assert NestedSampler.log_evidence_error.__get__(sampler) == 0.1
+
+
 def test_information(sampler):
     """Check most recent information estimate is returned"""
     sampler.state.info = [1, 2, 3]

@@ -35,6 +35,7 @@ def sampler(sampler):
     sampler.state = MagicMock()
     sampler.state.logZ = -50.0
     sampler.state.info = [0.0]
+    sampler.state.log_evidence_error = 0.1
 
     sampler.proposal = MagicMock()
     sampler.proposal.r = 2.0

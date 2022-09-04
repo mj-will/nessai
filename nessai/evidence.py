@@ -72,6 +72,16 @@ class _NSIntegralState:
         self.reset()
         self.track_gradients = track_gradients
 
+    @property
+    def log_evidence(self):
+        """The current log-evidence."""
+        return self.logZ
+
+    @property
+    def log_evidence_error(self):
+        """The current error on the log-evidence."""
+        return np.sqrt(self.info[-1] / self.nlive)
+
     def reset(self):
         """
         Reset the sampler to its initial state at logZ = -infinity

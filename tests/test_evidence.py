@@ -2,6 +2,7 @@
 """
 Test the object that handles the nested sampling evidence and prior volumes.
 """
+from unittest.mock import create_autospec
 import numpy as np
 import pytest
 
@@ -14,6 +15,11 @@ from nessai.evidence import (
 @pytest.fixture()
 def nlive():
     return 100
+
+
+@pytest.fixture()
+def ns_state():
+    return create_autospec(_NSIntegralState)
 
 
 def test_logsubexp_negative():
@@ -32,6 +38,23 @@ def test_increment(nlive):
     assert state.logw == (-1 / nlive)
     assert state.logZ != -np.inf
     np.testing.assert_equal(state.logLs, [-np.inf, -10])
+
+
+def test_log_evidence(ns_state):
+    """Assert the log-evidence property returns the correct value"""
+    expected = 1.0
+    ns_state.logZ = expected
+    out = _NSIntegralState.log_evidence.__get__(ns_state)
+    assert out == expected
+
+
+def test_log_evidence_error(ns_state, nlive):
+    """Assert the log-evidence error property returns the correct value"""
+    expected = np.sqrt(10 / nlive)
+    ns_state.info = [1, 5, 10]
+    ns_state.nlive = nlive
+    out = _NSIntegralState.log_evidence_error.__get__(ns_state)
+    assert out == expected
 
 
 def test_finalise(nlive):

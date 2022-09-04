@@ -26,6 +26,7 @@ def sampler(sampler):
     sampler.state = MagicMock()
     sampler.state.logZ = -4.0
     sampler.state.info = [0.0]
+    sampler.state.log_evidence_error = 0.1
     sampler.nlive = 4
     sampler.nested_samples = []
     sampler.iteration = 0
