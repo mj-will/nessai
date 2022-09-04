@@ -277,7 +277,7 @@ def test_get_distance_converter(prior, cls):
 
 
 @pytest.mark.parametrize("power", [1, 2, 3, 4])
-@pytest.mark.flaky(run=5)
+@pytest.mark.flaky(reruns=5)
 @pytest.mark.integration_test
 def test_power_law_converter_distribution(power):
     """
