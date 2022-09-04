@@ -285,7 +285,7 @@ def determine_rescaled_bounds(
         raise ValueError(f"Invalid value for `invert`: {invert}")
 
 
-def logit(x, fuzz=1e-12):
+def logit(x, eps=None):
     """Logit function that also returns log Jacobian determinant.
 
     See :py:func:`nessai.utils.rescaling.sigmoid` for the inverse.
@@ -294,9 +294,9 @@ def logit(x, fuzz=1e-12):
     ----------
     x : float or ndarray
         Array of values
-    fuzz : float, optional
-        Fuzz used to avoid nans in logit. Values are rescaled from [0, 1]
-        to [0-fuzz, 1+fuzz].
+    eps : float, optional
+        Epsilon value used to clamp inputs to [eps, 1 - eps]. If None, then
+        inputs are not clamped.
 
     Returns
     -------
@@ -305,16 +305,13 @@ def logit(x, fuzz=1e-12):
     float or ndarray
         Log Jacobian determinant.
     """
-    if fuzz:
-        x += fuzz
-        x /= 1 + 2 * fuzz
+    if eps:
+        x = np.clip(x, eps, 1 - eps)
     log_j = -np.log(x) - np.log1p(-x)
-    if fuzz:
-        log_j -= np.log(1 + 2 * fuzz)
     return np.log(x) - np.log1p(-x), log_j
 
 
-def sigmoid(x, fuzz=1e-12):
+def sigmoid(x):
     """Sigmoid function that also returns log Jacobian determinant.
 
     See :py:func:`nessai.utils.rescaling.logit` for the inverse.
@@ -323,8 +320,6 @@ def sigmoid(x, fuzz=1e-12):
     ----------
     x : float or ndarray
         Array of values
-    fuzz : float, optional
-        Fuzz used to avoid nans in logit
 
     Returns
     -------
@@ -335,10 +330,6 @@ def sigmoid(x, fuzz=1e-12):
     """
     x = np.divide(1, 1 + np.exp(-x))
     log_j = np.log(x) + np.log1p(-x)
-    if fuzz:
-        x *= 1 + 2 * fuzz
-        x -= fuzz
-        log_j += np.log(1 + 2 * fuzz)
     return x, log_j
 
 
