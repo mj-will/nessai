@@ -333,4 +333,24 @@ def sigmoid(x):
     return x, log_j
 
 
+def logistic_function(x, x0=0.0, k=1.0):
+    """Logistic function with configurable midpoint and gradient.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Samples to apply function to
+    x0 : float
+        Midpoint
+    k: float
+        Gradient
+
+    Returns
+    -------
+    np.ndarrary
+        Value of logistic function for each x.
+    """
+    return 1.0 / (1 + np.exp(-k * (x - x0)))
+
+
 rescaling_functions = {"logit": (logit, sigmoid)}

@@ -13,6 +13,7 @@ from nessai.utils.rescaling import (
     determine_rescaled_bounds,
     inverse_rescale_minus_one_to_one,
     inverse_rescale_zero_to_one,
+    logistic_function,
     rescale_minus_one_to_one,
     rescale_zero_to_one,
     logit,
@@ -204,3 +205,16 @@ def test_sigmoid_logit(p, eps):
     y = logit(x[0], eps=eps)
     np.testing.assert_almost_equal(p, y[0], decimal=10)
     np.testing.assert_almost_equal(x[1] + y[1], 0.0, decimal=10)
+
+
+def test_logistic_function():
+    """Assert correct value is returned when k and x0 are specified"""
+    assert logistic_function(0.0, 3.0, 2.0) == (1 / (1 + np.exp(6)))
+
+
+def test_logistic_function_reference():
+    """Compare the logistic function to a reference from scipy"""
+    from scipy.special import expit
+
+    x = np.array([-5.0, 0.0, 5.0])
+    np.testing.assert_array_equal(logistic_function(x), expit(x))
