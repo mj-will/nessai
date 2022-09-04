@@ -602,7 +602,7 @@ class NestedSampler(BaseNestedSampler):
                 f"logL: {self.logLmin:.5f} --> {proposed['logL']:.5f} "
                 f"dZ: {self.condition:.3f} "
                 f"logZ: {self.state.logZ:.3f} "
-                f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
+                f"+/- {self.state.log_evidence_error:.3f} "
                 f"logLmax: {self.logLmax:.2f}"
             )
 
@@ -1056,7 +1056,7 @@ class NestedSampler(BaseNestedSampler):
                 f"n eval: {self.likelihood_calls} "
                 f"H: {self.state.info[-1]:.2f} "
                 f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
-                f"+/- {np.sqrt(self.state.info[-1] / self.nlive):.3f} "
+                f"+/- {self.state.log_evidence_error:.3f} "
                 f"logLmax: {self.logLmax:.2f}"
             )
             if self.checkpointing:
@@ -1174,7 +1174,7 @@ class NestedSampler(BaseNestedSampler):
 
         logger.critical(
             f"Final evidence: {self.state.logZ:.3f} +/- "
-            f"{np.sqrt(self.state.info[-1] / self.nlive):.3f}"
+            f"{self.state.log_evidence_error}"
         )
         logger.critical("Information: {0:.2f}".format(self.state.info[-1]))
 
@@ -1224,6 +1224,7 @@ class NestedSampler(BaseNestedSampler):
             np.array(self.nested_samples)
         )
         d["log_evidence"] = self.log_evidence
+        d["log_evidence_error"] = self.state.log_evidence_error
         d["information"] = self.information
         d["training_time"] = self.training_time.total_seconds()
         d["population_time"] = self.proposal_population_time.total_seconds()
