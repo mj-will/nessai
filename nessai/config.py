@@ -4,6 +4,9 @@ Global configuration for nessai.
 """
 import numpy as np
 
+EPS = 1e-7
+"""Epsilon value used for numerical stability"""
+
 # Settings for live points
 LOGL_DTYPE = "f8"
 IT_DTYPE = "i4"
