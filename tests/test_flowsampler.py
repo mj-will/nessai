@@ -379,6 +379,7 @@ def test_safe_exit(flow_sampler):
 @pytest.mark.integration_test
 @pytest.mark.timeout(30)
 @pytest.mark.skip_on_windows
+@pytest.mark.flaky(reruns=3)
 def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
     """Test the signal handling in nessai.
 
