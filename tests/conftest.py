@@ -9,6 +9,11 @@ import time
 import torch
 import multiprocessing
 
+from nessai import config
+from nessai.livepoint import (
+    add_extra_parameters_to_live_points,
+    reset_extra_live_points_parameters,
+)
 from nessai.model import Model
 
 
@@ -81,13 +86,26 @@ def mp_context(request):
     return multiprocessing.get_context(request.param)
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--bilby-compatibility",
-        action="store_true",
-        default=False,
-        help="Run bilby compatibility tests",
-    )
+@pytest.fixture()
+def ins_parameters():
+    """Add (and remove) the standard INS parameters for the tests."""
+    # Before every test
+    add_extra_parameters_to_live_points(["logQ", "logW"])
+    global EXTRA_PARAMS_DTYPE
+    EXTRA_PARAMS_DTYPE = [
+        (nsp, d)
+        for nsp, d in zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        )
+    ]
+    yield
+    reset_extra_live_points_parameters()
+    EXTRA_PARAMS_DTYPE = [
+        (nsp, d)
+        for nsp, d in zip(
+            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        )
+    ]
 
 
 def pytest_configure(config):
@@ -109,6 +127,15 @@ def pytest_configure(config):
         "markers",
         "bilby_compatibility: mark test as a bilby compatibility test, these "
         "tests will be skipped unless the command line option is specified.",
+    )
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--bilby-compatibility",
+        action="store_true",
+        default=False,
+        help="Run bilby compatibility tests",
     )
 
 
