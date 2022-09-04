@@ -101,7 +101,7 @@ def test_draw_gaussian():
         (7.0, 4.0, 2.0),
     ],
 )
-@pytest.mark.flaky(run=10)
+@pytest.mark.flaky(reruns=5)
 def test_draw_truncated_gaussian_1d(r, var, fuzz):
     """
     Test drawing from a truncated Gaussian in 1d

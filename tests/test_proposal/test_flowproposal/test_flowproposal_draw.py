@@ -86,7 +86,7 @@ def test_test_draw(proposal):
 
 
 @pytest.mark.timeout(10)
-@pytest.mark.flaky(run=3)
+@pytest.mark.flaky(reruns=3)
 @pytest.mark.integration_test
 def test_test_draw_integration(model, tmpdir):
     """Integration test for the test draw method"""

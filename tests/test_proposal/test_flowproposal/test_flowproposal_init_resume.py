@@ -274,7 +274,7 @@ def test_reset_integration(tmpdir, model):
 
 @pytest.mark.parametrize("rescale", [True, False])
 @pytest.mark.timeout(10)
-@pytest.mark.flaky(run=3)
+@pytest.mark.flaky(reruns=3)
 @pytest.mark.integration_test
 def test_test_draw(tmpdir, model, rescale):
     """Verify that the `test_draw` method works.

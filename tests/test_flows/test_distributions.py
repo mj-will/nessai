@@ -50,7 +50,7 @@ def test_log_prob_invalid_shape(dist, dims):
     assert "Expected input of shape" in str(excinfo.value)
 
 
-@pytest.mark.flaky(run=5)
+@pytest.mark.flaky(reruns=5)
 def test_sample(dist, var):
     """
     Test the sample method and check if the resulting samples pass a

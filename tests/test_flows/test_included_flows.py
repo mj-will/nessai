@@ -118,7 +118,7 @@ def test_forward_and_log_prob(flow, x, n, data_dim):
     np.testing.assert_array_equal(log_prob.numpy(), log_prob_target.numpy())
 
 
-@pytest.mark.flaky(run=10)
+@pytest.mark.flaky(reruns=5)
 def test_sample_and_log_prob(flow, n, data_dim):
     """
     Assert that samples are drawn with correct shape and that the log
@@ -133,7 +133,7 @@ def test_sample_and_log_prob(flow, n, data_dim):
     )
 
 
-@pytest.mark.flaky(run=10)
+@pytest.mark.flaky(reruns=5)
 def test_invertibility(flow, x):
     """Test to ensure flows are invertible"""
     with torch.no_grad():
@@ -146,7 +146,7 @@ def test_invertibility(flow, x):
     )
 
 
-@pytest.mark.flaky(run=5)
+@pytest.mark.flaky(reruns=5)
 @pytest.mark.integration_test
 def test_sample_and_log_prob_conditional(
     conditional_flow, n, data_dim, conditional_features
