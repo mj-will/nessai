@@ -192,6 +192,8 @@ class NestedSampler(BaseNestedSampler):
 
         self.insertion_indices = []
         self.rolling_p = []
+        self.final_p_value = None
+        self.final_ks_statistic = None
 
         self.resumed = False
         self.tolerance = stopping
@@ -501,6 +503,8 @@ class NestedSampler(BaseNestedSampler):
                 self.rolling_p.append(p)
             else:
                 logger.warning(f"Final KS test: D={D:.4}, p-value={p:.4}")
+                self.final_p_value = p
+                self.final_ks_statistic = D
 
         if filename is not None:
             np.savetxt(
@@ -1224,6 +1228,8 @@ class NestedSampler(BaseNestedSampler):
             training_iterations=self.training_iterations,
         )
         d["insertion_indices"] = self.insertion_indices
+        d["final_p_value"] = self.final_p_value
+        d["final_ks_statistic"] = self.final_ks_statistic
         d["nested_samples"] = live_points_to_dict(
             np.array(self.nested_samples)
         )
