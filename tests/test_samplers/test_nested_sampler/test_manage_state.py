@@ -250,6 +250,8 @@ def test_get_result_dictionary(sampler):
         parameters_to_live_point((1, 2), ["x", "y"]),
         parameters_to_live_point((3, 4), ["x", "y"]),
     ]
+    sampler.final_p_value = 0.5
+    sampler.final_ks_statistic = 0.1
 
     with patch(
         "nessai.samplers.base.BaseNestedSampler.get_result_dictionary",

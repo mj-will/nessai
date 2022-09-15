@@ -72,6 +72,8 @@ def test_populate_live_points_none_returned(sampler):
 def test_insertion_indices(mock_fn, rolling, sampler):
     """Test computing the distribution of insertion indices"""
     sampler.rolling_p = []
+    sampler.final_p_value = None
+    sampler.final_ks_statistic = None
     sampler.insertion_indices = np.random.randint(
         sampler.nlive, size=2 * sampler.nlive
     )
@@ -84,10 +86,13 @@ def test_insertion_indices(mock_fn, rolling, sampler):
             mock_fn.call_args_list[0][0][0],
             sampler.insertion_indices[-sampler.nlive :],
         )
+        assert sampler.final_p_value is None
     else:
         mock_fn.assert_called_once_with(
             sampler.insertion_indices, sampler.nlive
         )
+        assert sampler.final_p_value == 0.5
+        assert sampler.final_ks_statistic == 0.1
 
 
 @patch(
