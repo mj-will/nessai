@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `nessai.plot.corner_plot` as an alternative to `plot_live_points` that uses `corner` instead of `seaborn`. ([#189](https://github.com/mj-will/nessai/pull/189))
 - Add new examples. ([#195](https://github.com/mj-will/nessai/pull/195), [#198](https://github.com/mj-will/nessai/pull/198))
 - Add `filehandler_kwargs` to `nessai.utils.logging.setup_logger` which allows the user to configure the `FileHandler` in the logger. ([#204](https://github.com/mj-will/nessai/pull/204))
+- Add `final_p_value` and `final_ks_statistic` to `NestedSampler` and the result file.
 
 ### Changed
 
