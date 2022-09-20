@@ -249,6 +249,19 @@ def test_checkpoint_periodic_skipped_time(sampler):
     sfd_mock.assert_not_called()
 
 
+def test_checkpoint_force(sampler):
+    """Assert the sampler checkpoints if force=True"""
+    now = datetime.datetime.now()
+    sampler.sampling_start_time = now - datetime.timedelta(minutes=32)
+    sampler.sampling_time = datetime.timedelta()
+    sampler.resume_file = "test.pkl"
+    with patch("nessai.samplers.base.safe_file_dump") as sfd_mock:
+        BaseNestedSampler.checkpoint(sampler, periodic=True, force=True)
+    sfd_mock.assert_called_once_with(
+        sampler, sampler.resume_file, pickle, save_existing=True
+    )
+
+
 def test_nested_sampling_loop(sampler):
     """Assert an error is raised"""
     with pytest.raises(NotImplementedError):
