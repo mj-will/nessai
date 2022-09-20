@@ -36,7 +36,7 @@ def configure_threads(pytorch_threads=None, max_threads=None):
             "pytorch and `n_pool` to set the number of cores for "
             "paralellisation."
         )
-        warnings.warn(msg, DeprecationWarning)
+        warnings.warn(msg, FutureWarning)
     if pytorch_threads:
         logger.debug(
             f"Setting maximum number of PyTorch threads to {pytorch_threads}"
