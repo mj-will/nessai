@@ -32,6 +32,13 @@ class BaseNestedSampler(ABC):
     checkpointing : bool, optional
         Boolean to toggle checkpointing, must be enabled to resume the sampler.
         If false the sampler is still saved at the end of sampling.
+    checkpoint_interval : int
+        The interval used for checkpointing. By default this is a time interval
+        in seconds. If :code:`checkpoint_on_iteration=True` this corresponds to
+        the number of iterations between checkpointing.
+    checkpoint_on_iteration : bool
+        If true the checkpointing interval is checked against the number of
+        iterations
     resume_file : str, optional
         Name of the file the sampler will be saved to and resumed from.
     plot : bool, optional
@@ -50,6 +57,8 @@ class BaseNestedSampler(ABC):
         output: str = None,
         seed: int = None,
         checkpointing: bool = True,
+        checkpoint_interval: int = 600,
+        checkpoint_on_iteration: bool = False,
         resume_file: str = None,
         plot: bool = True,
         n_pool: Optional[int] = None,
@@ -66,6 +75,12 @@ class BaseNestedSampler(ABC):
         self.nlive = nlive
         self.plot = plot
         self.checkpointing = checkpointing
+        self.checkpoint_interval = checkpoint_interval
+        self.checkpoint_on_iteration = checkpoint_on_iteration
+        if self.checkpoint_on_iteration:
+            self._last_checkpoint = 0
+        else:
+            self._last_checkpoint = datetime.datetime.now()
         self.sampling_time = datetime.timedelta()
         self.sampling_start_time = datetime.datetime.now()
         self.iteration = 0
@@ -140,7 +155,7 @@ class BaseNestedSampler(ABC):
             np.random.seed(seed=self.seed)
             torch.manual_seed(self.seed)
 
-    def checkpoint(self, periodic: bool = False):
+    def checkpoint(self, periodic: bool = False, force: bool = False):
         """Checkpoint the classes internal state.
 
         Parameters
@@ -149,12 +164,30 @@ class BaseNestedSampler(ABC):
             Indicates if the checkpoint is regular periodic checkpointing
             or forced by a signal. If forced by a signal, it will show up on
             the state plot.
+        force : bool
+            Force the sampler to checkpoint.
         """
+        now = datetime.datetime.now()
         if not periodic:
             self.checkpoint_iterations += [self.iteration]
-        self.sampling_time += (
-            datetime.datetime.now() - self.sampling_start_time
-        )
+        elif force:
+            pass
+        else:
+            if self.checkpoint_on_iteration:
+                if (
+                    self.iteration - self._last_checkpoint
+                ) >= self.checkpoint_interval:
+                    self._last_checkpoint = self.iteration
+                else:
+                    return
+            else:
+                if (
+                    now - self._last_checkpoint
+                ).total_seconds() >= self.checkpoint_interval:
+                    self._last_checkpoint = now
+                else:
+                    return
+        self.sampling_time += now - self.sampling_start_time
         logger.critical("Checkpointing nested sampling")
         safe_file_dump(self, self.resume_file, pickle, save_existing=True)
         self.sampling_start_time = datetime.datetime.now()
