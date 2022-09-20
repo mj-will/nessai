@@ -105,6 +105,7 @@ def test_update_state_checked_acceptance(mock, sampler):
     """
     sampler.iteration = 11
     sampler.proposal._checked_population = False
+    sampler.checkpointing = False
 
     NestedSampler.update_state(sampler)
 
@@ -124,6 +125,7 @@ def test_update_state_history(sampler):
     """
     sampler.iteration = 10
     sampler.proposal._checked_population = True
+    sampler.checkpointing = False
 
     NestedSampler.update_state(sampler)
 
@@ -139,10 +141,9 @@ def test_update_state_history(sampler):
     assert sampler.proposal.ns_acceptance == 0.5
 
 
-@pytest.mark.parametrize("checkpointing", [False, True])
 @pytest.mark.parametrize("plot", [False, True])
 @patch("nessai.samplers.nestedsampler.plot_indices")
-def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
+def test_update_state_every_nlive(mock_plot, plot, sampler):
     """Test the update that happens every nlive iterations.
 
     Tests both with plot=True and plot=False
@@ -157,14 +158,10 @@ def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
     sampler.plot_trace = MagicMock()
     sampler.output = os.getcwd()
     sampler.insertion_indices = range(2 * sampler.nlive)
-    sampler.checkpointing = checkpointing
+    sampler.checkpointing = False
 
     NestedSampler.update_state(sampler)
 
-    if checkpointing:
-        sampler.checkpoint.assert_called_once_with(periodic=True)
-    else:
-        sampler.checkpoint.assert_not_called()
     sampler.check_insertion_indices.assert_called_once()
     assert sampler.block_iteration == 0
     assert sampler.block_acceptance == 0.0
@@ -190,9 +187,8 @@ def test_update_state_every_nlive(mock_plot, plot, checkpointing, sampler):
         assert not mock_plot.called
 
 
-@pytest.mark.parametrize("checkpointing", [False, True])
 @patch("nessai.samplers.nestedsampler.plot_indices")
-def test_update_state_force(mock_plot, checkpointing, sampler):
+def test_update_state_force(mock_plot, sampler):
     """Test the update that happens if force=True.
 
     Checks that plot_indices is not called even if plotting is enabled.
@@ -205,14 +201,10 @@ def test_update_state_force(mock_plot, checkpointing, sampler):
     sampler.plot_trace = MagicMock()
     sampler.output = os.getcwd()
     sampler.uninformed_sampling = False
-    sampler.checkpointing = checkpointing
+    sampler.checkpointing = False
 
     NestedSampler.update_state(sampler, force=True)
 
-    if checkpointing:
-        sampler.checkpoint.assert_called_once_with(periodic=True)
-    else:
-        sampler.checkpoint.assert_not_called()
     assert not mock_plot.called
     assert not sampler.called
     sampler.plot_trace.assert_called_once()
@@ -224,6 +216,24 @@ def test_update_state_force(mock_plot, checkpointing, sampler):
     assert sampler.population_acceptance == [0.5]
     assert sampler.block_acceptance == 0.5
     assert sampler.block_iteration == 5
+
+
+def test_update_state_checkpointing(sampler):
+    """Assert the checkpoint function is called"""
+    sampler.checkpointing = True
+    sampler.checkpoint = MagicMock()
+    sampler.iteration = 10
+    NestedSampler.update_state(sampler)
+    sampler.checkpoint.assert_called_once_with(periodic=True)
+
+
+def test_update_state_checkpointing_disabled(sampler):
+    """Assert the checkpoint function is not called"""
+    sampler.checkpointing = False
+    sampler.checkpoint = MagicMock()
+    sampler.iteration = 10
+    NestedSampler.update_state(sampler)
+    sampler.checkpoint.assert_not_called()
 
 
 def test_get_result_dictionary(sampler):

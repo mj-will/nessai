@@ -132,6 +132,8 @@ class NestedSampler(BaseNestedSampler):
         stopping=0.1,
         max_iteration=None,
         checkpointing=True,
+        checkpoint_interval=600,
+        checkpoint_on_iteration=False,
         checkpoint_on_training=False,
         resume_file=None,
         seed=None,
@@ -166,6 +168,8 @@ class NestedSampler(BaseNestedSampler):
             output=output,
             seed=seed,
             checkpointing=checkpointing,
+            checkpoint_interval=checkpoint_interval,
+            checkpoint_on_iteration=checkpoint_on_iteration,
             resume_file=resume_file,
             plot=plot,
             n_pool=n_pool,
@@ -1067,8 +1071,6 @@ class NestedSampler(BaseNestedSampler):
                 f"+/- {self.state.log_evidence_error:.3f} "
                 f"logLmax: {self.logLmax:.2f}"
             )
-            if self.checkpointing:
-                self.checkpoint(periodic=True)
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
@@ -1094,6 +1096,9 @@ class NestedSampler(BaseNestedSampler):
             if self.uninformed_sampling:
                 self.block_acceptance = 0.0
                 self.block_iteration = 0
+
+        if self.checkpointing:
+            self.checkpoint(periodic=True)
 
         self.proposal.ns_acceptance = self.mean_block_acceptance
 
@@ -1189,7 +1194,7 @@ class NestedSampler(BaseNestedSampler):
         self.check_insertion_indices(rolling=False)
 
         # This includes updating the total sampling time
-        self.checkpoint(periodic=True)
+        self.checkpoint(periodic=True, force=True)
 
         if self._close_pool:
             self.close_pool()

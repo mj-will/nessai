@@ -192,6 +192,8 @@ def test_sampling_resume(model, flow_config, tmpdir):
         training_frequency=10,
         maximum_uninformed=9,
         rescale_parameters=True,
+        checkpoint_on_iteration=True,
+        checkpoint_frequency=5,
         seed=1234,
         max_iteration=11,
         poolsize=10,
@@ -233,6 +235,8 @@ def test_sampling_resume_no_max_uninformed(model, flow_config, tmpdir):
         rescale_parameters=True,
         seed=1234,
         max_iteration=11,
+        checkpoint_on_iteration=True,
+        checkpoint_frequency=5,
         poolsize=10,
     )
     fp.run()
@@ -326,8 +330,8 @@ def test_prior_sampling(model, tmpdir):
 
 
 @pytest.mark.slow_integration_test
-def test_sampler_resume(model, tmp_path):
-    """Test resuming the sampler"""
+def test_sampling_resume_finalised(model, tmp_path):
+    """Test resuming the sampler after it finishes sampling"""
     output = tmp_path / "output"
     output.mkdir()
     fs = FlowSampler(
@@ -337,6 +341,7 @@ def test_sampler_resume(model, tmp_path):
         plot=False,
     )
     fs.run(save=False, plot=False)
+    assert os.path.exists(fs.ns.resume_file)
 
     fs = FlowSampler(
         model,

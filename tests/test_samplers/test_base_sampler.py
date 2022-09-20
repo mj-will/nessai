@@ -16,7 +16,8 @@ def sampler():
     return obj
 
 
-def test_init(sampler):
+@pytest.mark.parametrize("checkpoint_on_iteration", [False, True])
+def test_init(sampler, checkpoint_on_iteration):
     """Assert the init sets the correct attributes and calls the correct
     methods.
     """
@@ -27,6 +28,7 @@ def test_init(sampler):
     output = "./"
     seed = 190425
     checkpointing = True
+    checkpoint_interval = 10
     resume_file = "test.pkl"
     plot = False
     n_pool = 2
@@ -42,6 +44,8 @@ def test_init(sampler):
         output=output,
         seed=seed,
         checkpointing=checkpointing,
+        checkpoint_interval=checkpoint_interval,
+        checkpoint_on_iteration=checkpoint_on_iteration,
         resume_file=resume_file,
         plot=plot,
         n_pool=n_pool,
@@ -59,6 +63,8 @@ def test_init(sampler):
     assert sampler.nlive == nlive
     assert sampler.plot == plot
     assert sampler.checkpointing == checkpointing
+    assert sampler.checkpoint_interval == checkpoint_interval
+    assert sampler.checkpoint_on_iteration == checkpoint_on_iteration
     assert sampler.live_points is None
     assert sampler.iteration == 0
     assert sampler.finalised is False
@@ -156,13 +162,16 @@ def test_configure_output_w_resume(sampler, tmpdir):
 
 
 @pytest.mark.parametrize("periodic", [False, True])
-def test_checkpoint(sampler, wait, periodic):
-    """Test checkpointing method.
+def test_checkpoint_iteration(sampler, wait, periodic):
+    """Test checkpointing method on iterations.
 
     Make sure a file is produced and that the sampling time is updated.
     Also checks to make sure that the iteration is recorded when periodic=False
     """
     sampler.checkpoint_iterations = [10]
+    sampler.checkpoint_on_iteration = True
+    sampler.checkpoint_interval = 10
+    sampler._last_checkpoint = 0
     sampler.iteration = 20
     now = datetime.datetime.now()
     sampler.sampling_start_time = now
@@ -182,8 +191,75 @@ def test_checkpoint(sampler, wait, periodic):
 
     if periodic:
         assert sampler.checkpoint_iterations == [10]
+        assert sampler._last_checkpoint == 20
     else:
         assert sampler.checkpoint_iterations == [10, 20]
+
+
+def test_checkpoint_time(sampler, wait):
+    """Test checkpointing method based on time interval
+
+    Make sure a file is produced and that the sampling time is updated.
+    """
+    now = datetime.datetime.now()
+    sampler.checkpoint_iterations = [10]
+    sampler.checkpoint_on_iteration = False
+    sampler.checkpoint_interval = 15 * 60
+    sampler.sampling_start_time = now - datetime.timedelta(minutes=32)
+    sampler._last_checkpoint = now - datetime.timedelta(minutes=16)
+    sampler.iteration = 20
+    sampler.sampling_time = datetime.timedelta()
+    sampler.resume_file = "test.pkl"
+
+    with patch("nessai.samplers.base.safe_file_dump") as sfd_mock, patch(
+        "datetime.datetime", return_value=now
+    ) as mock_datetime:
+        wait()
+        mock_datetime.now.return_value = now
+        mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(
+            *args, **kw
+        )
+        BaseNestedSampler.checkpoint(sampler, periodic=True)
+
+    sfd_mock.assert_called_once_with(
+        sampler, sampler.resume_file, pickle, save_existing=True
+    )
+    assert sampler._last_checkpoint is now
+
+
+def test_checkpoint_periodic_skipped_iteration(sampler):
+    """Assert the sampler does not checkpoint if the criterion is not met"""
+    sampler.checkpoint_on_iteration = True
+    sampler.iteration = 10
+    sampler._last_checkpoint = 9
+    sampler.checkpoint_interval = 10
+    with patch("nessai.samplers.base.safe_file_dump") as sfd_mock:
+        BaseNestedSampler.checkpoint(sampler, periodic=True)
+    sfd_mock.assert_not_called()
+
+
+def test_checkpoint_periodic_skipped_time(sampler):
+    """Assert the sampler does not checkpoint if the criterion is not met"""
+    sampler.checkpoint_on_iteration = False
+    sampler.iteration = 10
+    sampler._last_checkpoint = datetime.datetime.now()
+    sampler.checkpoint_interval = 600
+    with patch("nessai.samplers.base.safe_file_dump") as sfd_mock:
+        BaseNestedSampler.checkpoint(sampler, periodic=True)
+    sfd_mock.assert_not_called()
+
+
+def test_checkpoint_force(sampler):
+    """Assert the sampler checkpoints if force=True"""
+    now = datetime.datetime.now()
+    sampler.sampling_start_time = now - datetime.timedelta(minutes=32)
+    sampler.sampling_time = datetime.timedelta()
+    sampler.resume_file = "test.pkl"
+    with patch("nessai.samplers.base.safe_file_dump") as sfd_mock:
+        BaseNestedSampler.checkpoint(sampler, periodic=True, force=True)
+    sfd_mock.assert_called_once_with(
+        sampler, sampler.resume_file, pickle, save_existing=True
+    )
 
 
 def test_nested_sampling_loop(sampler):

@@ -13,16 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add more structure utils (`get_subset_arrays`, `isfinite_struct`)
 - Add `nessai.sampler.base.BaseNestedSampler` class.
 - Add option to use multinomial resampling to `nessai.posterior.draw_posterior_samples`.
+- Add option to checkpoint based on elapsed time.
 
 ### Changed
 
 - Change how threading is handled to no longer use `max_threads`.
 - Refactor `nessai.nestedsampler` into the `nessai.samplers` submodule.
 - Change how `noise_scale` is configured `FlowModel`. User can now specify `noise_type` and `noise_scale`.
-
-### Fixed
-
-- Fixed a bug in `nessai.flows.utils.configure_model` that only occurred when the specified `device_tag` is invalid.
+- Change default checkpoint interval to 10 minutes rather than after training.
 
 ### Fixed
 
