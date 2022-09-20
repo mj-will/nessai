@@ -245,7 +245,7 @@ def test_nested_sampling_loop(sampler, config):
         sampler.finalise.assert_not_called()
 
     sampler.check_insertion_indices.assert_called_once_with(rolling=False)
-    sampler.checkpoint.assert_called_once_with(periodic=True)
+    sampler.checkpoint.assert_called_once_with(periodic=True, force=True)
 
     if sampler._close_pool:
         sampler.close_pool.assert_called_once()
