@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 - Setting `max_threads` is deprecated and will be removed in a future release.
+- `nessai.nestedsampler` is deprecated and will be removed in a future release. Use `nessai.samplers.nestedsampler` instead.
 
 ### Removed
 
