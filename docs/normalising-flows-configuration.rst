@@ -3,7 +3,7 @@ Normalising flows configuration
 ===============================
 
 
-``nessai`` uses the implementation of normalising flow available in ``nflows`` but with some minor changes to make the interface more general.
+``nessai`` uses the implementation of normalising flow available in ``glasflow`` which is based on ``nflows``. The exact interface in ``nessai`` is slightly different to allow for some extra functionality.
 
 The normalising flow is configured using the the keyword argument ``flow_config`` when calling :py:class:`~nessai.flowsampler.FlowSampler`. This is a dictionary which contains the configuration for training and the flow itself which is another dictionary ``model_config``.
 
@@ -82,4 +82,17 @@ Using other normalising flows
 
 Other normalising flows can be implemented by the user and used with nessai by specifying the :code:`flow` parameter in the :code:`model_config` input dictionary as an object that inherits from :py:class:`nessai.flows.base.BaseFlow` and redefines all of the methods. The object will initialised within the sampler using :py:func:`nessai.flows.utils.setup_model` and :code:`model_config`.
 
-Alternatively flows can implemented using same approach as ``nflows`` using :py:class:`nessai.flows.base.NFlow` where a ``transform`` and ``distribution`` are specified. The ``__init__`` method must accept the same arguments as described for :py:class:`~nessai.flows.base.BaseFlow`. For an example of how to use this method see the implementations of either RealNVP or Neural Spline Flows.
+Alternatively flows can implemented using same approach as ``glasflow.nflows`` using :py:class:`nessai.flows.base.NFlow` where a ``transform`` and ``distribution`` are specified. The ``__init__`` method must accept the same arguments as described for :py:class:`~nessai.flows.base.BaseFlow`. For an example of how to use this method see the implementations of either RealNVP or Neural Spline Flows.
+
+
+Using nflows instead of glasflow
+================================
+
+``nessai`` migrated to using ``glasflow`` since this removes the dependency on ``nflows``, however it is still possible to use a locally installed version of ``nflows``. ``glasflow`` includes a fork of ``nflows`` as a submodule and this can be replaced with a local install by setting an environment variable:
+
+.. code:: bash
+
+    export GLASFLOW_USE_NFLOWS=True
+
+
+``nesssai`` will still import ``glasflow`` but ``glasflow.nflows`` will point to the local install of ``nflows``.
