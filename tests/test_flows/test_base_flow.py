@@ -6,8 +6,8 @@ import pytest
 from unittest.mock import MagicMock, create_autospec, patch
 
 from nessai.flows.base import BaseFlow, NFlow
-from nflows.transforms import Transform
-from nflows.distributions import Distribution
+from glasflow.nflows.transforms import Transform
+from glasflow.nflows.distributions import Distribution
 
 
 @pytest.fixture

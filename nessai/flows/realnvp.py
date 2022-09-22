@@ -8,8 +8,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from nflows.distributions import StandardNormal
-from nflows import transforms
+from glasflow.nflows.distributions import StandardNormal
+from glasflow.nflows import transforms
 
 from .base import NFlow
 from .utils import create_linear_transform, create_pre_transform
@@ -119,7 +119,7 @@ class RealNVP(NFlow):
             mask = mask_array
 
         if net.lower() == "resnet":
-            from nflows.nn.nets import ResidualNet
+            from glasflow.nflows.nn.nets import ResidualNet
 
             def create_net(in_features, out_features):
                 return ResidualNet(

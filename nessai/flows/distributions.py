@@ -4,8 +4,8 @@ Distributions to use as the 'base distribution' for normalising flows.
 """
 import math
 
-from nflows.distributions import Distribution
-from nflows.utils import torchutils
+from glasflow.nflows.distributions import Distribution
+from glasflow.nflows.utils import torchutils
 import numpy as np
 import torch
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Transform for use in normalising flows."""
-from nflows.transforms import LULinear as BaseLULinear
+from glasflow.nflows.transforms import LULinear as BaseLULinear
 import torch
 
 
