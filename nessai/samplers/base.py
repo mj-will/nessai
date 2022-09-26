@@ -8,6 +8,7 @@ import pickle
 import time
 from typing import Any, Optional, Union
 
+from glasflow import __version__ as glasflow_version
 import numpy as np
 import torch
 
@@ -297,6 +298,7 @@ class BaseNestedSampler(ABC):
         """
         d = dict()
         d["version"] = version
+        d["glasflow_version"] = glasflow_version
         d["seed"] = self.seed
         d["sampling_time"] = self.sampling_time.total_seconds()
         d["total_likelihood_evaluations"] = self.model.likelihood_evaluations
