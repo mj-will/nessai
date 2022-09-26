@@ -4,10 +4,15 @@ Utilities related to logging.
 """
 import logging
 import os
+import sys
 
 
 def setup_logger(
-    output=None, label="nessai", log_level="WARNING", filehandler_kwargs=None
+    output=None,
+    label="nessai",
+    log_level="WARNING",
+    filehandler_kwargs=None,
+    stream=None,
 ):
     """
     Setup the logger.
@@ -26,6 +31,9 @@ def setup_logger(
     filehandler_kwargs : dict, optional
         Keyword arguments for configuring the FileHandler. See logging
         documentation for details.
+    stream : str, file-object, optional
+        Stream passes to :code:`logging.StreamHandler` to set the stream. See
+        logging documentation for more details.
 
     Returns
     -------
@@ -49,7 +57,16 @@ def setup_logger(
         any([type(h) == logging.StreamHandler for h in logger.handlers])
         is False
     ):
-        stream_handler = logging.StreamHandler()
+        if isinstance(stream, str):
+            if stream.lower() == "stderr":
+                stream = sys.stderr
+            elif stream.lower() == "stdout":
+                stream = sys.stdout
+            else:
+                raise ValueError(
+                    f"Unknown stream: {stream}. Choose from: [stderr, stdout]"
+                )
+        stream_handler = logging.StreamHandler(stream)
         stream_handler.setFormatter(
             logging.Formatter(
                 "%(asctime)s %(name)s %(levelname)-8s: %(message)s",
