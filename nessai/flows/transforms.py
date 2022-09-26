@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Transform for use in normalising flows."""
+from warnings import warn
 from glasflow.nflows.transforms import LULinear as BaseLULinear
-import torch
 
 
 class LULinear(BaseLULinear):
@@ -13,20 +13,9 @@ class LULinear(BaseLULinear):
     This should be removed if the bug is fixed in nflows.
     """
 
-    def weight_inverse(self):
-        """Cost:
-            inverse = O(D^3)
-        where:
-            D = num of features
-        """
-        lower, upper = self._create_lower_upper()
-        identity = torch.eye(
-            self.features, self.features, device=self.lower_entries.device
-        )
-        lower_inverse, _ = torch.triangular_solve(
-            identity, lower, upper=False, unitriangular=True
-        )
-        weight_inverse, _ = torch.triangular_solve(
-            lower_inverse, upper, upper=True, unitriangular=False
-        )
-        return weight_inverse
+    msg = (
+        "`nessai.flows.transforms.LULinear` is deprecated and will be removed "
+        "in a future release. Use `glasflow.nflows.transforms.LULinear` "
+        "instead. "
+    )
+    warn(msg, FutureWarning)

@@ -5,6 +5,7 @@ Various utilities for implementing normalising flows.
 import inspect
 import logging
 from typing import Optional, Type, Union
+import warnings
 
 from glasflow.nflows import transforms
 from glasflow.nflows.distributions import Distribution
@@ -13,7 +14,7 @@ import torch
 import torch.nn.functional as F
 
 from .distributions import MultivariateNormal
-from .transforms import LULinear
+
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +269,9 @@ def reset_permutations(module):
     module : :obj:`torch.nn.Module`
         Module to reset
     """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        from .transforms import LULinear
     if isinstance(module, (transforms.LULinear, LULinear)):
         module.cache.invalidate()
         module._initialize(identity_init=True)
@@ -291,7 +295,9 @@ def create_linear_transform(linear_transform, features):
         return transforms.CompositeTransform(
             [
                 transforms.RandomPermutation(features=features),
-                LULinear(features, identity_init=True, using_cache=True),
+                transforms.LULinear(
+                    features, identity_init=True, using_cache=True
+                ),
             ]
         )
     elif linear_transform.lower() == "svd":
