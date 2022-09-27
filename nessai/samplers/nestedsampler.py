@@ -48,6 +48,21 @@ class NestedSampler(BaseNestedSampler):
     checkpointing : bool, optional
         Boolean to toggle checkpointing, must be enabled to resume the sampler.
         If false the sampler is still saved at the end of sampling.
+    checkpoint_interval : int
+        The interval used for checkpointing. By default this is a time interval
+        in seconds. If :code:`checkpoint_on_iteration=True` this corresponds to
+        the number of iterations between checkpointing.
+    checkpoint_on_iteration : bool
+        If true the checkpointing interval is checked against the number of
+        iterations
+    logging_interval : int, optional
+        The interval in seconds used for periodic logging. If not specified,
+        then periodic logging is disabled.
+    log_on_iteration : bool
+        If true logging will occur based on the iteration. If false logging
+        will be periodic if `logging_interval` is set. In case where neither
+        logging is enabled, `log_on_iteration` will be set to true with an
+        interval of :code:`nlive`.
     resume_file : str, optional
         If specified sampler will be resumed from this file. Still requires
         correct model.
@@ -135,6 +150,8 @@ class NestedSampler(BaseNestedSampler):
         checkpoint_interval=600,
         checkpoint_on_iteration=False,
         checkpoint_on_training=False,
+        logging_interval=None,
+        log_on_iteration=True,
         resume_file=None,
         seed=None,
         pool=None,
@@ -170,6 +187,8 @@ class NestedSampler(BaseNestedSampler):
             checkpointing=checkpointing,
             checkpoint_interval=checkpoint_interval,
             checkpoint_on_iteration=checkpoint_on_iteration,
+            logging_interval=logging_interval,
+            log_on_iteration=log_on_iteration,
             resume_file=resume_file,
             plot=plot,
             n_pool=n_pool,
@@ -488,6 +507,17 @@ class NestedSampler(BaseNestedSampler):
                 "`reset_permutations` must be a bool, int or float"
             )
 
+    def log_state(self):
+        """Log the current state of the sampler"""
+        logger.warning(
+            f"it: {self.iteration:5d}: "
+            f"n eval: {self.likelihood_calls} "
+            f"H: {self.state.info[-1]:.2f} "
+            f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
+            f"+/- {self.state.log_evidence_error:.3f} "
+            f"logLmax: {self.logLmax:.2f}"
+        )
+
     def check_insertion_indices(self, rolling=True, filename=None):
         """
         Checking the distribution of the insertion indices either during
@@ -503,7 +533,10 @@ class NestedSampler(BaseNestedSampler):
 
         if p is not None:
             if rolling:
-                logger.warning(f"Rolling KS test: D={D:.4}, p-value={p:.4}")
+                logger.warning(
+                    f"it: {self.iteration:5d}: "
+                    f"Rolling KS test: D={D:.4}, p-value={p:.4}"
+                )
                 self.rolling_p.append(p)
             else:
                 logger.warning(f"Final KS test: D={D:.4}, p-value={p:.4}")
@@ -606,7 +639,7 @@ class NestedSampler(BaseNestedSampler):
             self.block_acceptance / self.block_iteration
         )
 
-        if self.info_enabled:
+        if self.info_enabled and self.log_on_iteration:
             logger.info(
                 f"{self.iteration:5d}: n: {count:3d} "
                 f"b_acc: {self.mean_block_acceptance:.3f} "
@@ -1063,14 +1096,6 @@ class NestedSampler(BaseNestedSampler):
             self.mean_acceptance_history.append(self.mean_acceptance)
 
         if not (self.iteration % self.nlive) or force:
-            logger.warning(
-                f"it: {self.iteration:5d}: "
-                f"n eval: {self.likelihood_calls} "
-                f"H: {self.state.info[-1]:.2f} "
-                f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
-                f"+/- {self.state.log_evidence_error:.3f} "
-                f"logLmax: {self.logLmax:.2f}"
-            )
             if not force:
                 self.check_insertion_indices()
                 if self.plot:
@@ -1177,9 +1202,10 @@ class NestedSampler(BaseNestedSampler):
 
             self.update_state()
 
+            self.periodically_log_state()
+
             if self.iteration >= self.max_iteration:
                 break
-
         # final adjustments
         # avoid repeating final adjustments if resuming a completed run.
         if not self.finalised and (self.condition <= self.tolerance):
@@ -1187,7 +1213,7 @@ class NestedSampler(BaseNestedSampler):
 
         logger.critical(
             f"Final evidence: {self.state.logZ:.3f} +/- "
-            f"{self.state.log_evidence_error}"
+            f"{self.state.log_evidence_error:.3f}"
         )
         logger.critical("Information: {0:.2f}".format(self.state.info[-1]))
 
