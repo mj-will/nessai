@@ -30,6 +30,7 @@ def sampler(sampler):
     sampler.nlive = 4
     sampler.nested_samples = []
     sampler.iteration = 0
+    sampler.condition = np.inf
     sampler.block_iteration = 0
     sampler.logLmax = 5
     sampler.insertion_indices = []
@@ -38,6 +39,7 @@ def sampler(sampler):
     sampler.block_acceptance = 0.0
     sampler.acceptance_history = []
     sampler.info_enabled = True
+    sampler.log_on_iteration = True
     return sampler
 
 
@@ -91,6 +93,12 @@ def test_initialise_resume(sampler):
     sampler.populate_live_points.assert_not_called()
     assert sampler.initialised is False
     assert sampler.proposal is sampler._flow_proposal
+
+
+def test_log_state(sampler, caplog):
+    """Assert log state outputs to the logger"""
+    NestedSampler.log_state(sampler)
+    assert "logZ:" in str(caplog.text)
 
 
 def test_finalise(sampler, live_points):
@@ -227,6 +235,7 @@ def test_nested_sampling_loop(sampler, config):
     sampler.initialise.assert_called_once_with(live_points=True)
     sampler.check_resume.assert_called_once()
 
+    # If the code entered the while loop, check the functions where called
     if config.get("call_while", True):
         if config.get("iteration", 0):
             sampler.update_state.call_count == 2
@@ -234,10 +243,12 @@ def test_nested_sampling_loop(sampler, config):
             sampler.update_state.assert_called_once()
         sampler.consume_sample.assert_called_once()
         sampler.check_state.assert_called_once()
+        sampler.periodically_log_state.assert_called_once()
     else:
         sampler.check_state.assert_not_called()
         sampler.consume_sample.assert_not_called()
         sampler.update_state.assert_not_called()
+        sampler.periodically_log_state.assert_not_called()
 
     if config.get("call_finalise"):
         sampler.finalise.assert_called_once()
