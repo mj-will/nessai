@@ -4,6 +4,7 @@ import datetime
 import os
 import pickle
 import pytest
+import time
 from unittest.mock import MagicMock, create_autospec, patch
 
 from nessai.samplers.base import BaseNestedSampler
@@ -29,6 +30,8 @@ def test_init(sampler, checkpoint_on_iteration):
     seed = 190425
     checkpointing = True
     checkpoint_interval = 10
+    log_on_iteration = True
+    logging_interval = 10
     resume_file = "test.pkl"
     plot = False
     n_pool = 2
@@ -36,6 +39,7 @@ def test_init(sampler, checkpoint_on_iteration):
 
     sampler.configure_random_seed = MagicMock()
     sampler.configure_output = MagicMock()
+    sampler.configure_periodic_logging = MagicMock()
 
     BaseNestedSampler.__init__(
         sampler,
@@ -46,6 +50,8 @@ def test_init(sampler, checkpoint_on_iteration):
         checkpointing=checkpointing,
         checkpoint_interval=checkpoint_interval,
         checkpoint_on_iteration=checkpoint_on_iteration,
+        log_on_iteration=log_on_iteration,
+        logging_interval=logging_interval,
         resume_file=resume_file,
         plot=plot,
         n_pool=n_pool,
@@ -58,6 +64,10 @@ def test_init(sampler, checkpoint_on_iteration):
     sampler.configure_random_seed.assert_called_once_with(seed)
     sampler.configure_output.assert_called_once_with(
         output, resume_file=resume_file
+    )
+    sampler.configure_periodic_logging.assert_called_once_with(
+        logging_interval,
+        log_on_iteration,
     )
 
     assert sampler.nlive == nlive
@@ -159,6 +169,92 @@ def test_configure_output_w_resume(sampler, tmpdir):
     path = os.path.join(p, "tests")
     BaseNestedSampler.configure_output(sampler, path, "resume.pkl")
     assert sampler.resume_file == os.path.join(path, "resume.pkl")
+
+
+def test_configure_periodic_logging_time(sampler):
+    """Assert the perdiodic logging is correctly configured"""
+    with patch("time.time", return_value=10) as mock:
+        BaseNestedSampler.configure_periodic_logging(
+            sampler,
+            20,
+            False,
+        )
+    mock.assert_called_once()
+    assert sampler._last_log == 10
+    assert sampler.logging_interval == 20
+    assert sampler.log_on_iteration is False
+
+
+@pytest.mark.parametrize("interval, expected", [(50, 50), (None, 100)])
+def test_configure_periodic_logging_interval(sampler, interval, expected):
+    """Assert the perdiodic logging is correctly configured"""
+    sampler.nlive = 100
+    BaseNestedSampler.configure_periodic_logging(
+        sampler,
+        interval,
+        True,
+    )
+    assert sampler._last_log == 0
+    assert sampler.logging_interval == expected
+    assert sampler.log_on_iteration is True
+
+
+def test_configure_periodic_logging_all_false(sampler):
+    """Assert log on iteration is enabled if both inputs are false"""
+    sampler.nlive = 100
+    BaseNestedSampler.configure_periodic_logging(sampler, None, False)
+    assert sampler.log_on_iteration is True
+    assert sampler._last_log == 0
+    assert sampler.logging_interval == 100
+
+
+def test_log_state(sampler):
+    """Assert a NotImplementedError is raised"""
+    with pytest.raises(NotImplementedError):
+        BaseNestedSampler.log_state(sampler)
+
+
+@pytest.mark.parametrize("interval", [20, 40])
+def test_periodically_log_state_time(sampler, interval):
+    """Assert log_state is called sufficient time has elapsed.
+
+    Set such that 30 seconds have elapsed since the last log.
+    """
+    now = time.time()
+    elapsed = 30
+    sampler._last_log = now - elapsed
+    sampler.logging_interval = interval
+    sampler.log_on_iteration = False
+    with patch("time.time", return_value=now):
+        BaseNestedSampler.periodically_log_state(sampler)
+    # if more time has passed, then should log
+    if elapsed > interval:
+        sampler.log_state.assert_called_once()
+        assert sampler._last_log == now
+    else:
+        sampler.log_state.assert_not_called()
+        assert sampler._last_log == (now - elapsed)
+
+
+@pytest.mark.parametrize("interval", [20, 40])
+def test_periodically_log_state_iteration(sampler, interval):
+    """Assert log_state is called sufficient iterations have elapsed.
+
+    Set such that 30 iterations have elapsed since the last log.
+    """
+    elapsed = 30
+    sampler.iteration = 120
+    sampler._last_log = sampler.iteration - elapsed
+    sampler.logging_interval = interval
+    sampler.log_on_iteration = True
+    BaseNestedSampler.periodically_log_state(sampler)
+    # if more iterations have passed, then should log
+    if elapsed > interval:
+        sampler.log_state.assert_called_once()
+        assert sampler._last_log == sampler.iteration
+    else:
+        sampler.log_state.assert_not_called()
+        assert sampler._last_log == (sampler.iteration - elapsed)
 
 
 @pytest.mark.parametrize("periodic", [False, True])
