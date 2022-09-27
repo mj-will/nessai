@@ -309,7 +309,7 @@ class BaseNestedSampler(ABC):
 
     def __getstate__(self):
         d = self.__dict__
-        exclude = {"model", "proposal", "logging_timer"}
+        exclude = {"model", "proposal"}
         state = {k: d[k] for k in d.keys() - exclude}
         state["_previous_likelihood_evaluations"] = d[
             "model"
