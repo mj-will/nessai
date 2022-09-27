@@ -31,4 +31,4 @@ jobs:
         pip install bilby
     - name: Run bilby compatibility tests
       run: |
-        python -m pytest --bilby-compatibility
+        python -m pytest --bilby-compatibility -m "bilby_compatibility"
