@@ -5,6 +5,7 @@ import datetime
 import logging
 import os
 import pickle
+import time
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -39,6 +40,14 @@ class BaseNestedSampler(ABC):
     checkpoint_on_iteration : bool
         If true the checkpointing interval is checked against the number of
         iterations
+    logging_interval : int, optional
+        The interval in seconds used for periodic logging. If not specified,
+        then periodic logging is disabled.
+    log_on_iteration : bool
+        If true logging will occur based on the iteration. If false logging
+        will be periodic if `logging_interval` is set. In case where neither
+        logging is enabled, `log_on_iteration` will be set to true with an
+        interval of :code:`nlive`.
     resume_file : str, optional
         Name of the file the sampler will be saved to and resumed from.
     plot : bool, optional
@@ -59,6 +68,8 @@ class BaseNestedSampler(ABC):
         checkpointing: bool = True,
         checkpoint_interval: int = 600,
         checkpoint_on_iteration: bool = False,
+        logging_interval: int = None,
+        log_on_iteration: bool = True,
         resume_file: str = None,
         plot: bool = True,
         n_pool: Optional[int] = None,
@@ -90,6 +101,7 @@ class BaseNestedSampler(ABC):
 
         self.configure_random_seed(seed)
         self.configure_output(output, resume_file=resume_file)
+        self.configure_periodic_logging(logging_interval, log_on_iteration)
 
         self.live_points = None
 
@@ -154,6 +166,57 @@ class BaseNestedSampler(ABC):
             logger.debug(f"Setting random seed to {seed}")
             np.random.seed(seed=self.seed)
             torch.manual_seed(self.seed)
+
+    def configure_periodic_logging(self, logging_interval, log_on_iteration):
+        """Configure the periodic logging.
+
+        Parameters
+        ----------
+        logging_interval : int, optional
+            The interval in seconds used for periodic logging. If not
+            specified, then periodic logging is disabled.
+        log_on_iteration : bool
+            If true logging will occur based on the iteration. If false logging
+            will be periodic if `logging_interval` is set. In case where
+            neither logging is enabled, `log_on_iteration` will be set to true
+            with an interval of :code:`nlive`.
+        """
+        self.logging_interval = logging_interval
+        self.log_on_iteration = log_on_iteration
+        if not self.logging_interval and not self.log_on_iteration:
+            logger.warning(
+                "All logging disabled. Enabling logging on iteration"
+            )
+            self.log_on_iteration = True
+        if self.log_on_iteration:
+            if self.logging_interval is None:
+                self.logging_interval = self.nlive
+            self._last_log = 0
+        else:
+            self._last_log = time.time()
+
+    @abstractmethod
+    def log_state(self):
+        raise NotImplementedError()
+
+    def periodically_log_state(self):
+        """Log the state of the sampler.
+
+        Calls :code:`log_state` if the elapsed interval in time (or iterations)
+        is more than the specified interval.
+        """
+        if self.log_on_iteration:
+            if not (self.iteration - self._last_log) >= self.logging_interval:
+                return
+            else:
+                self._last_log = self.iteration
+        else:
+            now = time.time()
+            if not (now - self._last_log) >= self.logging_interval:
+                return
+            else:
+                self._last_log = now
+        self.log_state()
 
     def checkpoint(self, periodic: bool = False, force: bool = False):
         """Checkpoint the classes internal state.

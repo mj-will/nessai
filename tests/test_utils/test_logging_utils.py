@@ -4,6 +4,7 @@ Test utilities related to logging.
 """
 import logging
 import os
+import sys
 from unittest.mock import patch
 import pytest
 
@@ -89,3 +90,26 @@ def test_filehandler_no_kwargs(tmp_path):
     mock.assert_called_once_with(
         os.path.join(output, "nessai.log"),
     )
+
+
+@pytest.mark.parametrize(
+    "stream, expected",
+    (
+        [None, None],
+        ("stderr", sys.stderr),
+        ("stdout", sys.stdout),
+        (sys.stderr, sys.stderr),
+    ),
+)
+def test_stream_handler_setting(tmp_path, stream, expected):
+    output = tmp_path / "logger_dir"
+    with patch("logging.StreamHandler") as mock:
+        setup_logger(output=output, stream=stream, label=None)
+    mock.assert_called_with(expected)
+
+
+def test_stream_handler_error(tmp_path):
+    """Assert an error is raised if an invalid string is passes"""
+    output = tmp_path / "logger_dir"
+    with pytest.raises(ValueError, match=r"Unknown stream: .*"):
+        setup_logger(output=output, stream="not_a_stream")

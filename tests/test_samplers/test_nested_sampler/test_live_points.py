@@ -71,6 +71,7 @@ def test_populate_live_points_none_returned(sampler):
 )
 def test_insertion_indices(mock_fn, rolling, sampler):
     """Test computing the distribution of insertion indices"""
+    sampler.iteration = 100
     sampler.rolling_p = []
     sampler.final_p_value = None
     sampler.final_ks_statistic = None
