@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `nessai.sampler.base.BaseNestedSampler` class.
 - Add option to use multinomial resampling to `nessai.posterior.draw_posterior_samples`.
 - Add option to checkpoint based on elapsed time.
+- Add `stream` option to `setup_logger` for setting the stream for `logging.StreamHandler`.
+- Add configurable periodic logging based on either the iteration or elapsed time.
 
 ### Changed
 
