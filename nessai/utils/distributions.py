@@ -3,7 +3,7 @@
 Utilities for getting distributions for use in \
         :py:class:`~nessai.proposal.flowproposal.FlowProposal`
 """
-from nflows.distributions.uniform import BoxUniform
+from glasflow.nflows.distributions.uniform import BoxUniform
 import torch
 from torch.distributions import MultivariateNormal
 
@@ -24,7 +24,7 @@ def get_uniform_distribution(dims, r, device="cpu"):
 
     Returns
     -------
-    :obj:`nflows.distributions.uniform.BoxUniform`
+    :obj:`glasflow.nflows.distributions.uniform.BoxUniform`
         Instance of BoxUniform which the lower and upper bounds set by
         the radius
     """

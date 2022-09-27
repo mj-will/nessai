@@ -120,7 +120,7 @@ def test_reset_weights_with_reset_parameters():
 
 def test_reset_weights_batch_norm():
     """Test the reset weights function for an instance of batch norm"""
-    from nflows.transforms.normalization import BatchNorm
+    from glasflow.nflows.transforms.normalization import BatchNorm
 
     x = torch.randn(20, 2)
     module = BatchNorm(2, eps=0.1)
@@ -146,7 +146,7 @@ def test_reset_weights_other_module(caplog):
 
 def test_weight_reset_permutation():
     """Test to make sure random permutation is reset correctly"""
-    from nflows.transforms.permutations import RandomPermutation
+    from glasflow.nflows.transforms.permutations import RandomPermutation
 
     x = torch.arange(10).reshape(1, -1)
     m = RandomPermutation(features=10)
@@ -160,8 +160,8 @@ def test_weight_reset_permutation():
 
 def test_reset_permutation_lu():
     """Assert LULinear is reset correctly"""
-    from nflows.transforms import LULinear
-    from nflows.transforms.linear import LinearCache
+    from glasflow.nflows.transforms import LULinear
+    from glasflow.nflows.transforms.linear import LinearCache
 
     lu = MagicMock(spec=LULinear)
     lu.cache = MagicMock(spec=LinearCache)

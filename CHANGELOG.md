@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add option to checkpoint based on elapsed time.
 - Add `stream` option to `setup_logger` for setting the stream for `logging.StreamHandler`.
 - Add configurable periodic logging based on either the iteration or elapsed time.
+- Add `glasflow` dependency.
 
 ### Changed
 
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactor `nessai.nestedsampler` into the `nessai.samplers` submodule.
 - Change how `noise_scale` is configured `FlowModel`. User can now specify `noise_type` and `noise_scale`.
 - Change default checkpoint interval to 10 minutes rather than after training.
+- Change flows to use `glasflow.nflows` instead of `nflows`.
 
 ### Fixed
 
@@ -32,10 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Setting `max_threads` is deprecated and will be removed in a future release.
 - `nessai.nestedsampler` is deprecated and will be removed in a future release. Use `nessai.samplers.nestedsampler` instead.
+- `nessai.flows.transforms.LULinear` is deprecated in favour of `glasflow.nflows.transforms.LULinear` and will be removed in a future release.
 
 ### Removed
 
 - Removed unused code for saving live points in `NestedSampler`
+- Removed `nflows` dependency.
 
 
 ## [0.6.0] - 2022-08-24

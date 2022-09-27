@@ -6,10 +6,10 @@ import logging
 
 import torch.nn.functional as F
 
-from nflows.distributions import StandardNormal
-from nflows import transforms
-from nflows.nn.nets import ResidualNet
-from nflows.utils import create_alternating_binary_mask
+from glasflow.nflows.distributions import StandardNormal
+from glasflow.nflows import transforms
+from glasflow.nflows.nn.nets import ResidualNet
+from glasflow.nflows.utils import create_alternating_binary_mask
 
 from .base import NFlow
 from .utils import create_linear_transform

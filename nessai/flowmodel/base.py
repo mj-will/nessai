@@ -790,7 +790,7 @@ class FlowModel:
             Array of latent samples to map the the data space, if ``alt_dist``
             is not specified they are assumed to be drawn from the base
             distribution of the flow.
-        alt_dist : :obj:`nflows.distribution.Distribution`
+        alt_dist : :obj:`glasflow.nflows.distribution.Distribution`
             Distribution object from which the latent samples z were
             drawn from. Must have a ``log_prob`` method that accepts an
             instance of ``torch.Tensor``

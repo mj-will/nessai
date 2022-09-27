@@ -6,13 +6,13 @@ import logging
 
 from torch.nn import functional as F
 
-from nflows.distributions.normal import StandardNormal
-from nflows.transforms.autoregressive import (
+from glasflow.nflows.distributions.normal import StandardNormal
+from glasflow.nflows.transforms.autoregressive import (
     MaskedAffineAutoregressiveTransform,
 )
-from nflows.transforms.base import CompositeTransform
-from nflows.transforms.normalization import BatchNorm
-from nflows.transforms.permutations import (
+from glasflow.nflows.transforms.base import CompositeTransform
+from glasflow.nflows.transforms.normalization import BatchNorm
+from glasflow.nflows.transforms.permutations import (
     RandomPermutation,
     ReversePermutation,
 )

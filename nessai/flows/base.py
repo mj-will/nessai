@@ -161,38 +161,39 @@ class BaseFlow(Module, ABC):
 
 
 class NFlow(BaseFlow):
-    """
-    Base class for flow objects implemented according to outline in nflows.
-    These take an instance of a transform and a distribution from nflows.
+    """Base class for flow objects from glasflow.nflows.
 
-    This replaces `Flow` from nflows. It removes the context and includes
-    additional methods which are called in FlowModel.
+    This replaces `Flow` from glasflow.nflows. It includes additional methods
+    which are called in FlowModel.
 
     Parameters
     ----------
-    transform : :obj: `nflows.transforms.Transform`
+    transform : :obj: `glasflow.nflows.transforms.Transform`
         Object that applies the transformation, must have`forward` and
-        `inverse` methods. See nflows for more details.
-    distribution : :obj: `nflows.distributions.Distribution`
+        `inverse` methods. See glasflow.nflows for more details.
+    distribution : :obj: `glasflow.nflows.distributions.Distribution`
         Object the serves as the base distribution used when sampling
         and computing the log probability. Must have `log_prob` and
-        `sample` methods. See nflows for details
+        `sample` methods. See glasflow.nflows for details
     """
 
     def __init__(self, transform, distribution):
         super().__init__()
-        from nflows.transforms import Transform
-        from nflows.distributions import Distribution
+        from glasflow.nflows.transforms import Transform
+        from glasflow.nflows.distributions import Distribution
 
         if not isinstance(transform, Transform):
             raise TypeError(
-                "transform must inherit from `nflows.transforms.Transform"
+                "transform must inherit from "
+                "`glasflow.nflows.transforms.Transform`. "
+                f"Got: {type(transform)}"
             )
 
         if not isinstance(distribution, Distribution):
             raise TypeError(
                 "distribution must inherit from "
-                "`nflows.transforms.Distribution"
+                "`glasflow.nflows.transforms.Distribution`. "
+                f"Got: {type(transform)}"
             )
 
         self._transform = transform
