@@ -136,3 +136,14 @@ def test_insertion_indices_save(mock_fn, mock_save, filename, sampler):
             newline="\n",
             delimiter=" ",
         )
+
+
+@patch(
+    "nessai.samplers.nestedsampler.compute_indices_ks_test",
+    return_value=(0.1, 0.01),
+)
+def test_insertion_indices_p_value_warning(mock_fn, sampler, caplog):
+    """Assert a warning is logged if the p-value is less than 0.05"""
+    sampler.insertion_indices = [1, 2, 3]
+    NestedSampler.check_insertion_indices(sampler, rolling=False)
+    assert "less than 0.05" in str(caplog.text)
