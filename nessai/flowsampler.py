@@ -43,6 +43,10 @@ class FlowSampler:
         Enable or disable signal handling.
     exit_code : int, optional
         Exit code to use when forceably exiting the sampler.
+    close_pool : bool
+        If True, the multiprocessing pool will be closed once the run method
+        has been called. Disables the option in :code:`NestedSampler` if
+        enabled.
     kwargs :
         Keyword arguments passed to
         :obj:`~nessai.samplers.nestedsampler.NestedSampler`.
@@ -51,7 +55,7 @@ class FlowSampler:
     def __init__(
         self,
         model,
-        output="./",
+        output=os.getcwd(),
         resume=True,
         resume_file="nested_sampler_resume.pkl",
         weights_file=None,
@@ -59,6 +63,7 @@ class FlowSampler:
         exit_code=130,
         pytorch_threads=1,
         max_threads=None,
+        close_pool=True,
         **kwargs,
     ):
 
@@ -68,6 +73,7 @@ class FlowSampler:
         )
 
         self.exit_code = exit_code
+        self.close_pool = close_pool
 
         self.output = os.path.join(output, "")
         if resume:
@@ -87,6 +93,7 @@ class FlowSampler:
                     model,
                     output=self.output,
                     resume_file=resume_file,
+                    close_pool=not self.close_pool,
                     **kwargs,
                 )
             else:
@@ -120,7 +127,11 @@ class FlowSampler:
                         )
         else:
             self.ns = NestedSampler(
-                model, output=self.output, resume_file=resume_file, **kwargs
+                model,
+                output=self.output,
+                resume_file=resume_file,
+                close_pool=not self.close_pool,
+                **kwargs,
             )
 
         self.save_kwargs(kwargs)
@@ -138,25 +149,65 @@ class FlowSampler:
                 "checkpoint when exitted."
             )
 
-    def run(self, plot=True, save=True):
-        """
-        Run the nested samper
+    @property
+    def log_evidence(self):
+        """Return the most recent log evidence"""
+        return self.logZ
+
+    @property
+    def log_evidence_error(self):
+        """Return the most recent log evidence error"""
+        return self.logZ_error
+
+    def run(
+        self,
+        plot=True,
+        plot_indices=True,
+        plot_posterior=True,
+        plot_logXlogL=True,
+        save=True,
+        posterior_sampling_method=None,
+        close_pool=None,
+    ):
+        """Run the nested sampler.
 
         Parameters
         ----------
-        plot : bool, optional
-            Toggle plots produced once the sampler has converged
+        plot : bool
+            Toggle all plots produced once the sampler has converged.
+        plot_indices : bool
+            Toggle the insertion indices plot.
+        plot_posterior : bool
+            Toggle the posterior distribution plot.
+        plot_logXlogL : bool
+            Toggle the log-prior volume vs log-likelihood plot.
         save : bool, optional
             Toggle automatic saving of results
+        posterior_sampling_method : str, optional
+            Method used for drawing posterior samples. Defaults to rejection
+            sampling.
+        close_pool : bool, optional
+            Boolean to indicated if the pool should be closed at the end of the
+            run function. If False, the user must manually close the pool. If
+            specified, this value overrides the value passed when initialising
+            the FlowSampler class.
         """
+        if close_pool is None:
+            close_pool = self.close_pool
+        if posterior_sampling_method is None:
+            posterior_sampling_method = "rejection_sampling"
+
         self.ns.initialise()
         self.logZ, self.nested_samples = self.ns.nested_sampling_loop()
+        self.logZ_error = self.ns.state.log_evidence_error
         logger.info((f"Total sampling time: {self.ns.sampling_time}"))
 
         logger.info("Starting post processing")
         logger.info("Computing posterior samples")
         self.posterior_samples = draw_posterior_samples(
-            self.nested_samples, self.ns.nlive
+            self.nested_samples,
+            nlive=self.ns.nlive,
+            method=posterior_sampling_method,
         )
         logger.info(
             f"Returned {self.posterior_samples.size} " "posterior samples"
@@ -168,20 +219,27 @@ class FlowSampler:
         if plot:
             from nessai import plot
 
-            plot.plot_live_points(
-                self.posterior_samples,
-                filename=os.path.join(
-                    self.output, "posterior_distribution.png"
-                ),
-            )
+            if plot_posterior:
+                plot.plot_live_points(
+                    self.posterior_samples,
+                    filename=os.path.join(
+                        self.output, "posterior_distribution.png"
+                    ),
+                )
+            if plot_indices:
+                plot.plot_indices(
+                    self.ns.insertion_indices,
+                    self.ns.nlive,
+                    filename=os.path.join(
+                        self.output, "insertion_indices.png"
+                    ),
+                )
 
-            plot.plot_indices(
-                self.ns.insertion_indices,
-                self.ns.nlive,
-                filename=os.path.join(self.output, "insertion_indices.png"),
-            )
+            if plot_logXlogL:
+                self.ns.state.plot(os.path.join(self.output, "logXlogL.png"))
 
-            self.ns.state.plot(os.path.join(self.output, "logXlogL.png"))
+        if close_pool:
+            self.ns.close_pool()
 
     def save_kwargs(self, kwargs):
         """
@@ -212,13 +270,23 @@ class FlowSampler:
         with open(filename, "w") as wf:
             json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
 
+    def terminate_run(self, code=None):
+        """Terminate a sampling run.
+
+        Parameters
+        ----------
+        code : int, optional
+            Code passed to :code:`close_pool`
+        """
+        logger.warning("Terminating run")
+        self.ns.close_pool(code=code)
+        self.ns.checkpoint()
+
     def safe_exit(self, signum=None, frame=None):
         """
         Safely exit. This includes closing the multiprocessing pool.
         """
         logger.warning(f"Trying to safely exit with code {signum}")
-        self.ns.model.close_pool(code=signum)
-        self.ns.checkpoint()
-
+        self.terminate_run(code=signum)
         logger.warning(f"Exiting with code: {self.exit_code}")
         sys.exit(self.exit_code)
