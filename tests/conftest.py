@@ -1,3 +1,4 @@
+"""General configuration for the test suite"""
 import sys
 
 from numpy.random import seed
@@ -80,6 +81,15 @@ def mp_context(request):
     return multiprocessing.get_context(request.param)
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--bilby-compatibility",
+        action="store_true",
+        default=False,
+        help="Run bilby compatibility tests",
+    )
+
+
 def pytest_configure(config):
     # register an additional marker
     config.addinivalue_line(
@@ -95,6 +105,22 @@ def pytest_configure(config):
         "skip_on_windows: mark test to indicated it should be skipped on "
         "Windows",
     )
+    config.addinivalue_line(
+        "markers",
+        "bilby_compatibility: mark test as a bilby compatibility test, these "
+        "tests will be skipped unless the command line option is specified.",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--bilby-compatibility"):
+        return
+    skip_bilby_compat = pytest.mark.skip(
+        reason="Need --bilby-compatibility to run"
+    )
+    for item in items:
+        if "bilby_compatibility" in item.keywords:
+            item.add_marker(skip_bilby_compat)
 
 
 def pytest_runtest_setup(item):
