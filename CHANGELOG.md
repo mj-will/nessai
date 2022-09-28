@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add options `plot_{indices, posterior, logXlogL}` for disabling plots in `FlowSampler.run`.
 - Add `FlowSampler.terminate_run`.
 - Add `FlowSampler.log_evidence` and `FlowSampler.log_evidence_error`.
+- Add `nessai.utils.bilbyutils`.
 
 ### Changed
 
