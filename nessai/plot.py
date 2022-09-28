@@ -122,6 +122,9 @@ def plot_live_points(
     else:
         hue = None
 
+    if hue is None:
+        pairplot_kwargs["plot_kws"].pop("palette")
+
     fig = sns.PairGrid(df, corner=True, diag_sharey=False)
     fig.map_diag(plt.hist, **pairplot_kwargs["diag_kws"])
     fig.map_offdiag(sns.scatterplot, hue=hue, **pairplot_kwargs["plot_kws"])
