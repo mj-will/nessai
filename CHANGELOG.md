@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `FlowSampler.log_evidence` and `FlowSampler.log_evidence_error`.
 - Add `nessai.utils.bilbyutils`.
 - Add a warning for when the final p-value for the insertion indices is less than 0.05.
+- Add `reset_flow` to `NestedSampler` for resetting the entire flow.
 
 ### Changed
 

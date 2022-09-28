@@ -12,32 +12,49 @@ from nessai.samplers.nestedsampler import NestedSampler
 
 def test_configure_flow_reset_false(sampler):
     """Assert the attributes evaluate to false if the inputs are false"""
-    NestedSampler.configure_flow_reset(sampler, False, False)
+    NestedSampler.configure_flow_reset(sampler, False, False, False)
     assert not sampler.reset_weights
     assert not sampler.reset_permutations
+    assert not sampler.reset_flow
 
 
 @pytest.mark.parametrize("weights", [10, 5.0])
 @pytest.mark.parametrize("permutations", [10, 5.0])
 def test_configure_flow_reset(sampler, weights, permutations):
     """Assert the attributes evaluate to false if the inputs are false"""
-    NestedSampler.configure_flow_reset(sampler, weights, permutations)
+    NestedSampler.configure_flow_reset(sampler, weights, permutations, False)
     assert sampler.reset_weights == float(weights)
     assert sampler.reset_permutations == float(permutations)
+
+
+@pytest.mark.parametrize("flow", [10, 5.0])
+def test_configure_flow_reset_flow(sampler, flow):
+    """Assert reset_flow overwrites the other values"""
+    NestedSampler.configure_flow_reset(sampler, 2, 4, flow)
+    assert sampler.reset_flow == float(flow)
+    assert sampler.reset_weights == float(flow)
+    assert sampler.reset_permutations == float(flow)
 
 
 def test_configure_flow_reset_error_weights(sampler):
     """Assert an error is raised in the weights input is invalid"""
     with pytest.raises(TypeError) as excinfo:
-        NestedSampler.configure_flow_reset(sampler, None, 5)
+        NestedSampler.configure_flow_reset(sampler, None, 5, 5)
     assert "weights` must be" in str(excinfo.value)
 
 
 def test_configure_flow_reset_error_permutations(sampler):
     """Assert an error is raised in the permutations input is invalid"""
     with pytest.raises(TypeError) as excinfo:
-        NestedSampler.configure_flow_reset(sampler, 5, None)
+        NestedSampler.configure_flow_reset(sampler, 5, None, 5)
     assert "permutations` must be" in str(excinfo.value)
+
+
+def test_configure_flow_reset_error_flow(sampler):
+    """Assert an error is raised if the flow input is invalid"""
+    with pytest.raises(TypeError) as excinfo:
+        NestedSampler.configure_flow_reset(sampler, 5, 5, None)
+    assert "`reset_flow` must be" in str(excinfo.value)
 
 
 def test_check_training_not_completed_training(sampler):
