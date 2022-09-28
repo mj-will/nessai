@@ -756,6 +756,7 @@ class NestedSampler(BaseNestedSampler):
         ):
             if self.proposal is self._flow_proposal:
                 logger.warning("Already using flowproposal")
+                self.uninformed_sampling = False
                 return True
             logger.warning("Switching to FlowProposal")
             self.proposal = self._flow_proposal
