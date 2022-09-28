@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `stream` option to `setup_logger` for setting the stream for `logging.StreamHandler`.
 - Add configurable periodic logging based on either the iteration or elapsed time.
 - Add `glasflow` dependency.
+- Add `posterior_sampling_method` to `FlowSampler.run`.
+- Add options `plot_{indices, posterior, logXlogL}` for disabling plots in `FlowSampler.run`.
+- Add `FlowSampler.terminate_run`.
+- Add `FlowSampler.log_evidence` and `FlowSampler.log_evidence_error`.
 
 ### Changed
 
@@ -25,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Change how `noise_scale` is configured `FlowModel`. User can now specify `noise_type` and `noise_scale`.
 - Change default checkpoint interval to 10 minutes rather than after training.
 - Change flows to use `glasflow.nflows` instead of `nflows`.
+- Change `close_pool` to be called at the end of `FlowSampler.run` rather than at the end of `NestedSampler.nested_sampling_loop`.
 
 ### Fixed
 
