@@ -126,6 +126,11 @@ class NestedSampler(BaseNestedSampler):
         Boolean to toggle resetting the permutation layers in the flow whenever
         re-training. If an integer is specified the flow is reset every nth
         time it is trained.
+    reset_flow : bool, int
+        Boolean to toggle resetting the entire flow whenever re-training. If
+        an integer is specified the flow is reset every nth time it trains.
+        This option overrides :code:`reset_weights` and
+        :code:`reset_permutations`.
     reset_acceptance : bool, (True)
         If true use mean acceptance of samples produced with current flow
         as a criteria for retraining
@@ -173,6 +178,7 @@ class NestedSampler(BaseNestedSampler):
         memory=False,
         reset_weights=False,
         reset_permutations=False,
+        reset_flow=False,
         retrain_acceptance=True,
         reset_acceptance=False,
         acceptance_threshold=0.01,
@@ -252,7 +258,9 @@ class NestedSampler(BaseNestedSampler):
         self.memory = memory
 
         self.configure_max_iteration(max_iteration)
-        self.configure_flow_reset(reset_weights, reset_permutations)
+        self.configure_flow_reset(
+            reset_weights, reset_permutations, reset_flow
+        )
         self.configure_training_frequency(training_frequency)
 
         if uninformed_proposal_kwargs is None:
@@ -484,7 +492,9 @@ class NestedSampler(BaseNestedSampler):
         if self.plot:
             os.makedirs(os.path.join(output, "diagnostics"), exist_ok=True)
 
-    def configure_flow_reset(self, reset_weights, reset_permutations):
+    def configure_flow_reset(
+        self, reset_weights, reset_permutations, reset_flow
+    ):
         """Configure how often the flow parameters are reset.
 
         Values are converted to floats.
@@ -495,6 +505,9 @@ class NestedSampler(BaseNestedSampler):
             Frequency with which the weights will be reset.
         reset_permutations : int, float or bool
             Frequency with which the permutations will be reset.
+        reset_flow : int, float or bool
+            Frequency with which the entire flow will be reset. Will overwrite
+            the value for the other resets.
         """
         if isinstance(reset_weights, (int, float)):
             self.reset_weights = float(reset_weights)
@@ -506,6 +519,14 @@ class NestedSampler(BaseNestedSampler):
             raise TypeError(
                 "`reset_permutations` must be a bool, int or float"
             )
+        if isinstance(reset_flow, (int, float)):
+            self.reset_flow = float(reset_flow)
+        else:
+            raise TypeError("`reset_flow` must be a bool, int or float")
+
+        if self.reset_flow:
+            self.reset_weights = self.reset_flow
+            self.reset_permutations = self.reset_flow
 
     def log_state(self):
         """Log the current state of the sampler"""
