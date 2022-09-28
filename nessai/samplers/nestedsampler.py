@@ -542,6 +542,14 @@ class NestedSampler(BaseNestedSampler):
                 logger.warning(f"Final KS test: D={D:.4}, p-value={p:.4}")
                 self.final_p_value = p
                 self.final_ks_statistic = D
+                pt = 0.05
+                if self.final_p_value < pt:
+                    logger.critical(
+                        f"Final p-value for the insertion indices is less "
+                        f"than {pt}, this could be an indication of problems "
+                        "during sampling. Consider checking the diagnostic "
+                        "plots."
+                    )
 
         if filename is not None:
             np.savetxt(
