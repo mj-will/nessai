@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed a bug in `nessai.flows.utils.configure_model` that only occurred when the specified `device_tag` is invalid.
+- Fixed an infinite loop when resuming a run that was interrupted when switching proposal.
 
 ### Deprecated
 
