@@ -48,6 +48,7 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
     kwargs = dict(
         nlive=1000,
     )
+    close_pool = True
 
     flow_sampler.save_kwargs = MagicMock()
 
@@ -62,6 +63,7 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
             exit_code=exit_code,
             pytorch_threads=pytorch_threads,
             resume_file=resume_file,
+            close_pool=close_pool,
             **kwargs,
         )
 
@@ -74,6 +76,7 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
         model,
         output=os.path.join(output, ""),
         resume_file=resume_file,
+        close_pool=False,
         **kwargs,
     )
 
@@ -249,6 +252,20 @@ def test_init_signal_handling_error(flow_sampler, tmp_path, caplog):
     assert "Cannot set signal attributes" in str(caplog.text)
 
 
+def test_log_evidence(flow_sampler):
+    """Test log-evidence property"""
+    out = 0.0
+    flow_sampler.logZ = out
+    assert FlowSampler.log_evidence.__get__(flow_sampler) is out
+
+
+def test_log_evidence_error(flow_sampler):
+    """Test log-evidence property"""
+    out = 0.1
+    flow_sampler.logZ_error = out
+    assert FlowSampler.log_evidence_error.__get__(flow_sampler) is out
+
+
 @pytest.mark.parametrize("save", [False, True])
 @pytest.mark.parametrize("plot", [False, True])
 @patch(
@@ -276,11 +293,14 @@ def test_run(
     flow_sampler.ns.state = MagicMock()
     flow_sampler.ns.state.plot_state = MagicMock()
     flow_sampler.save_results = MagicMock()
+    flow_sampler.close_pool = True
 
     FlowSampler.run(flow_sampler, save=save, plot=plot)
 
     flow_sampler.ns.initialise.assert_called_once()
-    mock_draw_post.assert_called_once_with(nested_samples, nlive)
+    mock_draw_post.assert_called_once_with(
+        nested_samples, nlive=nlive, method="rejection_sampling"
+    )
     if save:
         flow_sampler.save_results.assert_called_once()
     else:
@@ -309,6 +329,71 @@ def test_run(
     np.testing.assert_array_equal(
         flow_sampler.posterior_samples, np.array([0.1])
     )
+
+
+@pytest.mark.parametrize("close_pool", [True, False, None])
+def test_run_close_pool(flow_sampler, close_pool):
+    """Assert close pool is called following the intended logic"""
+    flow_sampler.close_pool = True
+    flow_sampler.ns = MagicMock()
+    flow_sampler.ns.close_pool = MagicMock()
+    flow_sampler.ns.nested_sampling_loop = MagicMock(return_value=("lZ", "ns"))
+    with patch("nessai.flowsampler.draw_posterior_samples"):
+        FlowSampler.run(
+            flow_sampler, close_pool=close_pool, save=False, plot=False
+        )
+
+    # If True should be called
+    # If None, should fallback to self.close_pool which is true
+    if close_pool or close_pool is None:
+        flow_sampler.ns.close_pool.assert_called_once()
+    else:
+        flow_sampler.ns.close_pool.assert_not_called()
+
+
+@pytest.mark.parametrize("method", (None, "multinomial_resampling"))
+def test_run_posterior_sampling_method(flow_sampler, method):
+    """Assert posterior sampling method is passed correctly"""
+    flow_sampler.ns = MagicMock()
+    flow_sampler.ns.nested_sampling_loop = MagicMock(return_value=("lZ", "ns"))
+    flow_sampler.ns.nlive = 100
+    with patch("nessai.flowsampler.draw_posterior_samples") as mock:
+        FlowSampler.run(
+            flow_sampler,
+            close_pool=False,
+            save=False,
+            plot=False,
+            posterior_sampling_method=method,
+        )
+
+    if method is None:
+        method = "rejection_sampling"
+    mock.assert_called_once_with("ns", nlive=100, method=method)
+
+
+def test_run_plots_disabled(flow_sampler):
+    """Assert individual plots can be disabled when plot=True"""
+    flow_sampler.ns = MagicMock()
+    flow_sampler.ns.nested_sampling_loop = MagicMock(return_value=("lZ", "ns"))
+    flow_sampler.ns.nlive = 100
+    flow_sampler.state = MagicMock()
+    flow_sampler.state.plot = MagicMock()
+
+    with patch("nessai.flowsampler.draw_posterior_samples"), patch(
+        "nessai.plot.plot_indices"
+    ) as mock_indices, patch("nessai.plot.plot_live_points") as mock_post:
+        FlowSampler.run(
+            flow_sampler,
+            plot=True,
+            save=False,
+            close_pool=False,
+            plot_indices=False,
+            plot_posterior=False,
+            plot_logXlogL=False,
+        )
+    mock_indices.assert_not_called()
+    mock_post.assert_not_called()
+    flow_sampler.state.plot.assert_not_called()
 
 
 @pytest.mark.parametrize("test_class", [False, True])
@@ -357,20 +442,26 @@ def test_save_results(flow_sampler, tmpdir):
     assert "posterior_samples" in out
 
 
+def test_terminate_run(flow_sampler):
+    """Test terminate run"""
+    flow_sampler.ns = MagicMock()
+    flow_sampler.ns.checkpoint = MagicMock()
+    flow_sampler.ns.close_pool = MagicMock()
+    FlowSampler.terminate_run(flow_sampler, code=2)
+    flow_sampler.ns.checkpoint.assert_called_once()
+    flow_sampler.ns.close_pool.assert_called_once_with(code=2)
+
+
 def test_safe_exit(flow_sampler):
     """Test the safe exit method."""
     flow_sampler.exit_code = 130
-    flow_sampler.ns = MagicMock()
-    flow_sampler.ns.checkpoint = MagicMock()
-    flow_sampler.ns.model = MagicMock()
-    flow_sampler.ns.model.close_pool = MagicMock()
+    flow_sampler.terminate_run = MagicMock()
 
     with patch("sys.exit") as mock_exit:
         FlowSampler.safe_exit(flow_sampler, signum=2)
 
     mock_exit.assert_called_once_with(130)
-    flow_sampler.ns.checkpoint.assert_called_once()
-    flow_sampler.ns.model.close_pool.assert_called_once_with(code=2)
+    flow_sampler.terminate_run.assert_called_once_with(code=2)
 
 
 @pytest.mark.parametrize(
