@@ -7,49 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0]
+
+**Important:** in this release the flow backend changed from `nflows` to `glasflow` which increased the minimum version of PyTorch to 1.11.0.
+
 ### Added
 
-- Add explicit support for Python 3.10
-- Add more structure utils (`get_subset_arrays`, `isfinite_struct`)
-- Add `nessai.sampler.base.BaseNestedSampler` class.
-- Add option to use multinomial resampling to `nessai.posterior.draw_posterior_samples`.
-- Add option to checkpoint based on elapsed time.
-- Add `stream` option to `setup_logger` for setting the stream for `logging.StreamHandler`.
-- Add configurable periodic logging based on either the iteration or elapsed time.
-- Add `glasflow` dependency.
-- Add `posterior_sampling_method` to `FlowSampler.run`.
-- Add options `plot_{indices, posterior, logXlogL}` for disabling plots in `FlowSampler.run`.
-- Add `FlowSampler.terminate_run`.
-- Add `FlowSampler.log_evidence` and `FlowSampler.log_evidence_error`.
-- Add `nessai.utils.bilbyutils`.
-- Add a warning for when the final p-value for the insertion indices is less than 0.05.
-- Add `reset_flow` to `NestedSampler` for resetting the entire flow.
+- Add explicit support for Python 3.10. ([#224](https://github.com/mj-will/nessai/pull/224))
+- Add more structure utils (`get_subset_arrays`, `isfinite_struct`). ([#209](https://github.com/mj-will/nessai/pull/209))
+- Add `nessai.sampler.base.BaseNestedSampler` class. ([#210](https://github.com/mj-will/nessai/pull/210))
+- Add option to use multinomial resampling to `nessai.posterior.draw_posterior_samples`. ([#213](https://github.com/mj-will/nessai/pull/213), [#214](https://github.com/mj-will/nessai/pull/214))
+- Add features (`log_prob`, `sample`, `end_iteration`, `finalise`, training with weights) to `FlowModel`. ([#216](https://github.com/mj-will/nessai/pull/216))
+- Add option to checkpoint based on elapsed time. ([#225](https://github.com/mj-will/nessai/pull/225))
+- Add `stream` option to `setup_logger` for setting the stream for `logging.StreamHandler`. ([#229](https://github.com/mj-will/nessai/pull/229))
+- Add configurable periodic logging based on either the iteration or elapsed time. ([#229](https://github.com/mj-will/nessai/pull/229))
+- Add `glasflow` dependency. ([#228](https://github.com/mj-will/nessai/pull/228))
+- Add `posterior_sampling_method` to `FlowSampler.run`. ([#233](https://github.com/mj-will/nessai/pull/233))
+- Add options `plot_{indices, posterior, logXlogL}` for disabling plots in `FlowSampler.run`. ([#233](https://github.com/mj-will/nessai/pull/233))
+- Add `FlowSampler.terminate_run`. ([#233](https://github.com/mj-will/nessai/pull/233))
+- Add `FlowSampler.log_evidence` and `FlowSampler.log_evidence_error`. ([#233](https://github.com/mj-will/nessai/pull/233))
+- Add `nessai.utils.bilbyutils`. ([#236](https://github.com/mj-will/nessai/pull/236))
+- Add a warning for when the final p-value for the insertion indices is less than 0.05. ([#235](https://github.com/mj-will/nessai/pull/235))
+- Add `reset_flow` to `NestedSampler` for resetting the entire flow. ([#238](https://github.com/mj-will/nessai/pull/238))
 
 ### Changed
 
-- Change how threading is handled to no longer use `max_threads`.
-- Refactor `nessai.nestedsampler` into the `nessai.samplers` submodule.
-- Change how `noise_scale` is configured `FlowModel`. User can now specify `noise_type` and `noise_scale`.
-- Change default checkpoint interval to 10 minutes rather than after training.
-- Change flows to use `glasflow.nflows` instead of `nflows`.
-- Change `close_pool` to be called at the end of `FlowSampler.run` rather than at the end of `NestedSampler.nested_sampling_loop`.
+- Change how threading is handled to no longer use `max_threads`. ([#208](https://github.com/mj-will/nessai/pull/208))
+- Refactor `nessai.nestedsampler` into the `nessai.samplers` submodule. ([#210](https://github.com/mj-will/nessai/pull/210))
+- Refactor `nessai.flowmodel` into a submodule with `nessai.flowmodel.{base, utils, config}`. ([#216](https://github.com/mj-will/nessai/pull/216))
+- Change how `noise_scale` is configured `FlowModel`. User can now specify `noise_type` and `noise_scale`. ([#216](https://github.com/mj-will/nessai/pull/216))
+- Change `nessai.utils.rescaling.{logit, sigmoid}` to match `torch.{logit, sigmoid}`. ([#218](https://github.com/mj-will/nessai/pull/218))
+- Change default checkpoint interval to 10 minutes rather than after training. ([#225](https://github.com/mj-will/nessai/pull/225))
+- Change flows to use `glasflow.nflows` instead of `nflows`. ([#228](https://github.com/mj-will/nessai/pull/228))
+- Change `close_pool` to be called at the end of `FlowSampler.run` rather than at the end of `NestedSampler.nested_sampling_loop`. ([#233](https://github.com/mj-will/nessai/pull/233))
+- Bump minimum PyTorch version to 1.11.0. ([#230](https://github.com/mj-will/nessai/pull/230))
 
 ### Fixed
 
-- Fixed a bug in `nessai.flows.utils.configure_model` that only occurred when the specified `device_tag` is invalid.
-- Fixed an infinite loop when resuming a run that was interrupted when switching proposal.
+- Fixed a bug in `nessai.flows.utils.configure_model` that only occurred when the specified `device_tag` is invalid. ([#216](https://github.com/mj-will/nessai/pull/216))
+- Fixed a bug in `nessai.utils.sampling.draw_truncated_gaussian` where the input was being changed by an in-place operation. ([#217](https://github.com/mj-will/nessai/pull/217))
+- Fixed an infinite loop when resuming a run that was interrupted when switching proposal. ([#237](https://github.com/mj-will/nessai/pull/237))
 
 ### Deprecated
 
-- Setting `max_threads` is deprecated and will be removed in a future release.
-- `nessai.nestedsampler` is deprecated and will be removed in a future release. Use `nessai.samplers.nestedsampler` instead.
-- `nessai.flows.transforms.LULinear` is deprecated in favour of `glasflow.nflows.transforms.LULinear` and will be removed in a future release.
+- Setting `max_threads` is deprecated and will be removed in a future release. ([#208](https://github.com/mj-will/nessai/pull/208))
+- `nessai.nestedsampler` is deprecated and will be removed in a future release. Use `nessai.samplers.nestedsampler` instead. ([#226](https://github.com/mj-will/nessai/pull/226))
+- `nessai.flows.transforms.LULinear` is deprecated in favour of `glasflow.nflows.transforms.LULinear` and will be removed in a future release. ([#228](https://github.com/mj-will/nessai/pull/228))
 
 ### Removed
 
-- Removed unused code for saving live points in `NestedSampler`
-- Removed `nflows` dependency.
-
+- Removed unused code for saving live points in `NestedSampler`. ([#210](https://github.com/mj-will/nessai/pull/210))
+- Removed `nflows` dependency. ([#228](https://github.com/mj-will/nessai/pull/228))
 
 ## [0.6.0] - 2022-08-24
 
@@ -428,8 +436,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/mj-will/nessai/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mj-will/nessai/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/mj-will/nessai/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mj-will/nessai/compare/v0.4.0...v0.5.0
