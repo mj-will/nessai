@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from nessai.livepoint import numpy_array_to_live_points
-from nessai.posterior import compute_weights, draw_posterior_samples
+from nessai.posterior.draw import draw_posterior_samples
 from nessai.utils.testing import assert_structured_arrays_equal
 
 resampling_options = [
@@ -25,16 +25,6 @@ def ns():
 @pytest.fixture(params=resampling_options)
 def method(request):
     return request.param
-
-
-def test_compute_weights():
-    """Test computing the weights for set of likelihood values"""
-    log_l = np.random.randn(20)
-
-    log_z, log_w = compute_weights(log_l, 10)
-
-    assert len(log_w) == len(log_l)
-    assert np.isfinite(log_z)
 
 
 def test_draw_posterior_samples(ns, method):
