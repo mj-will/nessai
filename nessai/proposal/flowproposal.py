@@ -859,7 +859,7 @@ class FlowProposal(RejectionProposal):
         logger.info("Rescaling functions are invertible")
 
     def _rescale_w_reparameterisation(self, x, compute_radius=False, **kwargs):
-        x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
+        x_prime = empty_structured_array([x.size], dtype=self.x_prime_dtype)
         log_J = np.zeros(x_prime.size)
 
         if x.size == 1:
@@ -874,7 +874,7 @@ class FlowProposal(RejectionProposal):
         return x_prime, log_J
 
     def _inverse_rescale_w_reparameterisation(self, x_prime, **kwargs):
-        x = np.zeros([x_prime.size], dtype=self.x_dtype)
+        x = empty_structured_array([x_prime.size], dtype=self.x_dtype)
         log_J = np.zeros(x.size)
         x, x_prime, log_J = self._reparameterisation.inverse_reparameterise(
             x, x_prime, log_J, **kwargs
