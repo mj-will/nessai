@@ -226,6 +226,6 @@ def test_x_prime_log_prior(reparam):
 
     out = CombinedReparameterisation.x_prime_log_prior(reparam, x)
 
-    assert out == -9
     r1.x_prime_log_prior.assert_called_once_with(x)
     r2.x_prime_log_prior.assert_called_once_with(x)
+    assert out == -9
