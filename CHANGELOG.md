@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changes
+
+- Refactor `nessai.reparameterisations` into a submodule.
+
 ## [0.7.0]
 
 **Important:** in this release the flow backend changed from `nflows` to `glasflow` which increased the minimum version of PyTorch to 1.11.0.
