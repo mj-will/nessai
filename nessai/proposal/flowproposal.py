@@ -751,6 +751,8 @@ class FlowProposal(RejectionProposal):
                     "settings."
                 )
 
+        self._reparameterisation.check_order()
+
         self.rescale = self._rescale_w_reparameterisation
         self.inverse_rescale = self._inverse_rescale_w_reparameterisation
 
