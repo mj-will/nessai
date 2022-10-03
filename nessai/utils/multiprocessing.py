@@ -16,8 +16,8 @@ def get_n_pool(pool):
     pool : object
         Multiprocessing pool or similar.
 
-    Return
-    ------
+    Returns
+    -------
     int or None
         Number of processes. Returns None if number could not be determined.
     """
