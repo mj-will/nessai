@@ -241,7 +241,7 @@ class AnglePair(Reparameterisation):
     parameter is the radial parameter.
 
     Parameters
-    -----------
+    ----------
     parameters : list
         List of parameters. Must contain at least the two angles and,
         optionally, also a radial component.

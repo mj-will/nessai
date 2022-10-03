@@ -325,8 +325,8 @@ class NestedSampler(BaseNestedSampler):
 
         If None then no maximum is set.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         max_iteration : int, None
             Maximum iteration.
         """

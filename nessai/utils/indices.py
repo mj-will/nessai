@@ -19,7 +19,7 @@ def compute_indices_ks_test(indices, nlive, mode="D+"):
         Number of live points
 
     Returns
-    ------
+    -------
     D : float
         Two-sided KS statistic
     p : float
