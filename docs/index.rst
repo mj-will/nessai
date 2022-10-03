@@ -18,10 +18,6 @@ Nessai
 
 The code is available at: https://github.com/mj-will/nessai.
 
-.. automodule:: nessai
-   :members:
-   :undoc-members:
-
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
