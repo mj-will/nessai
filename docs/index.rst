@@ -6,9 +6,7 @@
 Welcome to nessai's documentation!
 ========================================
 
-.. note::
-    This page is still under construction. Some links may not work and some sections are missing. We also welcome contributions to the documentation. For details how to contribute, see: https://github.com/mj-will/nessai
-
+======
 Nessai
 ======
 
@@ -39,6 +37,7 @@ The code is available at: https://github.com/mj-will/nessai.
    gaussian-example
    bilby-example
 
+=============
 Citing nessai
 =============
 
