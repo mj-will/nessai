@@ -509,9 +509,9 @@ class Model(ABC):
         Calls :py:func:`nessai.livepoint.unstructured_view` with a pre-computed
         dtype.
 
-        Note
-        ----
-        Will only work if all of the model parameters use the same dtype.
+        .. warning::
+
+            Will only work if all of the model parameters use the same dtype.
 
         Parameters
         ----------
