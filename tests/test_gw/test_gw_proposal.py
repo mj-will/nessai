@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Test the GW flow proposal method"""
 from math import pi
+import numpy as np
 import pytest
 from unittest.mock import create_autospec, MagicMock, patch
 
@@ -53,6 +54,65 @@ def test_add_default_reparameterisation(proposal):
     reparam.assert_called_once_with(
         parameters=["theta_jn"], prior_bounds={"theta_jn": [0.0, 3.0]}
     )
+
+
+def test_add_default_reparameterisation_w_extra_params(proposal):
+    """Test adding a reparameterisation that has extra parameters"""
+    proposal.aliases = GWFlowProposal.aliases
+    proposal.names = ["ra", "dec"]
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.parameters = []
+    proposal.model = MagicMock()
+    proposal.model.names = ["ra", "dec"]
+    proposal.model.bounds = {
+        "ra": [0.0, 2 * np.pi],
+        "dec": [-np.pi / 2, np.pi / 2],
+    }
+
+    def add_parameters(*args):
+        proposal._reparameterisation.parameters = ["ra", "dec"]
+
+    proposal._reparameterisation.add_reparameterisation = MagicMock(
+        side_effect=add_parameters
+    )
+
+    reparam = MagicMock()
+    reparam.__name__ = "MockReparam"
+    reparam.parameters = ["ra", "dec"]
+    with patch(
+        "nessai.gw.proposal.get_gw_reparameterisation",
+        return_value=(reparam, {}),
+    ) as mock_get:
+        GWFlowProposal.add_default_reparameterisations(proposal)
+
+    # Mustn't be called twice despite have two parameters.
+    mock_get.assert_called_once_with("sky-ra-dec")
+    reparam.assert_called_once_with(
+        parameters=["ra", "dec"],
+        prior_bounds={
+            "ra": [0.0, 2.0 * np.pi],
+            "dec": [-np.pi / 2, np.pi / 2],
+        },
+    )
+
+
+def test_add_default_reparameterisation_unknown(proposal):
+    """Test the method with an unknown parameters"""
+    proposal.aliases = GWFlowProposal.aliases
+    proposal.names = ["x"]
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.parameters = []
+    proposal.model = MagicMock()
+    proposal.model.names = ["x"]
+    proposal.model.bounds = {"x": [0, 10]}
+
+    with patch(
+        "nessai.gw.proposal.get_gw_reparameterisation",
+        return_value=(None, {}),
+    ) as mock_get:
+        GWFlowProposal.add_default_reparameterisations(proposal)
+
+    mock_get.assert_not_called()
 
 
 def test_augmented_get_reparameterisation(augmented_proposal):
