@@ -129,6 +129,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         draw_constant: bool = False,
         train_final_flow: bool = False,
         bootstrap: bool = False,
+        close_pool: bool = False,
         **kwargs: Any,
     ):
 
@@ -229,6 +230,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         if self.replace_all:
             logger.warning("Replace all is experimental")
+
+        if close_pool:
+            logger.critical(
+                "ImportanceNestedSampler will NOT close the multiprocessing "
+                "pool automatically. This must be done manually."
+            )
 
         self.check_configuration()
 
