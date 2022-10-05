@@ -1160,6 +1160,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.dlogL = self.logL - self.logL_pre
         self.gradient = self.dlogL / self.dlogX
 
+    def log_state(self):
+        """Log the state of the sampler"""
+        logger.warning(
+            f"Update {self.iteration} - "
+            f"log Z: {self.state.logZ:.3f} +/- "
+            f"{self.state.compute_uncertainty():.3f} "
+            f"dZ: {self.dZ:.3f} "
+            f"ESS: {self.ess:.1f} "
+            f"logL min: {self.live_points['logL'].min():.3f} "
+            f"logL max: {self.live_points['logL'].max():.3f}"
+        )
+
     def nested_sampling_loop(self):
         """Main nested sampling loop."""
         if self.finalised:
@@ -1218,15 +1230,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.iteration += 1
             self.criterion = self.compute_stopping_criterion()
 
-            logger.warning(
-                f"Update {self.iteration} - "
-                f"log Z: {self.state.logZ:.3f} +/- "
-                f"{self.state.compute_uncertainty():.3f} "
-                f"dZ: {self.dZ:.3f} "
-                f"ESS: {self.ess:.1f} "
-                f"logL min: {self.live_points['logL'].min():.3f} "
-                f"logL max: {self.live_points['logL'].max():.3f}"
-            )
+            self.log_state()
+
             self.update_history()
             if not self.iteration % self.plotting_frequency:
                 self.produce_plots()
