@@ -815,7 +815,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         if not np.isfinite(new_points["logL"]).all():
             raise ValueError("Log-likelihood contains infs")
-        if np.any(np.exp(new_points["logL"]) == 0):
+        if np.any(new_points["logL"] == -np.inf):
             logger.warning("New points contain points with zero likelihood")
 
         self.history["leakage_new_points"].append(
