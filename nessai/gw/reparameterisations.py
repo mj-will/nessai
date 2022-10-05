@@ -140,7 +140,7 @@ class DistanceReparameterisation(RescaleToBounds):
         ]
 
 
-class DeltaPhase(Reparameterisation):
+class DeltaPhaseReparameterisation(Reparameterisation):
     """Reparameterisation that converts phase to delta phase.
 
     The Jacobian determinant of this transformation is 1.
@@ -236,8 +236,8 @@ default_gw = {
         },
     ),
     "mass": (RescaleToBounds, {"update_bounds": True}),
-    "delta_phase": (DeltaPhase, {}),
-    "delta-phase": (DeltaPhase, {}),
+    "delta_phase": (DeltaPhaseReparameterisation, {}),
+    "delta-phase": (DeltaPhaseReparameterisation, {}),
 }
 
 
