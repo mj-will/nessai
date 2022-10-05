@@ -1676,7 +1676,7 @@ class FlowProposal(RejectionProposal):
             )
 
             z_tensor = torch.from_numpy(z).to(self.flow.device)
-            with torch.no_grad():
+            with torch.inference_mode():
                 if self.alt_dist is not None:
                     log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
                 else:
