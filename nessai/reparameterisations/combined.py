@@ -102,7 +102,6 @@ class CombinedReparameterisation(dict):
         """
         parameters = []
         for key in self.from_prime_order:
-            print(parameters)
             if not all([r in parameters for r in self[key].requires]):
                 raise RuntimeError(
                     "Order of reparameterisations is invalid (x' -> x)"

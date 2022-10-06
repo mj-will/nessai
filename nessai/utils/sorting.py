@@ -56,7 +56,6 @@ def sort_reparameterisations(
         if not r.requires or all([req in parameters for req in r.requires]):
             ordered.append(r)
             parameters += r.parameters
-            print(r.name)
         elif any([req not in known_parameters for req in r.requires]):
             raise ValueError(
                 f"{r.name} requires {r.requires} which contains parameters "
