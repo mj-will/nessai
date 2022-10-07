@@ -81,8 +81,8 @@ class FlowModel:
                 config[k] = np.array_str(config[k])
         for k, v in list(config["model_config"].items()):
             if type(v) == np.ndarray:
-                config["model_config"][k] = np.array_str(
-                    config["model_config"][k]
+                config["model_config"][k] = np.array2string(
+                    config["model_config"][k], separator=","
                 )
 
         if "flow" in config["model_config"]:
