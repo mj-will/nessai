@@ -33,6 +33,10 @@ jobs:
         pip install -r requirements.txt
         pip install -r dev_requirements.txt
         pip install -e .
+    - name: Set MPL backend on Windows
+      if: runner.os == 'Windows'
+      run: |
+        echo "MPLBACKEND=agg" >> $env:GITHUB_ENV
     - name: Print environment variables
       run: |
         env

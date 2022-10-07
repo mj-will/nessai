@@ -95,6 +95,9 @@ def test_nessai_style_integration(line_styles):
         assert line_styles is None
 
     # Assert rcParams are still set to the defaults
+    defaults = mpl.rcParamsDefault
+    # Set backend manually
+    defaults["backend"] = plt.rcParams["backend"]
     assert plt.rcParams == mpl.rcParamsDefault
 
 

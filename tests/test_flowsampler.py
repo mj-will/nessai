@@ -467,10 +467,9 @@ def test_safe_exit(flow_sampler):
 @pytest.mark.parametrize(
     "kwargs", [dict(n_pool=None), dict(max_threads=3, n_pool=2)]
 )
-@pytest.mark.integration_test
-@pytest.mark.timeout(30)
+@pytest.mark.slow_integration_test
+@pytest.mark.timeout(60)
 @pytest.mark.skip_on_windows
-@pytest.mark.flaky(reruns=3)
 def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
     """Test the signal handling in nessai.
 
@@ -514,8 +513,8 @@ def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
     )
 
 
-@pytest.mark.integration_test
-@pytest.mark.timeout(30)
+@pytest.mark.slow_integration_test
+@pytest.mark.timeout(60)
 @pytest.mark.skip_on_windows
 def test_signal_handling_disabled(tmp_path, caplog, model):
     """Assert signal handling is correctly disabled.
