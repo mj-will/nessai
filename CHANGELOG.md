@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changes
 
 - Refactor `nessai.reparameterisations` into a submodule.
+- Use `torch.inference_mode` instead of `torch.no_grad`.
 
 ## [0.7.0]
 
