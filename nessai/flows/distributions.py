@@ -72,7 +72,7 @@ class MultivariateNormal(Distribution):
             raise NotImplementedError
 
 
-class ResampleGaussian(BaseResampledGaussian):
+class ResampledGaussian(BaseResampledGaussian):
     """Wrapper for ResampledGaussian.
 
     Adds methods needed in nessai.
