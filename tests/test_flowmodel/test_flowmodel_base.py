@@ -2,7 +2,9 @@
 """
 Test the FlowModel object.
 """
+import json
 import numpy as np
+import os
 import pickle
 import pytest
 import torch
@@ -10,6 +12,7 @@ from unittest.mock import create_autospec, MagicMock, patch
 
 from nessai.flowmodel import FlowModel
 from nessai.flowmodel import config
+from nessai.flows.realnvp import RealNVP
 
 
 @pytest.fixture()
@@ -50,13 +53,36 @@ def test_init_no_output(model, tmpdir):
 
 def test_init_config_class(tmpdir):
     """Test the init and save methods when specifying `flow` as a class"""
-    from nessai.flows import RealNVP
 
     output = str(tmpdir.mkdir("no_config"))
     config = dict(model_config=dict(flow=RealNVP))
     fm = FlowModel(config=config, output=output)
 
     assert fm.model_config["flow"].__name__ == "RealNVP"
+
+
+def test_save_input(model, tmp_path):
+    """Test the save input function"""
+    output = tmp_path / "test"
+    output.mkdir()
+    model.output = output
+
+    config = dict(
+        patience=10,
+        model_config=dict(
+            n_neurons=10,
+            mask=np.array([1, 0]),
+            flow=RealNVP,
+        ),
+    )
+
+    FlowModel.save_input(model, config, output_file=None)
+
+    file_path = os.path.join(output, "flow_config.json")
+    assert os.path.exists(file_path)
+    with open(file_path, "r") as fp:
+        d = json.load(fp)
+    assert d["model_config"]["mask"] == "[1,0]"
 
 
 def test_initialise(model):
