@@ -11,6 +11,8 @@ DEFAULT_MODEL_CONFIG = dict(
     device_tag="cpu",
     flow=None,
     inference_device_tag=None,
+    distribution=None,
+    distribution_kwargs=None,
     kwargs=dict(batch_norm_between_layers=True, linear_transform="lu"),
 )
 
