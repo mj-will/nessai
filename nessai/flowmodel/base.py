@@ -450,16 +450,16 @@ class FlowModel:
                     x = data[0].to(self.device)
                 if weighted:
                     weights = data[1].to(self.device)
-                    with torch.no_grad():
+                    with torch.inference_mode():
                         val_loss += loss_fn(x, weights).item()
                 else:
-                    with torch.no_grad():
+                    with torch.inference_mode():
                         val_loss += loss_fn(x).item()
                 n += 1
 
             return val_loss / n
         else:
-            with torch.no_grad():
+            with torch.inference_mode():
                 val_loss += loss_fn(val_data).item()
             return val_loss
 
@@ -729,7 +729,7 @@ class FlowModel:
             .to(self.model.device)
         )
         self.model.eval()
-        with torch.no_grad():
+        with torch.inference_mode():
             z, log_prob = self.model.forward_and_log_prob(x)
 
         z = z.detach().cpu().numpy().astype(np.float64)
@@ -755,7 +755,7 @@ class FlowModel:
             .to(self.model.device)
         )
         self.model.eval()
-        with torch.no_grad():
+        with torch.inference_mode():
             log_prob = self.model.log_prob(x)
         log_prob = log_prob.cpu().numpy().astype(np.float64)
         return log_prob
@@ -773,7 +773,7 @@ class FlowModel:
         numpy.ndarray
             Array of samples
         """
-        with torch.no_grad():
+        with torch.inference_mode():
             x = self.model.sample(int(n))
         return x.cpu().numpy().astype(np.float64)
 
@@ -808,7 +808,7 @@ class FlowModel:
         if self.model.training:
             self.model.eval()
         if z is None:
-            with torch.no_grad():
+            with torch.inference_mode():
                 x, log_prob = self.model.sample_and_log_prob(int(N))
         else:
             if alt_dist is not None:
@@ -816,7 +816,7 @@ class FlowModel:
             else:
                 log_prob_fn = self.model.base_distribution_log_prob
 
-            with torch.no_grad():
+            with torch.inference_mode():
                 if isinstance(z, np.ndarray):
                     z = (
                         torch.from_numpy(z)

@@ -431,11 +431,11 @@ def test_lu_cache_reset(tmp_path):
 
     test_data = torch.from_numpy(data).type(torch.get_default_dtype())
 
-    with torch.no_grad():
+    with torch.inference_mode():
         z_out, log_j = flow.model.forward(test_data)
     flow.model.train()
     flow.model.eval()
-    with torch.no_grad():
+    with torch.inference_mode():
         z_out_reset, log_j_reset = flow.model.forward(test_data)
 
     np.testing.assert_array_equal(z_out_reset, z_out)
