@@ -17,6 +17,11 @@ source = [
 omit = [
     "nessai/gw/legacy.py"
 ]
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
 
 [tool.black]
 line-length = 79

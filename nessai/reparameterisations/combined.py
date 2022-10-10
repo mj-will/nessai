@@ -4,6 +4,8 @@ Combined reparameterisation.
 """
 import logging
 
+from ..utils.sorting import sort_reparameterisations
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,6 +26,7 @@ class CombinedReparameterisation(dict):
         self.parameters = []
         self.prime_parameters = []
         self.requires = []
+        self.order = []
         if reparameterisations is not None:
             self.add_reparameterisations(reparameterisations)
 
@@ -37,18 +40,29 @@ class CombinedReparameterisation(dict):
         """Boolean to check if any of the priors require the prime space"""
         return any(r.requires_prime_prior for r in self.values())
 
+    @property
+    def to_prime_order(self):
+        """Order when converting to the prime space"""
+        return reversed(self.order)
+
+    @property
+    def from_prime_order(self):
+        """Order when converting from the prime space"""
+        return self.order
+
     def _add_reparameterisation(self, reparameterisation):
         requires = reparameterisation.requires
         if requires and (
-            requires not in self.parameters
-            or requires not in self.prime_parameters
+            any([req not in self.parameters for req in requires])
+            and any([req not in self.prime_parameters for req in requires])
         ):
             raise RuntimeError(
                 f"Could not add {reparameterisation}, missing requirement(s): "
-                f"{reparameterisation.requires}."
+                f"{reparameterisation.requires}. Current: {self.parameters}."
             )
 
         self[reparameterisation.name] = reparameterisation
+        self.order = list(self.keys())
         self.parameters += reparameterisation.parameters
         self.prime_parameters += reparameterisation.prime_parameters
         self.requires += reparameterisation.requires
@@ -67,8 +81,35 @@ class CombinedReparameterisation(dict):
         """
         if not isinstance(reparameterisations, list):
             reparameterisations = [reparameterisations]
+
+        logger.debug("Sorting reparameterisations")
+        logger.debug(f"Existing parameters: {self.parameters}")
+        reparameterisations = sort_reparameterisations(
+            reparameterisations,
+            existing_parameters=self.parameters,
+        )
+
         for r in reparameterisations:
             self._add_reparameterisation(r)
+
+    def check_order(self):
+        """Check the order of the reparameterisations is valid.
+
+        Raises
+        ------
+        RuntimeError
+            Raised if the order is invalid.
+        """
+        parameters = []
+        for key in self.from_prime_order:
+            if not all([r in parameters for r in self[key].requires]):
+                raise RuntimeError(
+                    "Order of reparameterisations is invalid (x' -> x)"
+                    f"{self[key].name} requires {self[key].requires} but with "
+                    f"the current order only the parameters {parameters} "
+                    "would be available."
+                )
+            parameters += self[key].parameters
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
         """
@@ -84,8 +125,10 @@ class CombinedReparameterisation(dict):
         log_j : array_like
             Log jacobian to be updated
         """
-        for r in self.values():
-            x, x_prime, log_j = r.reparameterise(x, x_prime, log_j, **kwargs)
+        for key in self.to_prime_order:
+            x, x_prime, log_j = self[key].reparameterise(
+                x, x_prime, log_j, **kwargs
+            )
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -102,8 +145,8 @@ class CombinedReparameterisation(dict):
         log_j : array_like
             Log jacobian to be updated
         """
-        for r in reversed(list(self.values())):
-            x, x_prime, log_j = r.inverse_reparameterise(
+        for key in self.from_prime_order:
+            x, x_prime, log_j = self[key].inverse_reparameterise(
                 x, x_prime, log_j, **kwargs
             )
         return x, x_prime, log_j

@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changes
+### Added
+
+- Add `DeltaPhaseReparameterisation` for GW analyses.
+- Add `nessai.utils.sorting`.
+
+### Changed
 
 - Refactor `nessai.reparameterisations` into a submodule.
 - Use `torch.inference_mode` instead of `torch.no_grad`.
+- Changed `CombinedReparameterisations` to sort and add reparameterisations based on their requirements.
 
 ## [0.7.0]
 

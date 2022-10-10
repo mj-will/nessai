@@ -319,8 +319,8 @@ def test_parameter(
         for n in model.names:
             np.testing.assert_array_almost_equal(x_re[n], x_re_new[n])
 
-        np.testing.assert_array_equal(lj, lj_new)
-        np.testing.assert_array_equal(lj_re, lj_re_new)
+        np.testing.assert_array_almost_equal_nulp(lj, lj_new)
+        np.testing.assert_array_almost_equal_nulp(lj_re, lj_re_new)
         np.testing.assert_array_equal(log_p, log_p_new)
         try:
             np.testing.assert_array_equal(x_prime, x_prime_new)
