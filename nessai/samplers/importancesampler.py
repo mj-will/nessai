@@ -97,7 +97,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         output: Optional[str] = None,
         seed: Optional[int] = None,
         checkpointing: bool = True,
-        checkpoint_frequency: int = 5,
+        checkpoint_interval: int = 600,
+        checkpoint_on_iteration: bool = False,
+        logging_interval: int = None,
+        log_on_iteration: bool = True,
         resume_file: Optional[str] = None,
         plot: bool = True,
         plotting_frequency: int = 5,
@@ -142,6 +145,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             output=output,
             seed=seed,
             checkpointing=checkpointing,
+            checkpoint_interval=checkpoint_interval,
+            checkpoint_on_iteration=checkpoint_on_iteration,
+            logging_interval=logging_interval,
+            log_on_iteration=log_on_iteration,
             resume_file=resume_file,
             plot=plot,
             n_pool=n_pool,
@@ -161,7 +168,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.n_initial = self.nlive if n_initial is None else n_initial
         self.min_samples = min_samples
         self.min_remove = min_remove
-        self.checkpoint_frequency = checkpoint_frequency
         self.n_update = n_update
         self.plot_pool = plot_pool
         self.plot_level_cdf = plot_level_cdf
@@ -280,14 +286,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def current_proposal_entropy(self) -> float:
         """Differential entropy of the current proposal"""
         return self._current_proposal_entropy
-
-    @property
-    def is_checkpoint_iteration(self) -> bool:
-        """Check if the sampler should checkpoint at the current iteration"""
-        if self.iteration % self.checkpoint_frequency:
-            return False
-        else:
-            return True
 
     @property
     def all_samples(self) -> np.ndarray:
@@ -1094,7 +1092,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f"Final ESS: {self.state.effective_n_posterior_samples:.3f}"
         )
         self.finalised = True
-        self.checkpoint(periodic=True)
+        self.checkpoint(periodic=True, force=True)
         self.produce_plots()
 
     def add_level_post_sampling(self, samples: np.ndarray, n: int) -> None:
@@ -1151,14 +1149,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         return cond
 
-    def checkpoint(self, periodic: bool = False):
+    def checkpoint(self, periodic: bool = False, force: bool = False):
         """Checkpoint the sampler."""
         if periodic is False:
             logger.warning(
                 "Importance Sampler cannot checkpoint mid iteration"
             )
             return
-        super().checkpoint(periodic=periodic)
+        super().checkpoint(periodic=periodic, force=force)
 
     def _compute_gradient(self) -> None:
         self.logX_pre = self.logX
@@ -1246,7 +1244,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.update_history()
             if not self.iteration % self.plotting_frequency:
                 self.produce_plots()
-            if self.checkpointing and self.is_checkpoint_iteration:
+            if self.checkpointing:
                 self.checkpoint(periodic=True)
             if self.iteration >= self.max_iteration:
                 break
