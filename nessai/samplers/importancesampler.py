@@ -591,11 +591,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
             log_weights = self.live_points["logW"] + self.live_points["logL"]
         else:
             log_weights = self.live_points["logW"].copy()
-        log_weights -= logsumexp(log_weights)
-        weights = np.exp(log_weights, dtype=np.float64)
-        cutoff = weighted_quantile(a, q, weights=weights, values_sorted=True)
+        cutoff = weighted_quantile(
+            a, q, log_weights=log_weights, values_sorted=True
+        )
+        if not np.isfinite(cutoff):
+            raise RuntimeError("Could not determine valid quantile")
         n = np.argmax(a >= cutoff)
-        logger.debug(f"{q:.3} quantile is logL ={cutoff:.3}")
+        logger.debug(f"{q:.3} quantile is logL ={cutoff}")
         return int(n)
 
     def determine_level_entropy(
