@@ -3,7 +3,7 @@
 Utilities related to statistics.
 """
 import numpy as np
-from scipy.special import logsumexp
+from scipy.special import logsumexp, betainc
 
 
 def effective_sample_size(log_w):
@@ -77,10 +77,12 @@ def rolling_mean(x, N=10):
     )
 
 
-def weighted_quantile(values, quantiles, weights=None, values_sorted=False):
+def weighted_quantile(
+    values, quantiles, log_weights=None, values_sorted=False
+):
     """Compute quantiles for an array of values.
 
-    Based on: https://stackoverflow.com/a/29677616
+    Uses the Harrell-Davis quantile estimator.
 
     Parameters
     ----------
@@ -88,27 +90,56 @@ def weighted_quantile(values, quantiles, weights=None, values_sorted=False):
         Array of values
     quantiles : float or array_like
         Quantiles to compute
-    weights : array_like, optional
-        Array of weights
+    log_weights : array_like, optional
+        Array of log-weights
+    values_sorted : bool
+        If the values are pre-sorted or not
 
     Returns
     -------
     np.ndarray
         Array of values for each quantile.
+
+    Raises
+    ------
+    ValueError
+        If the effective sample size is not finite.
     """
     values = np.asarray(values)
     quantiles = np.asarray(quantiles)
-    if weights is None:
-        weights = np.ones(len(values))
-    weights = np.asarray(weights)
+    if log_weights is None:
+        log_weights = np.zeros(len(values))
+    log_weights = np.asarray(log_weights)
     if not np.all(quantiles >= 0) and np.all(quantiles <= 1):
         raise ValueError("Quantiles should be in [0, 1]")
 
     if not values_sorted:
         idx = np.argsort(values)
         values = values[idx]
-        weights = weights[idx]
+        log_weights = log_weights[idx]
 
-    weighted_quantiles = np.cumsum(weights) - 0.5 * weights
-    weighted_quantiles /= np.sum(weights)
-    return np.interp(quantiles, weighted_quantiles, values)
+    log_weights = log_weights - logsumexp(log_weights)
+    neff = np.exp(-logsumexp(2 * log_weights))
+    weights = np.exp(log_weights)
+    if not np.isfinite(neff):
+        raise ValueError(
+            "Effective sample size is not finite, cannot compute weighted "
+            "quantile."
+        )
+    a = quantiles * (neff + 1)
+    b = (1 - quantiles) * (neff + 1)
+
+    end_points = np.zeros((len(weights) + 1, 1), dtype=weights.dtype)
+    np.cumsum(weights, out=end_points[1:, 0], axis=0)
+    end_points /= end_points[-1]
+
+    # Regularised incomplete beta function
+    b_li = betainc(a, b, end_points[:-1])
+    b_ri = betainc(a, b, end_points[1:])
+
+    w_star = b_ri - b_li
+    if values.ndim == 1:
+        values = np.expand_dims(values, -1)
+    q_p = np.sum(w_star * values, axis=0)
+
+    return q_p
