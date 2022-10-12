@@ -78,7 +78,7 @@ class FlowModel:
             output_file = os.path.join(self.output, "flow_config.json")
         for k, v in list(config.items()):
             if type(v) == np.ndarray:
-                config[k] = np.array_str(config[k])
+                config[k] = np.array2string(config[k], separator=",")
         for k, v in list(config["model_config"].items()):
             if type(v) == np.ndarray:
                 config["model_config"][k] = np.array2string(
