@@ -522,6 +522,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 logZ_ns=[],
                 logZ_lp=[],
                 level_importance=[],
+                n_live=[],
                 n_added=[],
                 n_removed=[],
                 n_post=[],
@@ -913,6 +914,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.live_points = np.insert(self.live_points, idx, new_points)
             self._log_q_lp = np.insert(self._log_q_lp, idx, log_q, axis=0)
 
+        self.history["n_live"].append(self.live_points.size)
         self.live_points_ess = effective_sample_size(self.live_points["logW"])
         self.history["leakage_live_points"].append(
             self.compute_leakage(self.live_points)
@@ -1569,7 +1571,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             If specified the figure will be saved, otherwise the figure is
             returned.
         """
-        n_subplots = 10
+        n_subplots = 11
         if self.annealing_target:
             n_subplots += 1
 
@@ -1691,30 +1693,25 @@ class ImportanceNestedSampler(BaseNestedSampler):
             label="Removed",
         )
         ax[m].plot(its, self.history["n_added"], label="Added")
+        ax[m].plot(its, self.history["n_live"], label="Total")
         ax[m].set_ylabel("# samples")
         ax[m].legend(frameon=False)
 
-        ax_leak = plt.twinx(ax[m])
-        ax_leak.plot(
+        ax[m].legend()
+        m += 1
+
+        ax[m].plot(
             its,
             self.history["leakage_live_points"],
-            ls=config.LINE_STYLES[2],
-            c="C2",
             label="Total leakage",
         )
-        ax_leak.plot(
+        ax[m].plot(
             its,
             self.history["leakage_new_points"],
-            ls=config.LINE_STYLES[3],
-            c="C3",
             label="New leakage",
         )
-        ax_leak.set_ylabel("Leakage")
-        handles, labels = ax[m].get_legend_handles_labels()
-        handles_leak, labels_leak = ax_leak.get_legend_handles_labels()
-        ax[m].legend(
-            handles + handles_leak, labels + labels_leak, frameon=False
-        )
+        ax[m].set_ylabel("Leakage")
+        ax[m].legend()
 
         m += 1
 
@@ -1775,7 +1772,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             ax[m].axhline(tol, ls=":", c=f"C{i}")
         ax[m].legend(frameon=False)
         ax[m].set_ylabel("Stopping criterion")
-        ax[m].set_yscale("log")
 
         ax[-1].set_xlabel("Iteration")
 
