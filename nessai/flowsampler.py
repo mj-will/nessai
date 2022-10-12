@@ -180,9 +180,6 @@ class FlowSampler:
     def run(
         self,
         plot=True,
-        plot_indices=True,
-        plot_posterior=True,
-        plot_logXlogL=True,
         save=True,
         posterior_sampling_method=None,
         close_pool=None,
@@ -196,12 +193,6 @@ class FlowSampler:
         ----------
         plot : bool
             Toggle all plots produced once the sampler has converged.
-        plot_indices : bool
-            Toggle the insertion indices plot.
-        plot_posterior : bool
-            Toggle the posterior distribution plot.
-        plot_logXlogL : bool
-            Toggle the log-prior volume vs log-likelihood plot.
         save : bool, optional
             Toggle automatic saving of results
         posterior_sampling_method : str, optional
@@ -319,6 +310,7 @@ class FlowSampler:
     def run_importance_nested_sampler(
         self,
         plot=True,
+        plot_posterior=True,
         save=True,
         posterior_sampling_method=None,
         redraw_samples=True,
@@ -405,7 +397,7 @@ class FlowSampler:
         if save:
             self.save_results(f"{self.output}/result.json")
 
-        if plot:
+        if plot and plot_posterior:
             logger.debug("Producing plots")
             from nessai import plot
 
