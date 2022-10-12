@@ -5,8 +5,12 @@ from unittest.mock import patch
 
 try:
     from importlib.metadata import PackageNotFoundError
+
+    LIB = "importlib.metadata"
 except ImportError:
     from importlib_metadata import PackageNotFoundError
+
+    LIB = "importlib_metadata"
 
 import nessai
 import pytest
@@ -23,13 +27,13 @@ def reload_nessai():
 
 def test_nessai_version():
     """Assert the correct version is set"""
-    with patch("importlib.metadata.version", return_value="1.2.3"):
+    with patch(f"{LIB}.version", return_value="1.2.3"):
         reload(nessai)
     assert nessai.__version__ == "1.2.3"
 
 
 def test_nessai_version_package_not_found():
     """Assert the version is unknown if the package is not installed."""
-    with patch("importlib.metadata.version", side_effect=PackageNotFoundError):
+    with patch(f"{LIB}.version", side_effect=PackageNotFoundError):
         reload(nessai)
     assert nessai.__version__ == "unknown"
