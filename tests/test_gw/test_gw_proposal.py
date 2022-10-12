@@ -193,4 +193,4 @@ def test_default_reparameterisations(caplog, tmpdir):
     assert all(
         [p in expected_params for p in proposal._reparameterisation.parameters]
     )
-    assert "reparameterisations included in GWFlowProposal" in caplog.text
+    assert "reparameterisations included in GWFlowProposal" in str(caplog.text)
