@@ -99,6 +99,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         checkpointing: bool = True,
         checkpoint_interval: int = 600,
         checkpoint_on_iteration: bool = False,
+        save_existing_checkpoint: bool = False,
         logging_interval: int = None,
         log_on_iteration: bool = True,
         resume_file: Optional[str] = None,
@@ -196,6 +197,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.weighted_kl = (weighted_kl,)
         self.sigmoid_weights = sigmoid_weights
         self.sigmoid_midpoint = None
+        self.save_existing_checkpoint = save_existing_checkpoint
 
         self.dZ = np.inf
         self.dZ_ns = np.inf
@@ -1156,7 +1158,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 "Importance Sampler cannot checkpoint mid iteration"
             )
             return
-        super().checkpoint(periodic=periodic, force=force)
+        super().checkpoint(
+            periodic=periodic,
+            force=force,
+            save_existing=self.save_existing_checkpoint,
+        )
 
     def _compute_gradient(self) -> None:
         self.logX_pre = self.logX
