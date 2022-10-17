@@ -10,6 +10,7 @@ import time
 from threading import Thread
 
 import pytest
+from nessai.evidence import _NSIntegralState
 from nessai.flowsampler import FlowSampler
 import numpy as np
 from unittest.mock import MagicMock, create_autospec, patch
@@ -280,6 +281,7 @@ def test_run(
     nlive = 10
     log_Z = -5.0
     nested_samples = [0.1, 1.0, 10.0]
+    log_w = np.array([-0.1, -0.2, -0.3])
     insertion_indices = [1, 2, 3]
     output = os.getcwd()
     flow_sampler.ns = MagicMock()
@@ -291,6 +293,7 @@ def test_run(
         return_value=[log_Z, nested_samples]
     )
     flow_sampler.ns.state = MagicMock()
+    flow_sampler.ns.state.log_posterior_weights = log_w
     flow_sampler.ns.state.plot_state = MagicMock()
     flow_sampler.save_results = MagicMock()
     flow_sampler.close_pool = True
@@ -299,7 +302,7 @@ def test_run(
 
     flow_sampler.ns.initialise.assert_called_once()
     mock_draw_post.assert_called_once_with(
-        nested_samples, nlive=nlive, method="rejection_sampling"
+        nested_samples, log_w=log_w, method="rejection_sampling"
     )
     if save:
         flow_sampler.save_results.assert_called_once()
@@ -354,9 +357,11 @@ def test_run_close_pool(flow_sampler, close_pool):
 @pytest.mark.parametrize("method", (None, "multinomial_resampling"))
 def test_run_posterior_sampling_method(flow_sampler, method):
     """Assert posterior sampling method is passed correctly"""
+    log_w = np.random.rand(100)
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.nested_sampling_loop = MagicMock(return_value=("lZ", "ns"))
-    flow_sampler.ns.nlive = 100
+    flow_sampler.ns.state = MagicMock(spec=_NSIntegralState)
+    flow_sampler.ns.state.log_posterior_weights = log_w
     with patch("nessai.flowsampler.draw_posterior_samples") as mock:
         FlowSampler.run(
             flow_sampler,
@@ -368,7 +373,7 @@ def test_run_posterior_sampling_method(flow_sampler, method):
 
     if method is None:
         method = "rejection_sampling"
-    mock.assert_called_once_with("ns", nlive=100, method=method)
+    mock.assert_called_once_with("ns", log_w=log_w, method=method)
 
 
 def test_run_plots_disabled(flow_sampler):
