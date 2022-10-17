@@ -53,7 +53,7 @@ def log_integrate_log_trap(log_func, log_support):
     log_func_sum = np.logaddexp(log_func[:-1], log_func[1:]) - np.log(2)
     log_dxs = logsubexp(log_support[:-1], log_support[1:])
 
-    return np.logaddexp.reduce(log_func_sum + log_dxs)
+    return logsumexp(log_func_sum + log_dxs)
 
 
 class _BaseNSIntegralState(ABC):
