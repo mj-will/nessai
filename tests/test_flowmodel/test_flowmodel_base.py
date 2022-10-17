@@ -2,7 +2,9 @@
 """
 Test the FlowModel object.
 """
+import json
 import numpy as np
+import os
 import pickle
 import pytest
 import torch
@@ -10,6 +12,7 @@ from unittest.mock import create_autospec, MagicMock, patch
 
 from nessai.flowmodel import FlowModel
 from nessai.flowmodel import config
+from nessai.flows.realnvp import RealNVP
 
 
 @pytest.fixture()
@@ -50,13 +53,38 @@ def test_init_no_output(model, tmpdir):
 
 def test_init_config_class(tmpdir):
     """Test the init and save methods when specifying `flow` as a class"""
-    from nessai.flows import RealNVP
 
     output = str(tmpdir.mkdir("no_config"))
     config = dict(model_config=dict(flow=RealNVP))
     fm = FlowModel(config=config, output=output)
 
     assert fm.model_config["flow"].__name__ == "RealNVP"
+
+
+def test_save_input(model, tmp_path):
+    """Test the save input function"""
+    output = tmp_path / "test"
+    output.mkdir()
+    model.output = output
+
+    config = dict(
+        patience=10,
+        x=np.array([1, 2]),
+        model_config=dict(
+            n_neurons=10,
+            mask=np.array([1, 0]),
+            flow=RealNVP,
+        ),
+    )
+
+    FlowModel.save_input(model, config, output_file=None)
+
+    file_path = os.path.join(output, "flow_config.json")
+    assert os.path.exists(file_path)
+    with open(file_path, "r") as fp:
+        d = json.load(fp)
+    assert d["x"] == "[1,2]"
+    assert d["model_config"]["mask"] == "[1,0]"
 
 
 def test_initialise(model):
@@ -177,6 +205,28 @@ def test_incorrect_batch_size_type(flow_model, data_dim, batch_size):
     assert "Unknown batch size" in str(excinfo.value)
 
 
+@pytest.mark.parametrize(
+    "x", [np.array([np.inf]), np.array([-np.inf]), np.array([np.nan])]
+)
+def test_prep_data_non_finite_values(model, x):
+    """Assert an error is raised if the samples contain non-finite values"""
+    model.initialised = True
+    with pytest.raises(
+        ValueError, match=r"Cannot train with non-finite samples!"
+    ):
+        FlowModel.prep_data(model, x, 0.1, 10)
+
+
+@pytest.mark.parametrize(
+    "w", [np.array([np.inf]), np.array([-np.inf]), np.array([np.nan])]
+)
+def test_prep_data_non_finite_weights(model, w):
+    """Assert an error is raised if the weights contain non-finite values"""
+    model.initialised = True
+    with pytest.raises(ValueError, match=r"Weights contain non-finite values"):
+        FlowModel.prep_data(model, np.random.rand(100), 0.1, 50, weights=w)
+
+
 @pytest.mark.parametrize("dataloader", [False, True])
 def test_training(flow_model, data_dim, dataloader):
     """Test class until training"""
@@ -195,6 +245,16 @@ def test_training_with_weights(flow_model, data_dim):
 
 
 @pytest.mark.parametrize(
+    "x", [np.array([np.inf]), np.array([-np.inf]), np.array([np.nan])]
+)
+def test_training_non_finite_samples(model, x):
+    """Assert an error is raised if the samples contain non-finite values"""
+    model.initialised = True
+    with pytest.raises(ValueError, match=r"Training data is not finite"):
+        FlowModel.train(model, x)
+
+
+@pytest.mark.parametrize(
     "kwargs",
     [
         {"annealing": True},
@@ -202,6 +262,7 @@ def test_training_with_weights(flow_model, data_dim):
         {"noise_type": "adaptive", "noise_scale": 0.1},
         {"max_epochs": 51},
         {"val_size": 0.0},
+        {"val_size": None},
     ],
 )
 def test_training_additional_config_args(
@@ -291,6 +352,32 @@ def test_sample_and_log_prob_with_latent(flow_model, data_dim, N):
     assert log_prob.size == N
 
 
+def test_sample_log_prob_alt_dist(model):
+    """Assert the alternate distribution is used."""
+    z = torch.randn(5, 2)
+    x = torch.randn(5, 2)
+    log_prob = torch.randn(5)
+    log_j = torch.randn(5)
+    log_prob_expected = log_prob - log_j
+    model.model = MagicMock()
+    model.model.device = "cpu"
+    model.model.eval = MagicMock()
+    model.model.base_distribution_log_prob = MagicMock()
+    model.model.inverse = MagicMock(return_value=(x, log_j))
+    alt_dist = MagicMock()
+    alt_dist.log_prob = MagicMock(return_value=log_prob)
+
+    x_out, log_prob_out = FlowModel.sample_and_log_prob(
+        model, z=z, alt_dist=alt_dist
+    )
+
+    model.model.inverse.assert_called_once_with(z, context=None)
+    model.model.base_distribution_log_prob.assert_not_called()
+    alt_dist.log_prob.assert_called_once_with(z)
+    np.testing.assert_equal(x_out, x.numpy())
+    np.testing.assert_equal(log_prob_out, log_prob_expected)
+
+
 def test_forward_and_log_prob(model):
     """Assert the method from the flow is called"""
     x = np.random.randn(5, 2)
@@ -352,6 +439,18 @@ def test_save_weights(mock_save, model):
     model.model = MagicMock()
     FlowModel.save_weights(model, "model.pt")
     mock_save.assert_called_once()
+    assert model.weights_file == "model.pt"
+
+
+@patch("torch.save")
+@patch("shutil.move")
+@patch("os.path.exists", return_value=True)
+def test_save_weights_existing(mock_save, mock_move, mock_exists, model):
+    """Assert the file is move to a file with the correct name."""
+    model.model = MagicMock()
+    FlowModel.save_weights(model, "model.pt")
+    mock_save.assert_called_once()
+    mock_move.assert_called_once_with("model.pt", "model.pt.old")
     assert model.weights_file == "model.pt"
 
 

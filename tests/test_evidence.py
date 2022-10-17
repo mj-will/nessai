@@ -40,6 +40,19 @@ def test_increment(nlive):
     np.testing.assert_equal(state.logLs, [-np.inf, -10])
 
 
+def test_increment_monotonic_warning(ns_state, caplog):
+    """Assert a warning is raised if the likelihood is non-monotonic"""
+    ns_state.logLs = [1, 2, 3]
+    ns_state.nlive = 10
+    ns_state.logZ = -2.0
+    ns_state.logw = 1.0
+    ns_state.info = [0]
+    ns_state.log_vols = []
+    ns_state.track_gradients = False
+    _NSIntegralState.increment(ns_state, 2.5)
+    assert "received non-monotonic logL" in str(caplog.text)
+
+
 def test_log_evidence(ns_state):
     """Assert the log-evidence property returns the correct value"""
     expected = 1.0

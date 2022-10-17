@@ -180,7 +180,7 @@ def test_delta_phase_inverse_reparameterise(delta_phase_reparam):
     assert log_j_out == 0
 
 
-@pytest.mark.itegration_test
+@pytest.mark.integration_test
 def test_delta_phase_inverse_invertible():
     """Assert the reparameterisation is invertible"""
     n = 10

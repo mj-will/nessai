@@ -17,6 +17,11 @@ from nessai.gw.utils import (
 
 
 @pytest.fixture
+def base_converter():
+    return create_autospec(DistanceConverter)
+
+
+@pytest.fixture
 def null_converter():
     return create_autospec(NullDistanceConverter)
 
@@ -55,6 +60,16 @@ def test_converter_error():
         "abstract methods from_uniform_parameter, to_uniform_parameter"
         in str(excinfo.value)
     )
+
+
+def test_converter_to_uniform_parameter_error(base_converter):
+    with pytest.raises(NotImplementedError):
+        DistanceConverter.to_uniform_parameter(base_converter, None)
+
+
+def test_converter_from_uniform_parameter_error(base_converter):
+    with pytest.raises(NotImplementedError):
+        DistanceConverter.from_uniform_parameter(base_converter, None)
 
 
 def test_null_converter_init(null_converter, caplog):

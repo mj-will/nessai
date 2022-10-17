@@ -17,6 +17,6 @@ try:
     __version__ = version(__name__)
 except PackageNotFoundError:
     # package is not installed
-    pass
+    __version__ = "unknown"
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())
