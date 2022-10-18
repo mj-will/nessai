@@ -27,14 +27,23 @@ def method(request):
     return request.param
 
 
-def test_compute_weights():
-    """Test computing the weights for set of likelihood values"""
+@pytest.mark.parametrize("nlive", [10, np.ones(20)])
+def test_compute_weights(nlive):
+    """Test computing the weights for set of likelihood values."""
     log_l = np.random.randn(20)
 
-    log_z, log_w = compute_weights(log_l, 10)
+    log_z, log_w = compute_weights(log_l, nlive)
 
     assert len(log_w) == len(log_l)
     assert np.isfinite(log_z)
+
+
+def test_compute_weights_invalid_nlive():
+    """Assert an error is raised if nlive does not match the logs-likelihood"""
+    with pytest.raises(
+        ValueError, match=r"nlive and samples are different lengths"
+    ):
+        compute_weights([1, 2, 3], [4, 5])
 
 
 def test_draw_posterior_samples(ns, method):
@@ -83,3 +92,26 @@ def test_draw_posterior_unknown_method(ns):
     assert "Unknown method of drawing posterior samples: not_a_method" in str(
         excinfo.value
     )
+
+
+@pytest.mark.slow_integration_test
+def test_compute_weights_vs_log_posterior_weights(model, tmp_path):
+    """Test the two different methods for computing posterior weights and
+    assert they return the sames value.
+
+    Checks both the values of the weights and log-evidence.
+    """
+    from nessai.flowsampler import FlowSampler
+
+    output = tmp_path / "posterior_comparison"
+    output.mkdir()
+    fs = FlowSampler(
+        model, output=output, nlive=100, checkpointing=False, plot=False
+    )
+    fs.run(save=False, plot=False)
+
+    log_z_0, log_w_0 = compute_weights(fs.nested_samples["logL"], fs.ns.nlive)
+    log_w_1 = fs.ns.state.log_posterior_weights
+
+    np.testing.assert_array_equal(log_w_1, log_w_0)
+    assert log_z_0 == fs.ns.state.log_evidence

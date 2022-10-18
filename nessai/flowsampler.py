@@ -206,7 +206,7 @@ class FlowSampler:
         logger.info("Computing posterior samples")
         self.posterior_samples = draw_posterior_samples(
             self.nested_samples,
-            nlive=self.ns.nlive,
+            log_w=self.ns.state.log_posterior_weights,
             method=posterior_sampling_method,
         )
         logger.info(

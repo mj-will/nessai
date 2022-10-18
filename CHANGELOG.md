@@ -11,12 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `DeltaPhaseReparameterisation` for GW analyses.
 - Add `nessai.utils.sorting`.
+- Add `log_posterior_weights` and `effective_n_posterior_samples` to the integral state object.
 
 ### Changed
 
 - Refactor `nessai.reparameterisations` into a submodule.
 - Use `torch.inference_mode` instead of `torch.no_grad`.
 - Changed `CombinedReparameterisations` to sort and add reparameterisations based on their requirements.
+- Changed evidence calculation and posterior weights to use a better estimate of the shrinkage.
+- Refactor `nessai.evidence._NSIntegralState` to inherit from a base class.
+
+### Removed
+
+- Removed `nessai._NSIntegralState.reset`
 
 ## [0.7.0]
 
