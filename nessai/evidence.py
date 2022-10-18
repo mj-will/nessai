@@ -225,7 +225,7 @@ class _NSIntegralState(_BaseNSIntegralState):
         return log_post_w
 
 
-class _INSIntegralState:
+class _INSIntegralState(_BaseNSIntegralState):
     """
     Object to handle computing the evidence for importance nested sampling.
     """
@@ -357,23 +357,3 @@ class _INSIntegralState:
         for these as well.
         """
         return self._weights - self.logZ
-
-    @property
-    def effective_n_posterior_samples(self) -> float:
-        """Kish's effective sample size.
-
-        If the live points have been specified, then their weights will be
-        included when computing the ESS.
-
-        Returns
-        -------
-        float
-            The effective samples size. Returns zero if the posterior weights
-            are empty.
-        """
-        log_p = self.log_posterior_weights
-        if not len(log_p):
-            return 0
-        log_p -= logsumexp(log_p)
-        n = np.exp(-logsumexp(2 * log_p))
-        return n
