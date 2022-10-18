@@ -182,7 +182,7 @@ class FlowSampler:
     @property
     def nested_samples(self):
         """Return the nested samples"""
-        if self._final_samples:
+        if self._final_samples is not None:
             return self._final_samples
         else:
             return self._nested_samples
