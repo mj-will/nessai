@@ -129,6 +129,12 @@ class BaseNestedSampler(ABC):
     likelihood_calls = total_likelihood_evaluations
     """Alias for :code:`total_likelihood_evaluations`"""
 
+    @property
+    @abstractmethod
+    def posterior_effective_sample_size(self):
+        """The effective sample size of the posterior distribution"""
+        raise NotImplementedError()
+
     def configure_output(
         self, output: Union[str, None], resume_file: Union[str, None] = None
     ):

@@ -270,6 +270,19 @@ class ImportanceNestedSampler(BaseNestedSampler):
             return None
 
     @property
+    def posterior_effective_sample_size(self) -> float:
+        """The effective sample size of the posterior distribution.
+
+        Returns the value for the posterior samples from the resampling step if
+        they are available, otherwise falls back to the samples from the
+        initial sampling.
+        """
+        if self.final_state:
+            return self.final_state.effective_n_posterior_samples
+        else:
+            return self.state.effective_n_posterior_samples
+
+    @property
     def samples_entropy(self) -> float:
         """Differential entropy of all of the samples (nested + live).
 

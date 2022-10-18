@@ -320,6 +320,11 @@ class NestedSampler(BaseNestedSampler):
         else:
             return np.nan
 
+    @property
+    def posterior_effective_sample_size(self):
+        """The effective sample size of the posterior distribution"""
+        return self.state.effective_n_posterior_samples
+
     def configure_max_iteration(self, max_iteration):
         """Configure the maximum iteration.
 
