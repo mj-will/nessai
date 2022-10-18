@@ -77,6 +77,8 @@ class FlowSampler:
             pytorch_threads=pytorch_threads,
         )
 
+        self._final_samples = None
+        self._nested_samples = None
         self.exit_code = exit_code
         self.eps = eps
         if self.eps is not None:
@@ -177,6 +179,14 @@ class FlowSampler:
         """Return the most recent log evidence error"""
         return self.logZ_error
 
+    @property
+    def nested_samples(self):
+        """Return the nested samples"""
+        if self._final_samples:
+            return self._final_samples
+        else:
+            return self._nested_samples
+
     def run(
         self,
         plot=True,
@@ -264,14 +274,14 @@ class FlowSampler:
             posterior_sampling_method = "rejection_sampling"
 
         self.ns.initialise()
-        self.logZ, self.nested_samples = self.ns.nested_sampling_loop()
+        self.logZ, self._nested_samples = self.ns.nested_sampling_loop()
         self.logZ_error = self.ns.state.log_evidence_error
         logger.info((f"Total sampling time: {self.ns.sampling_time}"))
 
         logger.info("Starting post processing")
         logger.info("Computing posterior samples")
         self.posterior_samples = draw_posterior_samples(
-            self.nested_samples,
+            self._nested_samples,
             log_w=self.ns.state.log_posterior_weights,
             method=posterior_sampling_method,
         )
@@ -359,7 +369,7 @@ class FlowSampler:
         if posterior_sampling_method is None:
             posterior_sampling_method = "importance_sampling"
 
-        self.logZ, self.nested_samples = self.ns.nested_sampling_loop()
+        self.logZ, self._nested_samples = self.ns.nested_sampling_loop()
         self.logZ_error = self.ns.state.log_evidence_error
         logger.info((f"Total sampling time: {self.ns.sampling_time}"))
 
@@ -369,7 +379,7 @@ class FlowSampler:
             logger.info("Redrawing samples")
             self.initial_logZ = self.logZ
             self.initial_logZ_error = self.logZ_error
-            self.logZ, self.final_samples = self.ns.draw_final_samples(
+            self.logZ, self._final_samples = self.ns.draw_final_samples(
                 n_post=n_posterior_samples,
                 **kwargs,
             )
