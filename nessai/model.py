@@ -613,7 +613,7 @@ class Model(ABC):
             )
 
         if self.log_prior(x).dtype == np.dtype("float16"):
-            logger.critical(
+            logger.warning(
                 "log_prior returned an array with float16 precision. "
                 "This not recommended and can lead to numerical errors."
                 " Consider casting to a higher precision."

@@ -510,7 +510,7 @@ class FlowModel:
             Dictionary that contains the training and validation losses.
         """
         if not self.initialised:
-            logger.info("Initialising")
+            logger.debug("Initialising")
             self.initialise()
 
         if not np.isfinite(samples).all():
@@ -568,11 +568,11 @@ class FlowModel:
         best_epoch = 0
         best_val_loss = np.inf
         best_model = copy.deepcopy(self.model.state_dict())
-        logger.info("Starting training")
-        logger.info("Training parameters:")
-        logger.info(f"Max. epochs: {max_epochs}")
-        logger.info(f"Patience: {patience}")
-        logger.info(f"Training with {samples.shape[0]} samples")
+        logger.debug("Starting training")
+        logger.debug("Training parameters:")
+        logger.debug(f"Max. epochs: {max_epochs}")
+        logger.debug(f"Patience: {patience}")
+        logger.debug(f"Training with {samples.shape[0]} samples")
 
         history = dict(loss=[], val_loss=[])
 
@@ -600,12 +600,12 @@ class FlowModel:
                 best_model = copy.deepcopy(self.model.state_dict())
 
             if not epoch % 50:
-                logger.info(
+                logger.debug(
                     f"Epoch {epoch}: loss: {loss:.3} val loss: {val_loss:.3}"
                 )
 
             if validate and (epoch - best_epoch > patience):
-                logger.info(f"Epoch {epoch}: Reached patience")
+                logger.debug(f"Epoch {epoch}: Reached patience")
                 break
 
         logger.debug("Finished training")
