@@ -2,6 +2,7 @@
 """
 Test the main sampling functions
 """
+import logging
 import numpy as np
 import pytest
 from unittest.mock import call, MagicMock
@@ -39,6 +40,7 @@ def sampler(sampler):
     sampler.block_acceptance = 0.0
     sampler.acceptance_history = []
     sampler.info_enabled = True
+    sampler.debug_enabled = True
     sampler.log_on_iteration = True
     return sampler
 
@@ -97,6 +99,7 @@ def test_initialise_resume(sampler):
 
 def test_log_state(sampler, caplog):
     """Assert log state outputs to the logger"""
+    caplog.set_level(logging.INFO)
     NestedSampler.log_state(sampler)
     assert "logZ:" in str(caplog.text)
 
