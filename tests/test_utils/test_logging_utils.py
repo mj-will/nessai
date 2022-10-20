@@ -5,7 +5,7 @@ Test utilities related to logging.
 import logging
 import os
 import sys
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import pytest
 
 from nessai.utils.logging import setup_logger
@@ -20,6 +20,12 @@ def teardown_function():
         os.remove("test.log")
     except OSError:
         pass
+
+
+@pytest.fixture(params=["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"])
+def log_level(request):
+    """Different log levels to test."""
+    return request.param
 
 
 def test_setup_logger_no_label():
@@ -71,22 +77,32 @@ def test_setup_logger_unknown_level():
     assert "log_level test not understood" in str(excinfo.value)
 
 
-def test_filehandler_kwargs(tmp_path):
+def test_filehandler_kwargs(tmp_path, log_level):
     """Assert filehandler kwargs are passed to the handler."""
     output = tmp_path / "logger_dir"
-    with patch("logging.FileHandler") as mock:
-        setup_logger(output=output, filehandler_kwargs={"mode": "w"})
+    handler = MagicMock(spec=logging.FileHandler)
+    handler.level = 10
+    with patch("logging.FileHandler", return_value=handler) as mock:
+        setup_logger(
+            output=output,
+            filehandler_kwargs={"mode": "w"},
+            log_level=log_level,
+        )
     mock.assert_called_once_with(
         os.path.join(output, "nessai.log"),
         mode="w",
     )
 
 
-def test_filehandler_no_kwargs(tmp_path):
+def test_filehandler_no_kwargs(tmp_path, log_level):
     """Assert case of no kwargs for the file handler works as intended."""
     output = tmp_path / "logger_dir"
-    with patch("logging.FileHandler") as mock:
-        setup_logger(output=output, filehandler_kwargs=None)
+    handler = MagicMock(spec=logging.FileHandler)
+    handler.level = 10
+    with patch("logging.FileHandler", return_value=handler) as mock:
+        setup_logger(
+            output=output, filehandler_kwargs=None, log_level=log_level
+        )
     mock.assert_called_once_with(
         os.path.join(output, "nessai.log"),
     )
@@ -101,10 +117,14 @@ def test_filehandler_no_kwargs(tmp_path):
         (sys.stderr, sys.stderr),
     ),
 )
-def test_stream_handler_setting(tmp_path, stream, expected):
+def test_stream_handler_setting(tmp_path, stream, expected, log_level):
     output = tmp_path / "logger_dir"
-    with patch("logging.StreamHandler") as mock:
-        setup_logger(output=output, stream=stream, label=None)
+    handler = MagicMock(spec=logging.StreamHandler)
+    handler.level = 10
+    with patch("logging.StreamHandler", return_value=handler) as mock:
+        setup_logger(
+            output=output, stream=stream, label=None, log_level=log_level
+        )
     mock.assert_called_with(expected)
 
 
