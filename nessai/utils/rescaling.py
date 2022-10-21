@@ -328,8 +328,9 @@ def sigmoid(x):
     float or ndarray
         Log Jacobian determinant.
     """
-    x = np.divide(1, 1 + np.exp(-x))
-    log_j = np.log(x) + np.log1p(-x)
+    with np.errstate(over="ignore", divide="ignore"):
+        x = np.divide(1, 1 + np.exp(-x))
+        log_j = np.log(x) + np.log1p(-x)
     return x, log_j
 
 
