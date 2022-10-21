@@ -557,7 +557,7 @@ class FlowProposal(RejectionProposal):
         else:
             self._poolsize_scale = 1.0 / acceptance
             if self._poolsize_scale > self.max_poolsize_scale:
-                logger.info("Poolsize scaling is greater than maximum value")
+                logger.debug("Poolsize scaling is greater than maximum value")
                 self._poolsize_scale = self.max_poolsize_scale
             if self._poolsize_scale < 1.0:
                 self._poolsize_scale = 1.0
@@ -1476,7 +1476,7 @@ class FlowProposal(RejectionProposal):
                 "Try calling `initialise()` first."
             )
         if r is not None:
-            logger.info(f"Using user inputs for radius {r}")
+            logger.debug(f"Using user inputs for radius {r}")
             worst_q = None
         elif self.fixed_radius:
             r = self.fixed_radius
@@ -1495,13 +1495,13 @@ class FlowProposal(RejectionProposal):
             if self.min_radius and r < self.min_radius:
                 r = self.min_radius
 
-        logger.info(f"Populating proposal with lantent radius: {r:.5}")
+        logger.debug(f"Populating proposal with lantent radius: {r:.5}")
         self.r = r
 
         self.alt_dist = self.get_alt_distribution()
 
         if self.indices:
-            logger.info(
+            logger.debug(
                 "Existing pool of samples is not empty. "
                 "Discarding existing samples."
             )
@@ -1530,7 +1530,7 @@ class FlowProposal(RejectionProposal):
                 continue
 
             if warn and (x.size / self.drawsize < 0.01):
-                logger.info(
+                logger.debug(
                     "Rejection sampling accepted less than 1 percent of "
                     f"samples! ({x.size / self.drawsize})"
                 )
@@ -1541,7 +1541,7 @@ class FlowProposal(RejectionProposal):
             z_samples[accepted : (accepted + n), ...] = z[:n]
             accepted += n
             if accepted > percent * N:
-                logger.info(
+                logger.debug(
                     f"Accepted {accepted} / {N} points, "
                     f"acceptance: {accepted/proposed:.4}"
                 )
@@ -1573,8 +1573,8 @@ class FlowProposal(RejectionProposal):
         self.populated_count += 1
         self.populated = True
         self._checked_population = False
-        logger.info(f"Proposal populated with {len(self.indices)} samples")
-        logger.info(
+        logger.debug(f"Proposal populated with {len(self.indices)} samples")
+        logger.debug(
             f"Overall proposal acceptance: {self.x.size / proposed:.4}"
         )
 

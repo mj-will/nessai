@@ -209,7 +209,7 @@ class _NSIntegralState(_BaseNSIntegralState):
         if filename is not None:
             fig.savefig(filename, bbox_inches="tight")
             plt.close()
-            logger.info(f"Saved nested sampling plot as {filename}")
+            logger.debug(f"Saved nested sampling plot as {filename}")
         else:
             return fig
 

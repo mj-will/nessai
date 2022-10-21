@@ -10,7 +10,7 @@ import sys
 def setup_logger(
     output=None,
     label="nessai",
-    log_level="WARNING",
+    log_level="INFO",
     filehandler_kwargs=None,
     stream=None,
 ):

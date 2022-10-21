@@ -94,7 +94,7 @@ class Proposal(ABC):
         kwargs:
             Any of keyword arguments
         """
-        logger.info("This proposal method cannot be trained")
+        logger.error("This proposal method cannot be trained")
 
     def resume(self, model):
         """

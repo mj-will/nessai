@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `CombinedReparameterisations` to sort and add reparameterisations based on their requirements.
 - Changed evidence calculation and posterior weights to use a better estimate of the shrinkage.
 - Refactor `nessai.evidence._NSIntegralState` to inherit from a base class.
+- Revert default logging level to `INFO`
+- Rework logging statements to reduce the amount of information printed by default.
 
 ### Removed
 
