@@ -278,9 +278,12 @@ def test_in_bounds(model):
 
     Tests both finite and infinite prior bounds.
     """
-    x = numpy_array_to_live_points(np.array([[0.5, 1], [2, 1]]), ["x", "y"])
+    x_view = np.array([[0.5, 1.0], [2.0, 1.0]])
+    x = numpy_array_to_live_points(x_view, ["x", "y"])
     model.names = ["x", "y"]
-    model.bounds = {"x": [0, 1], "y": [-np.inf, np.inf]}
+    model.unstructured_view = MagicMock(return_value=x_view)
+    model.lower_bounds = np.array([0, -np.inf])
+    model.upper_bounds = np.array([1, np.inf])
     val = Model.in_bounds(model, x)
     np.testing.assert_array_equal(val, np.array([True, False]))
 
@@ -1070,21 +1073,25 @@ def test_evaluate_likelihoods_pool_allow_vectorised_false(model):
     np.testing.assert_array_equal(out, logL)
 
 
-def test_view_dtype(model, live_point):
+def test_view_dtype(model):
     """Assert view dtype calls the correct functions with the correct inputs"""
     model._dtype = None
     model.names = ["x", "y"]
-    model.new_point = MagicMock(return_value=live_point)
 
+    array = np.empty(
+        (0,), dtype=[(n, "f8") for n in model.names + ["logL" + "logP"]]
+    )
     expected = np.dtype([(n, "f8") for n in model.names])
 
     with patch(
         "nessai.model._unstructured_view_dtype", return_value=expected
-    ) as mock:
+    ) as mock, patch(
+        "nessai.model.empty_structured_array", return_value=array
+    ) as empty_mock:
         dtype = Model._view_dtype.__get__(model)
 
-    model.new_point.assert_called_once()
-    mock.assert_called_once_with(live_point, model.names)
+    empty_mock.assert_called_once_with(0, model.names)
+    mock.assert_called_once_with(array, model.names)
     assert model._dtype == expected
     assert dtype == expected
 
@@ -1188,3 +1195,16 @@ def test_unstructured_view_integration(integration_model, live_points):
     view = integration_model.unstructured_view(live_points)
     assert view.base is live_points
     assert view.shape == (live_points.size, integration_model.dims)
+
+
+@pytest.mark.integration_test
+def test_in_bounds_integration(integration_model):
+    """Assert the correct booleans are returned"""
+    x = integration_model.new_point(3)
+    names = integration_model.names
+    x[names[0]][0] = integration_model.bounds[names[0]][1] + 1.0
+    x[names[1]][1] = integration_model.bounds[names[1]][0] - 1.0
+
+    expected = np.array([False, False, True])
+    out = integration_model.in_bounds(x)
+    np.testing.assert_equal(out, expected)
