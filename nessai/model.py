@@ -221,7 +221,7 @@ class Model(ABC):
     def _view_dtype(self):
         """dtype used for unstructured view"""
         if self._dtype is None:
-            x = self.new_point()
+            x = empty_structured_array(0, self.names)
             self._dtype = _unstructured_view_dtype(x, self.names)
         return self._dtype
 
@@ -406,12 +406,9 @@ class Model(ABC):
             Array with the same length as x where True indicates the point
             is within the prior bounds.
         """
+        x_view = self.unstructured_view(x)
         return ~np.any(
-            [
-                (x[n] < self.bounds[n][0]) | (x[n] > self.bounds[n][1])
-                for n in self.names
-            ],
-            axis=0,
+            (x_view > self.upper_bounds) + (x_view < self.lower_bounds), axis=1
         )
 
     def sample_parameter(self, name, n=1):
