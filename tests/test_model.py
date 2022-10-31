@@ -1109,7 +1109,10 @@ def test_n_pool(integration_model, mp_context):
     """Integration test for evaluating the likelihood with n_pool"""
     # Cannot pickle lambda functions
     integration_model.fn = lambda x: x
-    with patch("multiprocessing.Pool", mp_context.Pool):
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
         integration_model.configure_pool(n_pool=1)
     assert integration_model.n_pool == 1
     x = integration_model.new_point(10)

@@ -47,6 +47,7 @@ def test_check_multiprocessing_start_method_error(method):
 
 
 @pytest.mark.integration_test
+@pytest.mark.skip_on_windows
 def test_check_multiprocessing_start_method_integration():
     """Integration test for checking the start method."""
     mp = multiprocessing.get_context("fork")
