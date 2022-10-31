@@ -153,7 +153,10 @@ def test_sampling_with_n_pool(model, flow_config, tmpdir, mp_context):
     Test running the sampler with multiprocessing.
     """
     output = str(tmpdir.mkdir("pool"))
-    with patch("multiprocessing.Pool", mp_context.Pool):
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
         fp = FlowSampler(
             model,
             output=output,
