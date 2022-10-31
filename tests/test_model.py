@@ -849,9 +849,13 @@ def test_configure_pool_n_pool(model):
     """Test configuring the pool when n_pool is specified"""
     n_pool = 1
     pool = MagicMock()
-    with patch("multiprocessing.Pool", return_value=pool) as mock_pool:
+    with patch("multiprocessing.Pool", return_value=pool) as mock_pool, patch(
+        "nessai.utils.multiprocessing.check_multiprocessing_start_method"
+    ) as mock_check:
         Model.configure_pool(model, n_pool=n_pool)
     assert model.pool is pool
+
+    mock_check.assert_called_once()
     mock_pool.assert_called_once_with(
         processes=n_pool,
         initializer=initialise_pool_variables,
