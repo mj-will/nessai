@@ -1401,7 +1401,9 @@ class FlowProposal(RejectionProposal):
 
         if self.truncate:
             if worst_q is None:
-                raise RuntimeError("Cannot use truncation with worst_q")
+                raise ValueError(
+                    "`worst_q` is None but truncation is enabled."
+                )
             cut = log_q >= worst_q
             x = x[cut]
             z = z[cut]
