@@ -469,9 +469,7 @@ def test_safe_exit(flow_sampler):
     flow_sampler.terminate_run.assert_called_once_with(code=2)
 
 
-@pytest.mark.parametrize(
-    "kwargs", [dict(n_pool=None), dict(max_threads=3, n_pool=2)]
-)
+@pytest.mark.parametrize("kwargs", [dict(n_pool=None), dict(n_pool=2)])
 @pytest.mark.slow_integration_test
 @pytest.mark.timeout(60)
 @pytest.mark.skip_on_windows
@@ -484,7 +482,10 @@ def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
     output = tmp_path / "output"
     output.mkdir()
 
-    with patch("multiprocessing.Pool", mp_context.Pool):
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
         fs = FlowSampler(
             model,
             output=output,

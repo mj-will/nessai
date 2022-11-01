@@ -243,7 +243,12 @@ class Model(ABC):
                 f"Starting multiprocessing pool with {n_pool} processes"
             )
             import multiprocessing
-            from nessai.utils.multiprocessing import initialise_pool_variables
+            from nessai.utils.multiprocessing import (
+                check_multiprocessing_start_method,
+                initialise_pool_variables,
+            )
+
+            check_multiprocessing_start_method()
 
             self.pool = multiprocessing.Pool(
                 processes=self.n_pool,

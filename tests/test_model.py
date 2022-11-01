@@ -849,9 +849,13 @@ def test_configure_pool_n_pool(model):
     """Test configuring the pool when n_pool is specified"""
     n_pool = 1
     pool = MagicMock()
-    with patch("multiprocessing.Pool", return_value=pool) as mock_pool:
+    with patch("multiprocessing.Pool", return_value=pool) as mock_pool, patch(
+        "nessai.utils.multiprocessing.check_multiprocessing_start_method"
+    ) as mock_check:
         Model.configure_pool(model, n_pool=n_pool)
     assert model.pool is pool
+
+    mock_check.assert_called_once()
     mock_pool.assert_called_once_with(
         processes=n_pool,
         initializer=initialise_pool_variables,
@@ -1105,7 +1109,10 @@ def test_n_pool(integration_model, mp_context):
     """Integration test for evaluating the likelihood with n_pool"""
     # Cannot pickle lambda functions
     integration_model.fn = lambda x: x
-    with patch("multiprocessing.Pool", mp_context.Pool):
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
         integration_model.configure_pool(n_pool=1)
     assert integration_model.n_pool == 1
     x = integration_model.new_point(10)

@@ -2,11 +2,13 @@
 """
 Tests for rescaling functions
 """
+import multiprocessing
 from multiprocessing.dummy import Pool
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from nessai.utils.multiprocessing import (
+    check_multiprocessing_start_method,
     initialise_pool_variables,
     get_n_pool,
     log_likelihood_wrapper,
@@ -26,6 +28,42 @@ def test_pool_variables():
 
     # Reset to the default value
     initialise_pool_variables(None)
+
+
+def test_check_multiprocessing_start_method():
+    """Test check multiprocessing start method passes for 'fork'"""
+    with patch("multiprocessing.get_start_method", return_value="fork"):
+        check_multiprocessing_start_method()
+
+
+@pytest.mark.parametrize("method", ["spawn", "forkserver"])
+def test_check_multiprocessing_start_method_error(method):
+    """Assert an error is raised if the start method is not fork."""
+    error_msg = r"nessai only supports multiprocessing using the 'fork' .*"
+    with patch(
+        "multiprocessing.get_start_method", return_value=method
+    ), pytest.raises(RuntimeError, match=error_msg):
+        check_multiprocessing_start_method()
+
+
+@pytest.mark.integration_test
+@pytest.mark.skip_on_windows
+def test_check_multiprocessing_start_method_integration():
+    """Integration test for checking the start method."""
+    mp = multiprocessing.get_context("fork")
+    with patch("multiprocessing.get_start_method", mp.get_start_method):
+        check_multiprocessing_start_method()
+
+
+@pytest.mark.integration_test
+def test_check_multiprocessing_start_method_error_integration():
+    """Integration test for checking the start method raises an error."""
+    mp = multiprocessing.get_context("spawn")
+    error_msg = r"nessai only supports multiprocessing using the 'fork' .*"
+    with patch(
+        "multiprocessing.get_start_method", mp.get_start_method
+    ), pytest.raises(RuntimeError, match=error_msg):
+        check_multiprocessing_start_method()
 
 
 def test_model_error():
