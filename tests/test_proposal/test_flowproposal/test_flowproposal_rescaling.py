@@ -788,6 +788,7 @@ def test_verify_rescaling(proposal, has_inversion):
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
     proposal.check_state = MagicMock()
+    proposal.rescaling_set = True
 
     FlowProposal.verify_rescaling(proposal)
 
@@ -822,6 +823,7 @@ def test_verify_rescaling_invertible_error(proposal, has_inversion):
     proposal.model.new_point = MagicMock(return_value=x)
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+    proposal.rescaling_set = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
@@ -840,6 +842,7 @@ def test_verify_rescaling_duplicate_error(proposal):
     proposal.model.new_point = MagicMock(return_value=x)
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+    proposal.rescaling_set = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
@@ -858,6 +861,7 @@ def test_verify_rescaling_duplicate_error_nans(proposal):
     proposal.model.new_point = MagicMock(return_value=x)
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+    proposal.rescaling_set = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
@@ -883,10 +887,18 @@ def test_verify_rescaling_jacobian_error(proposal, has_inversion):
     proposal.model.new_point = MagicMock(return_value=x)
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+    proposal.rescaling_set = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
     assert "Rescaling Jacobian is not invertible" in str(excinfo.value)
+
+
+def test_verify_rescaling_rescaling_not_set(proposal):
+    """Assert an error is raised if the rescaling is not set"""
+    proposal.rescaling_set = False
+    with pytest.raises(RuntimeError, match=r"Rescaling must be set .*"):
+        FlowProposal.verify_rescaling(proposal)
 
 
 def test_check_state_boundary_inversion_default(proposal):
