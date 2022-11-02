@@ -146,6 +146,10 @@ class FlowProposal(RejectionProposal):
         value of the attribute
         :py:attr:`~nessai.proposal.flowproposal.FlowProposal.use_default_reparameterisations`
         is used.
+    reverse_reparameterisations : bool
+        Passed to :code:`reverse_order` in
+        :py:obj:`~nessai.reparameterisations.combined.CombinedReparameterisation`.
+        Reverses the order of the reparameterisations.
     draw_latent_kwargs : dict, optional
         Dictionary of kwargs passed to the function for drawing samples
         in the latent space. See the functions in utils for the possible
@@ -192,6 +196,7 @@ class FlowProposal(RejectionProposal):
         reparameterisations=None,
         fallback_reparameterisation=None,
         use_default_reparameterisations=None,
+        reverse_reparameterisations=False,
         **kwargs,
     ):
 
@@ -227,6 +232,7 @@ class FlowProposal(RejectionProposal):
                 use_default_reparameterisations
             )
         self.fallback_reparameterisation = fallback_reparameterisation
+        self.reverse_reparameterisations = reverse_reparameterisations
 
         self.output = output
 
@@ -631,7 +637,9 @@ class FlowProposal(RejectionProposal):
         else:
             _reparameterisations = copy.deepcopy(reparameterisations)
         logger.info(f"Adding reparameterisations from: {_reparameterisations}")
-        self._reparameterisation = CombinedReparameterisation()
+        self._reparameterisation = CombinedReparameterisation(
+            reverse_order=self.reverse_reparameterisations
+        )
 
         if not isinstance(_reparameterisations, dict):
             raise TypeError(
