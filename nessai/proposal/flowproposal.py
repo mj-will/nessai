@@ -218,6 +218,7 @@ class FlowProposal(RejectionProposal):
         self.approx_acceptance = []
         self._edges = {}
         self._reparameterisation = None
+        self.rescaling_set = False
         self.use_x_prime_prior = False
 
         self.reparameterisations = reparameterisations
@@ -810,11 +811,16 @@ class FlowProposal(RejectionProposal):
         logger.info(f"x space parameters: {self.names}")
         logger.info(f"parameters to rescale {self.rescale_parameters}")
         logger.info(f"x prime space parameters: {self.rescaled_names}")
+        self.rescaling_set = True
 
     def verify_rescaling(self):
         """
         Verify the rescaling functions are invertible
         """
+        if not self.rescaling_set:
+            raise RuntimeError(
+                "Rescaling must be set before it can be verified"
+            )
         logger.info("Verifying rescaling functions")
         x = self.model.new_point(N=1000)
         for inversion in ["lower", "upper", False, None]:
@@ -824,7 +830,13 @@ class FlowProposal(RejectionProposal):
             x_out, log_J_inv = self.inverse_rescale(x_prime)
             if x.size == x_out.size:
                 for f in x.dtype.names:
-                    if not np.allclose(x[f], x_out[f], equal_nan=True):
+                    if f in config.NON_SAMPLING_PARAMETERS:
+                        if not np.allclose(x[f], x_out[f], equal_nan=True):
+                            raise RuntimeError(
+                                f"Non-sampling parameter {f} changed in "
+                                " the rescaling."
+                            )
+                    elif not np.allclose(x[f], x_out[f], equal_nan=False):
                         raise RuntimeError(
                             f"Rescaling is not invertible for {f}"
                         )
@@ -847,8 +859,16 @@ class FlowProposal(RejectionProposal):
                             f"functions for {f}."
                         )
                 for f in x.dtype.names:
-                    if not np.allclose(
-                        x[f], x_out[f][: x.size], equal_nan=True
+                    if f in config.NON_SAMPLING_PARAMETERS:
+                        if not np.allclose(
+                            x[f], x_out[f][: x.size], equal_nan=True
+                        ):
+                            raise RuntimeError(
+                                f"Non-sampling parameter {f} changed in "
+                                " the rescaling."
+                            )
+                    elif not np.allclose(
+                        x[f], x_out[f][: x.size], equal_nan=False
                     ):
                         raise RuntimeError(
                             f"Rescaling is not invertible for {f}"

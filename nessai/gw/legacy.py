@@ -995,6 +995,7 @@ class LegacyGWFlowProposal(FlowProposal):
         logger.info(f"x space parameters: {self.names}")
         logger.info(f"parameters to rescale {self.rescale_parameters}")
         logger.info(f"x prime space parameters: {self.rescaled_names}")
+        self.rescaling_set = True
 
     def check_state(self, x):
         """
