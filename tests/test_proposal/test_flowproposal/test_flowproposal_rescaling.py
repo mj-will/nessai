@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 def proposal(proposal):
     """Specific mocked proposal for reparameterisation tests"""
     proposal.use_default_reparameterisations = False
+    proposal.reverse_reparameterisations = False
     return proposal
 
 
@@ -50,10 +51,14 @@ def test_get_reparamaterisation(mocked_fn, proposal):
     assert mocked_fn.called_once_with("angle")
 
 
-def test_configure_reparameterisations_dict(proposal, dummy_cmb_rc, dummy_rc):
+@pytest.mark.parametrize("reverse_order", [False, True])
+def test_configure_reparameterisations_dict(
+    proposal, dummy_cmb_rc, dummy_rc, reverse_order
+):
     """Test configuration for reparameterisations dictionary.
 
-    Also tests to make sure boundary inversion is set.
+    Also tests to make sure boundary inversion is set and if the
+    `reverse_reparameterisation` is correctly set.
     """
     dummy_rc.return_value = "r"
     # Need to add the parameters before hand to prevent a
@@ -66,6 +71,7 @@ def test_configure_reparameterisations_dict(proposal, dummy_cmb_rc, dummy_rc):
     proposal.model = MagicMock()
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.names = ["x"]
+    proposal.reverse_reparameterisations = reverse_order
 
     with patch(
         "nessai.proposal.flowproposal.CombinedReparameterisation",
@@ -80,7 +86,7 @@ def test_configure_reparameterisations_dict(proposal, dummy_cmb_rc, dummy_rc):
     dummy_rc.assert_called_once_with(
         prior_bounds={"x": [-1, 1]}, parameters="x", boundary_inversion=True
     )
-    mocked_class.assert_called_once()
+    mocked_class.assert_called_once_with(reverse_order=reverse_order)
     # fmt: off
     proposal._reparameterisation.add_reparameterisations \
         .assert_called_once_with("r")
