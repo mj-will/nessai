@@ -36,6 +36,36 @@ def test_init_w_reparam():
     assert c.prime_parameters == ["x_prime"]
 
 
+@pytest.mark.parametrize("reverse_order", [False, True])
+def test_to_prime_order(reverse_order, reparam):
+    """Assert order is correct depending on the value of the reversed flag"""
+    order = [1, 2, 3]
+    reparam.order = order
+    reparam.reverse_order = reverse_order
+
+    expected = [1, 2, 3]
+    if reverse_order:
+        expected = list(reversed(expected))
+
+    out = CombinedReparameterisation.to_prime_order.__get__(reparam)
+    assert list(out) == expected
+
+
+@pytest.mark.parametrize("reverse_order", [False, True])
+def test_from_prime_order(reverse_order, reparam):
+    """Assert order is correct depending on the value of the reversed flag"""
+    order = [1, 2, 3]
+    reparam.order = order
+    reparam.reverse_order = reverse_order
+
+    expected = [3, 2, 1]
+    if reverse_order:
+        expected = list(reversed(expected))
+
+    out = CombinedReparameterisation.from_prime_order.__get__(reparam)
+    assert list(out) == expected
+
+
 def test_add_single_reparameterisations():
     """Test the core functionality of adding reparameterisations"""
     r = RescaleToBounds(parameters="x", prior_bounds=[0, 1])
