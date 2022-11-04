@@ -846,11 +846,10 @@ def test_verify_rescaling_invertible_error_non_sampling(
     proposal, has_inversion
 ):
     """Assert an error is raised a non-sampler parameter changes"""
-    x = np.array([(1, np.nan), (2, 3)], dtype=[("x", "f8"), ("logL", "f8")])
+    x = np.array([(1, 3), (2, np.nan)], dtype=[("x", "f8"), ("logL", "f8")])
     x_prime = x["x"] / 2
     log_j = np.array([-2, -2])
     x_out = x.copy()
-    x_out["logL"] = np.array([np.nan, np.nan])
     log_j_inv = np.array([2, 2])
 
     if has_inversion:
@@ -858,6 +857,8 @@ def test_verify_rescaling_invertible_error_non_sampling(
         log_j = np.concatenate([log_j, log_j])
         log_j_inv = np.concatenate([log_j_inv, log_j_inv])
         x_out = np.concatenate([x_out, x_out])
+    # Change the last element, this will test both cases
+    x_out["logL"][-1] = 4
 
     proposal.model = MagicMock()
     proposal.model.new_point = MagicMock(return_value=x)
@@ -868,25 +869,6 @@ def test_verify_rescaling_invertible_error_non_sampling(
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
     assert "Non-sampling parameter logL changed" in str(excinfo.value)
-
-
-def test_verify_rescaling_duplicate_error(proposal):
-    """Assert an error is raised if the duplication is missing samples"""
-    x = np.array([[1], [2]], dtype=[("x", "f8")])
-    x_prime = x["x"] / 2
-    log_j = np.array([-2, -2, -2, -2])
-    x_out = np.array([[1], [3], [4], [5]], dtype=[("x", "f8")])
-    log_j_inv = np.array([2, 2, 2, 2])
-
-    proposal.model = MagicMock()
-    proposal.model.new_point = MagicMock(return_value=x)
-    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
-    proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
-    proposal.rescaling_set = True
-
-    with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.verify_rescaling(proposal)
-    assert "Duplicate samples must map to same input" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("has_inversion", [False, True])
