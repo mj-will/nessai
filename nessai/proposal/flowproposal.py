@@ -836,56 +836,31 @@ class FlowProposal(RejectionProposal):
             logger.debug(f"Testing: {inversion}")
             x_prime, log_J = self.rescale(x, test=inversion)
             x_out, log_J_inv = self.inverse_rescale(x_prime)
-            if x.size == x_out.size:
-                for f in x.dtype.names:
+
+            n = x.size
+            ratio = x_out.size // x.size
+            logger.debug(f"Ratio of output to input: {ratio}")
+            for f in x.dtype.names:
+                target = x[f]
+                for count in range(ratio):
+                    start = count * n
+                    end = (count + 1) * n
+                    block = x_out[f][start:end]
                     if f in config.NON_SAMPLING_PARAMETERS:
-                        if not np.allclose(x[f], x_out[f], equal_nan=True):
+                        if not np.allclose(block, target, equal_nan=True):
                             raise RuntimeError(
                                 f"Non-sampling parameter {f} changed in "
-                                " the rescaling."
+                                f" the rescaling (block {count})."
                             )
-                    elif not np.allclose(x[f], x_out[f], equal_nan=False):
+                    elif not np.allclose(block, target, equal_nan=False):
                         raise RuntimeError(
-                            f"Rescaling is not invertible for {f}"
+                            f"Rescaling is not invertible for {f} "
+                            f"(block {count})."
                         )
-                if not np.allclose(log_J, -log_J_inv):
-                    raise RuntimeError("Rescaling Jacobian is not invertible")
-            else:
-                # ratio = x_out.size // x.size
-                for f in x.dtype.names:
-                    if f in config.NON_SAMPLING_PARAMETERS:
-                        if not np.allclose(
-                            x[f], x_out[f][: x.size], equal_nan=True
-                        ):
-                            raise RuntimeError(
-                                f"Non-sampling parameter {f} changed in "
-                                " the rescaling when using duplication."
-                            )
-                    elif not all(
-                        [np.any(np.isclose(x[f], xo)) for xo in x_out[f]]
-                    ):
-                        raise RuntimeError(
-                            "Duplicate samples must map to same input values. "
-                            "Check the rescaling and inverse rescaling "
-                            f"functions for {f}."
-                        )
-                for f in x.dtype.names:
-                    if f in config.NON_SAMPLING_PARAMETERS:
-                        if not np.allclose(
-                            x[f], x_out[f][: x.size], equal_nan=True
-                        ):
-                            raise RuntimeError(
-                                f"Non-sampling parameter {f} changed in "
-                                " the rescaling."
-                            )
-                    elif not np.allclose(
-                        x[f], x_out[f][: x.size], equal_nan=False
-                    ):
-                        raise RuntimeError(
-                            f"Rescaling is not invertible for {f}"
-                        )
-                if not np.allclose(log_J, -log_J_inv):
-                    raise RuntimeError("Rescaling Jacobian is not invertible")
+                    else:
+                        logger.debug(f"Block {count} is equal to the input")
+            if not np.allclose(log_J, -log_J_inv):
+                raise RuntimeError("Rescaling Jacobian is not invertible")
 
         logger.info("Rescaling functions are invertible")
 
