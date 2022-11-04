@@ -853,10 +853,13 @@ class FlowProposal(RejectionProposal):
             else:
                 # ratio = x_out.size // x.size
                 for f in x.dtype.names:
-                    if np.isnan(x[f]).all():
-                        if not np.isnan(x_out[f]).all():
+                    if f in config.NON_SAMPLING_PARAMETERS:
+                        if not np.allclose(
+                            x[f], x_out[f][: x.size], equal_nan=True
+                        ):
                             raise RuntimeError(
-                                f"Rescaling is not invertible for {f} (NaNs)"
+                                f"Non-sampling parameter {f} changed in "
+                                " the rescaling when using duplication."
                             )
                     elif not all(
                         [np.any(np.isclose(x[f], xo)) for xo in x_out[f]]
