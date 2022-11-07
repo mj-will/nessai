@@ -18,15 +18,19 @@ class CombinedReparameterisation(dict):
         List of reparameterisations to add to the combined reparameterisations.
         Further reparameterisations can be added using
         `add_reparameterisations`.
+    reverse_order : bool
+        If True the order of the reparameterisations will be reversed compared
+        to the default ordering.
     """
 
-    def __init__(self, reparameterisations=None):
+    def __init__(self, reparameterisations=None, reverse_order=False):
         super().__init__()
         self.reparameterisations = {}
         self.parameters = []
         self.prime_parameters = []
         self.requires = []
         self.order = []
+        self.reverse_order = reverse_order
         if reparameterisations is not None:
             self.add_reparameterisations(reparameterisations)
 
@@ -43,12 +47,18 @@ class CombinedReparameterisation(dict):
     @property
     def to_prime_order(self):
         """Order when converting to the prime space"""
-        return reversed(self.order)
+        if self.reverse_order:
+            return reversed(self.order)
+        else:
+            return self.order
 
     @property
     def from_prime_order(self):
         """Order when converting from the prime space"""
-        return self.order
+        if self.reverse_order:
+            return self.order
+        else:
+            return reversed(self.order)
 
     def _add_reparameterisation(self, reparameterisation):
         requires = reparameterisation.requires

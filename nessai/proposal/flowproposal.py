@@ -146,6 +146,10 @@ class FlowProposal(RejectionProposal):
         value of the attribute
         :py:attr:`~nessai.proposal.flowproposal.FlowProposal.use_default_reparameterisations`
         is used.
+    reverse_reparameterisations : bool
+        Passed to :code:`reverse_order` in
+        :py:obj:`~nessai.reparameterisations.combined.CombinedReparameterisation`.
+        Reverses the order of the reparameterisations.
     draw_latent_kwargs : dict, optional
         Dictionary of kwargs passed to the function for drawing samples
         in the latent space. See the functions in utils for the possible
@@ -192,6 +196,7 @@ class FlowProposal(RejectionProposal):
         reparameterisations=None,
         fallback_reparameterisation=None,
         use_default_reparameterisations=None,
+        reverse_reparameterisations=False,
         **kwargs,
     ):
 
@@ -218,6 +223,7 @@ class FlowProposal(RejectionProposal):
         self.approx_acceptance = []
         self._edges = {}
         self._reparameterisation = None
+        self.rescaling_set = False
         self.use_x_prime_prior = False
 
         self.reparameterisations = reparameterisations
@@ -226,6 +232,7 @@ class FlowProposal(RejectionProposal):
                 use_default_reparameterisations
             )
         self.fallback_reparameterisation = fallback_reparameterisation
+        self.reverse_reparameterisations = reverse_reparameterisations
 
         self.output = output
 
@@ -630,7 +637,9 @@ class FlowProposal(RejectionProposal):
         else:
             _reparameterisations = copy.deepcopy(reparameterisations)
         logger.info(f"Adding reparameterisations from: {_reparameterisations}")
-        self._reparameterisation = CombinedReparameterisation()
+        self._reparameterisation = CombinedReparameterisation(
+            reverse_order=self.reverse_reparameterisations
+        )
 
         if not isinstance(_reparameterisations, dict):
             raise TypeError(
@@ -810,11 +819,16 @@ class FlowProposal(RejectionProposal):
         logger.info(f"x space parameters: {self.names}")
         logger.info(f"parameters to rescale {self.rescale_parameters}")
         logger.info(f"x prime space parameters: {self.rescaled_names}")
+        self.rescaling_set = True
 
     def verify_rescaling(self):
         """
         Verify the rescaling functions are invertible
         """
+        if not self.rescaling_set:
+            raise RuntimeError(
+                "Rescaling must be set before it can be verified"
+            )
         logger.info("Verifying rescaling functions")
         x = self.model.new_point(N=1000)
         for inversion in ["lower", "upper", False, None]:
@@ -822,39 +836,31 @@ class FlowProposal(RejectionProposal):
             logger.debug(f"Testing: {inversion}")
             x_prime, log_J = self.rescale(x, test=inversion)
             x_out, log_J_inv = self.inverse_rescale(x_prime)
-            if x.size == x_out.size:
-                for f in x.dtype.names:
-                    if not np.allclose(x[f], x_out[f], equal_nan=True):
-                        raise RuntimeError(
-                            f"Rescaling is not invertible for {f}"
-                        )
-                if not np.allclose(log_J, -log_J_inv):
-                    raise RuntimeError("Rescaling Jacobian is not invertible")
-            else:
-                # ratio = x_out.size // x.size
-                for f in x.dtype.names:
-                    if np.isnan(x[f]).all():
-                        if not np.isnan(x_out[f]).all():
+
+            n = x.size
+            ratio = x_out.size // x.size
+            logger.debug(f"Ratio of output to input: {ratio}")
+            for f in x.dtype.names:
+                target = x[f]
+                for count in range(ratio):
+                    start = count * n
+                    end = (count + 1) * n
+                    block = x_out[f][start:end]
+                    if f in config.NON_SAMPLING_PARAMETERS:
+                        if not np.allclose(block, target, equal_nan=True):
                             raise RuntimeError(
-                                f"Rescaling is not invertible for {f} (NaNs)"
+                                f"Non-sampling parameter {f} changed in "
+                                f" the rescaling (block {count})."
                             )
-                    elif not all(
-                        [np.any(np.isclose(x[f], xo)) for xo in x_out[f]]
-                    ):
+                    elif not np.allclose(block, target, equal_nan=False):
                         raise RuntimeError(
-                            "Duplicate samples must map to same input values. "
-                            "Check the rescaling and inverse rescaling "
-                            f"functions for {f}."
+                            f"Rescaling is not invertible for {f} "
+                            f"(block {count})."
                         )
-                for f in x.dtype.names:
-                    if not np.allclose(
-                        x[f], x_out[f][: x.size], equal_nan=True
-                    ):
-                        raise RuntimeError(
-                            f"Rescaling is not invertible for {f}"
-                        )
-                if not np.allclose(log_J, -log_J_inv):
-                    raise RuntimeError("Rescaling Jacobian is not invertible")
+                    else:
+                        logger.debug(f"Block {count} is equal to the input")
+            if not np.allclose(log_J, -log_J_inv):
+                raise RuntimeError("Rescaling Jacobian is not invertible")
 
         logger.info("Rescaling functions are invertible")
 
