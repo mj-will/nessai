@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `nessai.utils.sorting`.
 - Add `log_posterior_weights` and `effective_n_posterior_samples` to the integral state object.
 - Add a check for the multiprocessing start method when using `n_pool`.
+- Add option to reverse reparameterisations in `FlowProposal`.
 
 ### Changed
 
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactor `nessai.evidence._NSIntegralState` to inherit from a base class.
 - Revert default logging level to `INFO`
 - Rework logging statements to reduce the amount of information printed by default.
+- Refactor `nessai.proposal.FlowProposal.verify_rescaling` to be stricter.
 
 ### Removed
 
