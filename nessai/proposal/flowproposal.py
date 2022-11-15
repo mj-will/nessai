@@ -211,7 +211,6 @@ class FlowProposal(RejectionProposal):
         self.samples = None
         self.rescaled_names = []
         self.acceptance = []
-        self.approx_acceptance = []
         self._edges = {}
         self._reparameterisation = None
         self.rescaling_set = False
@@ -1375,12 +1374,6 @@ class FlowProposal(RejectionProposal):
             self.samples
         )
         if self.check_acceptance:
-            if worst_q:
-                self.approx_acceptance.append(self.compute_acceptance(worst_q))
-                logger.debug(
-                    "Current approximate acceptance "
-                    f"{self.approx_acceptance[-1]}"
-                )
             self.acceptance.append(
                 self.compute_acceptance(worst_point["logL"])
             )
@@ -1596,7 +1589,6 @@ class FlowProposal(RejectionProposal):
         self.alt_dist = None
         self._checked_population = True
         self.acceptance = []
-        self.approx_acceptance = []
         self._edges = {k: None for k in self._edges.keys()}
 
     def __getstate__(self):
