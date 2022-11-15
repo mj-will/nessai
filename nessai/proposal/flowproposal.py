@@ -29,7 +29,6 @@ from .rejection import RejectionProposal
 from ..utils import (
     compute_radius,
     get_uniform_distribution,
-    get_multivariate_normal,
     save_live_points,
 )
 
@@ -1405,13 +1404,6 @@ class FlowProposal(RejectionProposal):
             return get_uniform_distribution(
                 self.dims, self.r * self.fuzz, device=self.flow.device
             )
-        elif self.latent_prior == "truncated_gaussian":
-            if "var" in self.draw_latent_kwargs:
-                return get_multivariate_normal(
-                    self.dims,
-                    var=self.draw_latent_kwargs["var"],
-                    device=self.flow.device,
-                )
 
     def compute_acceptance(self, logL):
         """
