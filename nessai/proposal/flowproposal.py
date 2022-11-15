@@ -148,10 +148,6 @@ class FlowProposal(RejectionProposal):
         Passed to :code:`reverse_order` in
         :py:obj:`~nessai.reparameterisations.combined.CombinedReparameterisation`.
         Reverses the order of the reparameterisations.
-    draw_latent_kwargs : dict, optional
-        Dictionary of kwargs passed to the function for drawing samples
-        in the latent space. See the functions in utils for the possible
-        kwargs.
     """
 
     use_default_reparameterisations = False
@@ -188,7 +184,6 @@ class FlowProposal(RejectionProposal):
         update_poolsize=True,
         save_training_data=False,
         compute_radius_with_all=False,
-        draw_latent_kwargs=None,
         detect_edges=False,
         detect_edges_kwargs=None,
         reparameterisations=None,
@@ -263,10 +258,6 @@ class FlowProposal(RejectionProposal):
 
         self.configure_plotting(plot)
 
-        if draw_latent_kwargs is None:
-            self.draw_latent_kwargs = {}
-        else:
-            self.draw_latent_kwargs = draw_latent_kwargs
         self.configure_latent_prior()
         self.alt_dist = None
 
@@ -412,9 +403,6 @@ class FlowProposal(RejectionProposal):
             from ..utils import draw_truncated_gaussian
 
             self.draw_latent_prior = draw_truncated_gaussian
-            var = self.flow_config["model_config"].get("kwargs", {}).get("var")
-            if var and "var" not in self.draw_latent_kwargs:
-                self.draw_latent_kwargs["var"] = var
 
         elif self.latent_prior == "gaussian":
             logger.warning("Using a gaussian latent prior WITHOUT truncation")
@@ -1352,7 +1340,6 @@ class FlowProposal(RejectionProposal):
                 r=self.r,
                 N=self.drawsize,
                 fuzz=self.fuzz,
-                **self.draw_latent_kwargs,
             )
             proposed += z.shape[0]
 
