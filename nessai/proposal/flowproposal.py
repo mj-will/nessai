@@ -4,6 +4,7 @@ Main proposal object that includes normalising flows.
 """
 import copy
 import datetime
+from functools import partial
 import logging
 import os
 
@@ -31,6 +32,7 @@ from ..utils import (
     get_uniform_distribution,
     save_live_points,
 )
+from ..utils.sampling import NDimensionalTruncatedGaussian
 
 logger = logging.getLogger(__name__)
 
@@ -400,21 +402,21 @@ class FlowProposal(RejectionProposal):
         if self.latent_prior == "truncated_gaussian":
             from ..utils import draw_truncated_gaussian
 
-            self.draw_latent_prior = draw_truncated_gaussian
+            self._draw_latent_prior = draw_truncated_gaussian
 
         elif self.latent_prior == "gaussian":
             logger.warning("Using a gaussian latent prior WITHOUT truncation")
             from ..utils import draw_gaussian
 
-            self.draw_latent_prior = draw_gaussian
+            self._draw_latent_prior = draw_gaussian
         elif self.latent_prior == "uniform":
             from ..utils import draw_uniform
 
-            self.draw_latent_prior = draw_uniform
+            self._draw_latent_prior = draw_uniform
         elif self.latent_prior in ["uniform_nsphere", "uniform_nball"]:
             from ..utils import draw_nsphere
 
-            self.draw_latent_prior = draw_nsphere
+            self._draw_latent_prior = draw_nsphere
         else:
             raise RuntimeError(
                 f"Unknown latent prior: {self.latent_prior}, choose from: "
@@ -1274,6 +1276,27 @@ class FlowProposal(RejectionProposal):
             x[self.model.names + config.livepoints.non_sampling_parameters]
         )
 
+    def prep_latent_prior(self):
+        """Prepare the latent prior."""
+        if self.latent_prior == "truncated_gaussian":
+            self._dist = NDimensionalTruncatedGaussian(
+                self.dims,
+                self.r,
+                fuzz=self.fuzz,
+            )
+            self._draw_func = self._dist.sample
+        else:
+            self._draw_func = partial(
+                self._draw_latent_prior,
+                dims=self.dims,
+                r=self.r,
+                fuzz=self.fuzz,
+            )
+
+    def draw_latent_prior(self, n):
+        """Draw n samples from the latent prior."""
+        return self._draw_func(N=n)
+
     def populate(self, worst_point, N=10000, plot=True, r=None):
         """
         Populate a pool of latent points given the current worst point.
@@ -1335,13 +1358,10 @@ class FlowProposal(RejectionProposal):
         percent = 0.1
         warn = True
 
+        self.prep_latent_prior()
+
         while accepted < N:
-            z = self.draw_latent_prior(
-                self.dims,
-                r=self.r,
-                N=self.drawsize,
-                fuzz=self.fuzz,
-            )
+            z = self.draw_latent_prior(self.drawsize)
             proposed += z.shape[0]
 
             z, x = self.rejection_sampling(z, worst_q)
