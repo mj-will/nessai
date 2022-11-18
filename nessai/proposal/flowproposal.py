@@ -941,6 +941,9 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a few MB in size so
             proceed with caution!
         """
+        if not self._initialised:
+            raise RuntimeError("FlowProposal is not initialised.")
+
         if (plot and self._plot_training) or self.save_training_data:
             block_output = os.path.join(
                 self.output, "training", f"block_{self.training_count}", ""
