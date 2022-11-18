@@ -2,8 +2,11 @@
 """
 Utilities related to drawing samples.
 """
+from typing import Optional
+
 import numpy as np
 from scipy import stats
+from scipy.special import gammaincinv
 
 
 def compute_radius(n, q=0.95):
@@ -157,3 +160,61 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1):
     x = np.random.randn(p.size, dims)
     points = (p * x.T / np.sqrt(np.sum(x**2.0, axis=1))).T
     return points
+
+
+class NDimensionalTruncatedGaussian:
+    """Class for sampling from a radially truncated n-dimensional Gaussian
+
+    Parameters
+    ----------
+    dims :
+        The number of dimensions
+    radius :
+        The radius for the truncation
+    fuzz : float
+        The fuzz factor
+    rng: Optional[numpy.random.Generator]
+        Random state to use for random number generation. If not specified,
+        will fall back to the output of :code:`numpy.random.default_rng(seed)`.
+    seed : int
+        Random seed used if :code:`rng` is not specified.
+    """
+
+    def __init__(
+        self,
+        dims: int,
+        radius: float,
+        fuzz: float = 1.0,
+        rng: Optional[np.random.Generator] = None,
+        seed: int = 1234,
+    ) -> None:
+        self.dims = dims
+        self.radius = radius
+        self.fuzz = fuzz
+        self.chi = stats.chi(df=self.dims)
+
+        self.u_max = self.chi.cdf(self.radius * self.fuzz)
+        if rng:
+            self.rng = rng
+        else:
+            self.rng = np.random.default_rng(seed)
+
+    def sample(self, N: int) -> np.ndarray:
+        """Sample from the distribution.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples to draw
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of samples of shape [n, dims].
+        """
+        u = self.rng.uniform(0, self.u_max, N)
+        # Inverse CDF of a chi-distribution
+        p = np.sqrt(2 * gammaincinv(0.5 * self.dims, u))
+        x = self.rng.standard_normal((self.dims, N))
+        points = (p * x / np.sqrt(np.sum(x**2.0, axis=0))).T
+        return points
