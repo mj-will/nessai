@@ -431,7 +431,10 @@ def test_corner_plot_w_labels(live_points, labels):
     plot.corner_plot(live_points, labels=labels)
 
 
-@pytest.mark.parametrize("truths", [[0, 0], [0, 0, None, None, None]])
+@pytest.mark.parametrize(
+    "truths",
+    [[0, 0], [0, 0, None, None, None], {"x": 0, "y": 0}],
+)
 def test_corner_plot_w_truths(live_points, truths):
     """Test the corner plot with truths"""
     plot.corner_plot(live_points, truths=truths)
@@ -453,6 +456,21 @@ def test_corner_plot_w_include_and_labels(live_points):
     """Test the parameter is included and the labels do not raise an error"""
     fig = plot.corner_plot(live_points, include=["x"], labels=["x_0"])
     assert len(fig.axes) == 1
+
+
+@pytest.mark.parametrize("truths", [[1], {"x": 1, "y": 1}])
+def test_corner_plot_w_include_and_truths(live_points, truths):
+    """Test the parameter is included and the truths do not raise an error"""
+    fig = plot.corner_plot(live_points, include=["x"], truths=truths)
+    assert len(fig.axes) == 1
+
+
+def test_corner_plot_w_include_and_truths_error(live_points):
+    """Assert an error is raised when the number truths do not match the
+    number of parameters
+    """
+    with pytest.raises(ValueError, match=r"truths does not match .*"):
+        plot.corner_plot(live_points, include=["x"], truths=[1, 1])
 
 
 def test_corner_plot_all_nans(caplog, live_points):
