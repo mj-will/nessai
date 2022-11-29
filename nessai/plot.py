@@ -536,7 +536,7 @@ def corner_plot(
         List of parameters to exclude.
     labels : Optional[Iterable]
         Labels for each parameter that is to be plotted.
-    truths : Optional[Iterable]
+    truths : Optional[Union[Iterable, Dict]]
         Truth values for each parameters, parameters can be skipped by setting
         the value to None.
     filename : Optional[str]
@@ -594,9 +594,21 @@ def corner_plot(
         labels = labels[has_range]
 
     if truths:
-        truths = np.asarray(truths)
+        if isinstance(truths, dict):
+            if include:
+                truths = np.array([truths[n] for n in include])
+            else:
+                truths = np.fromiter(truths.values(), float)
+        else:
+            truths = np.asarray(truths)
         if len(truths) != unstruct_array.shape[-1]:
-            truths = truths[has_range]
+            if not all(has_range):
+                truths = truths[has_range]
+            else:
+                raise ValueError(
+                    "Length of truths does not match number of "
+                    "parameters being plotted"
+                )
 
     fig = corner.corner(
         unstruct_array, truths=truths, labels=labels, **default_kwargs
