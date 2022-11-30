@@ -4,6 +4,7 @@ Integration tests for running the sampler with different configurations.
 """
 import logging
 import os
+from scipy.stats import norm
 import torch
 import pytest
 import numpy as np
@@ -371,3 +372,41 @@ def test_debug_log_level(model, tmpdir):
     )
     fs.run(plot=False)
     logger.setLevel(original_level)
+
+
+@pytest.mark.slow_integration_test
+def test_disable_vectorisation(model, tmp_path):
+    """Assert vectorisation can be disabled"""
+
+    class TestModel(Model):
+        def __init__(self):
+            self.bounds = {"x": [-5, 5], "y": [-5, 5]}
+            self.names = ["x", "y"]
+
+        def log_prior(self, x):
+            log_p = np.log(self.in_bounds(x), dtype="float")
+            for n in self.names:
+                log_p -= self.bounds[n][1] - self.bounds[n][0]
+            return log_p
+
+        def log_likelihood(self, x):
+            # AssertionError won't be caught by nessai
+            assert not (x.size > 1)
+            log_l = 0
+            for pn in self.names:
+                log_l += norm.logpdf(x[pn])
+            return log_l
+
+    output = tmp_path / "disable_vec"
+    output.mkdir()
+
+    model = TestModel()
+
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        disable_vectorisation=True,
+        plot=False,
+    )
+    fs.run(plot=False)

@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `log_posterior_weights` and `effective_n_posterior_samples` to the integral state object.
 - Add a check for the multiprocessing start method when using `n_pool`.
 - Add option to reverse reparameterisations in `FlowProposal`.
+- Add `disable_vectorisation` to `FlowSampler`.
 
 ### Changed
 

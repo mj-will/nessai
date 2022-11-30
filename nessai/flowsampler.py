@@ -47,6 +47,9 @@ class FlowSampler:
         If True, the multiprocessing pool will be closed once the run method
         has been called. Disables the option in :code:`NestedSampler` if
         enabled.
+    disable_vectorisation : bool
+        Disable likelihood vectorisation. Overrides the value of
+        :py:attr:`nessai.model.Model.allow_vectorised.
     kwargs :
         Keyword arguments passed to
         :obj:`~nessai.samplers.nestedsampler.NestedSampler`.
@@ -64,6 +67,7 @@ class FlowSampler:
         pytorch_threads=1,
         max_threads=None,
         close_pool=True,
+        disable_vectorisation=False,
         **kwargs,
     ):
 
@@ -74,6 +78,12 @@ class FlowSampler:
 
         self.exit_code = exit_code
         self.close_pool = close_pool
+
+        if disable_vectorisation:
+            logger.warning(
+                "Overriding value of `allow_vectorised` in the model"
+            )
+            model.allow_vectorised = False
 
         self.output = os.path.join(output, "")
         if resume:

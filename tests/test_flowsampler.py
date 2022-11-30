@@ -86,6 +86,26 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
     flow_sampler.save_kwargs.assert_called_once_with(kwargs)
 
 
+def test_disable_vectorisation(flow_sampler, tmp_path):
+    """Assert vectorisation is disabled"""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    model = MagicMock()
+    model.allow_vectorised = True
+
+    with patch("nessai.flowsampler.NestedSampler") as mock:
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            disable_vectorisation=True,
+        )
+    mock.assert_called_once()
+    input_model = mock.call_args[0][0]
+    assert input_model.allow_vectorised is False
+
+
 @pytest.mark.parametrize(
     "test_old, error",
     [(False, None), (True, RuntimeError), (True, FileNotFoundError)],
