@@ -43,10 +43,11 @@ def check_multiprocessing_start_method():
     """
     start_method = multiprocessing.get_start_method()
     if start_method != "fork":
-        raise RuntimeError(
-            "nessai only supports multiprocessing using the 'fork' start "
-            f"method. Actual start method is: {start_method}. See the "
-            "multiprocessing documentation for more details."
+        logger.warning(
+            "nessai is designed to use multiprocessing with the 'fork' start "
+            f"method. Actual start method is: {start_method}. This may lead "
+            "to multiprocessing not working."
+            "See the multiprocessing documentation for more details."
         )
 
 
