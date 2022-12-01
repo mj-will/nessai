@@ -37,33 +37,32 @@ def test_check_multiprocessing_start_method():
 
 
 @pytest.mark.parametrize("method", ["spawn", "forkserver"])
-def test_check_multiprocessing_start_method_error(method):
+def test_check_multiprocessing_start_method_error(method, caplog):
     """Assert an error is raised if the start method is not fork."""
-    error_msg = r"nessai only supports multiprocessing using the 'fork' .*"
-    with patch(
-        "multiprocessing.get_start_method", return_value=method
-    ), pytest.raises(RuntimeError, match=error_msg):
+    msg = "nessai is designed to use multiprocessing with the 'fork' start "
+    with patch("multiprocessing.get_start_method", return_value=method):
         check_multiprocessing_start_method()
+    assert msg in str(caplog.text)
 
 
 @pytest.mark.integration_test
 @pytest.mark.skip_on_windows
-def test_check_multiprocessing_start_method_integration():
+@pytest.mark.parametrize("method", ["fork", "spawn"])
+def test_check_multiprocessing_start_method_integration(method):
     """Integration test for checking the start method."""
-    mp = multiprocessing.get_context("fork")
+    mp = multiprocessing.get_context(method)
     with patch("multiprocessing.get_start_method", mp.get_start_method):
         check_multiprocessing_start_method()
 
 
 @pytest.mark.integration_test
-def test_check_multiprocessing_start_method_error_integration():
+def test_check_multiprocessing_start_method_error_integration(caplog):
     """Integration test for checking the start method raises an error."""
     mp = multiprocessing.get_context("spawn")
-    error_msg = r"nessai only supports multiprocessing using the 'fork' .*"
-    with patch(
-        "multiprocessing.get_start_method", mp.get_start_method
-    ), pytest.raises(RuntimeError, match=error_msg):
+    msg = "nessai is designed to use multiprocessing with the 'fork' start "
+    with patch("multiprocessing.get_start_method", mp.get_start_method):
         check_multiprocessing_start_method()
+    assert msg in str(caplog.text)
 
 
 def test_model_error():
