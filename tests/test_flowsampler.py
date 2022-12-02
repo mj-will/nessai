@@ -106,6 +106,26 @@ def test_disable_vectorisation(flow_sampler, tmp_path):
     assert input_model.allow_vectorised is False
 
 
+def test_likelihood_chunksize(flow_sampler, tmp_path):
+    """Assert the likelihood chunksize is set."""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    model = MagicMock()
+    model.likelihood_chunksize = None
+
+    with patch("nessai.flowsampler.NestedSampler") as mock:
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            likelihood_chunksize=100,
+        )
+    mock.assert_called_once()
+    input_model = mock.call_args[0][0]
+    assert input_model.likelihood_chunksize == 100
+
+
 @pytest.mark.parametrize(
     "test_old, error",
     [(False, None), (True, RuntimeError), (True, FileNotFoundError)],
