@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a check for the multiprocessing start method when using `n_pool`.
 - Add option to reverse reparameterisations in `FlowProposal`.
 - Add `disable_vectorisation` to `FlowSampler`.
+- Add `likelihood_chunksize` which allows the user to limit how many points are passed to a vectorised likelihood function at once.
 
 ### Changed
 
