@@ -77,3 +77,23 @@ def isfinite_struct(x, names=None):
     if names is None:
         names = x.dtype.names
     return np.all([np.isfinite(x[n]) for n in names], axis=0)
+
+
+def array_split_chunksize(x, chunksize):
+    """Split an array into multiple sub-arrays of a specified chunksize.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Input array.
+    chunksize : int
+        Chunksize into which to split the array.
+
+    Returns
+    -------
+    list
+        List of numpy arrays each with a maximum length given by the chunksize.
+    """
+    if chunksize < 1:
+        raise ValueError("chunksize must be greater than 1")
+    return np.array_split(x, range(chunksize, len(x), chunksize))
