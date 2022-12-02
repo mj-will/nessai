@@ -49,7 +49,11 @@ class FlowSampler:
         enabled.
     disable_vectorisation : bool
         Disable likelihood vectorisation. Overrides the value of
-        :py:attr:`nessai.model.Model.allow_vectorised.
+        :py:attr:`nessai.model.Model.allow_vectorised`.
+    likelihood_chunksize : Optional[int]
+        Chunksize used when evaluating a vectorised likelihood. Overrides the
+        of :py:attr:`nessai.model.Model.likelihood_chunksize`. Set to None to
+        evaluate the likelihood with all available points.
     kwargs :
         Keyword arguments passed to
         :obj:`~nessai.samplers.nestedsampler.NestedSampler`.
@@ -68,6 +72,7 @@ class FlowSampler:
         max_threads=None,
         close_pool=True,
         disable_vectorisation=False,
+        likelihood_chunksize=None,
         **kwargs,
     ):
 
@@ -84,6 +89,9 @@ class FlowSampler:
                 "Overriding value of `allow_vectorised` in the model"
             )
             model.allow_vectorised = False
+
+        if likelihood_chunksize:
+            model.likelihood_chunksize = likelihood_chunksize
 
         self.output = os.path.join(output, "")
         if resume:
