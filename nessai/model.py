@@ -19,6 +19,7 @@ from .utils.multiprocessing import (
     get_n_pool,
     log_likelihood_wrapper,
 )
+from .utils.structures import array_split_chunksize
 
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,12 @@ class Model(ABC):
         as a vectorised function. If False, nessai won't check and, even if the
         likelihood is vectorised, it will only evaluate the likelihood one
         sample at a time.
+    """
+    likelihood_chunksize = None
+    """
+    int
+        Chunksize to use with a vectorised likelihood. If specified the
+        likelihood will be called with at most chunksize points at once.
     """
     _vectorised_likelihood = None
 
@@ -483,7 +490,19 @@ class Model(ABC):
         if self.pool is None:
             logger.debug("Not using pool to evaluate likelihood")
             if self.allow_vectorised and self.vectorised_likelihood:
-                log_likelihood = self.log_likelihood(x)
+                if self.likelihood_chunksize:
+                    log_likelihood = np.concatenate(
+                        list(
+                            map(
+                                self.log_likelihood,
+                                array_split_chunksize(
+                                    x, self.likelihood_chunksize
+                                ),
+                            )
+                        )
+                    )
+                else:
+                    log_likelihood = self.log_likelihood(x)
             else:
                 log_likelihood = np.fromiter(
                     map(self.log_likelihood, x), config.LOGL_DTYPE
@@ -491,11 +510,22 @@ class Model(ABC):
         else:
             logger.debug("Using pool to evaluate likelihood")
             if self.allow_vectorised and self.vectorised_likelihood:
-                log_likelihood = np.concatenate(
-                    self.pool.map(
-                        log_likelihood_wrapper, np.array_split(x, self.n_pool)
+                if self.likelihood_chunksize:
+                    log_likelihood = np.concatenate(
+                        self.pool.map(
+                            log_likelihood_wrapper,
+                            array_split_chunksize(
+                                x, self.likelihood_chunksize
+                            ),
+                        )
                     )
-                )
+                else:
+                    log_likelihood = np.concatenate(
+                        self.pool.map(
+                            log_likelihood_wrapper,
+                            np.array_split(x, self.n_pool),
+                        )
+                    )
             else:
                 log_likelihood = np.array(
                     self.pool.map(log_likelihood_wrapper, x)

@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from nessai.utils.structures import (
+    array_split_chunksize,
     get_subset_arrays,
     isfinite_struct,
     replace_in_list,
@@ -110,3 +111,27 @@ def test_isfinite_struct_invalid_name():
     x = np.array([(1,), (2,)], dtype=[("x", "i4")])
     with pytest.raises(ValueError):
         isfinite_struct(x, ["y"])
+
+
+def test_array_split_chunksize():
+    """Assert the correct array sizes are returned"""
+    a = np.array([1, 2, 3, 4, 5])
+    out = array_split_chunksize(a, 2)
+    assert len(out) == 3
+    np.testing.assert_array_equal(out[0], a[:2])
+    np.testing.assert_array_equal(out[1], a[2:4])
+    np.testing.assert_array_equal(out[2], a[4:])
+
+
+def test_array_split_chunksize_larger_than_array():
+    """Assert the correct array sizes are returned"""
+    a = np.array([1, 2, 3, 4, 5])
+    out = array_split_chunksize(a, 6)
+    assert len(out) == 1
+    np.testing.assert_array_equal(out[0], a)
+
+
+def test_array_split_chunksize_invalid_chunksize():
+    """Assert an error is returned if the chunksize is less than one"""
+    with pytest.raises(ValueError, match="chunksize must be greater than 1"):
+        array_split_chunksize(np.array([1, 2]), -1)

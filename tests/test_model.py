@@ -892,7 +892,8 @@ def test_close_pool(model, code):
     assert model.pool is None
 
 
-def test_evaluate_likelihoods_pool_vectorised(model):
+@pytest.mark.parametrize("chunksize", [None, 3])
+def test_evaluate_likelihoods_pool_vectorised(model, chunksize):
     """Test evaluating a vectorised likelihood with a pool."""
     samples = numpy_array_to_live_points(
         np.array([1, 2, 3, 4])[:, np.newaxis], ["x"]
@@ -903,6 +904,7 @@ def test_evaluate_likelihoods_pool_vectorised(model):
     model.n_pool = 2
     model.vectorised_likelihood = True
     model.allow_vectorised = True
+    model.likelihood_chunksize = chunksize
     model.pool.map = MagicMock(return_value=logL)
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
@@ -910,18 +912,26 @@ def test_evaluate_likelihoods_pool_vectorised(model):
     out = Model.batch_evaluate_log_likelihood(model, samples)
 
     assert model.pool.map.call_args_list[0][0][0] is log_likelihood_wrapper
-
     input_array = model.pool.map.call_args_list[0][0][1]
-    assert len(input_array) == 2
-    assert_structured_arrays_equal(
-        input_array, np.array([samples[:2], samples[2:]])
-    )
+    if chunksize is None:
+        assert len(input_array) == 2
+        assert_structured_arrays_equal(
+            input_array, np.array([samples[:2], samples[2:]])
+        )
+    else:
+        assert len(input_array) == 2
+        for i, a in enumerate(input_array):
+            assert_structured_arrays_equal(
+                a, samples[i * chunksize : (i + 1) * chunksize]
+            )
+
     model.likelihood_evaluation_time.total_seconds() > 0
     assert model.likelihood_evaluations == 104
     np.testing.assert_array_equal(out, expected)
 
 
-def test_evaluate_likelihoods_pool_not_vectorised(model):
+@pytest.mark.parametrize("chunksize", [None, 1])
+def test_evaluate_likelihoods_pool_not_vectorised(model, chunksize):
     """Test evaluating the likelihood with a pool"""
     samples = numpy_array_to_live_points(np.array([[1], [2]]), ["x"])
     logL = np.array([3, 4])
@@ -929,6 +939,7 @@ def test_evaluate_likelihoods_pool_not_vectorised(model):
     model.n_pool = 2
     model.vectorised_likelihood = False
     model.allow_vectorised = True
+    model.likelihood_chunksize = chunksize
     model.pool.map = MagicMock(return_value=logL)
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
@@ -969,6 +980,7 @@ def test_evaluate_likelihoods_no_pool_vectorised(model):
     model.pool = None
     model.vectorised_likelihood = True
     model.allow_vectorised = True
+    model.likelihood_chunksize = None
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
     model.log_likelihood = MagicMock(return_value=logL)
@@ -977,6 +989,24 @@ def test_evaluate_likelihoods_no_pool_vectorised(model):
     model.likelihood_evaluation_time.total_seconds() > 0
     assert model.likelihood_evaluations == 102
     np.testing.assert_array_equal(out, logL)
+
+
+@pytest.mark.parametrize("chunksize", [10, 12])
+def test_evaluate_likelihood_vectorised_chunksize(model, chunksize):
+    """Assert the likelihood is called the correct number of times"""
+    n = 100
+    n_calls = np.ceil(n / chunksize)
+    samples = numpy_array_to_live_points(np.random.rand(n, 1), ["x"])
+    model.vectorised_likelihood = True
+    model.allow_vectorised = True
+    model.pool = None
+    model.likelihood_chunksize = chunksize
+    model.log_likelihood = MagicMock(
+        side_effect=lambda x: np.random.rand(x.size)
+    )
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    assert model.log_likelihood.call_count == n_calls
+    assert len(out) == n
 
 
 def test_evaluate_likelihoods_allow_vectorised_false(model):
