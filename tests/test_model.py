@@ -796,6 +796,7 @@ def test_verify_model_likelihood_repeated_calls():
 
     class BrokenModel(TestModel):
         count = 0
+        allow_multi_valued_likelihood = False
 
         def log_likelihood(self, x):
             self.count += 1
@@ -806,6 +807,22 @@ def test_verify_model_likelihood_repeated_calls():
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
     assert "Repeated calls" in str(excinfo.value)
+
+
+def test_verify_model_likelihood_repeated_calls_allowed(caplog):
+    """Assert allow multi valued likelihood prevents an error from being
+    raised.
+    """
+
+    class MultiValuedModel(TestModel):
+        allow_multi_valued_likelihood = True
+
+        def log_likelihood(self, x):
+            return np.random.rand()
+
+    model = MultiValuedModel()
+    model.verify_model()
+    assert "Multi-valued likelihood is allowed." in str(caplog.text)
 
 
 def test_configure_pool_with_pool(model):
