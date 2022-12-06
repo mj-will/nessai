@@ -54,6 +54,11 @@ class FlowSampler:
         Chunksize used when evaluating a vectorised likelihood. Overrides the
         of :py:attr:`nessai.model.Model.likelihood_chunksize`. Set to None to
         evaluate the likelihood with all available points.
+    allow_multi_valued_likelihood : Optional[bool]
+        Allow for a multi-valued likelihood function that will return different
+        likelihood values for the same point in parameter space. See
+        :py:attr:`nessai.model.Model.allow_multi_valued_likelihood` for more
+        details.
     kwargs :
         Keyword arguments passed to
         :obj:`~nessai.samplers.nestedsampler.NestedSampler`.
@@ -73,6 +78,7 @@ class FlowSampler:
         close_pool=True,
         disable_vectorisation=False,
         likelihood_chunksize=None,
+        allow_multi_valued_likelihood=None,
         **kwargs,
     ):
 
@@ -92,6 +98,9 @@ class FlowSampler:
 
         if likelihood_chunksize:
             model.likelihood_chunksize = likelihood_chunksize
+
+        if allow_multi_valued_likelihood:
+            model.allow_multi_valued_likelihood = allow_multi_valued_likelihood
 
         self.output = os.path.join(output, "")
         if resume:
