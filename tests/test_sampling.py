@@ -398,24 +398,11 @@ def test_debug_log_level(model, tmpdir):
 def test_disable_vectorisation(model, tmp_path):
     """Assert vectorisation can be disabled"""
 
-    class TestModel(Model):
-        def __init__(self):
-            self.bounds = {"x": [-5, 5], "y": [-5, 5]}
-            self.names = ["x", "y"]
-
-        def log_prior(self, x):
-            log_p = np.log(self.in_bounds(x), dtype="float")
-            for n in self.names:
-                log_p -= self.bounds[n][1] - self.bounds[n][0]
-            return log_p
-
+    class TestModel(BaseModel):
         def log_likelihood(self, x):
             # AssertionError won't be caught by nessai
             assert not (x.size > 1)
-            log_l = 0
-            for pn in self.names:
-                log_l += norm.logpdf(x[pn])
-            return log_l
+            return super().log_likelihood(x)
 
     output = tmp_path / "disable_vec"
     output.mkdir()
@@ -436,24 +423,11 @@ def test_disable_vectorisation(model, tmp_path):
 def test_likelihood_chunksize(model, tmp_path):
     """Assert likelihood chunksize limits number of samples in each call"""
 
-    class TestModel(Model):
-        def __init__(self):
-            self.bounds = {"x": [-5, 5], "y": [-5, 5]}
-            self.names = ["x", "y"]
-
-        def log_prior(self, x):
-            log_p = np.log(self.in_bounds(x), dtype="float")
-            for n in self.names:
-                log_p -= self.bounds[n][1] - self.bounds[n][0]
-            return log_p
-
+    class TestModel(BaseModel):
         def log_likelihood(self, x):
             # AssertionError won't be caught by nessai
             assert not (x.size > self.likelihood_chunksize)
-            log_l = 0
-            for pn in self.names:
-                log_l += norm.logpdf(x[pn])
-            return log_l
+            return super().log_likelihood(x)
 
     output = tmp_path / "disable_vec"
     output.mkdir()
