@@ -81,6 +81,14 @@ class Model(ABC):
         Chunksize to use with a vectorised likelihood. If specified the
         likelihood will be called with at most chunksize points at once.
     """
+    allow_multi_valued_likelihood = False
+    """
+    bool
+        Allow for a multi-valued likelihood function that will return different
+        likelihood values for the same point in parameter space. This is only
+        recommended when the variation is significantly smaller that the
+        variations in the likelihood across the prior.
+    """
     _vectorised_likelihood = None
 
     @property
@@ -640,12 +648,18 @@ class Model(ABC):
                 "Log-likelihood function did not return " "a likelihood value"
             )
 
-        logl = np.array([self.log_likelihood(x) for _ in range(16)])
-        if not all(logl == logl[0]):
-            raise RuntimeError(
-                "Repeated calls to the log-likelihood with the same parameters"
-                " return different values."
+        if self.allow_multi_valued_likelihood:
+            logger.warning(
+                "Multi-valued likelihood is allowed. "
+                "This may lead to slow sampling and strange results."
             )
+        else:
+            logl = np.array([self.log_likelihood(x) for _ in range(16)])
+            if not all(logl == logl[0]):
+                raise RuntimeError(
+                    "Repeated calls to the log-likelihood with the same "
+                    "parameters return different values."
+                )
 
         if self.log_prior(x).dtype == np.dtype("float16"):
             logger.warning(

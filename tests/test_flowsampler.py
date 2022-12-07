@@ -126,6 +126,26 @@ def test_likelihood_chunksize(flow_sampler, tmp_path):
     assert input_model.likelihood_chunksize == 100
 
 
+def test_allow_multi_valued_likelihood(flow_sampler, tmp_path):
+    """Assert allow_multi_valued_likelihood is true"""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    model = MagicMock()
+    model.allow_multi_value_likelihood = False
+
+    with patch("nessai.flowsampler.NestedSampler") as mock:
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            allow_multi_valued_likelihood=True,
+        )
+    mock.assert_called_once()
+    input_model = mock.call_args[0][0]
+    assert input_model.allow_multi_valued_likelihood is True
+
+
 @pytest.mark.parametrize(
     "test_old, error",
     [(False, None), (True, RuntimeError), (True, FileNotFoundError)],
