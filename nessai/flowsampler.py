@@ -99,7 +99,7 @@ class FlowSampler:
         if likelihood_chunksize:
             model.likelihood_chunksize = likelihood_chunksize
 
-        if allow_multi_valued_likelihood:
+        if allow_multi_valued_likelihood is not None:
             model.allow_multi_valued_likelihood = allow_multi_valued_likelihood
 
         self.output = os.path.join(output, "")
