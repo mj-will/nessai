@@ -431,7 +431,12 @@ def plot_loss(epoch, history, filename=None):
 
 @nessai_style()
 def plot_trace(
-    log_x, nested_samples, parameters=None, labels=None, filename=None
+    log_x,
+    nested_samples,
+    parameters=None,
+    labels=None,
+    filename=None,
+    **kwargs,
 ):
     """Produce trace plot for the nested samples.
 
@@ -452,7 +457,14 @@ def plot_trace(
     filename : str, optional
         Filename for saving the plot, if none plot is not saved and figure
         is returned instead.
+    kwargs :
+        Keyword arguments passed to :code:`matplotlib.pyplot.plot`.
     """
+    default_kwargs = dict(
+        marker=",",
+        linestyle="",
+    )
+
     nested_samples = np.asarray(nested_samples)
     if not nested_samples.dtype.names:
         raise TypeError("Nested samples must be a structured array")
@@ -467,6 +479,8 @@ def plot_trace(
             f"List of labels is the wrong length ({len(labels)}) for the "
             f"parameters: {parameters}."
         )
+    if kwargs:
+        default_kwargs.update(kwargs)
 
     fig, axes = plt.subplots(
         len(labels), 1, figsize=(5, 3 * len(labels)), sharex=True
@@ -477,7 +491,7 @@ def plot_trace(
         axes = [axes]
 
     for i, name in enumerate(parameters):
-        axes[i].plot(log_x, nested_samples[name], ",")
+        axes[i].plot(log_x, nested_samples[name], **default_kwargs)
         axes[i].set_ylabel(labels[i])
 
     axes[-1].set_xlabel("log X")
