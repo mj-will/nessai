@@ -7,7 +7,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from nessai import plot
 from nessai import config
@@ -389,6 +389,17 @@ def test_trace_plot_parameters(nested_samples):
     """Assert the parameters arguments works"""
     log_x = np.linspace(-10, 0, nested_samples.size)
     plot.plot_trace(log_x, nested_samples, parameters=["x"])
+    plt.close()
+
+
+def test_trace_plot_kwargs(nested_samples):
+    """Assert the kwargs are passed to the plotting function."""
+    log_x = np.linspace(-10, 0, nested_samples.size)
+    mock_axes = MagicMock()
+    mock_axes.plot = MagicMock()
+    with patch("matplotlib.pyplot.subplots", return_value=(None, mock_axes)):
+        plot.plot_trace(log_x, nested_samples, marker="^", parameters=["x"])
+    mock_axes.plot.call_args[0][1] == dict(marker="^")
     plt.close()
 
 
