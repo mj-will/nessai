@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `disable_vectorisation` to `FlowSampler`.
 - Add `likelihood_chunksize` which allows the user to limit how many points are passed to a vectorised likelihood function at once.
 - Add `allow_multi_valued_likelihood` which allows for multi-valued likelihoods, e.g. that include numerical integration.
+- Add `parameters` keyword argument to `nessai.plot.plot_trace` and pass additional keyword arguments to the plotting function.
 
 ### Changed
 
