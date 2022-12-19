@@ -430,37 +430,57 @@ def plot_loss(epoch, history, filename=None):
 
 
 @nessai_style()
-def plot_trace(log_x, nested_samples, labels=None, filename=None):
-    """Produce trace plot for all of the parameters.
+def plot_trace(
+    log_x,
+    nested_samples,
+    parameters=None,
+    labels=None,
+    filename=None,
+    **kwargs,
+):
+    """Produce trace plot for the nested samples.
 
-    This includes all parameters in the sampler, not just those included in the
-    model being sampled.
+    By default this includes all parameters in the samples, not just those
+    included in the model being sampled.
 
     Parameters
     ----------
     log_x : array_like
-        Array of log prior volumnes
-    nested_samples : ndrray
+        Array of log prior volumes
+    nested_samples : ndarray
         Array of nested samples to plot
+    parameters : list, optional
+        List of parameters to include the trace plot. If not specified, all of
+        the parameters in the nested samples are included.
     labels : list, optional
         List of labels to use instead of the names of parameters
     filename : str, optional
         Filename for saving the plot, if none plot is not saved and figure
         is returned instead.
+    kwargs :
+        Keyword arguments passed to :code:`matplotlib.pyplot.plot`.
     """
+    default_kwargs = dict(
+        marker=",",
+        linestyle="",
+    )
+
     nested_samples = np.asarray(nested_samples)
     if not nested_samples.dtype.names:
         raise TypeError("Nested samples must be a structured array")
 
-    names = nested_samples.dtype.names
+    if parameters is None:
+        parameters = nested_samples.dtype.names
     if labels is None:
-        labels = names
+        labels = parameters
 
-    if not len(labels) == len(names):
+    if not len(labels) == len(parameters):
         raise RuntimeError(
-            "Missing labels. List of labels does not have enough entries "
-            f"({len(labels)}) for parameters: {nested_samples.dtype.names}"
+            f"List of labels is the wrong length ({len(labels)}) for the "
+            f"parameters: {parameters}."
         )
+    if kwargs:
+        default_kwargs.update(kwargs)
 
     fig, axes = plt.subplots(
         len(labels), 1, figsize=(5, 3 * len(labels)), sharex=True
@@ -470,8 +490,8 @@ def plot_trace(log_x, nested_samples, labels=None, filename=None):
     else:
         axes = [axes]
 
-    for i, name in enumerate(names):
-        axes[i].plot(log_x, nested_samples[name], ",")
+    for i, name in enumerate(parameters):
+        axes[i].plot(log_x, nested_samples[name], **default_kwargs)
         axes[i].set_ylabel(labels[i])
 
     axes[-1].set_xlabel("log X")

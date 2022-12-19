@@ -1067,7 +1067,7 @@ class NestedSampler(BaseNestedSampler):
         else:
             return fig
 
-    def plot_trace(self, filename=None):
+    def plot_trace(self, filename=None, **kwargs):
         """
         Make trace plots for the nested samples.
 
@@ -1076,10 +1076,16 @@ class NestedSampler(BaseNestedSampler):
         filename : str, optional
             If filename is None, the figure is returned. Else the figure
             is saved with that file name.
+        kwargs :
+            Additional keyword arguments passed to
+            :py:func:`nessai.plot.plot_trace`.
         """
         if self.nested_samples:
             fig = plot_trace(
-                self.state.log_vols[1:], self.nested_samples, filename=filename
+                self.state.log_vols[1:],
+                self.nested_samples,
+                filename=filename,
+                **kwargs,
             )
             return fig
         else:
