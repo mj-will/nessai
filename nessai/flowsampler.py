@@ -76,6 +76,13 @@ class FlowSampler:
         self.close_pool = close_pool
 
         self.output = os.path.join(output, "")
+        os.makedirs(self.output, exist_ok=True)
+        self.save_kwargs(kwargs)
+
+        model.configure_pool(
+            n_pool=kwargs.pop("n_pool", None), pool=kwargs.pop("pool", None)
+        )
+
         if resume:
             if not resume_file:
                 raise RuntimeError(
@@ -133,8 +140,6 @@ class FlowSampler:
                 close_pool=not self.close_pool,
                 **kwargs,
             )
-
-        self.save_kwargs(kwargs)
 
         if signal_handling:
             try:
