@@ -197,13 +197,22 @@ def test_sampling_resume(model, flow_config, tmpdir):
         seed=1234,
         max_iteration=11,
         poolsize=10,
+        n_pool=1,
     )
+    assert fp.ns.model.n_pool == 1
     fp.run()
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
+    # Make sure the pool is already closed
+    model.close_pool()
 
     fp = FlowSampler(
-        model, output=output, resume=True, flow_config=flow_config
+        model,
+        output=output,
+        resume=True,
+        flow_config=flow_config,
+        n_pool=1,
     )
+    assert fp.ns.model.n_pool == 1
     assert fp.ns.iteration == 11
     fp.ns.max_iteration = 21
     fp.run()
