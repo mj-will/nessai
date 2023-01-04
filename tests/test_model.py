@@ -68,7 +68,7 @@ def integration_model():
 
 @pytest.fixture
 def model():
-    return create_autospec(Model, set_spec=True, _pool_configured=False)
+    return create_autospec(Model, _pool_configured=False)
 
 
 @pytest.fixture
