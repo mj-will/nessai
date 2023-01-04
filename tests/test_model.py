@@ -869,6 +869,15 @@ def test_configure_pool_none(model, caplog):
     )
 
 
+def test_configure_pool_already_configured(model, caplog):
+    """Assert configuration is skipped if the pool is already configured"""
+    model._pool_configured = True
+    model.n_pool = 2
+    Model.configure_pool(model, n_pool=4)
+    assert model.n_pool == 2
+    assert "pool has already been configured" in str(caplog.text)
+
+
 @pytest.mark.parametrize("code", [10, 2])
 def test_close_pool(model, code):
     """Test closing the pool"""
