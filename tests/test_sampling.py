@@ -202,8 +202,59 @@ def test_sampling_resume(model, flow_config, tmpdir):
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
     fp = FlowSampler(
-        model, output=output, resume=True, flow_config=flow_config
+        model,
+        output=output,
+        resume=True,
+        flow_config=flow_config,
     )
+    assert fp.ns.iteration == 11
+    fp.ns.max_iteration = 21
+    fp.run()
+    assert fp.ns.iteration == 21
+    assert os.path.exists(
+        os.path.join(output, "nested_sampler_resume.pkl.old")
+    )
+
+
+@pytest.mark.slow_integration_test
+def test_sampling_resume_w_pool(model, flow_config, tmpdir, mp_context):
+    """
+    Test resuming the sampler with a pool.
+    """
+    output = str(tmpdir.mkdir("resume"))
+    with patch("multiprocessing.Pool", mp_context.Pool):
+        fp = FlowSampler(
+            model,
+            output=output,
+            resume=True,
+            nlive=100,
+            plot=False,
+            flow_config=flow_config,
+            training_frequency=10,
+            maximum_uninformed=9,
+            rescale_parameters=True,
+            checkpoint_on_iteration=True,
+            checkpoint_frequency=5,
+            seed=1234,
+            max_iteration=11,
+            poolsize=10,
+            n_pool=1,
+        )
+    assert fp.ns.model.n_pool == 1
+    fp.run()
+    assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
+    # Make sure the pool is already closed
+    model.close_pool()
+
+    with patch("multiprocessing.Pool", mp_context.Pool):
+        fp = FlowSampler(
+            model,
+            output=output,
+            resume=True,
+            flow_config=flow_config,
+            n_pool=1,
+        )
+    assert fp.ns.model.n_pool == 1
     assert fp.ns.iteration == 11
     fp.ns.max_iteration = 21
     fp.run()

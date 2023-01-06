@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix bug that led to the multiprocessing pool not being used when resuming.
+
 ## [0.7.0]
 
 **Important:** in this release the flow backend changed from `nflows` to `glasflow` which increased the minimum version of PyTorch to 1.11.0.

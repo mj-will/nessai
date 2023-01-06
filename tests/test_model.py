@@ -68,7 +68,7 @@ def integration_model():
 
 @pytest.fixture
 def model():
-    return create_autospec(Model)
+    return create_autospec(Model, _pool_configured=False)
 
 
 @pytest.fixture
@@ -867,6 +867,15 @@ def test_configure_pool_none(model, caplog):
     assert "pool and n_pool are none, no multiprocessing pool" in str(
         caplog.text
     )
+
+
+def test_configure_pool_already_configured(model, caplog):
+    """Assert configuration is skipped if the pool is already configured"""
+    model._pool_configured = True
+    model.n_pool = 2
+    Model.configure_pool(model, n_pool=4)
+    assert model.n_pool == 2
+    assert "pool has already been configured" in str(caplog.text)
 
 
 @pytest.mark.parametrize("code", [10, 2])
