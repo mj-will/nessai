@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1]
+
 ### Fixed
 
-- Fix bug that led to the multiprocessing pool not being used when resuming.
+- Fix bug that led to the multiprocessing pool not being used when resuming. ([#261](https://github.com/mj-will/nessai/pull/261))
 
 ## [0.7.0]
 
@@ -440,7 +442,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/mj-will/nessai/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/mj-will/nessai/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mj-will/nessai/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/mj-will/nessai/compare/v0.5.0...v0.5.1
