@@ -91,7 +91,7 @@ class ImportanceFlowModel(FlowModel):
         x = (
             torch.from_numpy(x)
             .type(torch.get_default_dtype())
-            .to(self.model.device)
+            .to(self.models[i].device)
         )
         if self.models[i].training:
             self.models[i].eval()
