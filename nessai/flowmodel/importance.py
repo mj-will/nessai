@@ -12,6 +12,7 @@ import numpy as np
 import torch
 
 from .base import FlowModel
+from .utils import update_model_config
 
 from ..flows import configure_model
 
@@ -185,7 +186,9 @@ class ImportanceFlowModel(FlowModel):
 
         logger.debug(f"Loading weights from: {all_weights_files}")
         if len(all_weights_files) < n:
-            raise RuntimeError(f"Cannot use weights from: {weights_path}.")
+            raise RuntimeError(
+                f"Cannot use weights from: {weights_path}. Not enough files."
+            )
         elif len(all_weights_files) > n:
             logger.warning(
                 "More weights files than expected. Some files will be skipped."
@@ -199,7 +202,7 @@ class ImportanceFlowModel(FlowModel):
         self, model_config: dict, weights_path: Optional[str] = None
     ) -> None:
         """Resume the model"""
-        self.model_config = model_config
+        self.model_config = update_model_config(model_config)
         if weights_path is None:
             logger.debug(
                 "Not weights path specified, looking in output directory"
@@ -215,7 +218,7 @@ class ImportanceFlowModel(FlowModel):
         # memory usage.
         exclude = {"models", "_optimiser", "model_config"}
         state = {k: d[k] for k in d.keys() - exclude}
-        state["_initialised"] = False
+        state["initialised"] = False
         state["models"] = None
         state["_resume_n_models"] = len(d["models"])
         return state
