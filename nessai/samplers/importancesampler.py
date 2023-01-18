@@ -116,6 +116,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         plot_trace: bool = True,
         plot_likelihood_levels: bool = True,
         plot_training_data: bool = False,
+        plot_extra_state: bool = False,
         trace_plot_kwargs: Optional[dict] = None,
         replace_all: bool = False,
         level_method: Literal["entropy", "quantile"] = "entropy",
@@ -174,6 +175,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.plot_level_cdf = plot_level_cdf
         self._plot_trace = plot_trace
         self._plot_likelihood_levels = plot_likelihood_levels
+        self._plot_extra_state = plot_extra_state
         self.trace_plot_kwargs = (
             {} if trace_plot_kwargs is None else trace_plot_kwargs
         )
@@ -1590,9 +1592,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             If specified the figure will be saved, otherwise the figure is
             returned.
         """
-        n_subplots = 11
-        if self.annealing_target:
-            n_subplots += 1
+        n_subplots = 7
 
         fig, ax = plt.subplots(n_subplots, 1, sharex=True, figsize=(15, 15))
         ax = ax.ravel()
@@ -1620,26 +1620,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             label="Median Log L",
         )
         ax[m].set_ylabel("Log-likelihood")
-        ax[m].legend(frameon=False)
-
-        m += 1
-
-        ax[m].plot(its, self.history["logX"], label="Log X")
-        ax[m].set_ylabel("Log X")
-        ax_gradients = plt.twinx(ax[m])
-        ax_gradients.plot(
-            its,
-            self.history["gradients"],
-            ls=config.LINE_STYLES[1],
-            c="C1",
-            label="Gradient",
-        )
-        ax_gradients.set_ylabel("dlogL/dlogX")
-        handles, labels = ax[m].get_legend_handles_labels()
-        handles_grad, labels_grad = ax_gradients.get_legend_handles_labels()
-        ax[m].legend(
-            handles + handles_grad, labels + labels_grad, frameon=False
-        )
+        ax[m].legend()
 
         m += 1
 
@@ -1648,32 +1629,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.history["logZ"],
             label="Log Z",
         )
-        ax[m].plot(
-            its,
-            self.history["logZ_ns"],
-            label="Log Z (NS)",
-        )
-        ax[m].plot(
-            its,
-            self.history["logZ_lp"],
-            label="Log Z (LP)",
-        )
         ax[m].set_ylabel("Log-evidence")
-        ax[m].legend(frameon=False)
+        ax[m].legend()
 
         ax_dz = plt.twinx(ax[m])
         ax_dz.plot(
             its,
             self.history["stopping_criteria"]["dZ"],
             label="dZ",
-            c="C3",
-            ls=config.LINE_STYLES[3],
+            c="C1",
+            ls=config.LINE_STYLES[1],
         )
         ax_dz.set_ylabel("|dZ|")
         ax_dz.set_yscale("log")
         handles, labels = ax[m].get_legend_handles_labels()
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
-        ax[m].legend(handles + handles_dz, labels + labels_dz, frameon=False)
+        ax[m].legend(handles + handles_dz, labels + labels_dz)
 
         m += 1
 
@@ -1693,7 +1664,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             label="Live points",
         )
         ax[m].set_ylabel("ESS")
-        ax[m].legend(frameon=False)
+        ax[m].legend()
 
         m += 1
 
@@ -1701,7 +1672,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].plot(its_start, self.imp, label="Importance")
         ax[m].plot(its_start, self.imp_post, label="Posterior")
         ax[m].plot(its_start, self.imp_z, label="Evidence")
-        ax[m].legend(frameon=False)
+        ax[m].legend()
         ax[m].set_ylabel("Level importance")
 
         m += 1
@@ -1714,9 +1685,79 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].plot(its, self.history["n_added"], label="Added")
         ax[m].plot(its, self.history["n_live"], label="Total")
         ax[m].set_ylabel("# samples")
-        ax[m].legend(frameon=False)
+        ax[m].legend()
 
         ax[m].legend()
+        m += 1
+
+        for (i, sc), tol in zip(
+            enumerate(self.stopping_criterion), self.tolerance
+        ):
+            ax[m].plot(
+                its,
+                self.history["stopping_criteria"][sc],
+                label=sc,
+                c=f"C{i}",
+                ls=config.LINE_STYLES[i],
+            )
+            ax[m].axhline(tol, ls=":", c=f"C{i}")
+        ax[m].legend()
+        ax[m].set_ylabel("Stopping criterion")
+
+        ax[-1].set_xlabel("Iteration")
+
+        fig.suptitle(
+            f"Sampling time: {self.current_sampling_time}", fontsize=16
+        )
+
+        fig.tight_layout()
+        fig.subplots_adjust(top=0.95)
+        if filename is not None:
+            fig.savefig(filename)
+            plt.close(fig)
+        else:
+            return fig
+
+    @nessai_style
+    def plot_extra_state(
+        self,
+        filename: Optional[str] = None,
+    ) -> Union[matplotlib.figure.Figure, None]:
+        """Produce a state plot that contains extra tracked statistics.
+
+        Parameters
+        ----------
+        filename : Optional[str]
+            Filename name for the plot when saved. If specified the figure will
+            be saved, otherwise the figure is returned.
+
+        Returns
+        -------
+        Union[matplotlib.figure.Figure, None]
+            Returns the figure if a filename name is not given.
+        """
+        n_subplots = 5
+        if self.annealing_target:
+            n_subplots += 1
+
+        fig, ax = plt.subplots(n_subplots, 1, sharex=True, figsize=(15, 15))
+        ax = ax.ravel()
+        its = np.arange(self.iteration)
+
+        for a in ax:
+            a.vlines(self.checkpoint_iterations, 0, 1, color="C2")
+
+        # Counter for each plot
+        m = 0
+
+        ax[m].plot(its, self.history["logX"])
+        ax[m].set_ylabel("Log X")
+
+        m += 1
+
+        ax[m].plot(its, self.history["gradients"])
+        ax[m].set_ylabel("dlogL/dlogX")
+
         m += 1
 
         ax[m].plot(
@@ -1753,44 +1794,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
             label="Current",
         )
         ax[m].set_ylabel("Differential\n entropy")
-        ax[m].legend(frameon=False)
+        ax[m].legend()
 
         m += 1
 
-        ax[m].plot(
-            its,
-            self.history["kl_proposals"],
-            label="(q_i||q_i-1)",
-        )
-        ax[m].set_ylabel("KL divergence")
-        ax_kl = plt.twinx(ax[m])
-        ax_kl.plot(
-            its,
-            self.history["stopping_criteria"]["kl"],
-            label="(Q||post)",
-            c="C1",
-            ls=config.LINE_STYLES[1],
-        )
-        ax_kl.set_ylabel("KL divergence")
-        handles, labels = ax[m].get_legend_handles_labels()
-        handles_kl, labels_kl = ax_kl.get_legend_handles_labels()
-        ax[m].legend(handles + handles_kl, labels + labels_kl, frameon=False)
-
+        ax[m].plot(its, self.history["stopping_criteria"]["kl"])
+        ax[m].set_ylabel("KL(Q||posterior)")
         m += 1
-
-        for (i, sc), tol in zip(
-            enumerate(self.stopping_criterion), self.tolerance
-        ):
-            ax[m].plot(
-                its,
-                self.history["stopping_criteria"][sc],
-                label=sc,
-                c=f"C{i}",
-                ls=config.LINE_STYLES[i],
-            )
-            ax[m].axhline(tol, ls=":", c=f"C{i}")
-        ax[m].legend(frameon=False)
-        ax[m].set_ylabel("Stopping criterion")
 
         ax[-1].set_xlabel("Iteration")
 
@@ -1938,6 +1948,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             if self._plot_likelihood_levels:
                 self.plot_likelihood_levels(
                     os.path.join(self.output, "likelihood_levels.png")
+                )
+            if self._plot_extra_state:
+                self.plot_extra_state(
+                    os.path.join(self.output, "state_extra.png")
                 )
         else:
             logger.debug("Skipping plots")
