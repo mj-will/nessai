@@ -546,7 +546,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 samples_entropy=[],
                 proposal_entropy=[],
                 likelihood_evaluations=[],
-                kl_proposals=[],
                 annealing_beta=[],
                 stopping_criteria={
                     k: [] for k in self.stopping_criterion_aliases.keys()
@@ -776,12 +775,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             plot=self.plot_training_data,
             weights=weights,
         )
-        kl = self.proposal.compute_kl_between_proposals(
-            self.training_points,
-            p_it=self.iteration - 1,
-            q_it=self.iteration,
-        )
-        self.history["kl_proposals"].append(kl)
         self.update_level_time += timer() - st
         return True
 
