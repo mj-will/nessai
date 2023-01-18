@@ -1144,7 +1144,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.ratio = self.state.compute_evidence_ratio(ns_only=False)
         self.ratio_ns = self.state.compute_evidence_ratio(ns_only=True)
 
-        self.kl = self.kl_divergence(include_live_points=True)
+        self.kl = self.kl_divergence()
 
         previous_entropy = self._current_entropy
         self._current_entropy = self.samples_entropy
@@ -1311,22 +1311,24 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.info(f"Produced {posterior_samples.size} posterior samples.")
         return posterior_samples
 
-    def kl_divergence(self, include_live_points: bool = False) -> float:
-        """Compute the KL divergence between the posterior and g"""
+    def kl_divergence(self) -> float:
+        """Compute the KL divergence between the meta-proposal and posterior.
+
+        Uses all samples drawn from the meta-proposal
+        """
         if not len(self.nested_samples):
             return np.inf
         # logQ is computed on the unit hyper-cube where the prior is 1/1^n
         # so logP = 0
-        log_q = self.nested_samples["logL"].copy()
-        log_p = self.nested_samples["logQ"].copy()
-        if include_live_points:
-            log_q = np.concatenate([log_q, self.live_points["logL"]])
-            log_p = np.concatenate([log_p, self.live_points["logQ"]])
+        log_q = self.all_samples["logL"]
+        log_p = self.all_samples["logQ"]
         log_q -= logsumexp(log_q)
         log_p -= logsumexp(log_p)
         # TODO: Think about if p and q are correct.
         kl = np.mean(log_p - log_q)
-        logger.info(f"KL divergence between posterior and g: {kl:.3f}")
+        logger.info(
+            f"KL divergence between the meta-proposal and posterior: {kl:.3f}"
+        )
         return float(kl)
 
     def draw_more_nested_samples(self, n: int) -> np.ndarray:
