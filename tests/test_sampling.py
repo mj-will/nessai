@@ -273,7 +273,10 @@ def test_sampling_resume_w_pool(model, flow_config, tmpdir, mp_context):
     # Make sure the pool is already closed
     model.close_pool()
 
-    with patch("multiprocessing.Pool", mp_context.Pool):
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
         fp = FlowSampler(
             model,
             output=output,
