@@ -191,6 +191,8 @@ def parameters_to_live_point(parameters, names, non_sampling_parameters=True):
         Float point values for each parameter
     names : tuple
         Names for each parameter as strings
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
@@ -226,6 +228,8 @@ def numpy_array_to_live_points(array, names, non_sampling_parameters=True):
         Instance of np.ndarray to convert to a structured array
     names : tuple
         Names for each parameter as strings
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
@@ -260,6 +264,8 @@ def dict_to_live_points(d, non_sampling_parameters=True):
     d : dict
         Dictionary with parameters names as keys and values that correspond
         to one or more parameters
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
@@ -328,6 +334,8 @@ def dataframe_to_live_points(df, non_sampling_parameters=True):
     ----------
     df : :obj:`pandas.DataFrame`
         Pandas DataFrame to convert to live points
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
