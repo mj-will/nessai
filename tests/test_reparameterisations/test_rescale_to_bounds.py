@@ -672,7 +672,7 @@ def test_apply_inversion_detect_edge(reparam):
     log_j = np.zeros(2)
 
     with patch(
-        "nessai.reparameterisations.detect_edge", return_value=False
+        "nessai.reparameterisations.rescale.detect_edge", return_value=False
     ) as mock_fn:
 
         _ = RescaleToBounds._apply_inversion(
@@ -704,7 +704,7 @@ def test_apply_inversion_not_applied(reparam):
     log_j = np.zeros(2)
 
     with patch(
-        "nessai.reparameterisations.rescale_minus_one_to_one",
+        "nessai.reparameterisations.rescale.rescale_minus_one_to_one",
         side_effect=lambda x, *args, **kwargs: (x, np.array([5, 6])),
     ) as f:
         x_out, x_prime_out, log_j_out = RescaleToBounds._apply_inversion(
@@ -747,7 +747,7 @@ def test_apply_inversion_split(reparam):
     with patch(
         "numpy.random.choice", return_value=np.array([1])
     ) as rnd, patch(
-        "nessai.reparameterisations.rescale_zero_to_one",
+        "nessai.reparameterisations.rescale.rescale_zero_to_one",
         side_effect=lambda x, *args: (x, np.array([5, 6])),
     ) as f:
         x_out, x_prime_out, log_j_out = RescaleToBounds._apply_inversion(
@@ -800,7 +800,7 @@ def test_apply_inversion_duplicate(reparam, inv_type, compute_radius):
     log_j = np.zeros(2)
 
     with patch("numpy.random.choice") as rnd, patch(
-        "nessai.reparameterisations.rescale_zero_to_one",
+        "nessai.reparameterisations.rescale.rescale_zero_to_one",
         side_effect=lambda x, *args: (x, np.array([5, 6])),
     ) as f:
         x_out, x_prime_out, log_j_out = RescaleToBounds._apply_inversion(
@@ -850,7 +850,7 @@ def test_reverse_inversion(reparam):
     # Return the same value to check that the negative values are handled
     # correctly
     with patch(
-        "nessai.reparameterisations.inverse_rescale_zero_to_one",
+        "nessai.reparameterisations.rescale.inverse_rescale_zero_to_one",
         side_effect=lambda x, *args: (x, np.array([5, 6])),
     ) as f:
         x_out, x_prime_out, log_j_out = RescaleToBounds._reverse_inversion(
@@ -886,7 +886,7 @@ def test_reverse_inversion_not_applied(reparam):
     log_j = np.zeros(2)
 
     with patch(
-        "nessai.reparameterisations.inverse_rescale_minus_one_to_one",
+        "nessai.reparameterisations.rescale.inverse_rescale_minus_one_to_one",
         side_effect=lambda x, *args, **kwargs: (x, np.array([5, 6])),
     ) as f:
         x_out, x_prime_out, log_j_out = RescaleToBounds._reverse_inversion(

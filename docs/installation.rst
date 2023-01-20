@@ -2,36 +2,26 @@
 Installation
 ============
 
-The preferred installation method is via ``pip`` in the virtual environment of your choice.
-
 .. note::
-    ``nessai`` requires Python 3.7 or greater.
+
+    It is recommended to install PyTorch before installing ``nessai``. See the `PyTorch documentation <https://pytorch.org/>`_ for how to install the correct version.
+
+.. tabs::
+
+     .. code-tab:: console conda
+
+        conda install -c conda-forge -c pytorch nessai
+
+     .. code-tab:: console pip
+
+        pip install nessai
 
 
-Installing nessai
-=================
+This will install the dependencies needed but the version of PyTorch will not necessarily be the correct version for your system.
 
-PyTorch
--------
-
-``nessai`` requires PyTorch will can be installed using ``pip`` or ``conda``. It's recommend to first install the correct version on PyTorch for your system and then proceed with the usual installation. See the PyTorch homepage for instructions: https://pytorch.org/.
-
-.. note::
-    ``nessai`` includes GPU support but it is not recommended as for the majority of use-cases the current implementation runs slower on the GPU than CPU. This may change with future optimisations.
-
-Nessai
-------
-
-``nessai`` can be installed using ``pip``
-
-.. code-block:: console
-
-    $ pip install nessai
-
-This will install the dependencies needed but the version of PyTorch will not necessarily be the correct version for your system unless you followed the previous step.
 
 Nessai for development
-----------------------
+======================
 
 To install ``nessai`` for development purposes see the `contribution guidelines <https://github.com/mj-will/nessai/blob/master/CONTRIBUTING.md>`_.
 

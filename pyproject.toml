@@ -5,7 +5,11 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools_scm]
 
 [tool.pytest.ini_options]
-addopts = "-ra --cov nessai"
+addopts = [
+    "-ra",
+    "--cov=nessai",
+    "--import-mode=importlib",
+]
 testpaths = [
     "tests"
 ]
@@ -16,6 +20,11 @@ source = [
 ]
 omit = [
     "nessai/gw/legacy.py"
+]
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
 ]
 
 [tool.black]

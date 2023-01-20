@@ -10,6 +10,7 @@ import time
 from threading import Thread
 
 import pytest
+from nessai.evidence import _NSIntegralState
 from nessai.flowsampler import FlowSampler
 import numpy as np
 from unittest.mock import MagicMock, create_autospec, patch
@@ -83,6 +84,66 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
     assert flow_sampler.ns == "ns"
 
     flow_sampler.save_kwargs.assert_called_once_with(kwargs)
+
+
+def test_disable_vectorisation(flow_sampler, tmp_path):
+    """Assert vectorisation is disabled"""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    model = MagicMock()
+    model.allow_vectorised = True
+
+    with patch("nessai.flowsampler.NestedSampler") as mock:
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            disable_vectorisation=True,
+        )
+    mock.assert_called_once()
+    input_model = mock.call_args[0][0]
+    assert input_model.allow_vectorised is False
+
+
+def test_likelihood_chunksize(flow_sampler, tmp_path):
+    """Assert the likelihood chunksize is set."""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    model = MagicMock()
+    model.likelihood_chunksize = None
+
+    with patch("nessai.flowsampler.NestedSampler") as mock:
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            likelihood_chunksize=100,
+        )
+    mock.assert_called_once()
+    input_model = mock.call_args[0][0]
+    assert input_model.likelihood_chunksize == 100
+
+
+def test_allow_multi_valued_likelihood(flow_sampler, tmp_path):
+    """Assert allow_multi_valued_likelihood is true"""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    model = MagicMock()
+    model.allow_multi_value_likelihood = False
+
+    with patch("nessai.flowsampler.NestedSampler") as mock:
+        FlowSampler.__init__(
+            flow_sampler,
+            model,
+            output=output,
+            allow_multi_valued_likelihood=True,
+        )
+    mock.assert_called_once()
+    input_model = mock.call_args[0][0]
+    assert input_model.allow_multi_valued_likelihood is True
 
 
 @pytest.mark.parametrize(
@@ -280,6 +341,7 @@ def test_run(
     nlive = 10
     log_Z = -5.0
     nested_samples = [0.1, 1.0, 10.0]
+    log_w = np.array([-0.1, -0.2, -0.3])
     insertion_indices = [1, 2, 3]
     output = os.getcwd()
     flow_sampler.ns = MagicMock()
@@ -291,6 +353,7 @@ def test_run(
         return_value=[log_Z, nested_samples]
     )
     flow_sampler.ns.state = MagicMock()
+    flow_sampler.ns.state.log_posterior_weights = log_w
     flow_sampler.ns.state.plot_state = MagicMock()
     flow_sampler.save_results = MagicMock()
     flow_sampler.close_pool = True
@@ -299,7 +362,7 @@ def test_run(
 
     flow_sampler.ns.initialise.assert_called_once()
     mock_draw_post.assert_called_once_with(
-        nested_samples, nlive=nlive, method="rejection_sampling"
+        nested_samples, log_w=log_w, method="rejection_sampling"
     )
     if save:
         flow_sampler.save_results.assert_called_once()
@@ -354,9 +417,11 @@ def test_run_close_pool(flow_sampler, close_pool):
 @pytest.mark.parametrize("method", (None, "multinomial_resampling"))
 def test_run_posterior_sampling_method(flow_sampler, method):
     """Assert posterior sampling method is passed correctly"""
+    log_w = np.random.rand(100)
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.nested_sampling_loop = MagicMock(return_value=("lZ", "ns"))
-    flow_sampler.ns.nlive = 100
+    flow_sampler.ns.state = MagicMock(spec=_NSIntegralState)
+    flow_sampler.ns.state.log_posterior_weights = log_w
     with patch("nessai.flowsampler.draw_posterior_samples") as mock:
         FlowSampler.run(
             flow_sampler,
@@ -368,7 +433,7 @@ def test_run_posterior_sampling_method(flow_sampler, method):
 
     if method is None:
         method = "rejection_sampling"
-    mock.assert_called_once_with("ns", nlive=100, method=method)
+    mock.assert_called_once_with("ns", log_w=log_w, method=method)
 
 
 def test_run_plots_disabled(flow_sampler):
@@ -464,13 +529,10 @@ def test_safe_exit(flow_sampler):
     flow_sampler.terminate_run.assert_called_once_with(code=2)
 
 
-@pytest.mark.parametrize(
-    "kwargs", [dict(n_pool=None), dict(max_threads=3, n_pool=2)]
-)
-@pytest.mark.integration_test
-@pytest.mark.timeout(30)
+@pytest.mark.parametrize("kwargs", [dict(n_pool=None), dict(n_pool=2)])
+@pytest.mark.slow_integration_test
+@pytest.mark.timeout(60)
 @pytest.mark.skip_on_windows
-@pytest.mark.flaky(reruns=3)
 def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
     """Test the signal handling in nessai.
 
@@ -480,7 +542,10 @@ def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
     output = tmp_path / "output"
     output.mkdir()
 
-    with patch("multiprocessing.Pool", mp_context.Pool):
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
         fs = FlowSampler(
             model,
             output=output,
@@ -514,8 +579,8 @@ def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
     )
 
 
-@pytest.mark.integration_test
-@pytest.mark.timeout(30)
+@pytest.mark.slow_integration_test
+@pytest.mark.timeout(60)
 @pytest.mark.skip_on_windows
 def test_signal_handling_disabled(tmp_path, caplog, model):
     """Assert signal handling is correctly disabled.

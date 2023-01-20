@@ -4,6 +4,7 @@ Integration tests for running the sampler with different configurations.
 """
 import logging
 import os
+from scipy.stats import norm
 import torch
 import pytest
 import numpy as np
@@ -15,6 +16,26 @@ from nessai.model import Model
 
 
 torch.set_num_threads(1)
+
+
+class BaseModel(Model):
+    """Base model class for sampling tests"""
+
+    def __init__(self):
+        self.bounds = {"x": [-5, 5], "y": [-5, 5]}
+        self.names = ["x", "y"]
+
+    def log_prior(self, x):
+        log_p = np.log(self.in_bounds(x), dtype="float")
+        for n in self.names:
+            log_p -= self.bounds[n][1] - self.bounds[n][0]
+        return log_p
+
+    def log_likelihood(self, x):
+        log_l = np.zeros(x.size)
+        for pn in self.names:
+            log_l += norm.logpdf(x[pn])
+        return log_l
 
 
 @pytest.mark.slow_integration_test
@@ -153,7 +174,10 @@ def test_sampling_with_n_pool(model, flow_config, tmpdir, mp_context):
     Test running the sampler with multiprocessing.
     """
     output = str(tmpdir.mkdir("pool"))
-    with patch("multiprocessing.Pool", mp_context.Pool):
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
         fp = FlowSampler(
             model,
             output=output,
@@ -419,3 +443,72 @@ def test_debug_log_level(model, tmpdir):
     )
     fs.run(plot=False)
     logger.setLevel(original_level)
+
+
+@pytest.mark.slow_integration_test
+def test_disable_vectorisation(model, tmp_path):
+    """Assert vectorisation can be disabled"""
+
+    class TestModel(BaseModel):
+        def log_likelihood(self, x):
+            # AssertionError won't be caught by nessai
+            assert not (x.size > 1)
+            return super().log_likelihood(x)
+
+    output = tmp_path / "disable_vec"
+    output.mkdir()
+
+    model = TestModel()
+
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        disable_vectorisation=True,
+        plot=False,
+    )
+    fs.run(plot=False)
+
+
+@pytest.mark.slow_integration_test
+def test_likelihood_chunksize(model, tmp_path):
+    """Assert likelihood chunksize limits number of samples in each call"""
+
+    class TestModel(BaseModel):
+        def log_likelihood(self, x):
+            # AssertionError won't be caught by nessai
+            assert not (x.size > self.likelihood_chunksize)
+            return super().log_likelihood(x)
+
+    output = tmp_path / "disable_vec"
+    output.mkdir()
+
+    model = TestModel()
+
+    fs = FlowSampler(
+        model, output=output, nlive=100, plot=False, likelihood_chunksize=10
+    )
+    fs.run(plot=False, save=False)
+
+
+@pytest.mark.slow_integration_test
+def test_allow_multi_valued_likelihood(model, tmp_path):
+    """Assert a multi valued likelihood can be sampled from"""
+
+    class TestModel(BaseModel):
+        def log_likelihood(self, x):
+            return super().log_likelihood(x) + 1e-10 * np.random.randn(x.size)
+
+    output = tmp_path / "multi_value"
+    output.mkdir()
+
+    model = TestModel()
+
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+        allow_multi_valued_likelihood=True,
+    )
+    fs.run(plot=False, save=False)

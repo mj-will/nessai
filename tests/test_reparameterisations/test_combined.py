@@ -4,7 +4,7 @@ Test the combined reparameterisation class.
 """
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, call, create_autospec
+from unittest.mock import MagicMock, call, create_autospec, patch
 
 from nessai.reparameterisations import (
     Angle,
@@ -18,7 +18,11 @@ from nessai.utils.testing import assert_structured_arrays_equal
 
 @pytest.fixture
 def reparam():
-    return create_autospec(CombinedReparameterisation)
+    # Use spec_set to raised an error if an unknown attribute is set
+    # Use an instance so attributes from __init__ are included.
+    return create_autospec(
+        CombinedReparameterisation(), spec_set=True, instance=True
+    )
 
 
 def test_init_none():
@@ -30,6 +34,36 @@ def test_init_w_reparam():
     c = CombinedReparameterisation(RescaleToBounds("x", [0, 1]))
     assert c.parameters == ["x"]
     assert c.prime_parameters == ["x_prime"]
+
+
+@pytest.mark.parametrize("reverse_order", [False, True])
+def test_to_prime_order(reverse_order, reparam):
+    """Assert order is correct depending on the value of the reversed flag"""
+    order = [1, 2, 3]
+    reparam.order = order
+    reparam.reverse_order = reverse_order
+
+    expected = [1, 2, 3]
+    if reverse_order:
+        expected = list(reversed(expected))
+
+    out = CombinedReparameterisation.to_prime_order.__get__(reparam)
+    assert list(out) == expected
+
+
+@pytest.mark.parametrize("reverse_order", [False, True])
+def test_from_prime_order(reverse_order, reparam):
+    """Assert order is correct depending on the value of the reversed flag"""
+    order = [1, 2, 3]
+    reparam.order = order
+    reparam.reverse_order = reverse_order
+
+    expected = [3, 2, 1]
+    if reverse_order:
+        expected = list(reversed(expected))
+
+    out = CombinedReparameterisation.from_prime_order.__get__(reparam)
+    assert list(out) == expected
 
 
 def test_add_single_reparameterisations():
@@ -109,9 +143,17 @@ def test_add_reparameterisations_single(reparam):
 
     Should convert to a list and then pass to `_add_reparameterisation`
     """
+    reparam.parameters = []
     new_reparam = MagicMock(spec=Reparameterisation)
-    CombinedReparameterisation.add_reparameterisations(reparam, new_reparam)
+    with patch(
+        "nessai.reparameterisations.combined.sort_reparameterisations",
+        return_value=[new_reparam],
+    ) as mock:
+        CombinedReparameterisation.add_reparameterisations(
+            reparam, new_reparam
+        )
     reparam._add_reparameterisation.assert_called_once_with(new_reparam)
+    mock.assert_called_once_with([new_reparam], existing_parameters=[])
 
 
 def test_add_reparameterisations_multiple(reparam):
@@ -119,11 +161,48 @@ def test_add_reparameterisations_multiple(reparam):
 
     Should call `_add_reparmeterisation` with each reparam.
     """
+    parameters = ["x"]
+    reparam.parameters = parameters
     r1 = MagicMock(spec=Reparameterisation)
     r2 = MagicMock(spec=Reparameterisation)
     reparams = [r1, r2]
-    CombinedReparameterisation.add_reparameterisations(reparam, reparams)
+    with patch(
+        "nessai.reparameterisations.combined.sort_reparameterisations",
+        return_value=[r1, r2],
+    ) as mock:
+        CombinedReparameterisation.add_reparameterisations(reparam, reparams)
     reparam._add_reparameterisation.assert_has_calls([call(r1), call(r2)])
+    mock.assert_called_once_with(reparams, existing_parameters=parameters)
+
+
+def test_check_order_valid(reparam, LightReparam):
+    """Assert no error is raised if the order is valid"""
+    d = dict(
+        a=LightReparam("a", parameters=["x"], requires=[]),
+        b=LightReparam("b", parameters=["y"], requires=["x"]),
+        c=LightReparam("c", parameters=["z"], requires=["y"]),
+    )
+    reparam.__getitem__.side_effect = d.__getitem__
+    reparam.from_prime_order = ["a", "b", "c"]
+
+    CombinedReparameterisation.check_order(reparam)
+
+
+def test_check_order_invalid(reparam, LightReparam):
+    """Assert an error is raised if the order is invalid"""
+    d = dict(
+        a=LightReparam("a", parameters=["x"], requires=["z"]),
+        b=LightReparam("b", parameters=["y"], requires=[]),
+        c=LightReparam("c", parameters=["z"], requires=["y"]),
+    )
+    reparam.__getitem__.side_effect = d.__getitem__
+    reparam.from_prime_order = ["a", "b", "c"]
+    print(reparam["a"])
+
+    with pytest.raises(
+        RuntimeError, match="Order of reparameterisations is invalid *."
+    ):
+        CombinedReparameterisation.check_order(reparam)
 
 
 @pytest.mark.parametrize("has", [False, True])
@@ -226,6 +305,6 @@ def test_x_prime_log_prior(reparam):
 
     out = CombinedReparameterisation.x_prime_log_prior(reparam, x)
 
-    assert out == -9
     r1.x_prime_log_prior.assert_called_once_with(x)
     r2.x_prime_log_prior.assert_called_once_with(x)
+    assert out == -9

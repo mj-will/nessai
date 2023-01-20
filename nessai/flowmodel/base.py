@@ -78,11 +78,11 @@ class FlowModel:
             output_file = os.path.join(self.output, "flow_config.json")
         for k, v in list(config.items()):
             if type(v) == np.ndarray:
-                config[k] = np.array_str(config[k])
+                config[k] = np.array2string(config[k], separator=",")
         for k, v in list(config["model_config"].items()):
             if type(v) == np.ndarray:
-                config["model_config"][k] = np.array_str(
-                    config["model_config"][k]
+                config["model_config"][k] = np.array2string(
+                    config["model_config"][k], separator=","
                 )
 
         if "flow" in config["model_config"]:
@@ -450,16 +450,16 @@ class FlowModel:
                     x = data[0].to(self.device)
                 if weighted:
                     weights = data[1].to(self.device)
-                    with torch.no_grad():
+                    with torch.inference_mode():
                         val_loss += loss_fn(x, weights).item()
                 else:
-                    with torch.no_grad():
+                    with torch.inference_mode():
                         val_loss += loss_fn(x).item()
                 n += 1
 
             return val_loss / n
         else:
-            with torch.no_grad():
+            with torch.inference_mode():
                 val_loss += loss_fn(val_data).item()
             return val_loss
 
@@ -510,7 +510,7 @@ class FlowModel:
             Dictionary that contains the training and validation losses.
         """
         if not self.initialised:
-            logger.info("Initialising")
+            logger.debug("Initialising")
             self.initialise()
 
         if not np.isfinite(samples).all():
@@ -568,11 +568,11 @@ class FlowModel:
         best_epoch = 0
         best_val_loss = np.inf
         best_model = copy.deepcopy(self.model.state_dict())
-        logger.info("Starting training")
-        logger.info("Training parameters:")
-        logger.info(f"Max. epochs: {max_epochs}")
-        logger.info(f"Patience: {patience}")
-        logger.info(f"Training with {samples.shape[0]} samples")
+        logger.debug("Starting training")
+        logger.debug("Training parameters:")
+        logger.debug(f"Max. epochs: {max_epochs}")
+        logger.debug(f"Patience: {patience}")
+        logger.debug(f"Training with {samples.shape[0]} samples")
 
         history = dict(loss=[], val_loss=[])
 
@@ -600,12 +600,12 @@ class FlowModel:
                 best_model = copy.deepcopy(self.model.state_dict())
 
             if not epoch % 50:
-                logger.info(
+                logger.debug(
                     f"Epoch {epoch}: loss: {loss:.3} val loss: {val_loss:.3}"
                 )
 
             if validate and (epoch - best_epoch > patience):
-                logger.info(f"Epoch {epoch}: Reached patience")
+                logger.debug(f"Epoch {epoch}: Reached patience")
                 break
 
         logger.debug("Finished training")
@@ -729,7 +729,7 @@ class FlowModel:
             .to(self.model.device)
         )
         self.model.eval()
-        with torch.no_grad():
+        with torch.inference_mode():
             z, log_prob = self.model.forward_and_log_prob(x)
 
         z = z.detach().cpu().numpy().astype(np.float64)
@@ -755,7 +755,7 @@ class FlowModel:
             .to(self.model.device)
         )
         self.model.eval()
-        with torch.no_grad():
+        with torch.inference_mode():
             log_prob = self.model.log_prob(x)
         log_prob = log_prob.cpu().numpy().astype(np.float64)
         return log_prob
@@ -773,7 +773,7 @@ class FlowModel:
         numpy.ndarray
             Array of samples
         """
-        with torch.no_grad():
+        with torch.inference_mode():
             x = self.model.sample(int(n))
         return x.cpu().numpy().astype(np.float64)
 
@@ -808,7 +808,7 @@ class FlowModel:
         if self.model.training:
             self.model.eval()
         if z is None:
-            with torch.no_grad():
+            with torch.inference_mode():
                 x, log_prob = self.model.sample_and_log_prob(int(N))
         else:
             if alt_dist is not None:
@@ -816,7 +816,7 @@ class FlowModel:
             else:
                 log_prob_fn = self.model.base_distribution_log_prob
 
-            with torch.no_grad():
+            with torch.inference_mode():
                 if isinstance(z, np.ndarray):
                     z = (
                         torch.from_numpy(z)

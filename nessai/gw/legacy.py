@@ -139,7 +139,8 @@ def cartesian_to_ra_dec(x, y, z):
     x, y, z: array_like
         Three dimensional Cartesian coordinates
 
-    Returns:
+    Returns
+    -------
     ra, dec: array_like
         Right ascension and declination
     dl: array_like
@@ -191,8 +192,8 @@ def cartesian_to_azimuth_zenith(x, y, z):
     x, y, z: array_like
         Three dimensional Cartesian coordinates
 
-    Returns:
-    --------
+    Returns
+    -------
     azimuth, zenith: array_like
         Azimuth and zenith
     dl: array_like
@@ -994,6 +995,7 @@ class LegacyGWFlowProposal(FlowProposal):
         logger.info(f"x space parameters: {self.names}")
         logger.info(f"parameters to rescale {self.rescale_parameters}")
         logger.info(f"x prime space parameters: {self.rescaled_names}")
+        self.rescaling_set = True
 
     def check_state(self, x):
         """

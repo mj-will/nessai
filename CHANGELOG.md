@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `DeltaPhaseReparameterisation` for GW analyses.
+- Add `nessai.utils.sorting`.
+- Add `log_posterior_weights` and `effective_n_posterior_samples` to the integral state object.
+- Add a check for the multiprocessing start method when using `n_pool`.
+- Add option to reverse reparameterisations in `FlowProposal`.
+- Add `disable_vectorisation` to `FlowSampler`.
+- Add `likelihood_chunksize` which allows the user to limit how many points are passed to a vectorised likelihood function at once.
+- Add `allow_multi_valued_likelihood` which allows for multi-valued likelihoods, e.g. that include numerical integration.
+- Add `parameters` keyword argument to `nessai.plot.plot_trace` and pass additional keyword arguments to the plotting function.
+
+### Changed
+
+- Refactor `nessai.reparameterisations` into a submodule.
+- Use `torch.inference_mode` instead of `torch.no_grad`.
+- Changed `CombinedReparameterisations` to sort and add reparameterisations based on their requirements.
+- Changed evidence calculation and posterior weights to use a better estimate of the shrinkage.
+- Refactor `nessai.evidence._NSIntegralState` to inherit from a base class.
+- Revert default logging level to `INFO`
+- Rework logging statements to reduce the amount of information printed by default.
+- Refactor `nessai.proposal.FlowProposal.verify_rescaling` to be stricter.
+- Truth input in `nessai.plot.corner_plot` can now be an iterable or a dictionary.
+
+### Removed
+
+- Removed `nessai._NSIntegralState.reset`
+
 ## [0.7.1]
 
 ### Fixed

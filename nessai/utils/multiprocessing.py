@@ -3,6 +3,7 @@
 Utilities related to multiprocessing.
 """
 import logging
+import multiprocessing
 
 _model = None
 logger = logging.getLogger(__name__)
@@ -16,8 +17,8 @@ def get_n_pool(pool):
     pool : object
         Multiprocessing pool or similar.
 
-    Return
-    ------
+    Returns
+    -------
     int or None
         Number of processes. Returns None if number could not be determined.
     """
@@ -33,6 +34,20 @@ def get_n_pool(pool):
                 f"{type(pool)}."
             )
     return n_pool
+
+
+def check_multiprocessing_start_method():
+    """Check the multiprocessing start method.
+
+    Raise an error if the start method is not `fork`.
+    """
+    start_method = multiprocessing.get_start_method()
+    if start_method != "fork":
+        raise RuntimeError(
+            "nessai only supports multiprocessing using the 'fork' start "
+            f"method. Actual start method is: {start_method}. See the "
+            "multiprocessing documentation for more details."
+        )
 
 
 def initialise_pool_variables(model):

@@ -47,6 +47,18 @@ class FlowSampler:
         If True, the multiprocessing pool will be closed once the run method
         has been called. Disables the option in :code:`NestedSampler` if
         enabled.
+    disable_vectorisation : bool
+        Disable likelihood vectorisation. Overrides the value of
+        :py:attr:`nessai.model.Model.allow_vectorised`.
+    likelihood_chunksize : Optional[int]
+        Chunksize used when evaluating a vectorised likelihood. Overrides the
+        of :py:attr:`nessai.model.Model.likelihood_chunksize`. Set to None to
+        evaluate the likelihood with all available points.
+    allow_multi_valued_likelihood : Optional[bool]
+        Allow for a multi-valued likelihood function that will return different
+        likelihood values for the same point in parameter space. See
+        :py:attr:`nessai.model.Model.allow_multi_valued_likelihood` for more
+        details.
     kwargs :
         Keyword arguments passed to
         :obj:`~nessai.samplers.nestedsampler.NestedSampler`.
@@ -64,6 +76,9 @@ class FlowSampler:
         pytorch_threads=1,
         max_threads=None,
         close_pool=True,
+        disable_vectorisation=False,
+        likelihood_chunksize=None,
+        allow_multi_valued_likelihood=None,
         **kwargs,
     ):
 
@@ -74,6 +89,18 @@ class FlowSampler:
 
         self.exit_code = exit_code
         self.close_pool = close_pool
+
+        if disable_vectorisation:
+            logger.warning(
+                "Overriding value of `allow_vectorised` in the model"
+            )
+            model.allow_vectorised = False
+
+        if likelihood_chunksize:
+            model.likelihood_chunksize = likelihood_chunksize
+
+        if allow_multi_valued_likelihood is not None:
+            model.allow_multi_valued_likelihood = allow_multi_valued_likelihood
 
         self.output = os.path.join(output, "")
         os.makedirs(self.output, exist_ok=True)
@@ -147,7 +174,7 @@ class FlowSampler:
                 signal.signal(signal.SIGINT, self.safe_exit)
                 signal.signal(signal.SIGALRM, self.safe_exit)
             except AttributeError:
-                logger.critical("Cannot set signal attributes on this system")
+                logger.error("Cannot set signal attributes on this system")
         else:
             logger.warning(
                 "Signal handling is disabled. nessai will not automatically "
@@ -211,7 +238,7 @@ class FlowSampler:
         logger.info("Computing posterior samples")
         self.posterior_samples = draw_posterior_samples(
             self.nested_samples,
-            nlive=self.ns.nlive,
+            log_w=self.ns.state.log_posterior_weights,
             method=posterior_sampling_method,
         )
         logger.info(

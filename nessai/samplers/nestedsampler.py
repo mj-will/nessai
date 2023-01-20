@@ -325,8 +325,8 @@ class NestedSampler(BaseNestedSampler):
 
         If None then no maximum is set.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         max_iteration : int, None
             Maximum iteration.
         """
@@ -341,7 +341,7 @@ class NestedSampler(BaseNestedSampler):
         If None, 'inf' or 'None' flow will only train when empty.
         """
         if training_frequency in [None, "inf", "None"]:
-            logger.warning("Proposal will only train when empty")
+            logger.debug("Proposal will only train when empty")
             self.training_frequency = np.inf
         else:
             self.training_frequency = training_frequency
@@ -530,7 +530,7 @@ class NestedSampler(BaseNestedSampler):
 
     def log_state(self):
         """Log the current state of the sampler"""
-        logger.warning(
+        logger.info(
             f"it: {self.iteration:5d}: "
             f"n eval: {self.likelihood_calls} "
             f"H: {self.state.info[-1]:.2f} "
@@ -554,18 +554,18 @@ class NestedSampler(BaseNestedSampler):
 
         if p is not None:
             if rolling:
-                logger.warning(
+                logger.info(
                     f"it: {self.iteration:5d}: "
                     f"Rolling KS test: D={D:.4}, p-value={p:.4}"
                 )
                 self.rolling_p.append(p)
             else:
-                logger.warning(f"Final KS test: D={D:.4}, p-value={p:.4}")
+                logger.info(f"Final KS test: D={D:.4}, p-value={p:.4}")
                 self.final_p_value = p
                 self.final_ks_statistic = D
                 pt = 0.05
                 if self.final_p_value < pt:
-                    logger.critical(
+                    logger.warning(
                         f"Final p-value for the insertion indices is less "
                         f"than {pt}, this could be an indication of problems "
                         "during sampling. Consider checking the diagnostic "
@@ -668,8 +668,8 @@ class NestedSampler(BaseNestedSampler):
             self.block_acceptance / self.block_iteration
         )
 
-        if self.info_enabled and self.log_on_iteration:
-            logger.info(
+        if self.debug_enabled and self.log_on_iteration:
+            logger.debug(
                 f"{self.iteration:5d}: n: {count:3d} "
                 f"b_acc: {self.mean_block_acceptance:.3f} "
                 f"H: {self.state.info[-1]:.2f} "
@@ -696,11 +696,11 @@ class NestedSampler(BaseNestedSampler):
                     if live_point is None:
                         break
                     if np.isnan(live_point["logL"]):
-                        logger.warning(
+                        logger.error(
                             "Likelihood function returned NaN for "
                             f"live_point {live_point}"
                         )
-                        logger.warning(
+                        logger.error(
                             "You may want to check your likelihood function"
                         )
                         break
@@ -776,10 +776,10 @@ class NestedSampler(BaseNestedSampler):
             or force
         ):
             if self.proposal is self._flow_proposal:
-                logger.warning("Already using flowproposal")
+                logger.info("Already using flowproposal")
                 self.uninformed_sampling = False
                 return True
-            logger.warning("Switching to FlowProposal")
+            logger.info("Switching to FlowProposal")
             self.proposal = self._flow_proposal
             self.proposal.ns_acceptance = self.mean_block_acceptance
             self.uninformed_sampling = False
@@ -1067,7 +1067,7 @@ class NestedSampler(BaseNestedSampler):
         else:
             return fig
 
-    def plot_trace(self, filename=None):
+    def plot_trace(self, filename=None, **kwargs):
         """
         Make trace plots for the nested samples.
 
@@ -1076,10 +1076,16 @@ class NestedSampler(BaseNestedSampler):
         filename : str, optional
             If filename is None, the figure is returned. Else the figure
             is saved with that file name.
+        kwargs :
+            Additional keyword arguments passed to
+            :py:func:`nessai.plot.plot_trace`.
         """
         if self.nested_samples:
             fig = plot_trace(
-                self.state.log_vols[1:], self.nested_samples, filename=filename
+                self.state.log_vols[1:],
+                self.nested_samples,
+                filename=filename,
+                **kwargs,
             )
             return fig
         else:
@@ -1222,7 +1228,7 @@ class NestedSampler(BaseNestedSampler):
         if self.iteration:
             self.update_state()
 
-        logger.critical("Starting nested sampling loop")
+        logger.info("Starting nested sampling loop")
 
         while self.condition > self.tolerance:
 
@@ -1241,11 +1247,11 @@ class NestedSampler(BaseNestedSampler):
         if not self.finalised and (self.condition <= self.tolerance):
             self.finalise()
 
-        logger.critical(
+        logger.info(
             f"Final evidence: {self.state.logZ:.3f} +/- "
             f"{self.state.log_evidence_error:.3f}"
         )
-        logger.critical("Information: {0:.2f}".format(self.state.info[-1]))
+        logger.info("Information: {0:.2f}".format(self.state.info[-1]))
 
         self.check_insertion_indices(rolling=False)
 

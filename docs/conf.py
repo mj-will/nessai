@@ -38,6 +38,7 @@ extensions = [
     "sphinx.ext.autosectionlabel",
     "sphinx.ext.autodoc",
     "sphinx.ext.inheritance_diagram",
+    "sphinx_tabs.tabs",
     "autoapi.extension",
 ]
 

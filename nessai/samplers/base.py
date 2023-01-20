@@ -79,6 +79,7 @@ class BaseNestedSampler(ABC):
         logger.info("Initialising nested sampler")
 
         self.info_enabled = logger.isEnabledFor(logging.INFO)
+        self.debug_enabled = logger.isEnabledFor(logging.DEBUG)
         model.verify_model()
         self.n_pool = n_pool
         self.model = model
@@ -252,7 +253,7 @@ class BaseNestedSampler(ABC):
                 else:
                     return
         self.sampling_time += now - self.sampling_start_time
-        logger.critical("Checkpointing nested sampling")
+        logger.info("Checkpointing nested sampling")
         safe_file_dump(self, self.resume_file, pickle, save_existing=True)
         self.sampling_start_time = datetime.datetime.now()
 
@@ -271,7 +272,7 @@ class BaseNestedSampler(ABC):
         obj
             Instance of BaseNestedSampler
         """
-        logger.critical("Resuming NestedSampler from " + filename)
+        logger.info("Resuming NestedSampler from " + filename)
         with open(filename, "rb") as f:
             obj = pickle.load(f)
         model.likelihood_evaluations += obj._previous_likelihood_evaluations

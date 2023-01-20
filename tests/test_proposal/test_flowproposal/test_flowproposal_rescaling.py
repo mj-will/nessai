@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, Mock, call, patch
 def proposal(proposal):
     """Specific mocked proposal for reparameterisation tests"""
     proposal.use_default_reparameterisations = False
+    proposal.reverse_reparameterisations = False
     return proposal
 
 
@@ -50,10 +51,14 @@ def test_get_reparamaterisation(mocked_fn, proposal):
     assert mocked_fn.called_once_with("angle")
 
 
-def test_configure_reparameterisations_dict(proposal, dummy_cmb_rc, dummy_rc):
+@pytest.mark.parametrize("reverse_order", [False, True])
+def test_configure_reparameterisations_dict(
+    proposal, dummy_cmb_rc, dummy_rc, reverse_order
+):
     """Test configuration for reparameterisations dictionary.
 
-    Also tests to make sure boundary inversion is set.
+    Also tests to make sure boundary inversion is set and if the
+    `reverse_reparameterisation` is correctly set.
     """
     dummy_rc.return_value = "r"
     # Need to add the parameters before hand to prevent a
@@ -66,6 +71,7 @@ def test_configure_reparameterisations_dict(proposal, dummy_cmb_rc, dummy_rc):
     proposal.model = MagicMock()
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.names = ["x"]
+    proposal.reverse_reparameterisations = reverse_order
 
     with patch(
         "nessai.proposal.flowproposal.CombinedReparameterisation",
@@ -80,7 +86,7 @@ def test_configure_reparameterisations_dict(proposal, dummy_cmb_rc, dummy_rc):
     dummy_rc.assert_called_once_with(
         prior_bounds={"x": [-1, 1]}, parameters="x", boundary_inversion=True
     )
-    mocked_class.assert_called_once()
+    mocked_class.assert_called_once_with(reverse_order=reverse_order)
     # fmt: off
     proposal._reparameterisation.add_reparameterisations \
         .assert_called_once_with("r")
@@ -770,8 +776,13 @@ def test_inverse_rescale_to_bounds_w_inversion(proposal, model, n, itype):
 
 @pytest.mark.parametrize("has_inversion", [False, True])
 def test_verify_rescaling(proposal, has_inversion):
-    """Test the method that tests the rescaling at runtime"""
-    x = np.array([[1], [2]], dtype=[("x", "f8")])
+    """Test the method that tests the rescaling at runtime
+
+    Checks both normal parameters and non-sampling parameters (e.g logL)
+    """
+    x = np.array(
+        [(1, np.nan), (2, np.nan)], dtype=[("x", "f8"), ("logL", "f8")]
+    )
     x_prime = x["x"] / 2
     log_j = np.array([-2, -2])
     x_out = x.copy()
@@ -788,6 +799,7 @@ def test_verify_rescaling(proposal, has_inversion):
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
     proposal.check_state = MagicMock()
+    proposal.rescaling_set = True
 
     FlowProposal.verify_rescaling(proposal)
 
@@ -822,46 +834,41 @@ def test_verify_rescaling_invertible_error(proposal, has_inversion):
     proposal.model.new_point = MagicMock(return_value=x)
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+    proposal.rescaling_set = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
     assert "Rescaling is not invertible for x" in str(excinfo.value)
 
 
-def test_verify_rescaling_duplicate_error(proposal):
-    """Assert an error is raised if the duplication is missing samples"""
-    x = np.array([[1], [2]], dtype=[("x", "f8")])
+@pytest.mark.parametrize("has_inversion", [False, True])
+def test_verify_rescaling_invertible_error_non_sampling(
+    proposal, has_inversion
+):
+    """Assert an error is raised a non-sampler parameter changes"""
+    x = np.array([(1, 3), (2, np.nan)], dtype=[("x", "f8"), ("logL", "f8")])
     x_prime = x["x"] / 2
-    log_j = np.array([-2, -2, -2, -2])
-    x_out = np.array([[1], [3], [4], [5]], dtype=[("x", "f8")])
-    log_j_inv = np.array([2, 2, 2, 2])
+    log_j = np.array([-2, -2])
+    x_out = x.copy()
+    log_j_inv = np.array([2, 2])
+
+    if has_inversion:
+        x_prime = np.concatenate([x_prime, x_prime])
+        log_j = np.concatenate([log_j, log_j])
+        log_j_inv = np.concatenate([log_j_inv, log_j_inv])
+        x_out = np.concatenate([x_out, x_out])
+    # Change the last element, this will test both cases
+    x_out["logL"][-1] = 4
 
     proposal.model = MagicMock()
     proposal.model.new_point = MagicMock(return_value=x)
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+    proposal.rescaling_set = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
-    assert "Duplicate samples must map to same input" in str(excinfo.value)
-
-
-def test_verify_rescaling_duplicate_error_nans(proposal):
-    """Assert an error is raised if the duplication is missing samples"""
-    x = np.array([[np.nan], [np.nan]], dtype=[("x", "f8")])
-    x_prime = np.array([1.0, 2.0])
-    log_j = np.array([-2, -2, -2, -2])
-    x_out = np.array([[np.nan], [np.nan], [4], [np.nan]], dtype=[("x", "f8")])
-    log_j_inv = np.array([2, 2, 2, 2])
-
-    proposal.model = MagicMock()
-    proposal.model.new_point = MagicMock(return_value=x)
-    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
-    proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
-
-    with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.verify_rescaling(proposal)
-    assert "Rescaling is not invertible for x (NaNs)" in str(excinfo.value)
+    assert "Non-sampling parameter logL changed" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("has_inversion", [False, True])
@@ -883,10 +890,18 @@ def test_verify_rescaling_jacobian_error(proposal, has_inversion):
     proposal.model.new_point = MagicMock(return_value=x)
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+    proposal.rescaling_set = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
     assert "Rescaling Jacobian is not invertible" in str(excinfo.value)
+
+
+def test_verify_rescaling_rescaling_not_set(proposal):
+    """Assert an error is raised if the rescaling is not set"""
+    proposal.rescaling_set = False
+    with pytest.raises(RuntimeError, match=r"Rescaling must be set .*"):
+        FlowProposal.verify_rescaling(proposal)
 
 
 def test_check_state_boundary_inversion_default(proposal):

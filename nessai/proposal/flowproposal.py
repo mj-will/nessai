@@ -146,6 +146,10 @@ class FlowProposal(RejectionProposal):
         value of the attribute
         :py:attr:`~nessai.proposal.flowproposal.FlowProposal.use_default_reparameterisations`
         is used.
+    reverse_reparameterisations : bool
+        Passed to :code:`reverse_order` in
+        :py:obj:`~nessai.reparameterisations.combined.CombinedReparameterisation`.
+        Reverses the order of the reparameterisations.
     draw_latent_kwargs : dict, optional
         Dictionary of kwargs passed to the function for drawing samples
         in the latent space. See the functions in utils for the possible
@@ -192,6 +196,7 @@ class FlowProposal(RejectionProposal):
         reparameterisations=None,
         fallback_reparameterisation=None,
         use_default_reparameterisations=None,
+        reverse_reparameterisations=False,
         **kwargs,
     ):
 
@@ -218,6 +223,7 @@ class FlowProposal(RejectionProposal):
         self.approx_acceptance = []
         self._edges = {}
         self._reparameterisation = None
+        self.rescaling_set = False
         self.use_x_prime_prior = False
 
         self.reparameterisations = reparameterisations
@@ -226,6 +232,7 @@ class FlowProposal(RejectionProposal):
                 use_default_reparameterisations
             )
         self.fallback_reparameterisation = fallback_reparameterisation
+        self.reverse_reparameterisations = reverse_reparameterisations
 
         self.output = output
 
@@ -557,7 +564,7 @@ class FlowProposal(RejectionProposal):
         else:
             self._poolsize_scale = 1.0 / acceptance
             if self._poolsize_scale > self.max_poolsize_scale:
-                logger.info("Poolsize scaling is greater than maximum value")
+                logger.debug("Poolsize scaling is greater than maximum value")
                 self._poolsize_scale = self.max_poolsize_scale
             if self._poolsize_scale < 1.0:
                 self._poolsize_scale = 1.0
@@ -630,7 +637,9 @@ class FlowProposal(RejectionProposal):
         else:
             _reparameterisations = copy.deepcopy(reparameterisations)
         logger.info(f"Adding reparameterisations from: {_reparameterisations}")
-        self._reparameterisation = CombinedReparameterisation()
+        self._reparameterisation = CombinedReparameterisation(
+            reverse_order=self.reverse_reparameterisations
+        )
 
         if not isinstance(_reparameterisations, dict):
             raise TypeError(
@@ -751,6 +760,8 @@ class FlowProposal(RejectionProposal):
                     "settings."
                 )
 
+        self._reparameterisation.check_order()
+
         self.rescale = self._rescale_w_reparameterisation
         self.inverse_rescale = self._inverse_rescale_w_reparameterisation
 
@@ -808,11 +819,16 @@ class FlowProposal(RejectionProposal):
         logger.info(f"x space parameters: {self.names}")
         logger.info(f"parameters to rescale {self.rescale_parameters}")
         logger.info(f"x prime space parameters: {self.rescaled_names}")
+        self.rescaling_set = True
 
     def verify_rescaling(self):
         """
         Verify the rescaling functions are invertible
         """
+        if not self.rescaling_set:
+            raise RuntimeError(
+                "Rescaling must be set before it can be verified"
+            )
         logger.info("Verifying rescaling functions")
         x = self.model.new_point(N=1000)
         for inversion in ["lower", "upper", False, None]:
@@ -820,44 +836,36 @@ class FlowProposal(RejectionProposal):
             logger.debug(f"Testing: {inversion}")
             x_prime, log_J = self.rescale(x, test=inversion)
             x_out, log_J_inv = self.inverse_rescale(x_prime)
-            if x.size == x_out.size:
-                for f in x.dtype.names:
-                    if not np.allclose(x[f], x_out[f], equal_nan=True):
-                        raise RuntimeError(
-                            f"Rescaling is not invertible for {f}"
-                        )
-                if not np.allclose(log_J, -log_J_inv):
-                    raise RuntimeError("Rescaling Jacobian is not invertible")
-            else:
-                # ratio = x_out.size // x.size
-                for f in x.dtype.names:
-                    if np.isnan(x[f]).all():
-                        if not np.isnan(x_out[f]).all():
+
+            n = x.size
+            ratio = x_out.size // x.size
+            logger.debug(f"Ratio of output to input: {ratio}")
+            for f in x.dtype.names:
+                target = x[f]
+                for count in range(ratio):
+                    start = count * n
+                    end = (count + 1) * n
+                    block = x_out[f][start:end]
+                    if f in config.NON_SAMPLING_PARAMETERS:
+                        if not np.allclose(block, target, equal_nan=True):
                             raise RuntimeError(
-                                f"Rescaling is not invertible for {f} (NaNs)"
+                                f"Non-sampling parameter {f} changed in "
+                                f" the rescaling (block {count})."
                             )
-                    elif not all(
-                        [np.any(np.isclose(x[f], xo)) for xo in x_out[f]]
-                    ):
+                    elif not np.allclose(block, target, equal_nan=False):
                         raise RuntimeError(
-                            "Duplicate samples must map to same input values. "
-                            "Check the rescaling and inverse rescaling "
-                            f"functions for {f}."
+                            f"Rescaling is not invertible for {f} "
+                            f"(block {count})."
                         )
-                for f in x.dtype.names:
-                    if not np.allclose(
-                        x[f], x_out[f][: x.size], equal_nan=True
-                    ):
-                        raise RuntimeError(
-                            f"Rescaling is not invertible for {f}"
-                        )
-                if not np.allclose(log_J, -log_J_inv):
-                    raise RuntimeError("Rescaling Jacobian is not invertible")
+                    else:
+                        logger.debug(f"Block {count} is equal to the input")
+            if not np.allclose(log_J, -log_J_inv):
+                raise RuntimeError("Rescaling Jacobian is not invertible")
 
         logger.info("Rescaling functions are invertible")
 
     def _rescale_w_reparameterisation(self, x, compute_radius=False, **kwargs):
-        x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
+        x_prime = empty_structured_array([x.size], dtype=self.x_prime_dtype)
         log_J = np.zeros(x_prime.size)
 
         if x.size == 1:
@@ -872,7 +880,7 @@ class FlowProposal(RejectionProposal):
         return x_prime, log_J
 
     def _inverse_rescale_w_reparameterisation(self, x_prime, **kwargs):
-        x = np.zeros([x_prime.size], dtype=self.x_dtype)
+        x = empty_structured_array([x_prime.size], dtype=self.x_dtype)
         log_J = np.zeros(x.size)
         x, x_prime, log_J = self._reparameterisation.inverse_reparameterise(
             x, x_prime, log_J, **kwargs
@@ -1399,7 +1407,9 @@ class FlowProposal(RejectionProposal):
 
         if self.truncate:
             if worst_q is None:
-                raise RuntimeError("Cannot use truncation with worst_q")
+                raise ValueError(
+                    "`worst_q` is None but truncation is enabled."
+                )
             cut = log_q >= worst_q
             x = x[cut]
             z = z[cut]
@@ -1474,7 +1484,7 @@ class FlowProposal(RejectionProposal):
                 "Try calling `initialise()` first."
             )
         if r is not None:
-            logger.info(f"Using user inputs for radius {r}")
+            logger.debug(f"Using user inputs for radius {r}")
             worst_q = None
         elif self.fixed_radius:
             r = self.fixed_radius
@@ -1493,13 +1503,13 @@ class FlowProposal(RejectionProposal):
             if self.min_radius and r < self.min_radius:
                 r = self.min_radius
 
-        logger.info(f"Populating proposal with lantent radius: {r:.5}")
+        logger.debug(f"Populating proposal with lantent radius: {r:.5}")
         self.r = r
 
         self.alt_dist = self.get_alt_distribution()
 
         if self.indices:
-            logger.info(
+            logger.debug(
                 "Existing pool of samples is not empty. "
                 "Discarding existing samples."
             )
@@ -1528,7 +1538,7 @@ class FlowProposal(RejectionProposal):
                 continue
 
             if warn and (x.size / self.drawsize < 0.01):
-                logger.info(
+                logger.debug(
                     "Rejection sampling accepted less than 1 percent of "
                     f"samples! ({x.size / self.drawsize})"
                 )
@@ -1539,7 +1549,7 @@ class FlowProposal(RejectionProposal):
             z_samples[accepted : (accepted + n), ...] = z[:n]
             accepted += n
             if accepted > percent * N:
-                logger.info(
+                logger.debug(
                     f"Accepted {accepted} / {N} points, "
                     f"acceptance: {accepted/proposed:.4}"
                 )
@@ -1571,8 +1581,8 @@ class FlowProposal(RejectionProposal):
         self.populated_count += 1
         self.populated = True
         self._checked_population = False
-        logger.info(f"Proposal populated with {len(self.indices)} samples")
-        logger.info(
+        logger.debug(f"Proposal populated with {len(self.indices)} samples")
+        logger.debug(
             f"Overall proposal acceptance: {self.x.size / proposed:.4}"
         )
 
@@ -1676,7 +1686,7 @@ class FlowProposal(RejectionProposal):
             )
 
             z_tensor = torch.from_numpy(z).to(self.flow.device)
-            with torch.no_grad():
+            with torch.inference_mode():
                 if self.alt_dist is not None:
                     log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
                 else:

@@ -22,7 +22,7 @@ def compute_weights(samples, nlive):
     ----------
     samples : array_like
         Log-likelihood samples.
-    nlive : int
+    nlive : Union[int, array_like]
         Number of live points used in nested sampling.
 
     Returns
@@ -33,31 +33,37 @@ def compute_weights(samples, nlive):
         Array of computed weights (already normalised by the log-evidence).
     """
     samples = np.asarray(samples)
-    start_data = np.concatenate(([float("-inf")], samples[:-nlive]))
-    end_data = samples[-nlive:]
 
-    log_wts = np.zeros(samples.shape[0])
+    if isinstance(nlive, (int, float)):
+        nlive_per_iteration = nlive * np.ones_like(samples)
+        nlive_per_iteration[-nlive:] = np.arange(nlive, 0, -1, dtype=float)
+    else:
+        if len(nlive) != len(samples):
+            raise ValueError("nlive and samples are different lengths")
+        nlive_per_iteration = nlive.copy()
 
-    log_vols_start = np.cumsum(
-        np.ones(len(start_data) + 1) * np.log1p(-1.0 / nlive)
-    ) - np.log1p(-1 / nlive)
-    log_vols_end = np.zeros(len(end_data))
-    log_vols_end[-1] = np.NINF
-    log_vols_end[0] = log_vols_start[-1] + np.log1p(-1.0 / nlive)
-    for i in range(len(end_data) - 1):
-        log_vols_end[i + 1] = log_vols_end[i] + np.log1p(-1.0 / (nlive - i))
+    logt = -np.log1p(1.0 / nlive_per_iteration)
 
-    log_likes = np.concatenate((start_data, end_data, [end_data[-1]]))
+    # One point at X=1 and X=0
+    n_vols = len(samples) + 2
+    log_vols = np.zeros(n_vols)
+    log_vols[1:-1] = np.cumsum(logt)
+    log_vols[-1] = np.NINF
 
-    log_vols = np.concatenate((log_vols_start, log_vols_end))
-    log_ev = log_integrate_log_trap(log_likes, log_vols)
+    # First point represents the entire prior
+    # Last point represents X=0 and assume max(L) = L[-1]
+    log_likelihoods = np.concatenate(
+        [np.array([np.NINF]), samples, np.array([samples[-1]])]
+    )
 
-    log_dXs = logsubexp(log_vols[:-1], log_vols[1:])
-    log_wts = log_likes[1:-1] + log_dXs[:-1]
+    log_evidence = log_integrate_log_trap(log_likelihoods, log_vols)
 
-    log_wts -= log_ev
+    log_w = logsubexp(log_vols[:-1], log_vols[1:])
 
-    return log_ev, log_wts
+    log_post_w = log_likelihoods[1:-1] + log_w[:-1]
+    log_post_w -= log_evidence
+
+    return log_evidence, log_post_w
 
 
 def draw_posterior_samples(

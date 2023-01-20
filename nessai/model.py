@@ -19,6 +19,7 @@ from .utils.multiprocessing import (
     get_n_pool,
     log_likelihood_wrapper,
 )
+from .utils.structures import array_split_chunksize
 
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,20 @@ class Model(ABC):
         as a vectorised function. If False, nessai won't check and, even if the
         likelihood is vectorised, it will only evaluate the likelihood one
         sample at a time.
+    """
+    likelihood_chunksize = None
+    """
+    int
+        Chunksize to use with a vectorised likelihood. If specified the
+        likelihood will be called with at most chunksize points at once.
+    """
+    allow_multi_valued_likelihood = False
+    """
+    bool
+        Allow for a multi-valued likelihood function that will return different
+        likelihood values for the same point in parameter space. This is only
+        recommended when the variation is significantly smaller that the
+        variations in the likelihood across the prior.
     """
     _vectorised_likelihood = None
     _pool_configured = False
@@ -249,7 +264,12 @@ class Model(ABC):
                 f"Starting multiprocessing pool with {n_pool} processes"
             )
             import multiprocessing
-            from nessai.utils.multiprocessing import initialise_pool_variables
+            from nessai.utils.multiprocessing import (
+                check_multiprocessing_start_method,
+                initialise_pool_variables,
+            )
+
+            check_multiprocessing_start_method()
 
             self.pool = multiprocessing.Pool(
                 processes=self.n_pool,
@@ -489,7 +509,19 @@ class Model(ABC):
         if self.pool is None:
             logger.debug("Not using pool to evaluate likelihood")
             if self.allow_vectorised and self.vectorised_likelihood:
-                log_likelihood = self.log_likelihood(x)
+                if self.likelihood_chunksize:
+                    log_likelihood = np.concatenate(
+                        list(
+                            map(
+                                self.log_likelihood,
+                                array_split_chunksize(
+                                    x, self.likelihood_chunksize
+                                ),
+                            )
+                        )
+                    )
+                else:
+                    log_likelihood = self.log_likelihood(x)
             else:
                 log_likelihood = np.fromiter(
                     map(self.log_likelihood, x), config.LOGL_DTYPE
@@ -497,11 +529,22 @@ class Model(ABC):
         else:
             logger.debug("Using pool to evaluate likelihood")
             if self.allow_vectorised and self.vectorised_likelihood:
-                log_likelihood = np.concatenate(
-                    self.pool.map(
-                        log_likelihood_wrapper, np.array_split(x, self.n_pool)
+                if self.likelihood_chunksize:
+                    log_likelihood = np.concatenate(
+                        self.pool.map(
+                            log_likelihood_wrapper,
+                            array_split_chunksize(
+                                x, self.likelihood_chunksize
+                            ),
+                        )
                     )
-                )
+                else:
+                    log_likelihood = np.concatenate(
+                        self.pool.map(
+                            log_likelihood_wrapper,
+                            np.array_split(x, self.n_pool),
+                        )
+                    )
             else:
                 log_likelihood = np.array(
                     self.pool.map(log_likelihood_wrapper, x)
@@ -520,9 +563,9 @@ class Model(ABC):
         Calls :py:func:`nessai.livepoint.unstructured_view` with a pre-computed
         dtype.
 
-        Note
-        ----
-        Will only work if all of the model parameters use the same dtype.
+        .. warning::
+
+            Will only work if all of the model parameters use the same dtype.
 
         Parameters
         ----------
@@ -616,15 +659,21 @@ class Model(ABC):
                 "Log-likelihood function did not return " "a likelihood value"
             )
 
-        logl = np.array([self.log_likelihood(x) for _ in range(16)])
-        if not all(logl == logl[0]):
-            raise RuntimeError(
-                "Repeated calls to the log-likelihood with the same parameters"
-                " return different values."
+        if self.allow_multi_valued_likelihood:
+            logger.warning(
+                "Multi-valued likelihood is allowed. "
+                "This may lead to slow sampling and strange results."
             )
+        else:
+            logl = np.array([self.log_likelihood(x) for _ in range(16)])
+            if not all(logl == logl[0]):
+                raise RuntimeError(
+                    "Repeated calls to the log-likelihood with the same "
+                    "parameters return different values."
+                )
 
         if self.log_prior(x).dtype == np.dtype("float16"):
-            logger.critical(
+            logger.warning(
                 "log_prior returned an array with float16 precision. "
                 "This not recommended and can lead to numerical errors."
                 " Consider casting to a higher precision."

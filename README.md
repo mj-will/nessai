@@ -1,5 +1,11 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4550693.svg)](https://doi.org/10.5281/zenodo.4550693) [![PyPI](https://img.shields.io/pypi/v/nessai)](https://pypi.org/project/nessai/) [![Documentation Status](https://readthedocs.org/projects/nessai/badge/?version=latest)](https://nessai.readthedocs.io/en/latest/?badge=latest) ![tests](https://github.com/mj-will/nessai/actions/workflows/tests.yml/badge.svg) ![int-tests](https://github.com/mj-will/nessai/actions/workflows/integration-tests.yml/badge.svg) [![codecov](https://codecov.io/gh/mj-will/nessai/branch/main/graph/badge.svg?token=O7SN167SK6)](https://codecov.io/gh/mj-will/nessai)
-
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4550693.svg)](https://doi.org/10.5281/zenodo.4550693)
+[![PyPI](https://img.shields.io/pypi/v/nessai)](https://pypi.org/project/nessai/)
+[![Conda Version](https://img.shields.io/conda/vn/conda-forge/nessai.svg)](https://anaconda.org/conda-forge/nessai)
+[![Documentation Status](https://readthedocs.org/projects/nessai/badge/?version=latest)](https://nessai.readthedocs.io/en/latest/?badge=latest)
+![license](https://anaconda.org/conda-forge/nessai/badges/license.svg)
+![tests](https://github.com/mj-will/nessai/actions/workflows/tests.yml/badge.svg)
+![int-tests](https://github.com/mj-will/nessai/actions/workflows/integration-tests.yml/badge.svg)
+[![codecov](https://codecov.io/gh/mj-will/nessai/branch/main/graph/badge.svg?token=O7SN167SK6)](https://codecov.io/gh/mj-will/nessai)
 
 # nessai: Nested Sampling with Artificial Intelligence
 
@@ -12,10 +18,14 @@
 ``nessai`` can be installed using ``pip``:
 
 ```console
-$ pip install nessai
+pip install nessai
 ```
 
-Installing via ``conda`` is not currently supported.
+or via ``conda``
+
+```console
+conda install -c conda-forge -c pytorch nessai
+```
 
 ### PyTorch
 
@@ -45,7 +55,7 @@ The normalising flows implemented in ``nessai`` are all either directly imported
 
 Other code snippets that draw on existing code reference the source in their corresponding doc-strings.
 
-The authors also thank Christian Chapman-Bird, Laurence Datrier, Fergus Hayes and Jethro Linley for their feedback and help finding bugs in ``nessai``.
+The authors also thank Christian Chapman-Bird, Laurence Datrier, Fergus Hayes, Jethro Linley and Simon Tait for their feedback and help finding bugs in ``nessai``.
 
 ## Citing
 

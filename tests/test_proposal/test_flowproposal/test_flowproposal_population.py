@@ -165,9 +165,9 @@ def test_rejection_sampling_truncate_missing_q(proposal, z, x, log_q):
     log_q = np.array([0.0, 1.0])
     proposal.backward_pass = MagicMock(return_value=(x, log_q))
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(ValueError) as excinfo:
         FlowProposal.rejection_sampling(proposal, z, worst_q=None)
-    assert "Cannot use truncation" in str(excinfo.value)
+    assert "`worst_q` is None but truncation is enabled" in str(excinfo.value)
 
 
 def test_compute_acceptance(proposal):

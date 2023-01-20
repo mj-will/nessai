@@ -6,9 +6,7 @@
 Welcome to nessai's documentation!
 ========================================
 
-.. note::
-    This page is still under construction. Some links may not work and some sections are missing. We also welcome contributions to the documentation. For details how to contribute, see: https://github.com/mj-will/nessai
-
+======
 Nessai
 ======
 
@@ -17,10 +15,6 @@ Nessai
 ``nessai`` is a nested sampling algorithm for Bayesian Inference that incorporates normalising flows. It is designed for applications where the Bayesian likelihood is computationally expensive.
 
 The code is available at: https://github.com/mj-will/nessai.
-
-.. automodule:: nessai
-   :members:
-   :undoc-members:
 
 .. toctree::
    :maxdepth: 1
@@ -43,6 +37,7 @@ The code is available at: https://github.com/mj-will/nessai.
    gaussian-example
    bilby-example
 
+=============
 Citing nessai
 =============
 

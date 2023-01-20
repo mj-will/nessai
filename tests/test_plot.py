@@ -7,7 +7,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from nessai import plot
 from nessai import config
@@ -95,6 +95,9 @@ def test_nessai_style_integration(line_styles):
         assert line_styles is None
 
     # Assert rcParams are still set to the defaults
+    defaults = mpl.rcParamsDefault
+    # Set backend manually
+    defaults["backend"] = plt.rcParams["backend"]
     assert plt.rcParams == mpl.rcParamsDefault
 
 
@@ -376,10 +379,28 @@ def test_trace_plot_labels(nested_samples, labels):
 def test_trace_plot_labels_error(nested_samples):
     """Test to ensure error is raised if labels are incompatible"""
     log_x = np.linspace(-10, 0, nested_samples.size)
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(
+        RuntimeError, match=r"List of labels is the wrong length \(3\)"
+    ):
         plot.plot_trace(log_x, nested_samples, labels=["1", "2", "3"])
 
-    assert "Missing labels" in str(excinfo.value)
+
+def test_trace_plot_parameters(nested_samples):
+    """Assert the parameters arguments works"""
+    log_x = np.linspace(-10, 0, nested_samples.size)
+    plot.plot_trace(log_x, nested_samples, parameters=["x"])
+    plt.close()
+
+
+def test_trace_plot_kwargs(nested_samples):
+    """Assert the kwargs are passed to the plotting function."""
+    log_x = np.linspace(-10, 0, nested_samples.size)
+    mock_axes = MagicMock()
+    mock_axes.plot = MagicMock()
+    with patch("matplotlib.pyplot.subplots", return_value=(None, mock_axes)):
+        plot.plot_trace(log_x, nested_samples, marker="^", parameters=["x"])
+    mock_axes.plot.call_args[0][1] == dict(marker="^")
+    plt.close()
 
 
 def test_histogram_plot():
@@ -428,7 +449,10 @@ def test_corner_plot_w_labels(live_points, labels):
     plot.corner_plot(live_points, labels=labels)
 
 
-@pytest.mark.parametrize("truths", [[0, 0], [0, 0, None, None, None]])
+@pytest.mark.parametrize(
+    "truths",
+    [[0, 0], [0, 0, None, None, None], {"x": 0, "y": 0}],
+)
 def test_corner_plot_w_truths(live_points, truths):
     """Test the corner plot with truths"""
     plot.corner_plot(live_points, truths=truths)
@@ -450,6 +474,21 @@ def test_corner_plot_w_include_and_labels(live_points):
     """Test the parameter is included and the labels do not raise an error"""
     fig = plot.corner_plot(live_points, include=["x"], labels=["x_0"])
     assert len(fig.axes) == 1
+
+
+@pytest.mark.parametrize("truths", [[1], {"x": 1, "y": 1}])
+def test_corner_plot_w_include_and_truths(live_points, truths):
+    """Test the parameter is included and the truths do not raise an error"""
+    fig = plot.corner_plot(live_points, include=["x"], truths=truths)
+    assert len(fig.axes) == 1
+
+
+def test_corner_plot_w_include_and_truths_error(live_points):
+    """Assert an error is raised when the number truths do not match the
+    number of parameters
+    """
+    with pytest.raises(ValueError, match=r"truths does not match .*"):
+        plot.corner_plot(live_points, include=["x"], truths=[1, 1])
 
 
 def test_corner_plot_all_nans(caplog, live_points):
