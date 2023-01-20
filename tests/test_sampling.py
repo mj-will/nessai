@@ -246,7 +246,10 @@ def test_sampling_resume_w_pool(model, flow_config, tmpdir, mp_context):
     Test resuming the sampler with a pool.
     """
     output = str(tmpdir.mkdir("resume"))
-    with patch("multiprocessing.Pool", mp_context.Pool):
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
         fp = FlowSampler(
             model,
             output=output,
