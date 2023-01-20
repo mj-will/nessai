@@ -90,6 +90,7 @@ class Model(ABC):
         variations in the likelihood across the prior.
     """
     _vectorised_likelihood = None
+    _pool_configured = False
 
     @property
     def names(self):
@@ -227,6 +228,8 @@ class Model(ABC):
     def configure_pool(self, pool=None, n_pool=None):
         """Configure a multiprocessing pool for the likelihood computation.
 
+        Configuration will be skipped if the pool has already been configured.
+
         Parameters
         ----------
         pool :
@@ -238,6 +241,9 @@ class Model(ABC):
             Number of threads to use to create an instance of
             :py:obj:`multiprocessing.Pool`.
         """
+        if self._pool_configured:
+            logger.warning("Multiprocessing pool has already been configured.")
+            return
         self.pool = pool
         self.n_pool = n_pool
         if self.pool:
@@ -272,9 +278,13 @@ class Model(ABC):
             )
         else:
             logger.info("pool and n_pool are none, no multiprocessing pool")
+        self._pool_configured = True
 
     def close_pool(self, code=None):
-        """Close the the multiprocessing pool"""
+        """Close the the multiprocessing pool.
+
+        Also resets the pool configuration.
+        """
         if getattr(self, "pool", None) is not None:
             logger.info("Starting to close worker pool.")
             if code == 2:
@@ -284,6 +294,7 @@ class Model(ABC):
             self.pool.join()
             self.pool = None
             logger.info("Finished closing worker pool.")
+        self._pool_configured = False
 
     def new_point(self, N=1):
         """
