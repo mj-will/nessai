@@ -4,9 +4,7 @@ import pytest
 
 from nessai import config
 import nessai.livepoint as lp
-from nessai.utils.testing import (
-    assert_structured_arrays_equal as assert_lp_equal,
-)
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 EXTRA_PARAMS_DTYPE = [
@@ -15,6 +13,30 @@ EXTRA_PARAMS_DTYPE = [
         config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
     )
 ]
+
+
+def assert_lp_equal(x, y, non_sampling_parameters=True):
+    """Custom assertion that can skip the non-sampling parameters"""
+    if non_sampling_parameters:
+        assert_structured_arrays_equal(x, y)
+    else:
+        for nsp in config.NON_SAMPLING_PARAMETERS:
+            if nsp in x.dtype.names:
+                raise AttributeError(
+                    "x has non-sampling parameters but "
+                    f"non_sampling_parameters=False. x dtype: {x.dtype}"
+                )
+
+        names = [
+            n for n in x.dtype.names if n not in config.NON_SAMPLING_PARAMETERS
+        ]
+        y = np.lib.recfunctions.repack_fields(y[names])
+        assert_structured_arrays_equal(x, y)
+
+
+@pytest.fixture(params=[True, False])
+def non_sampling_parameters(request):
+    return request.param
 
 
 @pytest.fixture(autouse=True, params=[[], ["logQ", "logW"]])
@@ -101,11 +123,13 @@ def test_get_dtype():
     assert dtype == expected
 
 
-def test_empty_structured_array_names():
+def test_empty_structured_array_names(non_sampling_parameters):
     """Assert the correct default values are used when specifying names"""
     n = 10
     fields = ["x", "y"]
-    array = lp.empty_structured_array(n, names=fields)
+    array = lp.empty_structured_array(
+        n, names=fields, non_sampling_parameters=non_sampling_parameters
+    )
     for f in fields:
         np.testing.assert_array_equal(
             array[f], config.DEFAULT_FLOAT_VALUE * np.ones(n)
@@ -113,14 +137,21 @@ def test_empty_structured_array_names():
     for nsp, v in zip(
         config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
     ):
-        np.testing.assert_array_equal(array[nsp], v * np.ones(n))
+        if non_sampling_parameters:
+            np.testing.assert_array_equal(array[nsp], v * np.ones(n))
+        else:
+            assert nsp not in array.dtype.names
 
 
-def test_empty_structured_array_dtype():
+def test_empty_structured_array_dtype(non_sampling_parameters):
     """Assert the correct default values are used when specifying the dtype"""
     n = 10
-    dtype = [("x", "f8"), ("y", "f8")] + EXTRA_PARAMS_DTYPE
-    array = lp.empty_structured_array(n, dtype=dtype)
+    dtype = [("x", "f8"), ("y", "f8")]
+    if non_sampling_parameters:
+        dtype += EXTRA_PARAMS_DTYPE
+    array = lp.empty_structured_array(
+        n, dtype=dtype, non_sampling_parameters=non_sampling_parameters
+    )
     for f in ["x", "y"]:
         np.testing.assert_array_equal(
             array[f], config.DEFAULT_FLOAT_VALUE * np.ones(n)
@@ -128,10 +159,14 @@ def test_empty_structured_array_dtype():
     assert array.dtype == dtype
 
 
-def test_empty_structured_array_zero_points():
+def test_empty_structured_array_zero_points(non_sampling_parameters):
     """Assert setting n=0 works correctly"""
-    dtype = [("x", "f8"), ("y", "f8")] + EXTRA_PARAMS_DTYPE
-    array = lp.empty_structured_array(0, names=["x", "y"])
+    dtype = [("x", "f8"), ("y", "f8")]
+    if non_sampling_parameters:
+        dtype += EXTRA_PARAMS_DTYPE
+    array = lp.empty_structured_array(
+        0, names=["x", "y"], non_sampling_parameters=non_sampling_parameters
+    )
     assert len(array) == 0
     assert array.dtype == dtype
 
@@ -145,13 +180,19 @@ def test_empty_structured_array_dtype_missing():
     assert "non-sampling parameters" in str(excinfo.value)
 
 
-def test_parameters_to_live_point(live_point):
+def test_parameters_to_live_point(live_point, non_sampling_parameters):
     """
     Test function that produces a single live point given the parameter
     values for the live point as a live or an array
     """
-    x = lp.parameters_to_live_point([1.0, 2.0, 3.0], ["x", "y", "z"])
-    assert_lp_equal(x, live_point)
+    x = lp.parameters_to_live_point(
+        [1.0, 2.0, 3.0],
+        ["x", "y", "z"],
+        non_sampling_parameters=non_sampling_parameters,
+    )
+    assert_lp_equal(
+        x, live_point, non_sampling_parameters=non_sampling_parameters
+    )
 
 
 def test_empty_parameters_to_live_point(empty_live_point):
@@ -164,24 +205,38 @@ def test_empty_parameters_to_live_point(empty_live_point):
     )
 
 
-def test_numpy_array_to_live_point(live_point):
+def test_numpy_array_to_live_point(live_point, non_sampling_parameters):
     """
     Test the function the produces an array of live points given numpy array
     of shape [# dimensions]
     """
     array = np.array([1.0, 2.0, 3.0])
-    x = lp.numpy_array_to_live_points(array, names=["x", "y", "z"])
-    assert_lp_equal(live_point, x)
+    x = lp.numpy_array_to_live_points(
+        array,
+        names=["x", "y", "z"],
+        non_sampling_parameters=non_sampling_parameters,
+    )
+    assert_lp_equal(
+        x, live_point, non_sampling_parameters=non_sampling_parameters
+    )
 
 
-def test_numpy_array_multiple_to_live_points(live_points):
+def test_numpy_array_multiple_to_live_points(
+    live_points, non_sampling_parameters
+):
     """
     Test the function the produces an array of live points given numpy array
     of shape [# point, # dimensions]
     """
     array = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-    x = lp.numpy_array_to_live_points(array, names=["x", "y", "z"])
-    assert_lp_equal(live_points, x)
+    x = lp.numpy_array_to_live_points(
+        array,
+        names=["x", "y", "z"],
+        non_sampling_parameters=non_sampling_parameters,
+    )
+    assert_lp_equal(
+        x, live_points, non_sampling_parameters=non_sampling_parameters
+    )
 
 
 def test_empty_numpy_array_to_live_points(empty_live_point):
@@ -202,13 +257,17 @@ def test_empty_numpy_array_to_live_points(empty_live_point):
         {"x": 1.0, "y": 2.0, "z": 3.0},
     ],
 )
-def test_dict_to_live_point(live_point, d):
+def test_dict_to_live_point(live_point, d, non_sampling_parameters):
     """
     Test the function that converts a dictionary with a single live point to
     a live point array
     """
-    x = lp.dict_to_live_points(d)
-    assert_lp_equal(live_point, x)
+    x = lp.dict_to_live_points(
+        d, non_sampling_parameters=non_sampling_parameters
+    )
+    assert_lp_equal(
+        x, live_point, non_sampling_parameters=non_sampling_parameters
+    )
 
 
 @pytest.mark.parametrize(
@@ -218,13 +277,17 @@ def test_dict_to_live_point(live_point, d):
         {"x": np.array([1, 4]), "y": np.array([2, 5]), "z": np.array([3, 6])},
     ],
 )
-def test_dict_multiple_to_live_points(live_points, d):
+def test_dict_multiple_to_live_points(live_points, d, non_sampling_parameters):
     """
     Test the function that converts a dictionary with multiple live points to
     a live point array
     """
-    x = lp.dict_to_live_points(d)
-    assert_lp_equal(live_points, x)
+    x = lp.dict_to_live_points(
+        d, non_sampling_parameters=non_sampling_parameters
+    )
+    assert_lp_equal(
+        x, live_points, non_sampling_parameters=non_sampling_parameters
+    )
 
 
 def test_empty_dict_to_live_points(empty_live_point):
@@ -237,11 +300,13 @@ def test_empty_dict_to_live_points(empty_live_point):
     )
 
 
-def test_dataframe_to_live_points(live_points):
+def test_dataframe_to_live_points(live_points, non_sampling_parameters):
     """Test converting from a pandas dataframe to live points."""
     df = pd.DataFrame({"x": [1, 4], "y": [2, 5], "z": [3, 6]})
-    out = lp.dataframe_to_live_points(df)
-    assert_lp_equal(out, live_points)
+    out = lp.dataframe_to_live_points(
+        df, non_sampling_parameters=non_sampling_parameters
+    )
+    assert_lp_equal(out, live_points, non_sampling_parameters)
 
 
 def test_live_point_to_numpy_array(live_point):

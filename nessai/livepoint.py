@@ -73,7 +73,9 @@ def reset_extra_live_points_parameters():
     )
 
 
-def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
+def get_dtype(
+    names, array_dtype=config.DEFAULT_FLOAT_DTYPE, non_sampling_parameters=True
+):
     """
     Get a list of tuples containing the dtypes for the structured array
 
@@ -83,24 +85,28 @@ def get_dtype(names, array_dtype=config.DEFAULT_FLOAT_DTYPE):
         Names of parameters
     array_dtype : optional
         dtype to use
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
     numpy.dtype
         A instance of :code:`numpy.dtype`.
     """
-    return np.dtype(
-        [(n, array_dtype) for n in names]
-        + list(
+    dtype = [(n, array_dtype) for n in names]
+    if non_sampling_parameters:
+        dtype += list(
             zip(
                 config.NON_SAMPLING_PARAMETERS,
                 config.NON_SAMPLING_DEFAULT_DTYPE,
             )
         )
-    )
+    return np.dtype(dtype)
 
 
-def empty_structured_array(n, names=None, dtype=None):
+def empty_structured_array(
+    n, names=None, dtype=None, non_sampling_parameters=True
+):
     """Get an empty structured array with the extra parameters initialised.
 
     Parameters
@@ -112,6 +118,8 @@ def empty_structured_array(n, names=None, dtype=None):
     names : Optional[list]
         Names of fields (excluding non-sampling parameters) to construct the
         dtype. Must be specified if :code:`dtype` is not specified.
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
@@ -120,7 +128,9 @@ def empty_structured_array(n, names=None, dtype=None):
         default values.
     """
     if dtype is None:
-        dtype = get_dtype(names)
+        dtype = get_dtype(
+            names, non_sampling_parameters=non_sampling_parameters
+        )
     else:
         dtype = np.dtype(dtype)
         names = [
@@ -132,16 +142,17 @@ def empty_structured_array(n, names=None, dtype=None):
     if n == 0:
         return struct_array
     struct_array[names] = config.DEFAULT_FLOAT_VALUE
-    try:
-        for nm, v in zip(
-            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
-        ):
-            struct_array[nm] = v
-    except ValueError:
-        raise ValueError(
-            "Could not create empty structured array. Maybe the non-sampling "
-            "parameters are missing?"
-        )
+    if non_sampling_parameters:
+        try:
+            for nm, v in zip(
+                config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
+            ):
+                struct_array[nm] = v
+        except ValueError:
+            raise ValueError(
+                "Could not create empty structured array. Maybe the "
+                "non-sampling parameters are missing?"
+            )
     return struct_array
 
 
@@ -167,7 +178,7 @@ def live_points_to_array(live_points, names=None):
     return rfn.structured_to_unstructured(live_points[names])
 
 
-def parameters_to_live_point(parameters, names):
+def parameters_to_live_point(parameters, names, non_sampling_parameters=True):
     """
     Take a list or array of parameters for a single live point
     and converts them to a live point.
@@ -180,6 +191,8 @@ def parameters_to_live_point(parameters, names):
         Float point values for each parameter
     names : tuple
         Names for each parameter as strings
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
@@ -187,15 +200,25 @@ def parameters_to_live_point(parameters, names):
         Numpy structured array with fields given by names plus logP and logL
     """
     if not len(parameters):
-        return empty_structured_array(0, names)
+        return empty_structured_array(
+            0, names, non_sampling_parameters=non_sampling_parameters
+        )
     else:
+        if non_sampling_parameters:
+            parameters = [(*parameters, *config.NON_SAMPLING_DEFAULTS)]
+        else:
+            parameters = [tuple(parameters)]
         return np.array(
-            [(*parameters, *config.NON_SAMPLING_DEFAULTS)],
-            dtype=get_dtype(names, config.DEFAULT_FLOAT_DTYPE),
+            parameters,
+            dtype=get_dtype(
+                names,
+                config.DEFAULT_FLOAT_DTYPE,
+                non_sampling_parameters=non_sampling_parameters,
+            ),
         )
 
 
-def numpy_array_to_live_points(array, names):
+def numpy_array_to_live_points(array, names, non_sampling_parameters=True):
     """
     Convert a numpy array to a numpy structure array with the correct fields
 
@@ -205,6 +228,8 @@ def numpy_array_to_live_points(array, names):
         Instance of np.ndarray to convert to a structured array
     names : tuple
         Names for each parameter as strings
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
@@ -212,16 +237,22 @@ def numpy_array_to_live_points(array, names):
         Numpy structured array with fields given by names plus logP and logL
     """
     if array.size == 0:
-        return empty_structured_array(0, names=names)
+        return empty_structured_array(
+            0, names=names, non_sampling_parameters=non_sampling_parameters
+        )
     if array.ndim == 1:
         array = array[np.newaxis, :]
-    struct_array = empty_structured_array(len(array), names=names)
+    struct_array = empty_structured_array(
+        len(array),
+        names=names,
+        non_sampling_parameters=non_sampling_parameters,
+    )
     for i, n in enumerate(names):
         struct_array[n] = array[..., i]
     return struct_array
 
 
-def dict_to_live_points(d):
+def dict_to_live_points(d, non_sampling_parameters=True):
     """Convert a dictionary with parameters names as keys to live points.
 
     Assumes all entries have the same length. Also, determines number of points
@@ -233,24 +264,36 @@ def dict_to_live_points(d):
     d : dict
         Dictionary with parameters names as keys and values that correspond
         to one or more parameters
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
     structured_array
         Numpy structured array with fields given by names plus logP and logL
     """
-    a = list(d.values())
+    a = tuple(d.values())
     if hasattr(a[0], "__len__"):
         N = len(a[0])
     else:
         N = 1
     if N == 1:
+        if non_sampling_parameters:
+            a = (*a, *config.NON_SAMPLING_DEFAULTS)
         return np.array(
-            [(*a, *config.NON_SAMPLING_DEFAULTS)],
-            dtype=get_dtype(d.keys(), config.DEFAULT_FLOAT_DTYPE),
+            [a],
+            dtype=get_dtype(
+                d.keys(),
+                config.DEFAULT_FLOAT_DTYPE,
+                non_sampling_parameters=non_sampling_parameters,
+            ),
         )
     else:
-        array = empty_structured_array(N, names=list(d.keys()))
+        array = empty_structured_array(
+            N,
+            names=list(d.keys()),
+            non_sampling_parameters=non_sampling_parameters,
+        )
         for k, v in d.items():
             array[k] = v
         return array
@@ -279,10 +322,10 @@ def live_points_to_dict(live_points, names=None):
     return {f: live_points[f] for f in names}
 
 
-def dataframe_to_live_points(df):
+def dataframe_to_live_points(df, non_sampling_parameters=True):
     """Convert and pandas dataframe to live points.
 
-    Adds the additional parameters logL and logP initialised to zero.
+    Adds the non-sampling parameter initialised to their defaults.
 
     Based on this answer on Stack Exchange:
     https://stackoverflow.com/a/51280608
@@ -291,6 +334,8 @@ def dataframe_to_live_points(df):
     ----------
     df : :obj:`pandas.DataFrame`
         Pandas DataFrame to convert to live points
+    non_sampling_parameters : bool
+        Indicates whether non-sampling parameters should be included.
 
     Returns
     -------
@@ -298,9 +343,16 @@ def dataframe_to_live_points(df):
         Numpy structured array with fields given by column names plus logP and
         logL.
     """
+    if non_sampling_parameters:
+        extra = tuple(config.NON_SAMPLING_DEFAULTS)
+    else:
+        extra = tuple()
     return np.array(
-        [tuple(x) + tuple(config.NON_SAMPLING_DEFAULTS) for x in df.values],
-        dtype=get_dtype(list(df.dtypes.index)),
+        [tuple(x) + extra for x in df.values],
+        dtype=get_dtype(
+            list(df.dtypes.index),
+            non_sampling_parameters=non_sampling_parameters,
+        ),
     )
 
 
