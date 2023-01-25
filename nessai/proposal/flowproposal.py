@@ -735,6 +735,7 @@ class FlowProposal(RejectionProposal):
             self.reparameterisations = {
                 "rescaletobounds": {
                     "parameters": self.rescale_parameters,
+                    "rescale_bounds": self.rescale_bounds,
                     "update_bounds": self.update_bounds,
                     "boundary_inversion": self.boundary_inversion,
                     "inversion_type": self.inversion_type,
