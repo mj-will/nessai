@@ -30,8 +30,6 @@ from ..utils import (
     compute_radius,
     get_uniform_distribution,
     get_multivariate_normal,
-    detect_edge,
-    configure_edge_detection,
     save_live_points,
 )
 
@@ -258,9 +256,7 @@ class FlowProposal(RejectionProposal):
         self.volume_fraction = volume_fraction
 
         self.detect_edges = detect_edges
-        self.detect_edges_kwargs = configure_edge_detection(
-            detect_edges_kwargs, detect_edges
-        )
+        self.detect_edges_kwargs = detect_edges_kwargs
 
         self.compute_radius_with_all = compute_radius_with_all
         self.configure_fixed_radius(fixed_radius)
@@ -569,48 +565,6 @@ class FlowProposal(RejectionProposal):
             if self._poolsize_scale < 1.0:
                 self._poolsize_scale = 1.0
 
-    def set_boundary_inversion(self):
-        """
-        Setup boundary inversion
-        """
-        if self.boundary_inversion:
-            if not self.rescale_parameters:
-                raise RuntimeError("Boundary inversion requires rescaling")
-
-            if isinstance(self.boundary_inversion, list) and not set(
-                self.boundary_inversion
-            ).issubset(self.names):
-                raise RuntimeError("Boundaries are not in known parameters")
-            elif isinstance(self.rescale_parameters, list):
-                if isinstance(self.boundary_inversion, list) and not set(
-                    self.boundary_inversion
-                ).issubset(self.rescale_parameters):
-                    raise RuntimeError(
-                        "Boundaries are not in rescaled parameters"
-                    )
-
-            if not isinstance(self.boundary_inversion, list):
-                if isinstance(self.rescale_parameters, list):
-                    self.boundary_inversion = self.rescale_parameters.copy()
-                else:
-                    self.boundary_inversion = self.names.copy()
-
-            logger.info(
-                "Appyling boundary inversion to: " f"{self.boundary_inversion}"
-            )
-
-            if self.inversion_type not in ("split", "duplicate"):
-                raise RuntimeError(
-                    f"Unknown inversion type: {self.inversion_type}"
-                )
-
-            self.rescale_bounds = [0, 1]
-            self.update_bounds = True
-            self._edges = {n: None for n in self.boundary_inversion}
-            logger.info(f"Changing bounds to {self.rescale_bounds}")
-        else:
-            self.boundary_inversion = []
-
     def add_default_reparameterisations(self):
         """Add any reparameterisations which are assumed by default"""
         logger.debug("No default reparameterisations")
@@ -723,7 +677,7 @@ class FlowProposal(RejectionProposal):
 
         other_params = [
             n
-            for n in self.names
+            for n in self.model.names
             if n not in self._reparameterisation.parameters
         ]
         if other_params:
@@ -762,9 +716,6 @@ class FlowProposal(RejectionProposal):
 
         self._reparameterisation.check_order()
 
-        self.rescale = self._rescale_w_reparameterisation
-        self.inverse_rescale = self._inverse_rescale_w_reparameterisation
-
         self.names = self._reparameterisation.parameters
         self.rescaled_names = self._reparameterisation.prime_parameters
         self.rescale_parameters = [
@@ -777,47 +728,32 @@ class FlowProposal(RejectionProposal):
         """
         Set function and parameter names for rescaling
         """
-        self.names = self.model.names.copy()
-        self.rescaled_names = self.names.copy()
-
-        self.set_boundary_inversion()
-
         if self.model.reparameterisations is not None:
-            self.configure_reparameterisations(self.model.reparameterisations)
             self.reparameterisations = self.model.reparameterisations
         elif (
             self.reparameterisations is not None
             or self.use_default_reparameterisations
         ):
-            self.configure_reparameterisations(self.reparameterisations)
+            pass
         elif self.rescale_parameters:
-            # if rescale is a list, there are the parameters to rescale
-            # else all parameters are rescale
             if not isinstance(self.rescale_parameters, list):
-                self.rescale_parameters = self.names.copy()
+                self.rescale_parameters = self.model.names.copy()
 
-            for i, rn in enumerate(self.rescaled_names):
-                if rn in self.rescale_parameters:
-                    self.rescaled_names[i] += "_prime"
+            self.reparameterisations = {
+                "rescaletobounds": {
+                    "parameters": self.rescale_parameters,
+                    "update_bounds": self.update_bounds,
+                    "boundary_inversion": self.boundary_inversion,
+                    "inversion_type": self.inversion_type,
+                    "detect_edges": self.detect_edges,
+                    "detect_edges_kwargs": self.detect_edges_kwargs,
+                },
+            }
 
-            self._min = {n: self.model.bounds[n][0] for n in self.model.names}
-            self._max = {n: self.model.bounds[n][1] for n in self.model.names}
-            self._rescale_factor = np.ptp(self.rescale_bounds)
-            self._rescale_shift = self.rescale_bounds[0]
-
-            self.rescale = self._rescale_to_bounds
-            self.inverse_rescale = self._inverse_rescale_to_bounds
-            logger.info(f"Set to rescale inputs to {self.rescale_bounds}")
-
-            if self.update_bounds:
-                logger.info(
-                    "Rescaling will use min and max of current live points"
-                )
-            else:
-                logger.info("Rescaling will use model bounds")
+        self.configure_reparameterisations(self.reparameterisations)
 
         logger.info(f"x space parameters: {self.names}")
-        logger.info(f"parameters to rescale {self.rescale_parameters}")
+        logger.info(f"parameters to rescale: {self.rescale_parameters}")
         logger.info(f"x prime space parameters: {self.rescaled_names}")
         self.rescaling_set = True
 
@@ -864,120 +800,6 @@ class FlowProposal(RejectionProposal):
 
         logger.info("Rescaling functions are invertible")
 
-    def _rescale_w_reparameterisation(self, x, compute_radius=False, **kwargs):
-        x_prime = empty_structured_array([x.size], dtype=self.x_prime_dtype)
-        log_J = np.zeros(x_prime.size)
-
-        if x.size == 1:
-            x = np.array([x], dtype=x.dtype)
-
-        x, x_prime, log_J = self._reparameterisation.reparameterise(
-            x, x_prime, log_J, compute_radius=compute_radius, **kwargs
-        )
-
-        for p in config.NON_SAMPLING_PARAMETERS:
-            x_prime[p] = x[p]
-        return x_prime, log_J
-
-    def _inverse_rescale_w_reparameterisation(self, x_prime, **kwargs):
-        x = empty_structured_array([x_prime.size], dtype=self.x_dtype)
-        log_J = np.zeros(x.size)
-        x, x_prime, log_J = self._reparameterisation.inverse_reparameterise(
-            x, x_prime, log_J, **kwargs
-        )
-
-        for p in config.NON_SAMPLING_PARAMETERS:
-            x[p] = x_prime[p]
-        return x, log_J
-
-    def _rescale_to_bounds(self, x, compute_radius=False, test=None):
-        """
-        Rescale the inputs to specified bounds
-        """
-        x_prime = np.zeros([x.size], dtype=self.x_prime_dtype)
-        log_J = np.zeros(x_prime.size)
-
-        if x.size == 1:
-            x = np.array([x], dtype=x.dtype)
-
-        for n, rn in zip(self.names, self.rescaled_names):
-            if n not in self.model.names:
-                continue
-            if n in self.rescale_parameters:
-                x_prime[rn] = (
-                    self._rescale_factor
-                    * ((x[n] - self._min[n]) / (self._max[n] - self._min[n]))
-                    + self._rescale_shift
-                )
-
-                log_J += -np.log(self._max[n] - self._min[n]) + np.log(
-                    self._rescale_factor
-                )
-                if n in self.boundary_inversion:
-                    if self._edges[n] is None:
-                        logger.debug("Determining edge")
-                        self._edges[n] = detect_edge(
-                            x_prime[rn], test=test, **self.detect_edges_kwargs
-                        )
-                    if self._edges[n]:
-                        logger.debug(
-                            f"Apply inversion for {n} to "
-                            f"{self._edges[n]} bound"
-                        )
-                        if self._edges[n] == "upper":
-                            x_prime[rn] = 1 - x_prime[rn]
-                        if (
-                            self.inversion_type == "duplicate"
-                            or compute_radius
-                        ):
-                            x_inv = x_prime.copy()
-                            x_inv[rn] *= -1
-                            x_prime = np.concatenate([x_prime, x_inv])
-                            x = np.concatenate([x, x])
-                            log_J = np.concatenate([log_J, log_J])
-                        else:
-                            inv = np.random.choice(
-                                x_prime.size, x_prime.size // 2, replace=False
-                            )
-                            x_prime[rn][inv] *= -1
-                    else:
-                        logger.debug(f"Not using inversion for {n}")
-            else:
-                x_prime[rn] = x[n]
-        for p in config.NON_SAMPLING_PARAMETERS:
-            x_prime[p] = x[p]
-        return x_prime, log_J
-
-    def _inverse_rescale_to_bounds(self, x_prime):
-        """
-        Rescale the inputs from the prime space to the physical space
-        using the bounds specified
-        """
-        x = np.zeros([x_prime.size], dtype=self.x_dtype)
-        log_J = np.zeros(x_prime.size)
-        for n, rn in zip(self.names, self.rescaled_names):
-            if n in self.rescale_parameters:
-                if n in self.boundary_inversion:
-                    inv = x_prime[rn] < 0.0
-                    x_prime[rn][~inv] = x_prime[rn][~inv]
-                    x_prime[rn][inv] = -x_prime[rn][inv]
-
-                    if self._edges[n] == "upper":
-                        x_prime[rn] = 1 - x_prime[rn]
-
-                x[n] = (self._max[n] - self._min[n]) * (
-                    x_prime[rn] - self._rescale_shift
-                ) / self._rescale_factor + self._min[n]
-
-                log_J += np.log(self._max[n] - self._min[n]) - np.log(
-                    self._rescale_factor
-                )
-            else:
-                x[n] = x_prime[rn]
-        for p in config.NON_SAMPLING_PARAMETERS:
-            x[p] = x_prime[p]
-        return x, log_J
-
     def rescale(self, x, compute_radius=False, **kwargs):
         """
         Rescale from the physical space to the primed physical space
@@ -998,8 +820,19 @@ class FlowProposal(RejectionProposal):
         array
             Array of log det|J|
         """
-        log_J = np.zeros(x.size)
-        return x, log_J
+        x_prime = empty_structured_array(x.size, dtype=self.x_prime_dtype)
+        log_J = np.zeros(x_prime.size)
+
+        if x.size == 1:
+            x = np.array([x], dtype=x.dtype)
+
+        x, x_prime, log_J = self._reparameterisation.reparameterise(
+            x, x_prime, log_J, compute_radius=compute_radius, **kwargs
+        )
+
+        for p in config.NON_SAMPLING_PARAMETERS:
+            x_prime[p] = x[p]
+        return x_prime, log_J
 
     def inverse_rescale(self, x_prime, **kwargs):
         """
@@ -1018,8 +851,15 @@ class FlowProposal(RejectionProposal):
         array
             Array of log-Jacobian determinants.
         """
-        log_J = np.zeros(x_prime.size)
-        return x_prime, log_J
+        x = empty_structured_array(x_prime.size, dtype=self.x_dtype)
+        log_J = np.zeros(x.size)
+        x, x_prime, log_J = self._reparameterisation.inverse_reparameterise(
+            x, x_prime, log_J, **kwargs
+        )
+
+        for p in config.NON_SAMPLING_PARAMETERS:
+            x[p] = x_prime[p]
+        return x, log_J
 
     def check_state(self, x):
         """
@@ -1032,19 +872,12 @@ class FlowProposal(RejectionProposal):
         x: array_like
             Array of training live points which can be used to set parameters
         """
-        if self.boundary_inversion:
+        if self.boundary_inversion and self._reparameterisation:
             logger.debug("Resetting inversion")
-            if self._reparameterisation is not None:
-                self._reparameterisation.reset_inversion()
-            else:
-                self._edges = {n: None for n in self.boundary_inversion}
-        if self.update_bounds:
+            self._reparameterisation.reset_inversion()
+        if self.update_bounds and self._reparameterisation:
             logger.debug("Updating bounds")
-            if self._reparameterisation is not None:
-                self._reparameterisation.update_bounds(x)
-            else:
-                self._min = {n: np.min(x[n]) for n in self.model.names}
-                self._max = {n: np.max(x[n]) for n in self.model.names}
+            self._reparameterisation.update_bounds(x)
 
     @nessai_style()
     def _plot_training_data(self, output):
