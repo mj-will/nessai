@@ -194,9 +194,12 @@ class RescaleToBounds(Reparameterisation):
             elif isinstance(boundary_inversion, dict):
                 self.boundary_inversion = boundary_inversion
             elif isinstance(boundary_inversion, bool):
-                self.boundary_inversion = {
-                    p: inversion_type for p in self.parameters
-                }
+                if boundary_inversion:
+                    self.boundary_inversion = {
+                        p: inversion_type for p in self.parameters
+                    }
+                else:
+                    self.boundary_inversion = []
             else:
                 raise TypeError(
                     "boundary_inversion must be a list, dict or bool. "
