@@ -263,12 +263,6 @@ def test_reset_integration(tmpdir, model):
 
     d1 = proposal.__getstate__()
     d2 = modified_proposal.__getstate__()
-    for d in [d1, d2]:
-        del d["_min"]
-        del d["_max"]
-        del d["rescale"]
-        del d["inverse_rescale"]
-
     assert d1 == d2
 
 
