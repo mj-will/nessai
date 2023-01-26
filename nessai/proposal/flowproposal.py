@@ -595,7 +595,7 @@ class FlowProposal(RejectionProposal):
             )
 
         for k, cfg in _reparameterisations.items():
-            if k in self.names:
+            if k in self.model.names:
                 logger.debug(
                     f"Found parameter {k} in model, "
                     "assuming it is a parameter"
