@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Removed `nessai._NSIntegralState.reset`
+- Removed `nessai.gw.legacy`
 
 ## [0.7.1]
 
