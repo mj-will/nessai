@@ -33,10 +33,10 @@ def test_get_reparameterisation(proposal):
 def test_add_default_reparameterisation(proposal):
     """Test the method `add_default_reparameterisation`"""
     proposal.aliases = GWFlowProposal.aliases
-    proposal.names = ["chirp_mass", "theta_jn"]
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.parameters = ["chirp_mass"]
     proposal.model = MagicMock()
+    proposal.model.names = ["chirp_mass", "theta_jn"]
     proposal.model.bounds = {
         "chirp_mass": [10.0, 20.0],
         "theta_jn": [0.0, 3.0],
