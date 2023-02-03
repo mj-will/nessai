@@ -856,22 +856,17 @@ class FlowProposal(RejectionProposal):
         return x, log_J
 
     def check_state(self, x):
-        """
-        Operations that need to checked before training. These include
-        updating the bounds for rescaling and resetting the bounds for
-        inversion.
+        """Update the state of the proposal given some training data.
+
+        Includes updating the reparameterisations.
 
         Parameters
         ----------
         x: array_like
             Array of training live points which can be used to set parameters
         """
-        if self.boundary_inversion and self._reparameterisation:
-            logger.debug("Resetting inversion")
-            self._reparameterisation.reset_inversion()
-        if self.update_bounds and self._reparameterisation:
-            logger.debug("Updating bounds")
-            self._reparameterisation.update_bounds(x)
+        if self._reparameterisation:
+            self._reparameterisation.update(x)
 
     @nessai_style()
     def _plot_training_data(self, output):
