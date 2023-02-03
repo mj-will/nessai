@@ -197,7 +197,6 @@ class FlowProposal(RejectionProposal):
         fallback_reparameterisation=None,
         use_default_reparameterisations=None,
         reverse_reparameterisations=False,
-        **kwargs,
     ):
 
         super(FlowProposal, self).__init__(model)
@@ -274,12 +273,6 @@ class FlowProposal(RejectionProposal):
             self.draw_latent_kwargs = draw_latent_kwargs
         self.configure_latent_prior()
         self.alt_dist = None
-
-        if kwargs:
-            kwargs.pop("max_threads", None)
-            logger.warning(
-                f"Extra kwargs were parsed to FlowProposal: {kwargs}"
-            )
 
     @property
     def poolsize(self):
