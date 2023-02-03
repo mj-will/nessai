@@ -17,7 +17,6 @@ from nessai.gw.proposal import (
     AugmentedGWFlowProposal,
     GWFlowProposal,
 )
-from nessai.gw.legacy import LegacyGWFlowProposal
 
 
 @pytest.fixture
@@ -130,12 +129,10 @@ def test_no_flow_proposal_class(sampler):
         ["AugmentedFlowProposal", AugmentedFlowProposal],
         ["GWFlowProposal", GWFlowProposal],
         ["AugmentedGWFlowProposal", AugmentedGWFlowProposal],
-        ["LegacyGWFlowProposal", LegacyGWFlowProposal],
         ["flowproposal", FlowProposal],
         ["augmentedflowproposal", AugmentedFlowProposal],
         ["gwflowproposal", GWFlowProposal],
         ["augmentedgwflowproposal", AugmentedGWFlowProposal],
-        ["legacygwflowproposal", LegacyGWFlowProposal],
     ],
 )
 def test_flow__class(flow_class, result_class, sampler):
