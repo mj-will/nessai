@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rework logging statements to reduce the amount of information printed by default.
 - Refactor `nessai.proposal.FlowProposal.verify_rescaling` to be stricter.
 - Truth input in `nessai.plot.corner_plot` can now be an iterable or a dictionary.
+- Tweak how the prior volume is computed for the final nested sample. This will also change the evidence and posterior weights.
 
 ### Removed
 
