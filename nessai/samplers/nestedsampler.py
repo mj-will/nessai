@@ -474,7 +474,7 @@ class NestedSampler(BaseNestedSampler):
 
         kwargs = check_proposal_kwargs(flow_class, kwargs)
 
-        logger.info(f"Parsing kwargs to FlowProposal: {kwargs}")
+        logger.info(f"Passing kwargs to {flow_class.__name__}: {kwargs}")
         self._flow_proposal = flow_class(
             self.model,
             flow_config=flow_config,
