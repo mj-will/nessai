@@ -86,7 +86,10 @@ def test_sampling_with_inversion(model, flow_config, tmpdir):
         update_bounds=True,
     )
     fp.run()
-    assert fp.ns.proposal.boundary_inversion == ["x", "y"]
+    reparams = list(fp.ns.proposal._reparameterisation.values())
+    assert len(reparams) == 1
+    assert reparams[0].parameters == ["x", "y"]
+    assert list(reparams[0].boundary_inversion.keys()) == ["x", "y"]
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
 

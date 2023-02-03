@@ -283,7 +283,7 @@ def test_log_prior(reparam):
     r3.log_prior = MagicMock(return_value=-6)
     reparam.values = MagicMock(return_value=[r1, r2, r3])
 
-    x = [1, 2]
+    x = np.array([(1, 2)], dtype=[("x", "f8"), ("y", "f8")])
 
     out = CombinedReparameterisation.log_prior(reparam, x)
 
@@ -301,7 +301,7 @@ def test_x_prime_log_prior(reparam):
     r2.x_prime_log_prior = MagicMock(return_value=-5)
     reparam.values = MagicMock(return_value=[r1, r2])
 
-    x = [1, 2]
+    x = np.array([(1, 2)], dtype=[("x", "f8"), ("y", "f8")])
 
     out = CombinedReparameterisation.x_prime_log_prior(reparam, x)
 

@@ -617,29 +617,10 @@ def test_verify_rescaling_rescaling_not_set(proposal):
         FlowProposal.verify_rescaling(proposal)
 
 
-def test_check_state_boundary_inversion_reparameterisations(proposal):
-    """
-    Test the check state method for boundary inversion with
-    reparameterisations.
-    """
+def test_check_state_update(proposal):
+    """Assert the update method is called"""
     x = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
     proposal._reparameterisation = Mock()
-    proposal._reparameterisation.reset_inversion = MagicMock()
-    proposal.boundary_inversion = ["x", "y"]
-    proposal.update_bounds = False
+    proposal._reparameterisation.update = MagicMock()
     FlowProposal.check_state(proposal, x)
-    proposal._reparameterisation.reset_inversion.assert_called_once()
-
-
-def test_check_state_update_bounds_reparameterisations(proposal):
-    """
-    Test the check state method for updating bounds.
-    """
-    x = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
-    proposal._reparameterisation = Mock()
-    proposal._reparameterisation.update_bounds = MagicMock()
-    proposal.boundary_inversion = False
-    proposal.update_bounds = True
-
-    FlowProposal.check_state(proposal, x)
-    proposal._reparameterisation.update_bounds.assert_called_once()
+    proposal._reparameterisation.update.assert_called_once_with(x)
