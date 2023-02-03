@@ -180,6 +180,11 @@ class CombinedReparameterisation(dict):
             if hasattr(r, "reset_inversion"):
                 r.reset_inversion()
 
+    def update(self, x):
+        """Update the reparameterisations given a set of points."""
+        for r in self.values():
+            r.update(x)
+
     def log_prior(self, x):
         """
         Compute any additional priors for auxiliary parameters

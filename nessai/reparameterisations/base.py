@@ -132,3 +132,10 @@ class Reparameterisation:
             Updated log Jacobian determinant
         """
         raise NotImplementedError
+
+    def update(self, x):
+        """Update the reparameterisation given some points.
+
+        Does nothing by default.
+        """
+        pass

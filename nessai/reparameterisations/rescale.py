@@ -160,6 +160,7 @@ class RescaleToBounds(Reparameterisation):
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
 
         self.bounds = None
+        self._edges = None
         self.detect_edge_prime = False
 
         self.has_pre_rescaling = True
@@ -499,7 +500,8 @@ class RescaleToBounds(Reparameterisation):
 
     def reset_inversion(self):
         """Reset the edges for inversion"""
-        self._edges = {n: None for n in self.parameters}
+        if self._edges:
+            self._edges = {n: None for n in self.parameters}
 
     def set_bounds(self, prior_bounds):
         """Set the initial bounds for rescaling"""
@@ -557,6 +559,14 @@ class RescaleToBounds(Reparameterisation):
                 for p, pp in zip(self.parameters, self.prime_parameters)
             }
             logger.debug(f"New prime bounds: {self.prime_prior_bounds}")
+
+    def update(self, x):
+        """Update the reparameterisation given some points.
+
+        Includes resetting the inversions and updating the bounds.
+        """
+        self.update_bounds(x)
+        self.reset_inversion()
 
     def x_prime_log_prior(self, x_prime):
         """Compute the prior in the prime space assuming a uniform prior"""
