@@ -64,6 +64,14 @@ def test_compute_weights_invalid_nlive():
         compute_weights([1, 2, 3], [4, 5])
 
 
+def test_compute_weights_invalid_expectation():
+    """Assert an error is raised if expectation is invalid"""
+    with pytest.raises(
+        ValueError, match=r"Expectation must be t or logt, got: a"
+    ):
+        compute_weights(np.random.randn(10), 10, expectation="a")
+
+
 def test_draw_posterior_samples(ns, method):
     """Test drawing posterior samples."""
     ns["logL"] = np.log(np.random.rand(ns.size))
