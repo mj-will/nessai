@@ -163,7 +163,7 @@ def test_sampling_uninformed(model, flow_config, tmpdir, analytic):
         seed=1234,
         max_iteration=11,
         poolsize=10,
-        analytic_proposal=analytic,
+        analytic_priors=analytic,
     )
     fp.run()
 
@@ -217,7 +217,7 @@ def test_sampling_resume(model, flow_config, tmpdir):
         maximum_uninformed=9,
         rescale_parameters=True,
         checkpoint_on_iteration=True,
-        checkpoint_frequency=5,
+        checkpoint_interval=5,
         seed=1234,
         max_iteration=11,
         poolsize=10,
@@ -261,7 +261,7 @@ def test_sampling_resume_w_pool(model, flow_config, tmpdir, mp_context):
             maximum_uninformed=9,
             rescale_parameters=True,
             checkpoint_on_iteration=True,
-            checkpoint_frequency=5,
+            checkpoint_interval=5,
             seed=1234,
             max_iteration=11,
             poolsize=10,
@@ -317,7 +317,7 @@ def test_sampling_resume_no_max_uninformed(model, flow_config, tmpdir):
         seed=1234,
         max_iteration=11,
         checkpoint_on_iteration=True,
-        checkpoint_frequency=5,
+        checkpoint_interval=5,
         poolsize=10,
     )
     fp.run()
@@ -518,3 +518,23 @@ def test_allow_multi_valued_likelihood(model, tmp_path):
         allow_multi_valued_likelihood=True,
     )
     fs.run(plot=False, save=False)
+
+
+@pytest.mark.integration_test
+def test_invalid_keyword_argument(model, tmp_path):
+    """Assert an error is raised if a keyword argument is unknown"""
+
+    output = tmp_path / "kwargs_error"
+    output.mkdir()
+
+    with pytest.raises(
+        RuntimeError,
+        match="Unknown kwargs for FlowProposal: {'not_a_valid_kwarg'}.",
+    ):
+        FlowSampler(
+            model,
+            output=output,
+            nlive=100,
+            plot=False,
+            not_a_valid_kwarg=True,
+        )

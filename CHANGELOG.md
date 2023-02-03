@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactor `nessai.proposal.FlowProposal.verify_rescaling` to be stricter.
 - Truth input in `nessai.plot.corner_plot` can now be an iterable or a dictionary.
 - Tweak how the prior volume is computed for the final nested sample. This will also change the evidence and posterior weights.
+- Stricter handling of keyword arguments passed to `NestedSampler`. Unknown keyword arguments will now raise an error.
 
 ### Removed
 
