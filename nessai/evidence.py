@@ -106,11 +106,20 @@ class _NSIntegralState(_BaseNSIntegralState):
     track_gradients : bool, optional
         If true the gradient of the change in logL w.r.t logX is saved each
         time `increment` is called.
+    expectation : str, {logt, t}
+        Method used to compute the expectation value for the shrinkage t.
+        Choose between log <t> or <log t>. Defaults to <log t>.
     """
 
-    def __init__(self, nlive, track_gradients=True):
+    def __init__(self, nlive, track_gradients=True, expectation="logt"):
         self.base_nlive = nlive
         self.track_gradients = track_gradients
+
+        if expectation.lower() not in ["t", "logt"]:
+            raise ValueError(
+                f"Expectation must be t or logt, got: {expectation}"
+            )
+        self.expectation = expectation.lower()
 
         # Initial state of the integral
         self.logZ = -np.inf
@@ -148,8 +157,12 @@ class _NSIntegralState(_BaseNSIntegralState):
 
         self.nlive.append(nlive)
         oldZ = self.logZ
-        # <t> = N / (N + 1)
-        logt = -np.log1p(1 / nlive)
+        if self.expectation == "logt":
+            # <logt> approx -1 / N
+            logt = -1.0 / nlive
+        else:
+            # <t> = N / (N + 1)
+            logt = -np.log1p(1 / nlive)
         Wt = self.logw + logL + np.log1p(-np.exp(logt))
         self.logZ = np.logaddexp(self.logZ, Wt)
         # Update information estimate

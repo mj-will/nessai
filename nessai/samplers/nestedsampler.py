@@ -140,6 +140,9 @@ class NestedSampler(BaseNestedSampler):
     acceptance_threshold : float (0.01)
         Threshold to determine if the flow should be retrained, will not
         retrain if cooldown is not satisfied.
+    shrinkage_expectation : str, {"t", "logt"}
+        Method used to compute the expectation value for the shrinkage t.
+        Choose between log <t> or <log t>. Defaults to <log t>.
     kwargs :
         Keyword arguments passed to the flow proposal class
     """
@@ -182,6 +185,7 @@ class NestedSampler(BaseNestedSampler):
         retrain_acceptance=True,
         reset_acceptance=False,
         acceptance_threshold=0.01,
+        shrinkage_expectation="logt",
         **kwargs,
     ):
 
@@ -231,7 +235,11 @@ class NestedSampler(BaseNestedSampler):
         self.logLmax = -np.inf
         self.nested_samples = []
         self.logZ = None
-        self.state = _NSIntegralState(self.nlive, track_gradients=plot)
+        self.state = _NSIntegralState(
+            self.nlive,
+            track_gradients=plot,
+            expectation=shrinkage_expectation,
+        )
 
         # Timing
         self.training_time = datetime.timedelta()
