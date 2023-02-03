@@ -19,13 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `allow_multi_valued_likelihood` which allows for multi-valued likelihoods, e.g. that include numerical integration.
 - Add `parameters` keyword argument to `nessai.plot.plot_trace` and pass additional keyword arguments to the plotting function.
 - Add option to construct live points without non-sampling parameters.
+- Add option to use a different estimate of the shrinkage. Default remains unchanged.
 
 ### Changed
 
 - Refactor `nessai.reparameterisations` into a submodule.
 - Use `torch.inference_mode` instead of `torch.no_grad`.
 - Changed `CombinedReparameterisations` to sort and add reparameterisations based on their requirements.
-- Changed evidence calculation and posterior weights to use a better estimate of the shrinkage.
 - Refactor `nessai.evidence._NSIntegralState` to inherit from a base class.
 - Revert default logging level to `INFO`
 - Rework logging statements to reduce the amount of information printed by default.
