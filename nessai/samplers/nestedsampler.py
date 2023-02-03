@@ -20,6 +20,7 @@ from ..livepoint import empty_structured_array, live_points_to_dict
 from ..plot import plot_indices, plot_trace, nessai_style
 from ..evidence import _NSIntegralState
 from ..proposal import FlowProposal
+from ..proposal.utils import check_proposal_kwargs
 from ..utils import (
     compute_indices_ks_test,
     rolling_mean,
@@ -470,6 +471,9 @@ class NestedSampler(BaseNestedSampler):
             kwargs["poolsize"] = self.nlive
 
         logger.debug(f"Using flow class: {flow_class}")
+
+        kwargs = check_proposal_kwargs(flow_class, kwargs)
+
         logger.info(f"Parsing kwargs to FlowProposal: {kwargs}")
         self._flow_proposal = flow_class(
             self.model,
