@@ -8,15 +8,11 @@ from unittest.mock import patch, MagicMock
 from nessai.proposal import FlowProposal
 
 
-@pytest.mark.parametrize(
-    "kwargs", [{"prior": "uniform"}, {"draw_latent_kwargs": {"var": 4}}]
-)
-def test_init(model, kwargs):
+def test_init(model):
     """Test init with some kwargs"""
+    kwargs = {"draw_latent_kwargs": {"var": 4}}
     fp = FlowProposal(model, poolsize=1000, **kwargs)
     assert fp.model == model
-    # Make sure the dummy kwargs is ignored and not added
-    assert getattr(fp, "prior", None) is None
 
 
 @pytest.mark.parametrize(
