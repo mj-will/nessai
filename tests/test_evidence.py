@@ -62,12 +62,26 @@ def test_base_state_effective_n_posterior_samples(
     np.testing.assert_almost_equal(ess, expected, decimal=10)
 
 
-def test_increment(nlive):
+def test_invalid_expectation(ns_state):
+    """Assert an error is raised if `expectation` is an invalid value"""
+    with pytest.raises(
+        ValueError, match=r"Expectation must be t or logt, got: a"
+    ):
+        _NSIntegralState.__init__(ns_state, 100, expectation="a")
+
+
+@pytest.mark.parametrize("expectation", ["logt", "t"])
+def test_increment(nlive, expectation):
     """Test the basic functionality of incrementing the evidence estimate"""
-    state = _NSIntegralState(nlive)
+    state = _NSIntegralState(nlive, expectation=expectation)
     state.increment(-10)
 
-    assert state.logw == -np.log1p(1 / nlive)
+    if expectation == "logt":
+        target = -1 / nlive
+    else:
+        target = -np.log1p(1 / nlive)
+
+    assert state.logw == target
     assert state.logZ != -np.inf
     np.testing.assert_equal(state.logLs, [-np.inf, -10])
 
@@ -82,6 +96,7 @@ def test_increment_monotonic_warning(ns_state, caplog):
     ns_state.info = [0]
     ns_state.log_vols = []
     ns_state.track_gradients = False
+    ns_state.expectation = "logt"
     _NSIntegralState.increment(ns_state, 2.5)
     assert "received non-monotonic logL" in str(caplog.text)
 
@@ -132,14 +147,17 @@ def test_track_gradients(nlive):
     assert len(state.gradients) == 1
 
 
-def test_variable_nlive(nlive):
+@pytest.mark.parametrize(
+    "expectation, value", [("logt", -1 / 50), ("t", -np.log1p(1 / 50))]
+)
+def test_variable_nlive(nlive, expectation, value):
     """
     Test to make sure that the using a different nlive changes the update
     values.
     """
-    state = _NSIntegralState(nlive)
+    state = _NSIntegralState(nlive, expectation=expectation)
     state.increment(-10, nlive=50)
-    assert state.logw == -np.log1p(1 / 50)
+    assert state.logw == value
 
 
 def test_plot(nlive):

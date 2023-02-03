@@ -10,7 +10,9 @@ from unittest.mock import patch, MagicMock
 from nessai.samplers.nestedsampler import NestedSampler
 
 
-def test_init(sampler):
+@pytest.mark.parametrize("plot", [True, False])
+@pytest.mark.parametrize("shrinkage_expectation", ["t", "logt"])
+def test_init(sampler, plot, shrinkage_expectation):
     """Test the init method"""
     pool = "pool"
     n_pool = 2
@@ -22,16 +24,25 @@ def test_init(sampler):
     sampler.configure_flow_reset = MagicMock()
     sampler.configure_flow_proposal = MagicMock()
     sampler.configure_uninformed_proposal = MagicMock
-    NestedSampler.__init__(
-        sampler,
-        model,
-        nlive=100,
-        poolsize=100,
-        pool=pool,
-        n_pool=n_pool,
-    )
+
+    with patch("nessai.samplers.nestedsampler._NSIntegralState") as mock_state:
+        NestedSampler.__init__(
+            sampler,
+            model,
+            nlive=100,
+            poolsize=100,
+            pool=pool,
+            n_pool=n_pool,
+            plot=plot,
+            shrinkage_expectation=shrinkage_expectation,
+        )
     assert sampler.initialised is False
     assert sampler.nlive == 100
+    mock_state.assert_called_once_with(
+        100,
+        track_gradients=plot,
+        expectation=shrinkage_expectation,
+    )
     model.verify_model.assert_called_once()
     model.configure_pool.assert_called_once_with(pool=pool, n_pool=n_pool)
 
