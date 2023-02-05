@@ -54,3 +54,20 @@ def test_assert_struct_arrays_equal_NaNs():
     x = np.array((1, 2, np.nan), dtype=dtype)
     y = np.array((1, 2, np.nan), dtype=dtype)
     assert_structured_arrays_equal(x, y)
+
+
+def test_assert_struct_array_equal_tol():
+    """Assert arrays that are close do not raised an error if atol is set"""
+    dtype = [("x", "f8"), ("y", "f8"), ("z", "f8")]
+    x = np.array((1.0, 2.0, 3.0), dtype=dtype)
+    y = np.array((1.0, 2.0, 3.0 + 1e-10), dtype=dtype)
+    assert_structured_arrays_equal(x, y, atol=1e-9, rtol=0.0)
+
+
+def test_assert_struct_array_equal_tol_error():
+    """Assert arrays that are above the atol raised an error"""
+    dtype = [("x", "f8"), ("y", "f8"), ("z", "f8")]
+    x = np.array((1.0, 2.0, 3.0), dtype=dtype)
+    y = np.array((1.0, 2.0, 3.0 + 1e-10), dtype=dtype)
+    with pytest.raises(AssertionError):
+        assert_structured_arrays_equal(x, y, atol=1e-11, rtol=0.0)
