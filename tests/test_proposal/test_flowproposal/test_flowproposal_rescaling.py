@@ -389,7 +389,8 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
     assert proposal.rescaled_names == ["x_prime"]
 
 
-def test_set_rescaling_parameters_list(proposal, model):
+@pytest.mark.parametrize("rescale_parameters", [True, ["x"]])
+def test_set_rescaling_parameters(proposal, model, rescale_parameters):
     """Test setting rescaling without reparameterisations."""
 
     rescale_bounds = [0, 1]
@@ -398,12 +399,15 @@ def test_set_rescaling_parameters_list(proposal, model):
     inversion_type = "split"
     detect_edges = False
     detect_edges_kwargs = {}
-    rescale_parameters = ["x"]
     rescaled_names = ["x_prime"]
+
+    _rescale_parameters = (
+        model.names if rescale_parameters is True else rescale_parameters
+    )
 
     def update(self):
         proposal.names = model.names
-        proposal.rescale_parameters = rescale_parameters
+        proposal.rescale_parameters = _rescale_parameters
         proposal.rescaled_names = rescaled_names
 
     proposal.model = model
@@ -424,7 +428,7 @@ def test_set_rescaling_parameters_list(proposal, model):
 
     reparameterisations = {
         "rescaletobounds": {
-            "parameters": rescale_parameters,
+            "parameters": _rescale_parameters,
             "rescale_bounds": rescale_bounds,
             "update_bounds": update_bounds,
             "boundary_inversion": boundary_inversion,
