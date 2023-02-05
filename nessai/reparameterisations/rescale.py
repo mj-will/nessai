@@ -200,22 +200,23 @@ class RescaleToBounds(Reparameterisation):
                         p: inversion_type for p in self.parameters
                     }
                 else:
-                    self.boundary_inversion = []
+                    self.boundary_inversion = False
             else:
                 raise TypeError(
                     "boundary_inversion must be a list, dict or bool. "
                     f"Got type: {type(boundary_inversion).__name__}"
                 )
         else:
-            self.boundary_inversion = []
+            self.boundary_inversion = False
 
-        for p in self.boundary_inversion:
-            self.rescale_bounds[p] = [0, 1]
+        if self.boundary_inversion:
+            for p in self.boundary_inversion:
+                self.rescale_bounds[p] = [0, 1]
 
         self._update_bounds = update_bounds if not detect_edges else True
-        self._edges = {n: None for n in self.parameters}
         self.detect_edges = detect_edges
         if self.boundary_inversion:
+            self._edges = {n: None for n in self.parameters}
             self.detect_edges_kwargs = configure_edge_detection(
                 detect_edges_kwargs, self.detect_edges
             )
@@ -461,7 +462,7 @@ class RescaleToBounds(Reparameterisation):
             else:
                 x_prime[pp] = x[p].copy()
 
-            if p in self.boundary_inversion:
+            if self.boundary_inversion and p in self.boundary_inversion:
                 x, x_prime, log_j = self._apply_inversion(
                     x, x_prime, log_j, p, pp, compute_radius, **kwargs
                 )
@@ -485,7 +486,7 @@ class RescaleToBounds(Reparameterisation):
                 log_j += lj
             else:
                 x[p] = x_prime[pp].copy()
-            if p in self.boundary_inversion:
+            if self.boundary_inversion and p in self.boundary_inversion:
                 x, x_prime, log_j = self._reverse_inversion(
                     x, x_prime, log_j, p, pp, **kwargs
                 )
@@ -549,8 +550,12 @@ class RescaleToBounds(Reparameterisation):
                             self.pre_prior_bounds[p][1],
                             self.bounds[p][0],
                             self.bounds[p][1],
-                            invert=self._edges[p],
-                            inversion=p in self.boundary_inversion,
+                            invert=self._edges[p] if self._edges else None,
+                            inversion=(
+                                p in self.boundary_inversion
+                                if self.boundary_inversion
+                                else False
+                            ),
                             offset=self.offsets[p],
                             rescale_bounds=self.rescale_bounds[p],
                         )
