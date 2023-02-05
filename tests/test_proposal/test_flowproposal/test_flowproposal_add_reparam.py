@@ -14,7 +14,7 @@ from nessai.reparameterisations import default_reparameterisations
 general_reparameterisations = {
     k: v
     for k, v in default_reparameterisations.items()
-    if k not in ["scale", "rescale", "angle-pair"]
+    if k not in ["scale", "rescale", "angle-pair", "scaleandshift"]
 }
 
 
