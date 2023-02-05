@@ -460,7 +460,7 @@ class RescaleToBounds(Reparameterisation):
                 x_prime[pp], lj = self.pre_rescaling(x[p])
                 log_j += lj
             else:
-                x_prime[pp] = x[p].copy()
+                x_prime[pp] = x[p]
 
             if self.boundary_inversion and p in self.boundary_inversion:
                 x, x_prime, log_j = self._apply_inversion(
@@ -485,7 +485,7 @@ class RescaleToBounds(Reparameterisation):
                 x[p], lj = self.post_rescaling_inv(x_prime[pp])
                 log_j += lj
             else:
-                x[p] = x_prime[pp].copy()
+                x[p] = x_prime[pp]
             if self.boundary_inversion and p in self.boundary_inversion:
                 x, x_prime, log_j = self._reverse_inversion(
                     x, x_prime, log_j, p, pp, **kwargs
