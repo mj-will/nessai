@@ -10,7 +10,7 @@ from .angle import Angle, AnglePair, ToCartesian
 from .base import Reparameterisation
 from .combined import CombinedReparameterisation
 from .null import NullReparameterisation
-from .rescale import Rescale, RescaleToBounds
+from .rescale import Rescale, RescaleToBounds, ScaleAndShift
 from .utils import get_reparameterisation
 
 
@@ -44,7 +44,16 @@ default_reparameterisations = {
         },
     ),
     "scale": (Rescale, None),
+    "scaleandshift": (ScaleAndShift, None),
     "rescale": (Rescale, None),
+    "zscore": (
+        ScaleAndShift,
+        {"estimate_scale": True, "estimate_shift": True},
+    ),
+    "z-score": (
+        ScaleAndShift,
+        {"estimate_scale": True, "estimate_shift": True},
+    ),
     "angle": (Angle, {}),
     "angle-pi": (Angle, {"scale": 2.0, "prior": "uniform"}),
     "angle-2pi": (Angle, {"scale": 1.0, "prior": "uniform"}),
