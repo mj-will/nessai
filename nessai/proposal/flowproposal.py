@@ -865,8 +865,7 @@ class FlowProposal(RejectionProposal):
         x: array_like
             Array of training live points which can be used to set parameters
         """
-        if self._reparameterisation:
-            self._reparameterisation.update(x)
+        self._reparameterisation.update(x)
 
     @nessai_style()
     def _plot_training_data(self, output):
