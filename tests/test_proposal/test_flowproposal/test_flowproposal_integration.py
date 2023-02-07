@@ -6,6 +6,7 @@ import torch
 
 from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
+from nessai.utils.testing import assert_structured_arrays_equal
 
 torch.set_num_threads(1)
 
@@ -168,3 +169,71 @@ def test_verify_rescaling_integration(
     )
     fp.set_rescaling()
     fp.verify_rescaling()
+
+
+@pytest.mark.integration_test
+def test_rescaling_integration_with_rescale_parameters(tmp_path, model):
+    """Assert rescale parameters is configured correctly"""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    fp = FlowProposal(
+        model,
+        output=output,
+        poolsize=10,
+        rescale_parameters=True,
+        rescale_bounds=[0, 1],
+    )
+    fp.set_rescaling()
+
+    n = 10
+    x = model.new_point(n)
+
+    x_prime, log_j = fp.rescale(x)
+
+    x_recon, log_j_inv = fp.inverse_rescale(x_prime)
+
+    x_prime_expected = x_prime.copy()
+    for name in model.names:
+        x_prime_expected[name + "_prime"] = (
+            x[name] - model.bounds[name][0]
+        ) / (model.bounds[name][1] - model.bounds[name][0])
+    expected_log_j = -np.log(np.prod(model.upper_bounds - model.lower_bounds))
+
+    assert len(log_j) == n
+    assert (log_j == expected_log_j).all()
+    np.testing.assert_array_equal(log_j, -log_j_inv)
+
+    assert_structured_arrays_equal(x_prime, x_prime_expected)
+    assert_structured_arrays_equal(x_recon, x)
+
+
+@pytest.mark.integration_test
+def test_rescaling_integration_no_rescaling(tmp_path, model):
+    """Assert setting rescale_parameters=False does not rescale any
+    parameters.
+    """
+    output = tmp_path / "test"
+    output.mkdir()
+
+    fp = FlowProposal(
+        model,
+        output=output,
+        poolsize=10,
+        rescale_parameters=False,
+    )
+    fp.set_rescaling()
+
+    n = 10
+    x = model.new_point(n)
+
+    x_prime, log_j = fp.rescale(x)
+
+    x_recon, log_j_inv = fp.inverse_rescale(x_prime)
+
+    assert len(log_j) == n
+    assert (log_j == 0.0).all()
+    np.testing.assert_array_equal(log_j, -log_j_inv)
+
+    assert_structured_arrays_equal(x_prime, x)
+    assert_structured_arrays_equal(x_recon, x_prime)

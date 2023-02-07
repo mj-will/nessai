@@ -63,7 +63,7 @@ class GWFlowProposal(FlowProposal):
         """
         parameters = [
             n
-            for n in self.names
+            for n in self.model.names
             if n not in self._reparameterisation.parameters
         ]
         logger.info(f"Adding default reparameterisations for {parameters}")
