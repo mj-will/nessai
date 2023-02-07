@@ -26,56 +26,51 @@ def add_extra_parameters_to_live_points(
     ----------
     parameters: list
         List of parameters to add.
-    default_values: Optional[list]
+    default_values: Optional[Union[List, Tuple]]
         List of default values for each parameters. If not specified, default
         values will be set to based on :code: `DEFAULT_FLOAT_VALUE` in
         :code:`nessai.config`.
     """
     if default_values is None:
-        default_values = len(parameters) * [config.DEFAULT_FLOAT_VALUE]
+        default_values = len(parameters) * (
+            config.livepoints.default_float_value,
+        )
+    else:
+        default_values = tuple(default_values)
     for p, dv in zip(parameters, default_values):
-        if p not in config.EXTRA_PARAMETERS:
-            config.EXTRA_PARAMETERS.append(p)
-            config.EXTRA_PARAMETERS_DEFAULTS.append(dv)
-            config.EXTRA_PARAMETERS_DTYPE.append(config.DEFAULT_FLOAT_DTYPE)
-    config.NON_SAMPLING_PARAMETERS = (
-        config.CORE_PARAMETERS + config.EXTRA_PARAMETERS
-    )
-    config.NON_SAMPLING_DEFAULTS = (
-        config.CORE_PARAMETERS_DEFAULTS + config.EXTRA_PARAMETERS_DEFAULTS
-    )
-    config.NON_SAMPLING_DEFAULT_DTYPE = (
-        config.CORE_PARAMETERS_DTYPE + config.EXTRA_PARAMETERS_DTYPE
-    )
+        if p not in config.livepoints.extra_parameters:
+            config.livepoints.extra_parameters.append(p)
+            config.livepoints.extra_parameters_defaults = (
+                config.livepoints.extra_parameters_defaults + (dv,)
+            )
+            config.livepoints.extra_parameters_dtype.append(
+                config.livepoints.default_float_dtype
+            )
+        else:
+            logger.warning(
+                f"Extra parameter `{p}` has already been added. Skipping."
+                "Call `reset_extra_live_points_parameters` to reset the values"
+                " and add this parameter."
+            )
+
     logger.debug(
-        f"Updated non-sampling parameters: {config.NON_SAMPLING_PARAMETERS}"
+        "Updated non-sampling parameters: "
+        f"{config.livepoints.non_sampling_parameters}"
     )
     logger.debug(
         "Updated defaults for non-sampling parameters: "
-        f"{config.NON_SAMPLING_DEFAULTS}"
+        f"{config.livepoints.non_sampling_defaults}"
     )
+    config.livepoints.reset_properties()
 
 
 def reset_extra_live_points_parameters():
     """Reset the extra live points parameters."""
     logger.debug("Resetting extra parameters")
-    config.EXTRA_PARAMETERS = []
-    config.EXTRA_PARAMETERS_DEFAULTS = []
-    config.EXTRA_PARAMETERS_DTYPE = []
-    config.NON_SAMPLING_PARAMETERS = (
-        config.CORE_PARAMETERS + config.EXTRA_PARAMETERS
-    )
-    config.NON_SAMPLING_DEFAULTS = (
-        config.CORE_PARAMETERS_DEFAULTS + config.EXTRA_PARAMETERS_DEFAULTS
-    )
-    config.NON_SAMPLING_DEFAULT_DTYPE = (
-        config.CORE_PARAMETERS_DTYPE + config.EXTRA_PARAMETERS_DTYPE
-    )
+    config.livepoints.reset()
 
 
-def get_dtype(
-    names, array_dtype=config.DEFAULT_FLOAT_DTYPE, non_sampling_parameters=True
-):
+def get_dtype(names, array_dtype=None, non_sampling_parameters=True):
     """
     Get a list of tuples containing the dtypes for the structured array
 
@@ -83,7 +78,7 @@ def get_dtype(
     ----------
     names : list of str
         Names of parameters
-    array_dtype : optional
+    array_dtype : Optional[str]
         dtype to use
     non_sampling_parameters : bool
         Indicates whether non-sampling parameters should be included.
@@ -93,12 +88,14 @@ def get_dtype(
     numpy.dtype
         A instance of :code:`numpy.dtype`.
     """
+    if array_dtype is None:
+        array_dtype = config.livepoints.default_float_dtype
     dtype = [(n, array_dtype) for n in names]
     if non_sampling_parameters:
         dtype += list(
             zip(
-                config.NON_SAMPLING_PARAMETERS,
-                config.NON_SAMPLING_DEFAULT_DTYPE,
+                config.livepoints.non_sampling_parameters,
+                config.livepoints.non_sampling_dtype,
             )
         )
     return np.dtype(dtype)
@@ -136,16 +133,17 @@ def empty_structured_array(
         names = [
             nm
             for nm in dtype.names
-            if nm not in config.NON_SAMPLING_PARAMETERS
+            if nm not in config.livepoints.non_sampling_parameters
         ]
     struct_array = np.empty((n), dtype=dtype)
     if n == 0:
         return struct_array
-    struct_array[names] = config.DEFAULT_FLOAT_VALUE
+    struct_array[names] = config.livepoints.default_float_value
     if non_sampling_parameters:
         try:
             for nm, v in zip(
-                config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
+                config.livepoints.non_sampling_parameters,
+                config.livepoints.non_sampling_defaults,
             ):
                 struct_array[nm] = v
         except ValueError:
@@ -205,14 +203,16 @@ def parameters_to_live_point(parameters, names, non_sampling_parameters=True):
         )
     else:
         if non_sampling_parameters:
-            parameters = [(*parameters, *config.NON_SAMPLING_DEFAULTS)]
+            parameters = [
+                (*parameters, *config.livepoints.non_sampling_defaults)
+            ]
         else:
             parameters = [tuple(parameters)]
         return np.array(
             parameters,
             dtype=get_dtype(
                 names,
-                config.DEFAULT_FLOAT_DTYPE,
+                config.livepoints.default_float_dtype,
                 non_sampling_parameters=non_sampling_parameters,
             ),
         )
@@ -279,12 +279,12 @@ def dict_to_live_points(d, non_sampling_parameters=True):
         N = 1
     if N == 1:
         if non_sampling_parameters:
-            a = (*a, *config.NON_SAMPLING_DEFAULTS)
+            a = (*a, *config.livepoints.non_sampling_defaults)
         return np.array(
             [a],
             dtype=get_dtype(
                 d.keys(),
-                config.DEFAULT_FLOAT_DTYPE,
+                config.livepoints.default_float_dtype,
                 non_sampling_parameters=non_sampling_parameters,
             ),
         )
@@ -344,7 +344,7 @@ def dataframe_to_live_points(df, non_sampling_parameters=True):
         logL.
     """
     if non_sampling_parameters:
-        extra = tuple(config.NON_SAMPLING_DEFAULTS)
+        extra = config.livepoints.non_sampling_defaults
     else:
         extra = tuple()
     return np.array(
@@ -399,5 +399,5 @@ def unstructured_view(x, names=None, dtype=None):
     if dtype is None:
         dtype = _unstructured_view_dtype(x, names)
     return np.ndarray(x.shape, dtype, x, 0, x.strides).view(
-        (config.DEFAULT_FLOAT_DTYPE, len(dtype))
+        (config.livepoints.default_float_dtype, len(dtype))
     )
