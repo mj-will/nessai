@@ -137,10 +137,10 @@ def empty_structured_array(
             struct_array[config.livepoints.non_sampling_parameters].fill(
                 config.livepoints.non_sampling_defaults
             )
-        except ValueError:
-            raise ValueError(
-                "Could not create empty structured array. Maybe the "
-                "non-sampling parameters are missing?"
+        except KeyError:
+            raise KeyError(
+                "Could not create empty structured array because of missing "
+                "parameters. Maybe the non-sampling parameters are missing?"
             )
     return struct_array
 
