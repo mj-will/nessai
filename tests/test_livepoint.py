@@ -215,7 +215,7 @@ def test_empty_structured_array_dtype_missing():
     """Assert an error is raised if the non-sampling parameters are missing"""
     n = 10
     dtype = [("x", "f8"), ("y", "f8")]
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(KeyError) as excinfo:
         lp.empty_structured_array(n, dtype=dtype)
     assert "non-sampling parameters" in str(excinfo.value)
 
