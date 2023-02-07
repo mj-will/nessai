@@ -184,7 +184,7 @@ class Model(ABC):
             if self.allow_vectorised:
                 x = self.new_point(N=10)
                 target = np.fromiter(
-                    map(self.log_likelihood, x), config.LOGL_DTYPE
+                    map(self.log_likelihood, x), config.livepoints.logl_dtype
                 )
                 try:
                     batch = self.log_likelihood(x)
@@ -524,7 +524,7 @@ class Model(ABC):
                     log_likelihood = self.log_likelihood(x)
             else:
                 log_likelihood = np.fromiter(
-                    map(self.log_likelihood, x), config.LOGL_DTYPE
+                    map(self.log_likelihood, x), config.livepoints.logl_dtype
                 )
         else:
             logger.debug("Using pool to evaluate likelihood")
