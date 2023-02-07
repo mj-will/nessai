@@ -128,24 +128,15 @@ def empty_structured_array(
         dtype = get_dtype(
             names, non_sampling_parameters=non_sampling_parameters
         )
-    else:
-        dtype = np.dtype(dtype)
-        names = [
-            nm
-            for nm in dtype.names
-            if nm not in config.livepoints.non_sampling_parameters
-        ]
-    struct_array = np.empty((n), dtype=dtype)
+    struct_array = np.empty(n, dtype=dtype)
     if n == 0:
         return struct_array
-    struct_array[names] = config.livepoints.default_float_value
+    struct_array.fill(config.livepoints.default_float_value)
     if non_sampling_parameters:
         try:
-            for nm, v in zip(
-                config.livepoints.non_sampling_parameters,
-                config.livepoints.non_sampling_defaults,
-            ):
-                struct_array[nm] = v
+            struct_array[config.livepoints.non_sampling_parameters].fill(
+                config.livepoints.non_sampling_defaults
+            )
         except ValueError:
             raise ValueError(
                 "Could not create empty structured array. Maybe the "
