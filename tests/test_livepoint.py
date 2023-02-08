@@ -1,3 +1,6 @@
+"""Tests for livepoint functions"""
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -75,6 +78,8 @@ def extra_parameters(request):
 def change_dtype(request):
     """Fixture that changes the default float dtype"""
     dtype = request.param
+    if dtype == "f16" and sys.platform.startswith("win"):
+        pytest.skip("Skipping test with float128 on Windows.")
     current_dtype = config.livepoints.default_float_dtype
     config.livepoints.default_float_dtype = dtype
 
