@@ -33,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Truth input in `nessai.plot.corner_plot` can now be an iterable or a dictionary.
 - Tweak how the prior volume is computed for the final nested sample. This will also change the evidence and posterior weights.
 - Stricter handling of keyword arguments passed to `NestedSampler`. Unknown keyword arguments will now raise an error.
+- Rework `nessai.config` to have `config.livepoints` and `config.plot` which contain global settings. Some of the setting names have also changed.
+
+### Fixed
+
+- Fix a bug where setting the livepoint precision (e.g. `f16`) did not work.
 
 ### Removed
 
