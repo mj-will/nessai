@@ -24,10 +24,6 @@ class LivepointsConfig:
         default_factory=lambda: ["logP", "logL", "it"]
     )
     """List of the core non-sampling parameters included in all live points"""
-    core_parameters_defaults: Tuple = field(
-        default_factory=lambda: (np.nan, np.nan, 0)
-    )
-    """Default value for the core non-sampling parameters"""
     extra_parameters: List[str] = field(default_factory=lambda: [])
     """Additional extra parameters included in live points"""
     extra_parameters_dtype: List[str] = field(default_factory=lambda: [])
@@ -36,6 +32,7 @@ class LivepointsConfig:
     """Default values for additional extra extra"""
 
     _core_parameter_dtype: List[str] = None
+    _core_parameter_defaults: Tuple = None
     _non_sampling_defaults: List = None
     _non_sampling_parameters: Tuple = None
     _non_sampling_dtype: List[str] = None
@@ -50,6 +47,17 @@ class LivepointsConfig:
                 self.it_dtype,
             ]
         return self._core_parameter_dtype
+
+    @property
+    def core_parameters_defaults(self) -> Tuple:
+        """Tuple of default values for core non-sampling parameters."""
+        if self._core_parameter_defaults is None:
+            self._core_parameter_defaults = (
+                self.default_float_value,
+                self.default_float_value,
+                0,
+            )
+        return self._core_parameter_defaults
 
     @property
     def non_sampling_parameters(self) -> List[str]:
@@ -88,6 +96,7 @@ class LivepointsConfig:
     def reset_properties(self) -> None:
         """Reset the cached properties"""
         self._core_parameter_dtype = None
+        self._core_parameter_defaults = None
         self._non_sampling_defaults = None
         self._non_sampling_parameters = None
         self._non_sampling_dtype = None
