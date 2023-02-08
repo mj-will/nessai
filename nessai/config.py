@@ -16,6 +16,8 @@ class LivepointsConfig:
     """Default log-likelihood dtype"""
     it_dtype: str = "i4"
     """Default dtype for iteration parameter"""
+    it_default: int = 0
+    """Default value for the iteration parameter"""
     default_float_dtype: str = "f8"
     """Default dtype for parameters"""
     default_float_value: float = np.nan
@@ -55,7 +57,7 @@ class LivepointsConfig:
             self._core_parameter_defaults = (
                 self.default_float_value,
                 self.default_float_value,
-                0,
+                self.it_default,
             )
         return self._core_parameter_defaults
 
