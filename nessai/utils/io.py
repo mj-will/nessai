@@ -60,11 +60,35 @@ class NessaiJSONEncoder(json.JSONEncoder):
             return super().default(obj)
 
 
+def save_to_json(d, filename, **kwargs):
+    """Save a dictionary to a JSON file.
+
+    Kwargs are passed to :code:`json.dump`. Uses :code:`NessaiJSONEncoder` by
+    default.
+
+    Parameters
+    ----------
+    d : dict
+        Dictionary to save.
+    filename : str
+        Filename (with the extension) to save the dictionary to. Should include
+        the complete path.
+    kwargs : Any
+        Keyword arguments passed to :code:`json.dump`.
+    """
+    default_kwargs = dict(
+        indent=4,
+        cls=NessaiJSONEncoder,
+    )
+    default_kwargs.update(kwargs)
+    with open(filename, "w") as fp:
+        json.dump(d, fp, **default_kwargs)
+
+
 def safe_file_dump(data, filename, module, save_existing=False):
     """Safely dump data to a .pickle file.
 
-    See Bilby for the original impletmentation:
-    https://git.ligo.org/michael.williams/bilby/-/blob/master/bilby/core/utils.py
+    See Bilby for the original implementation.
 
     Parameters
     ----------
@@ -103,3 +127,41 @@ def save_live_points(live_points, filename):
     d = live_points_to_dict(live_points)
     with open(filename, "w") as wf:
         json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
+
+
+def add_dict_to_hdf5_file(hdf5_file, path, d):
+    """Save a dictionary to a HDF5 file.
+
+    Based on :code:`recursively_save_dict_contents_to_group` in bilby.
+
+    Parameters
+    ----------
+    hdf5_file : h5py.File
+        HDF5 file.
+    path : str
+        Path added to the keys of the dictionary.
+    d : dict
+        The dictionary to save.
+    """
+    for key, value in d.items():
+        if isinstance(value, dict):
+            add_dict_to_hdf5_file(hdf5_file, path + key + "/", value)
+        else:
+            hdf5_file[path + key] = value
+
+
+def save_dict_to_hdf5(d, filename):
+    """Save a dictionary to a HDF5 file.
+
+    Parameters
+    ----------
+    d : dict
+        Dictionary to save.
+    filename : str
+        Filename (with the extension) to save the dictionary to. Should include
+        the complete path.
+    """
+    import h5py
+
+    with h5py.File(filename, "w") as f:
+        add_dict_to_hdf5_file(f, "/", d)
