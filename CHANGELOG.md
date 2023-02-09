@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add option to construct live points without non-sampling parameters.
 - Add option to use a different estimate of the shrinkage. Default remains unchanged.
 - Add `ScaleAndShift` reparameterisation which includes Z-score normalisation.
+- Add option to specify default result file extension.
 
 ### Changed
 
@@ -36,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stricter handling of keyword arguments passed to `NestedSampler`. Unknown keyword arguments will now raise an error.
 - Rework `nessai.config` to have `config.livepoints` and `config.plot` which contain global settings. Some of the setting names have also changed.
 - `Rescale` reparameterisation is now an alias for `ScaleAndShift`.
+- Change the default result file extension to `hdf5`, old result file format can be recovered by setting it to `json`.
 
 ### Fixed
 
