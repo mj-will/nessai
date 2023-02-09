@@ -22,40 +22,90 @@ from ..utils.rescaling import (
 logger = logging.getLogger(__name__)
 
 
-class Rescale(Reparameterisation):
-    """Reparameterisation that rescales the parameters by a constant factor
-    that does not depend on the prior bounds.
+class ScaleAndShift(Reparameterisation):
+    """Reparameterisation that shifts and scales by a value.
+
+    Applies
+
+    .. math::
+        x' = (x - shift) / scale
+
+    Can apply the Z-score rescaling if :code:`estimate_scale` and
+    :code:`estimate_shift` are both enabled.
 
     Parameters
     ----------
-    scale : float
-        Scaling constant.
+    parameters : Union[str, List[str]]
+        Name of parameters to reparameterise.
+    prior_bounds : list, dict or None
+        Prior bounds for the parameter(s).
+    scale : Optional[float]
+        Scaling constant. If not specified, :code:`estimate_scale` must be
+        True.
+    shift : Optional[float]
+        Shift constant. If not specified, no shift is applied.
+    estimate_scale : bool
+        If true, the value of :code:`scale` will be ignored and the standard
+        deviation of the data will be used.
+    estimate_shift : bool
+        If true, the value of :code:`shift` will be ignored and the standard
+        deviation of the data will be used.
     """
 
     requires_bounded_prior = False
 
-    def __init__(self, parameters=None, scale=None, prior_bounds=None):
-        if scale is None:
-            raise RuntimeError("Must specify a scale!")
+    def __init__(
+        self,
+        parameters=None,
+        prior_bounds=None,
+        scale=None,
+        shift=None,
+        estimate_scale=False,
+        estimate_shift=False,
+    ):
+        if scale is None and not estimate_scale:
+            raise RuntimeError("Must specify a scale or enable estimate_scale")
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
 
-        if isinstance(scale, (int, float)):
-            self.scale = {p: float(scale) for p in self.parameters}
-        elif isinstance(scale, list):
-            if not len(scale) == len(self.parameters):
+        self.estimate_scale = estimate_scale
+        self.estimate_shift = estimate_shift
+
+        if self.estimate_scale or self.estimate_shift:
+            self._update = True
+        else:
+            self._update = False
+
+        if self.estimate_scale:
+            self.scale = {p: None for p in parameters}
+        elif scale:
+            self.scale = self._check_value(scale, "scale")
+
+        if self.estimate_shift:
+            self.shift = {p: None for p in parameters}
+        elif shift:
+            self.shift = self._check_value(shift, "shift")
+        else:
+            self.shift = None
+
+    def _check_value(self, value, name):
+        """Helper function to check the scale or shift parameters are valid."""
+        if isinstance(value, (int, float)):
+            value = {p: float(value) for p in self.parameters}
+        elif isinstance(value, list):
+            if not len(value) == len(self.parameters):
                 raise RuntimeError(
-                    "Scale list is a different length to the parameters."
+                    f"{name} list is a different length to the parameters."
                 )
-            self.scale = {p: float(s) for p, s in zip(self.parameters, scale)}
-        elif isinstance(scale, dict):
-            if not set(self.parameters) == set(scale.keys()):
-                raise RuntimeError("Mismatched parameters with scale dict")
-            scale = {p: float(s) for p, s in scale.items()}
-            self.scale = scale
+            value = {p: float(s) for p, s in zip(self.parameters, value)}
+        elif isinstance(value, dict):
+            if not set(self.parameters) == set(value.keys()):
+                raise RuntimeError(f"Mismatched parameters with {name} dict")
+            value = {p: float(s) for p, s in value.items()}
         else:
             raise TypeError(
-                "Scale input must be an instance of int, list or dict"
+                f"{name} input must be an instance of int, list or dict"
             )
+        return value
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
         """
@@ -71,7 +121,10 @@ class Rescale(Reparameterisation):
         log_j : Log jacobian to be updated
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
-            x_prime[pp] = x[p] / self.scale[p]
+            if self.shift:
+                x_prime[pp] = (x[p] - self.shift[p]) / self.scale[p]
+            else:
+                x_prime[pp] = x[p] / self.scale[p]
             log_j -= np.log(np.abs(self.scale[p]))
         return x, x_prime, log_j
 
@@ -89,9 +142,28 @@ class Rescale(Reparameterisation):
         log_j : Log jacobian to be updated
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
-            x[p] = x_prime[pp] * self.scale[p]
+            if self.shift:
+                x[p] = (x_prime[pp] * self.scale[p]) + self.shift[p]
+            else:
+                x[p] = x_prime[pp] * self.scale[p]
             log_j += np.log(np.abs(self.scale[p]))
         return x, x_prime, log_j
+
+    def update(self, x):
+        """Update the scale and shift parameters if enabled."""
+        if self._update:
+            logger.debug("Updating scale and shift")
+            for p in self.parameters:
+                if self.estimate_scale:
+                    self.scale[p] = np.std(x[p])
+                if self.estimate_shift:
+                    self.shift[p] = np.mean(x[p])
+
+
+class Rescale(ScaleAndShift):
+    """Reparameterisation that rescales the parameters by a constant factor
+    that does not depend on the prior bounds.
+    """
 
 
 class RescaleToBounds(Reparameterisation):

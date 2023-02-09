@@ -5,7 +5,7 @@ Utilities for the test suite.
 import numpy as np
 
 
-def assert_structured_arrays_equal(x, y):
+def assert_structured_arrays_equal(x, y, atol=0.0, rtol=0.0):
     """Assert structured arrays are equal.
 
     Supports NaNs by checking each field individually.
@@ -16,6 +16,12 @@ def assert_structured_arrays_equal(x, y):
         Array to check.
     y : np.ndarray
         Array to compare to.
+    atol : float
+        The absolute tolerance parameter. See the numpy documentation for all
+        :code:`numpy.allclose`.
+    rtol : float
+        The relative tolerance parameter. See the numpy documentation for all
+        :code:`numpy.allclose`.
 
     Raises
     ------
@@ -35,7 +41,9 @@ def assert_structured_arrays_equal(x, y):
 
     valid = {f: False for f in x.dtype.names}
     for field in valid.keys():
-        valid[field] = np.array_equal(x[field], y[field], equal_nan=True)
+        valid[field] = np.allclose(
+            x[field], y[field], equal_nan=True, atol=atol, rtol=rtol
+        )
 
     if not all(valid.values()):
         mismatched = [k for k, v in valid.items() if v is False]
