@@ -2,16 +2,17 @@
 """
 Main code that handles running and checkpoiting the sampler.
 """
-import json
 import logging
 import os
 import signal
 import sys
+from typing import Optional
 
 from .livepoint import live_points_to_dict
 from .samplers.nestedsampler import NestedSampler
 from .posterior import draw_posterior_samples
-from .utils import NessaiJSONEncoder, configure_threads
+from .utils import configure_threads
+from .utils.io import save_to_json, save_dict_to_hdf5
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,9 @@ class FlowSampler:
         likelihood values for the same point in parameter space. See
         :py:attr:`nessai.model.Model.allow_multi_valued_likelihood` for more
         details.
+    result_extension : str
+        Extension used when saving the result format. Defaults to HDF5, but
+        also supports JSON.
     kwargs :
         Keyword arguments passed to
         :obj:`~nessai.samplers.nestedsampler.NestedSampler`.
@@ -79,6 +83,7 @@ class FlowSampler:
         disable_vectorisation=False,
         likelihood_chunksize=None,
         allow_multi_valued_likelihood=None,
+        result_extension="hdf5",
         **kwargs,
     ):
 
@@ -89,6 +94,8 @@ class FlowSampler:
 
         self.exit_code = exit_code
         self.close_pool = close_pool
+
+        self.result_extension = result_extension
 
         if disable_vectorisation:
             logger.warning(
@@ -246,7 +253,10 @@ class FlowSampler:
         )
 
         if save:
-            self.save_results(os.path.join(self.output, "result.json"))
+            self.save_results(
+                os.path.join(self.output, "result"),
+                extension=self.result_extension,
+            )
 
         if plot:
             from nessai import plot
@@ -273,7 +283,7 @@ class FlowSampler:
         if close_pool:
             self.ns.close_pool()
 
-    def save_kwargs(self, kwargs):
+    def save_kwargs(self, kwargs: dict) -> None:
         """
         Save the dictionary of keyword arguments used.
 
@@ -284,23 +294,45 @@ class FlowSampler:
         kwargs : dict
             Dictionary of kwargs to save.
         """
-        d = kwargs.copy()
-        with open(os.path.join(self.output, "config.json"), "w") as wf:
-            json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
+        save_to_json(kwargs.copy(), os.path.join(self.output, "config.json"))
 
-    def save_results(self, filename):
+    def save_results(
+        self, filename: str, extension: Optional[str] = None
+    ) -> None:
         """
-        Save the results from sampling to a specific JSON file.
+        Save the results from sampling to a specific results file.
 
         Parameters
         ----------
         filename : str
             Name of file to save results to.
+        extension : Optional[str]
+            File extension to used. If not specified, it will be inferred from
+            the filename.
         """
         d = self.ns.get_result_dictionary()
-        d["posterior_samples"] = live_points_to_dict(self.posterior_samples)
-        with open(filename, "w") as wf:
-            json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
+        d["posterior_samples"] = self.posterior_samples
+
+        ext = os.path.splitext(filename)[1].lstrip(".")
+        if extension is None:
+            if ext == "":
+                raise RuntimeError(
+                    "Must specify file extension if not present in filename!"
+                )
+            else:
+                extension = ext
+        elif ext == "":
+            filename = ".".join([filename, extension])
+
+        if extension == "json":
+            d["posterior_samples"] = live_points_to_dict(
+                d["posterior_samples"]
+            )
+            save_to_json(d, filename)
+        elif extension in ["hdf5", "h5"]:
+            save_dict_to_hdf5(d, filename)
+        else:
+            raise RuntimeError(f"Unknown file extension: {extension}")
 
     def terminate_run(self, code=None):
         """Terminate a sampling run.
