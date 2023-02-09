@@ -120,7 +120,8 @@ def test_save_live_points(tmp_path):
         {
             k: 2 * [v]
             for k, v in zip(
-                config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
+                config.livepoints.non_sampling_parameters,
+                config.livepoints.non_sampling_defaults,
             )
         }
     )

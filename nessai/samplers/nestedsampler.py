@@ -981,7 +981,7 @@ class NestedSampler(BaseNestedSampler):
                 logX_its,
                 rolling_mean(np.abs(self.state.gradients), self.nlive // 10),
                 c="C1",
-                ls=config.LINE_STYLES[1],
+                ls=config.plotting.line_styles[1],
                 label="Gradient",
             )
             ax_logX_grad.set_ylabel(r"$|d\log L/d \log X|$")
@@ -1005,7 +1005,7 @@ class NestedSampler(BaseNestedSampler):
             self.dZ_history,
             label="dZ",
             c="C1",
-            ls=config.LINE_STYLES[1],
+            ls=config.plotting.line_styles[1],
         )
         ax_dz.set_ylabel("dZ")
         handles, labels = ax[3].get_legend_handles_labels()
@@ -1028,7 +1028,7 @@ class NestedSampler(BaseNestedSampler):
             self.population_radii,
             label="Radius",
             color="C2",
-            ls=config.LINE_STYLES[2],
+            ls=config.plotting.line_styles[2],
         )
         ax_r.set_ylabel("Population radius")
         handles_r, labels_r = ax_r.get_legend_handles_labels()

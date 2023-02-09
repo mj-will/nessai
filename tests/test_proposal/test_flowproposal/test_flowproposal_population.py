@@ -188,7 +188,7 @@ def test_convert_to_samples(proposal):
     out_samples = FlowProposal.convert_to_samples(proposal, samples, plot=True)
 
     assert out_samples.dtype.names == ("x",) + tuple(
-        config.NON_SAMPLING_PARAMETERS
+        config.livepoints.non_sampling_parameters
     )
 
 
@@ -216,7 +216,7 @@ def test_convert_to_samples_with_prime(mock_plot, proposal):
     )
     proposal.inverse_rescale.assert_called_once()
     assert out_samples.dtype.names == ("x",) + tuple(
-        config.NON_SAMPLING_PARAMETERS
+        config.livepoints.non_sampling_parameters
     )
 
 

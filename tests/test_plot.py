@@ -39,7 +39,7 @@ def auto_close_figures():
 
 @pytest.mark.parametrize("line_styles", [True, False])
 def test_nessai_style_enabled(line_styles):
-    """Assert the style is applied with config.DISABLE_STYLE=False
+    """Assert the style is applied with config.plotting.disable_style=False
 
     Tests with `line_styles` True and False
     """
@@ -47,7 +47,7 @@ def test_nessai_style_enabled(line_styles):
     def func(a, b):
         return a + b
 
-    with patch("nessai.plot.config.DISABLE_STYLE", False), patch(
+    with patch("nessai.plot.config.plotting.disable_style", False), patch(
         "seaborn.axes_style"
     ) as mock_style, patch("matplotlib.rc_context") as mock_rc:
         out = plot.nessai_style(line_styles=line_styles)(func)(1, 2)
@@ -56,19 +56,21 @@ def test_nessai_style_enabled(line_styles):
     mock_rc.assert_called_once()
     d = mock_rc.call_args[0][0]["axes.prop_cycle"].by_key()
     if line_styles:
-        d["linestyle"] == config.LINE_STYLES
-        d["color"] == config.LINE_COLOURS
+        d["linestyle"] == config.plotting.line_styles
+        d["color"] == config.plotting.line_colours
     else:
         assert "linestyle" not in d
 
 
 def test_nessai_style_disabled():
-    """Assert the style isn't applied with config.DISABLE_STYLE=True"""
+    """
+    Assert the style isn't applied with config.plotting.disable_style=True
+    """
 
     def func(a, b):
         return a + b
 
-    with patch("nessai.plot.config.DISABLE_STYLE", True), patch(
+    with patch("nessai.plot.config.plotting.disable_style", True), patch(
         "seaborn.axes_style"
     ) as mock_style:
         out = plot.nessai_style(func)(1, 2)
@@ -88,9 +90,9 @@ def test_nessai_style_integration(line_styles):
         )
 
     colours, line_styles = plot.nessai_style(line_styles=line_styles)(func)()
-    assert colours == config.LINE_COLOURS
+    assert colours == config.plotting.line_colours
     if line_styles:
-        assert line_styles == config.LINE_STYLES
+        assert line_styles == config.plotting.line_styles
     else:
         assert line_styles is None
 
@@ -367,7 +369,7 @@ def test_trace_plot_unstructured():
 
 
 @pytest.mark.parametrize(
-    "labels", [None, ["x", "y"] + config.NON_SAMPLING_PARAMETERS]
+    "labels", [None, ["x", "y"] + config.livepoints.non_sampling_parameters]
 )
 def test_trace_plot_labels(nested_samples, labels):
     """Test trace plot generation with labels."""
@@ -442,7 +444,8 @@ def test_corner_plot_check_inputs(live_points):
 
 
 @pytest.mark.parametrize(
-    "labels", [["x", "y"], ["x", "y"] + config.NON_SAMPLING_PARAMETERS]
+    "labels",
+    [["x", "y"], ["x", "y"] + config.livepoints.non_sampling_parameters],
 )
 def test_corner_plot_w_labels(live_points, labels):
     """Test the corner plot with labels"""
@@ -501,7 +504,9 @@ def test_corner_plot_all_nans(caplog, live_points):
     live_points["x"] = np.nan
     fig = plot.corner_plot(live_points)
     assert fig is not None
-    assert str(["x"] + config.NON_SAMPLING_PARAMETERS) in caplog.text
+    assert (
+        str(["x"] + config.livepoints.non_sampling_parameters) in caplog.text
+    )
 
 
 def test_corner_plot_save(tmpdir, live_points):

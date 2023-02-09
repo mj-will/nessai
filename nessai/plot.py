@@ -44,15 +44,15 @@ def nessai_style(line_styles=True):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if config.DISABLE_STYLE:
+            if config.plotting.disable_style:
                 return func(*args, **kwargs)
-            c = cycler(color=config.LINE_COLOURS)
+            c = cycler(color=config.plotting.line_colours)
             if line_styles:
-                c += cycler(linestyle=config.LINE_STYLES)
+                c += cycler(linestyle=config.plotting.line_styles)
             d = {
                 "axes.prop_cycle": c,
             }
-            with sns.axes_style(config.SNS_STYLE), mpl.rc_context(
+            with sns.axes_style(config.plotting.sns_style), mpl.rc_context(
                 {**_rcparams, **d}
             ):
                 return func(*args, **kwargs)
@@ -97,13 +97,13 @@ def plot_live_points(
             bins="auto",
             lw=1.5,
             density=True,
-            color=config.BASE_COLOUR,
+            color=config.plotting.base_colour,
         ),
         plot_kws=dict(
             s=1.0,
             edgecolor=None,
             palette="viridis",
-            color=config.BASE_COLOUR,
+            color=config.plotting.base_colour,
         ),
     )
     pairplot_kwargs.update(kwargs)
@@ -135,13 +135,13 @@ def plot_live_points(
                 v[0],
                 ls=":",
                 alpha=0.5,
-                color=config.HIGHLIGHT_COLOUR,
+                color=config.plotting.highlight_colour,
             )
             fig.axes[i, i].axvline(
                 v[1],
                 ls=":",
                 alpha=0.5,
-                color=config.HIGHLIGHT_COLOUR,
+                color=config.plotting.highlight_colour,
             )
 
     if filename is not None:
@@ -569,8 +569,8 @@ def corner_plot(
     default_kwargs = dict(
         bins=32,
         smooth=0.9,
-        color=config.BASE_COLOUR,
-        truth_color=config.HIGHLIGHT_COLOUR,
+        color=config.plotting.base_colour,
+        truth_color=config.plotting.highlight_colour,
         quantiles=[0.16, 0.84],
         levels=(1 - np.exp(-0.5), 1 - np.exp(-2), 1 - np.exp(-9 / 2.0)),
         plot_density=True,

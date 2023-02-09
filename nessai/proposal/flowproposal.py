@@ -310,7 +310,9 @@ class FlowProposal(RejectionProposal):
     def x_dtype(self):
         """Return the dtype for the x space"""
         if not self._x_dtype:
-            self._x_dtype = get_dtype(self.names, config.DEFAULT_FLOAT_DTYPE)
+            self._x_dtype = get_dtype(
+                self.names, config.livepoints.default_float_dtype
+            )
         return self._x_dtype
 
     @property
@@ -318,7 +320,7 @@ class FlowProposal(RejectionProposal):
         """Return the dtype for the x prime space"""
         if not self._x_prime_dtype:
             self._x_prime_dtype = get_dtype(
-                self.rescaled_names, config.DEFAULT_FLOAT_DTYPE
+                self.rescaled_names, config.livepoints.default_float_dtype
             )
         return self._x_prime_dtype
 
@@ -776,7 +778,7 @@ class FlowProposal(RejectionProposal):
                     start = count * n
                     end = (count + 1) * n
                     block = x_out[f][start:end]
-                    if f in config.NON_SAMPLING_PARAMETERS:
+                    if f in config.livepoints.non_sampling_parameters:
                         if not np.allclose(block, target, equal_nan=True):
                             raise RuntimeError(
                                 f"Non-sampling parameter {f} changed in "
@@ -824,7 +826,7 @@ class FlowProposal(RejectionProposal):
             x, x_prime, log_J, compute_radius=compute_radius, **kwargs
         )
 
-        for p in config.NON_SAMPLING_PARAMETERS:
+        for p in config.livepoints.non_sampling_parameters:
             x_prime[p] = x[p]
         return x_prime, log_J
 
@@ -851,7 +853,7 @@ class FlowProposal(RejectionProposal):
             x, x_prime, log_J, **kwargs
         )
 
-        for p in config.NON_SAMPLING_PARAMETERS:
+        for p in config.livepoints.non_sampling_parameters:
             x[p] = x_prime[p]
         return x, log_J
 
@@ -1099,7 +1101,8 @@ class FlowProposal(RejectionProposal):
         valid = np.isfinite(log_prob)
         x, log_prob = x[valid], log_prob[valid]
         x = numpy_array_to_live_points(
-            x.astype(config.DEFAULT_FLOAT_DTYPE), self.rescaled_names
+            x.astype(config.livepoints.default_float_dtype),
+            self.rescaled_names,
         )
         # Apply rescaling in rescale=True
         if rescale:
@@ -1279,7 +1282,7 @@ class FlowProposal(RejectionProposal):
             x, _ = self.inverse_rescale(x)
         x["logP"] = self.model.log_prior(x)
         return rfn.repack_fields(
-            x[self.model.names + config.NON_SAMPLING_PARAMETERS]
+            x[self.model.names + config.livepoints.non_sampling_parameters]
         )
 
     def populate(self, worst_point, N=10000, plot=True, r=None):

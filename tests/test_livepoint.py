@@ -1,3 +1,6 @@
+"""Tests for livepoint functions"""
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -10,7 +13,8 @@ from nessai.utils.testing import assert_structured_arrays_equal
 EXTRA_PARAMS_DTYPE = [
     (nsp, d)
     for nsp, d in zip(
-        config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        config.livepoints.non_sampling_parameters,
+        config.livepoints.non_sampling_dtype,
     )
 ]
 
@@ -20,7 +24,7 @@ def assert_lp_equal(x, y, non_sampling_parameters=True):
     if non_sampling_parameters:
         assert_structured_arrays_equal(x, y)
     else:
-        for nsp in config.NON_SAMPLING_PARAMETERS:
+        for nsp in config.livepoints.non_sampling_parameters:
             if nsp in x.dtype.names:
                 raise AttributeError(
                     "x has non-sampling parameters but "
@@ -28,7 +32,9 @@ def assert_lp_equal(x, y, non_sampling_parameters=True):
                 )
 
         names = [
-            n for n in x.dtype.names if n not in config.NON_SAMPLING_PARAMETERS
+            n
+            for n in x.dtype.names
+            if n not in config.livepoints.non_sampling_parameters
         ]
         y = np.lib.recfunctions.repack_fields(y[names])
         assert_structured_arrays_equal(x, y)
@@ -43,12 +49,14 @@ def non_sampling_parameters(request):
 def extra_parameters(request):
     """Add (and remove) extra parameters for the tests."""
     # Before every test
+    lp.reset_extra_live_points_parameters()
     lp.add_extra_parameters_to_live_points(request.param)
     global EXTRA_PARAMS_DTYPE
     EXTRA_PARAMS_DTYPE = [
         (nsp, d)
         for nsp, d in zip(
-            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+            config.livepoints.non_sampling_parameters,
+            config.livepoints.non_sampling_dtype,
         )
     ]
 
@@ -60,19 +68,34 @@ def extra_parameters(request):
     EXTRA_PARAMS_DTYPE = [
         (nsp, d)
         for nsp, d in zip(
-            config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+            config.livepoints.non_sampling_parameters,
+            config.livepoints.non_sampling_dtype,
         )
     ]
+
+
+@pytest.fixture(params=["f4", "f16"])
+def change_dtype(request):
+    """Fixture that changes the default float dtype"""
+    dtype = request.param
+    if dtype == "f16" and sys.platform.startswith("win"):
+        pytest.skip("Skipping test with float128 on Windows.")
+    current_dtype = config.livepoints.default_float_dtype
+    config.livepoints.default_float_dtype = dtype
+
+    yield dtype
+
+    config.livepoints.default_float_dtype = current_dtype
 
 
 @pytest.fixture
 def live_point():
     return np.array(
-        [(1.0, 2.0, 3.0, *config.NON_SAMPLING_DEFAULTS)],
+        [(1.0, 2.0, 3.0, *config.livepoints.non_sampling_defaults)],
         dtype=[
-            ("x", config.DEFAULT_FLOAT_DTYPE),
-            ("y", config.DEFAULT_FLOAT_DTYPE),
-            ("z", config.DEFAULT_FLOAT_DTYPE),
+            ("x", config.livepoints.default_float_dtype),
+            ("y", config.livepoints.default_float_dtype),
+            ("z", config.livepoints.default_float_dtype),
         ]
         + EXTRA_PARAMS_DTYPE,
     )
@@ -82,13 +105,13 @@ def live_point():
 def live_points():
     return np.array(
         [
-            (1.0, 2.0, 3.0, *config.NON_SAMPLING_DEFAULTS),
-            (4.0, 5.0, 6.0, *config.NON_SAMPLING_DEFAULTS),
+            (1.0, 2.0, 3.0, *config.livepoints.non_sampling_defaults),
+            (4.0, 5.0, 6.0, *config.livepoints.non_sampling_defaults),
         ],
         dtype=[
-            ("x", config.DEFAULT_FLOAT_DTYPE),
-            ("y", config.DEFAULT_FLOAT_DTYPE),
-            ("z", config.DEFAULT_FLOAT_DTYPE),
+            ("x", config.livepoints.default_float_dtype),
+            ("y", config.livepoints.default_float_dtype),
+            ("z", config.livepoints.default_float_dtype),
         ]
         + EXTRA_PARAMS_DTYPE,
     )
@@ -99,12 +122,22 @@ def empty_live_point():
     return np.empty(
         0,
         dtype=[
-            ("x", config.DEFAULT_FLOAT_DTYPE),
-            ("y", config.DEFAULT_FLOAT_DTYPE),
-            ("z", config.DEFAULT_FLOAT_DTYPE),
+            ("x", config.livepoints.default_float_dtype),
+            ("y", config.livepoints.default_float_dtype),
+            ("z", config.livepoints.default_float_dtype),
         ]
         + EXTRA_PARAMS_DTYPE,
     )
+
+
+def test_add_extra_parameters(caplog):
+    """Assert a warning is raised when adding a parameter name twice."""
+    lp.add_extra_parameters_to_live_points(["test"], [1.0])
+    assert "test" in config.livepoints.extra_parameters
+    loc = config.livepoints.extra_parameters.index("test")
+    assert config.livepoints.extra_parameters_defaults[loc] == 1.0
+    lp.add_extra_parameters_to_live_points(["test"], [1.0])
+    assert "Extra parameter `test` has already been added" in str(caplog.text)
 
 
 def test_get_dtype():
@@ -113,14 +146,25 @@ def test_get_dtype():
     expected = (
         [("x", "f4"), ("y", "f4")]
         + [
-            ("logP", config.DEFAULT_FLOAT_DTYPE),
-            ("logL", config.LOGL_DTYPE),
-            ("it", config.IT_DTYPE),
+            ("logP", config.livepoints.default_float_dtype),
+            ("logL", config.livepoints.logl_dtype),
+            ("it", config.livepoints.it_dtype),
         ]
-        + list(zip(config.EXTRA_PARAMETERS, config.EXTRA_PARAMETERS_DTYPE))
+        + list(
+            zip(
+                config.livepoints.extra_parameters,
+                config.livepoints.extra_parameters_dtype,
+            )
+        )
     )
     dtype = lp.get_dtype(names, array_dtype="f4")
     assert dtype == expected
+
+
+def test_get_dtype_change_dtype(change_dtype):
+    """Assert the dtype can be changed"""
+    dtype = lp.get_dtype(["x"])
+    assert dtype.fields["x"][0] == np.dtype(change_dtype)
 
 
 def test_empty_structured_array_names(non_sampling_parameters):
@@ -132,10 +176,11 @@ def test_empty_structured_array_names(non_sampling_parameters):
     )
     for f in fields:
         np.testing.assert_array_equal(
-            array[f], config.DEFAULT_FLOAT_VALUE * np.ones(n)
+            array[f], config.livepoints.default_float_value * np.ones(n)
         )
     for nsp, v in zip(
-        config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
+        config.livepoints.non_sampling_parameters,
+        config.livepoints.non_sampling_defaults,
     ):
         if non_sampling_parameters:
             np.testing.assert_array_equal(array[nsp], v * np.ones(n))
@@ -154,7 +199,7 @@ def test_empty_structured_array_dtype(non_sampling_parameters):
     )
     for f in ["x", "y"]:
         np.testing.assert_array_equal(
-            array[f], config.DEFAULT_FLOAT_VALUE * np.ones(n)
+            array[f], config.livepoints.default_float_value * np.ones(n)
         )
     assert array.dtype == dtype
 
@@ -178,6 +223,12 @@ def test_empty_structured_array_dtype_missing():
     with pytest.raises(ValueError) as excinfo:
         lp.empty_structured_array(n, dtype=dtype)
     assert "non-sampling parameters" in str(excinfo.value)
+
+
+def test_empty_structured_array_change_dtype(change_dtype):
+    """Assert changing the default dtype changes the output"""
+    array = lp.empty_structured_array(1, names=["x"])
+    assert array.dtype.fields["x"][0] == np.dtype(change_dtype)
 
 
 def test_parameters_to_live_point(live_point, non_sampling_parameters):
@@ -314,7 +365,7 @@ def test_live_point_to_numpy_array(live_point):
     Test conversion from a live point to an unstructured numpy array
     """
     (
-        np.array([[1, 2, 3, *config.NON_SAMPLING_DEFAULTS]]),
+        np.array([[1, 2, 3, *config.livepoints.non_sampling_defaults]]),
         lp.live_points_to_array(live_point),
     )
 
@@ -339,7 +390,8 @@ def test_live_point_to_dict(live_point):
         {
             k: v
             for k, v in zip(
-                config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
+                config.livepoints.non_sampling_parameters,
+                config.livepoints.non_sampling_defaults,
             )
         }
     )
@@ -369,7 +421,8 @@ def test_multiple_live_points_to_dict(live_points):
         {
             k: 2 * [v]
             for k, v in zip(
-                config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
+                config.livepoints.non_sampling_parameters,
+                config.livepoints.non_sampling_defaults,
             )
         }
     )
