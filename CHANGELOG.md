@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `parameters` keyword argument to `nessai.plot.plot_trace` and pass additional keyword arguments to the plotting function.
 - Add option to construct live points without non-sampling parameters.
 - Add option to use a different estimate of the shrinkage. Default remains unchanged.
+- Add `ScaleAndShift` reparameterisation which includes Z-score normalisation.
 
 ### Changed
 
@@ -34,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tweak how the prior volume is computed for the final nested sample. This will also change the evidence and posterior weights.
 - Stricter handling of keyword arguments passed to `NestedSampler`. Unknown keyword arguments will now raise an error.
 - Rework `nessai.config` to have `config.livepoints` and `config.plot` which contain global settings. Some of the setting names have also changed.
+- `Rescale` reparameterisation is now an alias for `ScaleAndShift`.
 
 ### Fixed
 
