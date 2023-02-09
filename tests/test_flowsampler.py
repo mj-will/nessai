@@ -8,12 +8,15 @@ import signal
 import sys
 import time
 from threading import Thread
+from unittest.mock import MagicMock, create_autospec, patch
 
+
+import h5py
 import pytest
 from nessai.evidence import _NSIntegralState
 from nessai.flowsampler import FlowSampler
+from nessai.livepoint import numpy_array_to_live_points
 import numpy as np
-from unittest.mock import MagicMock, create_autospec, patch
 
 
 @pytest.fixture()
@@ -32,6 +35,21 @@ def reset_handlers():
         signal.signal(signal.SIGALRM, signal.SIG_DFL)
     except AttributeError:
         print("Cannot set signal attributes on this system.")
+
+
+@pytest.fixture()
+def names():
+    return ["x", "y"]
+
+
+@pytest.fixture()
+def posterior_samples(names):
+    return numpy_array_to_live_points(np.random.randn(10, len(names)), names)
+
+
+@pytest.fixture()
+def nested_samples(names):
+    return numpy_array_to_live_points(np.random.randn(20, len(names)), names)
 
 
 @pytest.mark.parametrize("resume", [False, True])
@@ -357,6 +375,7 @@ def test_run(
     flow_sampler.ns.state.plot_state = MagicMock()
     flow_sampler.save_results = MagicMock()
     flow_sampler.close_pool = True
+    flow_sampler.result_extension = "hdf5"
 
     FlowSampler.run(flow_sampler, save=save, plot=plot)
 
@@ -365,7 +384,10 @@ def test_run(
         nested_samples, log_w=log_w, method="rejection_sampling"
     )
     if save:
-        flow_sampler.save_results.assert_called_once()
+        flow_sampler.save_results.assert_called_once_with(
+            os.path.join(output, "result"),
+            extension="hdf5",
+        )
     else:
         flow_sampler.save_results.assert_not_called()
 
@@ -483,28 +505,69 @@ def test_save_kwargs(flow_sampler, tmpdir, test_class):
     assert os.path.exists(os.path.join(flow_sampler.output, "config.json"))
 
 
-def test_save_results(flow_sampler, tmpdir):
-    """Test the save results method"""
-    output = str(tmpdir.mkdir("test"))
-    filename = os.path.join(output, "result.json")
+@pytest.mark.parametrize(
+    "filename, extension", [("result", "json"), ("result.json", None)]
+)
+def test_save_result_json(
+    flow_sampler, posterior_samples, filename, extension
+):
+    """Test saving with a JSON file."""
     d = dict(a=1)
-
     ns = MagicMock()
     ns.get_result_dictionary = MagicMock(return_value=d)
-
     flow_sampler.ns = ns
-    flow_sampler.posterior_samples = np.array([0.1], dtype=[("x", "f8")])
-    flow_sampler.nested_samples = np.array([0.1], dtype=[("x", "f8")])
+    flow_sampler.posterior_samples = posterior_samples
 
-    FlowSampler.save_results(flow_sampler, filename)
+    with patch("nessai.flowsampler.save_to_json") as mock_save:
+        FlowSampler.save_results(flow_sampler, filename, extension=extension)
 
-    assert os.path.exists(filename)
-    ns.get_result_dictionary.assert_called_once()
-    with open(filename, "r") as fp:
-        out = json.load(fp)
+    mock_save.assert_called_once_with(d, "result.json")
 
-    assert out["a"] == 1
-    assert "posterior_samples" in out
+
+@pytest.mark.parametrize(
+    "filename, extension", [("result", "hdf5"), ("result.hdf5", None)]
+)
+def test_save_result_hdf5(
+    flow_sampler, posterior_samples, filename, extension
+):
+    """Test saving with an HDF5 file."""
+    d = dict(a=1)
+    ns = MagicMock()
+    ns.get_result_dictionary = MagicMock(return_value=d)
+    flow_sampler.ns = ns
+    flow_sampler.posterior_samples = posterior_samples
+
+    with patch("nessai.flowsampler.save_dict_to_hdf5") as mock_save:
+        FlowSampler.save_results(flow_sampler, filename, extension=extension)
+
+    mock_save.assert_called_once_with(d, "result.hdf5")
+
+
+def test_save_result_no_extension(flow_sampler, posterior_samples):
+    """Assert an error is raised if a file extension is not given or included
+    in the filename.
+    """
+    d = dict(a=1)
+    ns = MagicMock()
+    ns.get_result_dictionary = MagicMock(return_value=d)
+    flow_sampler.ns = ns
+    flow_sampler.posterior_samples = posterior_samples
+    with pytest.raises(
+        RuntimeError,
+        match=r"Must specify file extension if not present in filename!",
+    ):
+        FlowSampler.save_results(flow_sampler, "result")
+
+
+def test_save_result_error(flow_sampler, posterior_samples):
+    """Assert an error is raised if the extension is not recognised"""
+    d = dict(a=1)
+    ns = MagicMock()
+    ns.get_result_dictionary = MagicMock(return_value=d)
+    flow_sampler.ns = ns
+    flow_sampler.posterior_samples = posterior_samples
+    with pytest.raises(RuntimeError, match=r"Unknown file extension: pkl"):
+        FlowSampler.save_results(flow_sampler, "result.pkl")
 
 
 def test_terminate_run(flow_sampler):
@@ -625,3 +688,36 @@ def test_signal_handling_disabled(tmp_path, caplog, model):
             raise
 
     assert "Signal handling is disabled" in str(caplog.text)
+
+
+@pytest.mark.parametrize("extension", ["json", "hdf5"])
+@pytest.mark.integration_test
+def test_save_results_integration(
+    flow_sampler, tmpdir, posterior_samples, extension
+):
+    """Test the save results method"""
+    output = str(tmpdir.mkdir("test"))
+    filename = os.path.join(output, ".".join(["result", extension]))
+    d = dict(a=1)
+
+    ns = MagicMock()
+    ns.get_result_dictionary = MagicMock(return_value=d)
+
+    flow_sampler.ns = ns
+    flow_sampler.posterior_samples = posterior_samples
+
+    FlowSampler.save_results(flow_sampler, filename)
+
+    assert os.path.exists(filename)
+    ns.get_result_dictionary.assert_called_once()
+
+    if extension == "hdf5":
+        out = h5py.File(filename, "r")
+    else:
+        with open(filename, "r") as fp:
+            out = json.load(fp)
+
+    assert "posterior_samples" in out
+    np.testing.assert_array_equal(
+        out["posterior_samples"]["x"], posterior_samples["x"]
+    )
