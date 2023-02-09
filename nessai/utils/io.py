@@ -129,6 +129,26 @@ def save_live_points(live_points, filename):
         json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
 
 
+def encode_for_hdf5(value):
+    """Encode a value for HDF5 file format.
+
+    Parameters
+    ----------
+    value : Any
+        Value to encode.
+
+    Returns
+    -------
+    Any
+        Encoded value.
+    """
+    if value is None:
+        output = "__none__"
+    else:
+        output = value
+    return output
+
+
 def add_dict_to_hdf5_file(hdf5_file, path, d):
     """Save a dictionary to a HDF5 file.
 
@@ -147,7 +167,7 @@ def add_dict_to_hdf5_file(hdf5_file, path, d):
         if isinstance(value, dict):
             add_dict_to_hdf5_file(hdf5_file, path + key + "/", value)
         else:
-            hdf5_file[path + key] = value
+            hdf5_file[path + key] = encode_for_hdf5(value)
 
 
 def save_dict_to_hdf5(d, filename):
