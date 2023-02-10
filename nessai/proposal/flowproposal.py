@@ -1015,17 +1015,8 @@ class FlowProposal(RejectionProposal):
             Array containing the subset of the original arrays which fall
             within the prior bounds
         """
-        idx = np.array(
-            list(
-                (
-                    (x[n] >= self.model.bounds[n][0])
-                    & (x[n] <= self.model.bounds[n][1])
-                )
-                for n in self.model.names
-            )
-        ).T.all(1)
-        out = (a[idx] for a in (x,) + args)
-        return out
+        flags = self.model.in_bounds(x)
+        return (a[flags] for a in (x,) + args)
 
     def forward_pass(self, x, rescale=True, compute_radius=True):
         """
