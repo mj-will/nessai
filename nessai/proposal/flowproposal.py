@@ -6,6 +6,7 @@ import copy
 import datetime
 import logging
 import os
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,12 +17,12 @@ from .. import config
 from ..flowmodel import FlowModel
 from ..livepoint import (
     live_points_to_array,
-    numpy_array_to_live_points,
     get_dtype,
     empty_structured_array,
 )
 from ..reparameterisations import (
     CombinedReparameterisation,
+    NullReparameterisation,
     get_reparameterisation,
 )
 from ..plot import plot_live_points, plot_1d_comparison, nessai_style
@@ -152,6 +153,9 @@ class FlowProposal(RejectionProposal):
         Dictionary of kwargs passed to the function for drawing samples
         in the latent space. See the functions in utils for the possible
         kwargs.
+    prior_only_parameters : Optional[Union[list, set]]
+        Iterable of parameters that should be sampled directly from the priors
+        and not included in the flow.
     """
 
     use_default_reparameterisations = False
@@ -159,6 +163,12 @@ class FlowProposal(RejectionProposal):
     Indicates whether reparameterisations will be used be default in this
     class. Child classes can change this value a force the default
     behaviour to change without changing the keyword arguments.
+    """
+
+    default_prior_only_parameters = None
+    """
+    Parameters for which prior-only treatment with be used by default. Ignored
+    if :code:`prior_only_paramters` is specified.
     """
 
     def __init__(
@@ -195,14 +205,17 @@ class FlowProposal(RejectionProposal):
         fallback_reparameterisation=None,
         use_default_reparameterisations=None,
         reverse_reparameterisations=False,
+        prior_only_parameters=None,
         **kwargs,
     ):
 
         super(FlowProposal, self).__init__(model)
         logger.debug("Initialising FlowProposal")
 
-        self._x_dtype = False
-        self._x_prime_dtype = False
+        self._x_dtype = None
+        self._x_prime_dtype = None
+        self._x_dtype_flow = None
+        self._flow_parameters = None
 
         self.flow = None
         self._flow_config = None
@@ -223,6 +236,7 @@ class FlowProposal(RejectionProposal):
         self._reparameterisation = None
         self.rescaling_set = False
         self.use_x_prime_prior = False
+        self.has_prior_only_parameters = False
 
         self.reparameterisations = reparameterisations
         if use_default_reparameterisations is not None:
@@ -261,6 +275,8 @@ class FlowProposal(RejectionProposal):
         self.compute_radius_with_all = compute_radius_with_all
         self.configure_fixed_radius(fixed_radius)
         self.configure_min_max_radius(min_radius, max_radius)
+
+        self.configure_prior_only_parameters(prior_only_parameters)
 
         self.configure_plotting(plot)
 
@@ -340,6 +356,40 @@ class FlowProposal(RejectionProposal):
         else:
             return self.x_dtype
 
+    @property
+    def flow_parameters(self):
+        """Parameters for the flow.
+
+        Define in the X-prime space
+        """
+        if not self._flow_parameters:
+            self._flow_parameters = [
+                n
+                for n in self.rescaled_names
+                if n not in self.prior_only_parameters
+            ]
+        return self._flow_parameters
+
+    @property
+    def flow_dims(self):
+        """Number of dimensions in the flow"""
+        return len(self.flow_parameters)
+
+    @property
+    def parameters_without_reparameterisation(self):
+        """List of parameters that do not have a reparameterisation.
+
+        Excludes prior only parameters.
+        """
+        if self._reparameterisation is None:
+            logger.warning("Reparameterisation has not been defined yet")
+            return None
+        return [
+            n
+            for n in self.model.names
+            if n not in self._reparameterisation.parameters
+        ]
+
     def configure_population(
         self,
         poolsize,
@@ -368,6 +418,39 @@ class FlowProposal(RejectionProposal):
         self.fuzz = fuzz
         self.expansion_fraction = expansion_fraction
         self.latent_prior = latent_prior
+
+    def configure_prior_only_parameters(self, parameters):
+        """Configure the prior only parameters.
+
+        Parameters
+        ----------
+        parameters : Union[Iterable, bool]
+            Iterable of parameters which will be sampled directly from their
+            respective priors. Can also include regex patterns that will
+            matched against all parameters. If a boolean is specified, only
+            the default prior only parameters with be used.
+        """
+        if parameters is True:
+            logger.info("Using default prior only parameters")
+            parameters = self.default_prior_only_parameters.copy()
+        if parameters:
+            pop = []
+            names = self.model.names
+            for p in parameters:
+                if p in names:
+                    pop.append(p)
+                else:
+                    r = re.compile(p)
+                    pop += list(filter(r.match, names))
+            pop = list(dict.fromkeys(pop))
+            self.prior_only_parameters = pop
+            logger.info(
+                f"Prior only parameters are: {self.prior_only_parameters}"
+            )
+            self.has_prior_only_parameters = True
+            self.use_x_prime_prior = False
+        else:
+            self.prior_only_parameters = []
 
     def configure_plotting(self, plot):
         """Configure plotting.
@@ -487,7 +570,7 @@ class FlowProposal(RejectionProposal):
                     "`latent_prior='truncated_gaussian'`"
                 )
             self.fixed_radius = compute_radius(
-                self.rescaled_dims, self.volume_fraction
+                self.flow_dims, self.volume_fraction
             )
             self.fuzz = 1.0
             if self.max_radius < self.fixed_radius:
@@ -511,7 +594,7 @@ class FlowProposal(RejectionProposal):
 
     def update_flow_config(self):
         """Update the flow configuration dictionary."""
-        self.flow_config["model_config"]["n_inputs"] = self.rescaled_dims
+        self.flow_config["model_config"]["n_inputs"] = self.flow_dims
 
     def initialise(self):
         """
@@ -532,9 +615,7 @@ class FlowProposal(RejectionProposal):
         self.verify_rescaling()
         if self.expansion_fraction and self.expansion_fraction is not None:
             logger.info("Overwriting fuzz factor with expansion fraction")
-            self.fuzz = (1 + self.expansion_fraction) ** (
-                1 / self.rescaled_dims
-            )
+            self.fuzz = (1 + self.expansion_fraction) ** (1 / self.flow_dims)
             logger.info(f"New fuzz factor: {self.fuzz}")
 
         self.configure_constant_volume()
@@ -602,6 +683,11 @@ class FlowProposal(RejectionProposal):
             )
 
         for k, cfg in _reparameterisations.items():
+            if k in self.prior_only_parameters:
+                raise RuntimeError(
+                    f"Parameter {k} included in reparameterisations and "
+                    "prior only parameters. Cannot specify reparameterisation."
+                )
             if k in self.model.names:
                 logger.debug(
                     f"Found parameter {k} in model, "
@@ -675,11 +761,14 @@ class FlowProposal(RejectionProposal):
 
         self.add_default_reparameterisations()
 
-        other_params = [
-            n
-            for n in self.model.names
-            if n not in self._reparameterisation.parameters
-        ]
+        if self.prior_only_parameters:
+            logger.debug(
+                "Adding NullReparameterisation for prior only parameters"
+            )
+            r = NullReparameterisation(parameters=self.prior_only_parameters)
+            self._reparameterisation.add_reparameterisations(r)
+
+        other_params = self.parameters_without_reparameterisation
         if other_params:
             logger.debug("Getting fallback reparameterisation")
             FallbackClass, fallback_kwargs = self.get_reparameterisation(
@@ -739,6 +828,14 @@ class FlowProposal(RejectionProposal):
             if not isinstance(self.rescale_parameters, list):
                 self.rescale_parameters = self.model.names.copy()
 
+            if self.prior_only_parameters:
+                logger.debug("Removing prior only parameters from rescaling")
+                self.rescale_parameters = [
+                    p
+                    for p in self.rescale_parameters
+                    if p not in self.prior_only_parameters
+                ]
+
             self.reparameterisations = {
                 "rescaletobounds": {
                     "parameters": self.rescale_parameters,
@@ -772,7 +869,10 @@ class FlowProposal(RejectionProposal):
             self.check_state(x)
             logger.debug(f"Testing: {inversion}")
             x_prime, log_J = self.rescale(x, test=inversion)
-            x_out, log_J_inv = self.inverse_rescale(x_prime)
+            x_out, log_J_inv = self.inverse_rescale(
+                x_prime,
+                sample_prior_only_parameters=False,
+            )
 
             n = x.size
             ratio = x_out.size // x.size
@@ -835,7 +935,9 @@ class FlowProposal(RejectionProposal):
             x_prime[p] = x[p]
         return x_prime, log_J
 
-    def inverse_rescale(self, x_prime, **kwargs):
+    def inverse_rescale(
+        self, x_prime, sample_prior_only_parameters=False, **kwargs
+    ):
         """
         Rescale from the primed physical space to the original physical
         space.
@@ -844,6 +946,9 @@ class FlowProposal(RejectionProposal):
         ----------
         x_prime : array_like
             Array of live points to rescale.
+        sample_prior_only_parameters : bool
+            If True will sample the prior only parameters and replace the
+            existing values.
 
         Returns
         -------
@@ -854,6 +959,10 @@ class FlowProposal(RejectionProposal):
         """
         x = empty_structured_array(x_prime.size, dtype=self.x_dtype)
         log_J = np.zeros(x.size)
+
+        if self.prior_only_parameters and sample_prior_only_parameters:
+            x_prime = self.sample_prior_only_parameters(x_prime)
+
         x, x_prime, log_J = self._reparameterisation.inverse_reparameterise(
             x, x_prime, log_J, **kwargs
         )
@@ -886,7 +995,7 @@ class FlowProposal(RejectionProposal):
         z_training_data, _ = self.forward_pass(
             self.training_data, rescale=True
         )
-        z_gen = np.random.randn(self.training_data.size, self.dims)
+        z_gen = np.random.randn(self.training_data.size, self.flow_dims)
 
         fig = plt.figure()
         plt.hist(np.sqrt(np.sum(z_training_data**2, axis=1)), "auto")
@@ -904,7 +1013,9 @@ class FlowProposal(RejectionProposal):
 
         x_prime_gen, log_prob = self.backward_pass(z_gen, rescale=False)
         x_prime_gen["logL"] = log_prob
-        x_gen, log_J = self.inverse_rescale(x_prime_gen)
+        x_gen, log_J = self.inverse_rescale(
+            x_prime_gen, sample_prior_only_parameters=True
+        )
         x_gen, log_J, x_prime_gen = self.check_prior_bounds(
             x_gen, log_J, x_prime_gen
         )
@@ -990,7 +1101,7 @@ class FlowProposal(RejectionProposal):
 
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
-        x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
+        x_prime_array = live_points_to_array(x_prime, self.flow_parameters)
 
         self.flow.train(
             x_prime_array,
@@ -1074,7 +1185,7 @@ class FlowProposal(RejectionProposal):
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
             log_J += log_J_rescale
 
-        x = live_points_to_array(x, names=self.rescaled_names)
+        x = live_points_to_array(x, names=self.flow_parameters)
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
@@ -1103,23 +1214,32 @@ class FlowProposal(RejectionProposal):
         """
         # Compute the log probability
         try:
-            x, log_prob = self.flow.sample_and_log_prob(
+            x_flow, log_prob = self.flow.sample_and_log_prob(
                 z=z, alt_dist=self.alt_dist
             )
         except AssertionError:
             return np.array([]), np.array([])
 
         valid = np.isfinite(log_prob)
-        x, log_prob = x[valid], log_prob[valid]
-        x = numpy_array_to_live_points(
-            x.astype(config.DEFAULT_FLOAT_DTYPE), self.rescaled_names
-        )
+        x_flow, log_prob = x_flow[valid], log_prob[valid]
+
+        x = empty_structured_array(len(x_flow), dtype=self.x_prime_dtype)
+
+        for i, n in enumerate(self.flow_parameters):
+            x[n] = x_flow[:, i]
+
         # Apply rescaling in rescale=True
         if rescale:
-            x, log_J = self.inverse_rescale(x)
+            x, log_J = self.inverse_rescale(
+                x, sample_prior_only_parameters=True
+            )
             # Include Jacobian for the rescaling
             log_prob -= log_J
-            x, log_prob = self.check_prior_bounds(x, log_prob)
+
+            if self.prior_only_parameters:
+                for p in self.prior_only_parameters:
+                    log_prob += self.model.log_prior_parameter(x[p], p)
+
         return x, log_prob
 
     def radius(self, z, log_q=None):
@@ -1256,6 +1376,40 @@ class FlowProposal(RejectionProposal):
 
         return z[indices], x[indices]
 
+    def sample_prior_only_parameters(self, x, return_log_prob=False):
+        """Sample the prior only parameters and add them to an array
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            Structured array that already contains fields for the prior only
+            parameters.
+        return_log_prob : bool
+            If true, the log-probabilities for the prior only samples are
+            also returned.
+
+        Returns
+        -------
+        x : numpy.ndarray
+            Structured array with parameters from the flow and the prior only
+            parameters.
+        log_prob : numpy.ndarray
+            The log probabilities of the prior only samples.
+        """
+        if not all([p in x.dtype.names for p in self.prior_only_parameters]):
+            raise ValueError("x must contain fields for prior only parameters")
+
+        for p in self.prior_only_parameters:
+            x[p] = self.model.sample_parameter(p, x.size)
+
+        if return_log_prob:
+            log_prob = np.zeros(x.size)
+            for p in self.prior_only_parameters:
+                log_prob += self.model.log_prior_parameter(x[p], p)
+            return x, log_prob
+        else:
+            return x
+
     def convert_to_samples(self, x, plot=True):
         """
         Convert the array to samples ready to be used.
@@ -1349,7 +1503,7 @@ class FlowProposal(RejectionProposal):
             )
         self.x = empty_structured_array(N, dtype=self.population_dtype)
         self.indices = []
-        z_samples = np.empty([N, self.dims])
+        z_samples = np.empty([N, self.flow_dims])
 
         proposed = 0
         accepted = 0
@@ -1358,7 +1512,7 @@ class FlowProposal(RejectionProposal):
 
         while accepted < N:
             z = self.draw_latent_prior(
-                self.dims,
+                self.flow_dims,
                 r=self.r,
                 N=self.drawsize,
                 fuzz=self.fuzz,
