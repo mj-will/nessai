@@ -5,4 +5,5 @@ seaborn
 scipy>=0.16,<1.10
 torch>=1.7.0
 tqdm
-nflows
+glasflow
+h5py>=3.0

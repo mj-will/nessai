@@ -9,7 +9,9 @@ from .io import (
     NessaiJSONEncoder,
     is_jsonable,
     safe_file_dump,
+    save_dict_to_hdf5,
     save_live_points,
+    save_to_json,
 )
 from .logging import setup_logger
 from .rescaling import (
@@ -74,7 +76,9 @@ __all__ = [
     "rescaling_functions",
     "safe_file_dump",
     "sampling",
+    "save_dict_to_hdf5",
     "save_live_points",
+    "save_to_json",
     "setup_logger",
     "sigmoid",
     "spatial",

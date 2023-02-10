@@ -3,7 +3,6 @@
 Object and functions to handle training the normalising flow.
 """
 import copy
-import json
 import logging
 import numpy as np
 import os
@@ -16,7 +15,7 @@ from .utils import update_config
 from ..flows import configure_model, reset_weights, reset_permutations
 from ..flows.base import BaseFlow
 from ..plot import plot_loss
-from ..utils import NessaiJSONEncoder, compute_minimum_distances
+from ..utils import save_to_json, compute_minimum_distances
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +89,7 @@ class FlowModel:
                 config["model_config"]["flow"]
             )
 
-        with open(output_file, "w") as f:
-            json.dump(config, f, indent=4, cls=NessaiJSONEncoder)
+        save_to_json(config, output_file)
 
     def setup_from_input_dict(self, config):
         """

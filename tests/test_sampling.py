@@ -200,7 +200,7 @@ def test_sampling_with_n_pool(model, flow_config, tmpdir, mp_context):
     fp.run()
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
-    assert os.path.exists(os.path.join(output, "result.json"))
+    assert os.path.exists(os.path.join(output, "result.hdf5"))
 
 
 @pytest.mark.slow_integration_test
@@ -541,3 +541,21 @@ def test_invalid_keyword_argument(model, tmp_path):
             plot=False,
             not_a_valid_kwarg=True,
         )
+
+
+@pytest.mark.parametrize("extension", ["hdf5", "h5", "json"])
+@pytest.mark.slow_integration_test
+def test_sampling_result_extension(model, tmp_path, extension):
+    """Assert the correct extension is used"""
+    output = tmp_path / "test"
+    output.mkdir()
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+        proposal_plots=False,
+        result_extension=extension,
+    )
+    fs.run(plot=False)
+    assert os.path.exists(os.path.join(output, f"result.{extension}"))
