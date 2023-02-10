@@ -1258,10 +1258,10 @@ class NestedSampler(BaseNestedSampler):
             self.finalise()
 
         logger.info(
-            f"Final evidence: {self.state.logZ:.3f} +/- "
+            f"Final ln-evidence: {self.state.logZ:.3f} +/- "
             f"{self.state.log_evidence_error:.3f}"
         )
-        logger.info("Information: {0:.2f}".format(self.state.info[-1]))
+        logger.info(f"Information: {self.state.info[-1]:.2f}")
 
         self.check_insertion_indices(rolling=False)
 
