@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test methods related to popluation of the proposal after training"""
+from functools import partial
 import os
 
 import numpy as np
@@ -282,6 +283,57 @@ def test_check_prior_bounds(proposal):
 
     assert_structured_arrays_equal(x_out, x[:6])
     np.testing.assert_array_equal(y_out, y[:6])
+
+
+def test_prep_latent_prior_truncated(proposal):
+    """Assert prep latent prior calls the correct values"""
+
+    proposal.latent_prior = "truncated_gaussian"
+    proposal.dims = 2
+    proposal.r = 3.0
+    proposal.fuzz = 1.2
+    dist = MagicMock()
+    dist.sample = MagicMock()
+
+    with patch(
+        "nessai.proposal.flowproposal.NDimensionalTruncatedGaussian",
+        return_value=dist,
+    ) as mock_dist:
+        FlowProposal.prep_latent_prior(proposal)
+
+    mock_dist.assert_called_once_with(2, 3.0, fuzz=1.2)
+
+    assert proposal._populate_dist is dist
+    assert proposal._draw_func is dist.sample
+
+
+def test_prep_latent_prior_other(proposal):
+    """Assert partial acts as expected"""
+    proposal.latent_prior = "gaussian"
+    proposal.dims = 2
+    proposal.r = 3.0
+    proposal.fuzz = 1.2
+
+    def draw(dims, N=None, r=None, fuzz=None):
+        return np.zeros((N, dims))
+
+    proposal._draw_latent_prior = draw
+
+    with patch(
+        "nessai.proposal.flowproposal.partial", side_effect=partial
+    ) as mock_partial:
+        FlowProposal.prep_latent_prior(proposal)
+
+    mock_partial.assert_called_once_with(draw, dims=2, r=3.0, fuzz=1.2)
+
+    assert proposal._draw_func(N=10).shape == (10, 2)
+
+
+def test_draw_latent_prior(proposal):
+    proposal._draw_func = MagicMock(return_value=[1, 2])
+    out = FlowProposal.draw_latent_prior(proposal, 2)
+    proposal._draw_func.assert_called_once_with(N=2)
+    assert out == [1, 2]
 
 
 @pytest.mark.parametrize("check_acceptance", [False, True])
