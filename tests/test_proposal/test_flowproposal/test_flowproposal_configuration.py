@@ -99,21 +99,7 @@ def test_configure_latent_prior(proposal, latent_prior, prior_func):
     proposal.latent_prior = latent_prior
     proposal.flow_config = {"model_config": {}}
     FlowProposal.configure_latent_prior(proposal)
-    assert proposal.draw_latent_prior == getattr(utils, prior_func)
-
-
-def test_configure_latent_prior_var(proposal):
-    """
-    Test the latent prior when using a truncated Gaussian with a variance.
-    """
-    proposal.latent_prior = "truncated_gaussian"
-    proposal.flow_config = {"model_config": {"kwargs": {"var": 4}}}
-    proposal.draw_latent_kwargs = {}
-    FlowProposal.configure_latent_prior(proposal)
-    assert proposal.draw_latent_prior == getattr(
-        utils, "draw_truncated_gaussian"
-    )
-    assert proposal.draw_latent_kwargs.get("var") == 4
+    assert proposal._draw_latent_prior == getattr(utils, prior_func)
 
 
 def test_configure_latent_prior_unknown(proposal):
@@ -170,3 +156,10 @@ def test_update_flow_proposal(proposal):
     proposal.rescaled_dims = 4
     FlowProposal.update_flow_config(proposal)
     assert proposal.flow_config["model_config"]["n_inputs"] == 4
+
+
+def test_flow_config(proposal):
+    """Assert the correct config is returned"""
+    config = {"a": 1}
+    proposal._flow_config = config
+    assert FlowProposal.flow_config.__get__(proposal) is config

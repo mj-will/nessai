@@ -4,6 +4,7 @@ Main proposal object that includes normalising flows.
 """
 import copy
 import datetime
+from functools import partial
 import logging
 import os
 
@@ -29,9 +30,9 @@ from .rejection import RejectionProposal
 from ..utils import (
     compute_radius,
     get_uniform_distribution,
-    get_multivariate_normal,
     save_live_points,
 )
+from ..utils.sampling import NDimensionalTruncatedGaussian
 
 logger = logging.getLogger(__name__)
 
@@ -148,10 +149,6 @@ class FlowProposal(RejectionProposal):
         Passed to :code:`reverse_order` in
         :py:obj:`~nessai.reparameterisations.combined.CombinedReparameterisation`.
         Reverses the order of the reparameterisations.
-    draw_latent_kwargs : dict, optional
-        Dictionary of kwargs passed to the function for drawing samples
-        in the latent space. See the functions in utils for the possible
-        kwargs.
     """
 
     use_default_reparameterisations = False
@@ -188,7 +185,6 @@ class FlowProposal(RejectionProposal):
         update_poolsize=True,
         save_training_data=False,
         compute_radius_with_all=False,
-        draw_latent_kwargs=None,
         detect_edges=False,
         detect_edges_kwargs=None,
         reparameterisations=None,
@@ -202,6 +198,8 @@ class FlowProposal(RejectionProposal):
 
         self._x_dtype = False
         self._x_prime_dtype = False
+        self._draw_func = None
+        self._populate_dist = None
 
         self.flow = None
         self._flow_config = None
@@ -217,7 +215,6 @@ class FlowProposal(RejectionProposal):
         self.samples = None
         self.rescaled_names = []
         self.acceptance = []
-        self.approx_acceptance = []
         self._edges = {}
         self._reparameterisation = None
         self.rescaling_set = False
@@ -263,10 +260,6 @@ class FlowProposal(RejectionProposal):
 
         self.configure_plotting(plot)
 
-        if draw_latent_kwargs is None:
-            self.draw_latent_kwargs = {}
-        else:
-            self.draw_latent_kwargs = draw_latent_kwargs
         self.configure_latent_prior()
         self.alt_dist = None
 
@@ -411,24 +404,21 @@ class FlowProposal(RejectionProposal):
         if self.latent_prior == "truncated_gaussian":
             from ..utils import draw_truncated_gaussian
 
-            self.draw_latent_prior = draw_truncated_gaussian
-            var = self.flow_config["model_config"].get("kwargs", {}).get("var")
-            if var and "var" not in self.draw_latent_kwargs:
-                self.draw_latent_kwargs["var"] = var
+            self._draw_latent_prior = draw_truncated_gaussian
 
         elif self.latent_prior == "gaussian":
             logger.warning("Using a gaussian latent prior WITHOUT truncation")
             from ..utils import draw_gaussian
 
-            self.draw_latent_prior = draw_gaussian
+            self._draw_latent_prior = draw_gaussian
         elif self.latent_prior == "uniform":
             from ..utils import draw_uniform
 
-            self.draw_latent_prior = draw_uniform
+            self._draw_latent_prior = draw_uniform
         elif self.latent_prior in ["uniform_nsphere", "uniform_nball"]:
             from ..utils import draw_nsphere
 
-            self.draw_latent_prior = draw_nsphere
+            self._draw_latent_prior = draw_nsphere
         else:
             raise RuntimeError(
                 f"Unknown latent prior: {self.latent_prior}, choose from: "
@@ -955,6 +945,9 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a few MB in size so
             proceed with caution!
         """
+        if not self.initialised:
+            raise RuntimeError("FlowProposal is not initialised.")
+
         if (plot and self._plot_training) or self.save_training_data:
             block_output = os.path.join(
                 self.output, "training", f"block_{self.training_count}", ""
@@ -1024,17 +1017,8 @@ class FlowProposal(RejectionProposal):
             Array containing the subset of the original arrays which fall
             within the prior bounds
         """
-        idx = np.array(
-            list(
-                (
-                    (x[n] >= self.model.bounds[n][0])
-                    & (x[n] <= self.model.bounds[n][1])
-                )
-                for n in self.model.names
-            )
-        ).T.all(1)
-        out = (a[idx] for a in (x,) + args)
-        return out
+        flags = self.model.in_bounds(x)
+        return (a[flags] for a in (x,) + args)
 
     def forward_pass(self, x, rescale=True, compute_radius=True):
         """
@@ -1285,6 +1269,27 @@ class FlowProposal(RejectionProposal):
             x[self.model.names + config.livepoints.non_sampling_parameters]
         )
 
+    def prep_latent_prior(self):
+        """Prepare the latent prior."""
+        if self.latent_prior == "truncated_gaussian":
+            self._populate_dist = NDimensionalTruncatedGaussian(
+                self.dims,
+                self.r,
+                fuzz=self.fuzz,
+            )
+            self._draw_func = self._populate_dist.sample
+        else:
+            self._draw_func = partial(
+                self._draw_latent_prior,
+                dims=self.dims,
+                r=self.r,
+                fuzz=self.fuzz,
+            )
+
+    def draw_latent_prior(self, n):
+        """Draw n samples from the latent prior."""
+        return self._draw_func(N=n)
+
     def populate(self, worst_point, N=10000, plot=True, r=None):
         """
         Populate a pool of latent points given the current worst point.
@@ -1346,14 +1351,10 @@ class FlowProposal(RejectionProposal):
         percent = 0.1
         warn = True
 
+        self.prep_latent_prior()
+
         while accepted < N:
-            z = self.draw_latent_prior(
-                self.dims,
-                r=self.r,
-                N=self.drawsize,
-                fuzz=self.fuzz,
-                **self.draw_latent_kwargs,
-            )
+            z = self.draw_latent_prior(self.drawsize)
             proposed += z.shape[0]
 
             z, x = self.rejection_sampling(z, worst_q)
@@ -1389,12 +1390,6 @@ class FlowProposal(RejectionProposal):
             self.samples
         )
         if self.check_acceptance:
-            if worst_q:
-                self.approx_acceptance.append(self.compute_acceptance(worst_q))
-                logger.debug(
-                    "Current approximate acceptance "
-                    f"{self.approx_acceptance[-1]}"
-                )
             self.acceptance.append(
                 self.compute_acceptance(worst_point["logL"])
             )
@@ -1418,13 +1413,6 @@ class FlowProposal(RejectionProposal):
             return get_uniform_distribution(
                 self.dims, self.r * self.fuzz, device=self.flow.device
             )
-        elif self.latent_prior == "truncated_gaussian":
-            if "var" in self.draw_latent_kwargs:
-                return get_multivariate_normal(
-                    self.dims,
-                    var=self.draw_latent_kwargs["var"],
-                    device=self.flow.device,
-                )
 
     def compute_acceptance(self, logL):
         """
@@ -1617,8 +1605,8 @@ class FlowProposal(RejectionProposal):
         self.alt_dist = None
         self._checked_population = True
         self.acceptance = []
-        self.approx_acceptance = []
-        self._edges = {k: None for k in self._edges.keys()}
+        self._draw_func = None
+        self._populate_dist = None
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -1639,6 +1627,9 @@ class FlowProposal(RejectionProposal):
         else:
             state["resume_populated"] = False
 
+        state["_draw_func"] = None
+        state["_populate_dist"] = None
+
         # user provides model and config for resume
         # flow can be reconstructed from resume
         del state["_reparameterisation"]
@@ -1647,6 +1638,3 @@ class FlowProposal(RejectionProposal):
         del state["flow"]
 
         return state
-
-    def __setstate__(self, state):
-        self.__dict__ = state

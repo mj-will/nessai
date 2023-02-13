@@ -20,6 +20,15 @@ def test_reset_model_weights(proposal):
     proposal.flow.reset_model.assert_called_once_with(reset_permutations=True)
 
 
+def test_train_not_initialised(proposal):
+    """Assert an error is raised if the proposal is not initialised"""
+    proposal.initialised = False
+    with pytest.raises(
+        RuntimeError, match=r"FlowProposal is not initialised."
+    ):
+        FlowProposal.train(proposal, [1, 2])
+
+
 @patch("os.path.exists", return_value=False)
 @patch("os.makedirs")
 def test_train_plot_false(mock_os_makedirs, proposal, model):
@@ -102,6 +111,7 @@ def test_training(proposal, tmpdir, save, plot, plot_training):
     x_prime = numpy_array_to_live_points(data_prime, ["x_prime", "y_prime"])
     log_j = np.ones(data.shape[0])
 
+    proposal.initialised = True
     proposal.training_count = 0
     proposal.populated = True
     proposal._plot_training = plot_training

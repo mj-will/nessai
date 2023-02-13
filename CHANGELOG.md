@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rework `nessai.config` to have `config.livepoints` and `config.plot` which contain global settings. Some of the setting names have also changed.
 - `Rescale` reparameterisation is now an alias for `ScaleAndShift`.
 - Change the default result file extension to `hdf5`, old result file format can be recovered by setting it to `json`.
+- Optimisations to `FlowProposal.populate`, including changes to `Model.in_bounds` and how sampling from the latent prior is handled.
 
 ### Fixed
 
@@ -47,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed `nessai._NSIntegralState.reset`
 - Removed `nessai.gw.legacy`
+- Removed support for changing the variance of the latent distribution via `draw_latent_kwargs` from `FlowProposal`.
 
 ## [0.7.1]
 
