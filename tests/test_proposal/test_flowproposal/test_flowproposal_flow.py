@@ -102,6 +102,7 @@ def test_training(proposal, tmpdir, save, plot, plot_training):
     x_prime = numpy_array_to_live_points(data_prime, ["x_prime", "y_prime"])
     log_j = np.ones(data.shape[0])
 
+    proposal.initialised = True
     proposal.training_count = 0
     proposal.populated = True
     proposal._plot_training = plot_training

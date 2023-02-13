@@ -1198,7 +1198,7 @@ def test_unstructured_view_integration(integration_model, live_points):
 
 
 @pytest.mark.integration_test
-def test_in_bounds_integration(integration_model):
+def test_in_bounds_integration_values(integration_model):
     """Assert the correct booleans are returned"""
     x = integration_model.new_point(3)
     names = integration_model.names
@@ -1208,3 +1208,14 @@ def test_in_bounds_integration(integration_model):
     expected = np.array([False, False, True])
     out = integration_model.in_bounds(x)
     np.testing.assert_equal(out, expected)
+
+
+@pytest.mark.parametrize("n", [1, 10])
+@pytest.mark.integration_test
+def test_in_bounds_integration_n_samples(integration_model, n):
+    """Assert single and multiple samples work"""
+    x = numpy_array_to_live_points(
+        np.random.randn(n, integration_model.dims), integration_model.names
+    )
+    flags = integration_model.in_bounds(x)
+    assert len(flags) == n

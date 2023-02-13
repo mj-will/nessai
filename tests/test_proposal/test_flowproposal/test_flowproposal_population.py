@@ -231,24 +231,6 @@ def test_get_alt_distribution_truncated_gaussian(proposal):
     assert dist is None
 
 
-def test_get_alt_distribution_truncated_gaussian_w_var(proposal):
-    """
-    Test getting the alternative distribution for the default latent prior, the
-    truncated Gaussian but with a specified variance.
-    """
-    proposal.draw_latent_kwargs = {"var": 2.0}
-    proposal.latent_prior = "truncated_gaussian"
-    proposal.dims = 2
-    proposal.flow = Mock()
-    proposal.flow.device = "cpu"
-
-    with patch("nessai.proposal.flowproposal.get_multivariate_normal") as mock:
-        dist = FlowProposal.get_alt_distribution(proposal)
-
-    assert dist is not None
-    mock.assert_called_once_with(2, var=2.0, device="cpu")
-
-
 @pytest.mark.parametrize("prior", ["uniform_nsphere", "uniform_nball"])
 def test_get_alt_distribution_uniform(proposal, prior):
     """
@@ -291,10 +273,11 @@ def test_radius_w_log_q(proposal):
 def test_check_prior_bounds(proposal):
     """Test the check prior bounds method."""
     x = numpy_array_to_live_points(np.arange(10)[:, np.newaxis], ["x"])
-    proposal.model = Mock()
-    proposal.model.names = ["x"]
-    proposal.model.bounds = {"x": [0, 5]}
     y = np.arange(10)
+    proposal.model = Mock()
+    proposal.model.in_bounds = MagicMock(
+        return_value=np.array(6 * [True] + 4 * [False])
+    )
     x_out, y_out = FlowProposal.check_prior_bounds(proposal, x, y)
 
     assert_structured_arrays_equal(x_out, x[:6])
@@ -334,7 +317,6 @@ def test_populate(proposal, check_acceptance, indices):
     proposal.min_radius = 0.1
     proposal.fuzz = 1.0
     proposal.indices = indices
-    proposal.approx_acceptance = [0.4]
     proposal.acceptance = [0.7]
     proposal.keep_samples = False
     proposal.fixed_radius = False
@@ -343,16 +325,16 @@ def test_populate(proposal, check_acceptance, indices):
     proposal._plot_pool = True
     proposal.populated_count = 1
     proposal.population_dtype = get_dtype(["x_prime", "y_prime"])
-    proposal.draw_latent_kwargs = {"var": 2.0}
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, worst_q))
     proposal.radius = MagicMock(return_value=(1.0, worst_q))
     proposal.get_alt_distribution = MagicMock(return_value=None)
+    proposal.prep_latent_prior = MagicMock()
     proposal.draw_latent_prior = MagicMock(side_effect=z)
     proposal.rejection_sampling = MagicMock(
         side_effect=[(a[:-1], b[:-1]) for a, b in zip(z, x)]
     )
-    proposal.compute_acceptance = MagicMock(side_effect=[0.5, 0.8])
+    proposal.compute_acceptance = MagicMock(return_value=0.8)
     proposal.model = MagicMock()
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
@@ -382,10 +364,9 @@ def test_populate(proposal, check_acceptance, indices):
     proposal.radius.assert_called_once_with(worst_z, worst_q)
     assert proposal.r == 1
 
-    draw_calls = [
-        call(2, r=1.0, N=5, fuzz=1.0, var=2.0),
-        call(2, r=1.0, N=5, fuzz=1.0, var=2.0),
-    ]
+    proposal.prep_latent_prior.assert_called_once()
+
+    draw_calls = 3 * [call(5)]
     proposal.draw_latent_prior.assert_has_calls(draw_calls)
 
     rejection_calls = [
@@ -409,7 +390,6 @@ def test_populate(proposal, check_acceptance, indices):
 
     if check_acceptance:
         proposal.compute_acceptance.assert_called()
-        assert proposal.approx_acceptance == [0.4, 0.5]
         assert proposal.acceptance == [0.7, 0.8]
     else:
         proposal.compute_acceptance.assert_not_called()
