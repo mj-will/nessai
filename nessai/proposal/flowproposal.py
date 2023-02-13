@@ -198,6 +198,8 @@ class FlowProposal(RejectionProposal):
 
         self._x_dtype = False
         self._x_prime_dtype = False
+        self._draw_func = None
+        self._populate_dist = None
 
         self.flow = None
         self._flow_config = None
@@ -943,7 +945,7 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a few MB in size so
             proceed with caution!
         """
-        if not self._initialised:
+        if not self.initialised:
             raise RuntimeError("FlowProposal is not initialised.")
 
         if (plot and self._plot_training) or self.save_training_data:
@@ -1270,12 +1272,12 @@ class FlowProposal(RejectionProposal):
     def prep_latent_prior(self):
         """Prepare the latent prior."""
         if self.latent_prior == "truncated_gaussian":
-            self._dist = NDimensionalTruncatedGaussian(
+            self._populate_dist = NDimensionalTruncatedGaussian(
                 self.dims,
                 self.r,
                 fuzz=self.fuzz,
             )
-            self._draw_func = self._dist.sample
+            self._draw_func = self._populate_dist.sample
         else:
             self._draw_func = partial(
                 self._draw_latent_prior,
@@ -1603,7 +1605,8 @@ class FlowProposal(RejectionProposal):
         self.alt_dist = None
         self._checked_population = True
         self.acceptance = []
-        self._edges = {k: None for k in self._edges.keys()}
+        self._draw_func = None
+        self._populate_dist = None
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -1623,6 +1626,9 @@ class FlowProposal(RejectionProposal):
             state["resume_populated"] = True
         else:
             state["resume_populated"] = False
+
+        state["_draw_func"] = None
+        state["_populate_dist"] = None
 
         # user provides model and config for resume
         # flow can be reconstructed from resume
