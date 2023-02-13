@@ -385,9 +385,9 @@ class Model(ABC):
                 ),
                 self.names,
             )
-            flag = np.isfinite(self.log_prior(p))
-            m = np.sum(flag)
-            new_points[n : (n + m)] = p[flag][: min(m, N - n)]
+            p = p[np.isfinite(self.log_prior(p))]
+            m = min(p.size, N - n)
+            new_points[n : (n + m)] = p[:m]
             n += m
         return new_points
 
@@ -408,7 +408,8 @@ class Model(ABC):
         """
         x_view = self.unstructured_view(x)
         return ~np.any(
-            (x_view > self.upper_bounds) + (x_view < self.lower_bounds), axis=1
+            (x_view > self.upper_bounds) + (x_view < self.lower_bounds),
+            axis=-1,
         )
 
     def sample_parameter(self, name, n=1):
