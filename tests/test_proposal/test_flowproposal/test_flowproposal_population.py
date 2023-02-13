@@ -338,7 +338,14 @@ def test_draw_latent_prior(proposal):
 
 @pytest.mark.parametrize("check_acceptance", [False, True])
 @pytest.mark.parametrize("indices", [[], [1]])
-def test_populate(proposal, check_acceptance, indices):
+@pytest.mark.parametrize("r", [None, 1.0])
+@pytest.mark.parametrize(
+    "max_radius, min_radius",
+    [(0.5, None), (None, 1.5), (None, None)],
+)
+def test_populate(
+    proposal, check_acceptance, indices, r, min_radius, max_radius
+):
     """Test the main populate method"""
     n_dims = 2
     poolsize = 10
@@ -348,7 +355,7 @@ def test_populate(proposal, check_acceptance, indices):
         [[1, 2, 3]], dtype=[("x", "f8"), ("y", "f8"), ("logL", "f8")]
     )
     worst_z = np.random.randn(1, n_dims)
-    worst_q = np.random.randn(1)
+    worst_q = np.random.randn(1) if r is None else None
     z = [
         np.random.randn(drawsize, n_dims),
         np.random.randn(drawsize, n_dims),
@@ -361,12 +368,23 @@ def test_populate(proposal, check_acceptance, indices):
     ]
     log_l = np.random.rand(poolsize)
 
+    r_flow = 1.0
+
+    if r is None:
+        r_out = r_flow
+        if min_radius is not None:
+            r_out = max(r_out, min_radius)
+        if max_radius is not None:
+            r_out = min(r_out, max_radius)
+    else:
+        r_out = r
+
     proposal.initialised = True
-    proposal.max_radius = 50
+    proposal.max_radius = max_radius
     proposal.dims = n_dims
     proposal.poolsize = poolsize
     proposal.drawsize = drawsize
-    proposal.min_radius = 0.1
+    proposal.min_radius = min_radius
     proposal.fuzz = 1.0
     proposal.indices = indices
     proposal.acceptance = [0.7]
@@ -379,7 +397,7 @@ def test_populate(proposal, check_acceptance, indices):
     proposal.population_dtype = get_dtype(["x_prime", "y_prime"])
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, worst_q))
-    proposal.radius = MagicMock(return_value=(1.0, worst_q))
+    proposal.radius = MagicMock(return_value=(r_flow, worst_q))
     proposal.get_alt_distribution = MagicMock(return_value=None)
     proposal.prep_latent_prior = MagicMock()
     proposal.draw_latent_prior = MagicMock(side_effect=z)
@@ -402,19 +420,24 @@ def test_populate(proposal, check_acceptance, indices):
         "nessai.proposal.flowproposal.empty_structured_array",
         return_value=x_empty,
     ) as mock_empty:
-        FlowProposal.populate(proposal, worst_point, N=10, plot=True)
+        FlowProposal.populate(proposal, worst_point, N=10, plot=True, r=r)
 
     mock_empty.assert_called_once_with(
         poolsize,
         dtype=proposal.population_dtype,
     )
-    proposal.forward_pass.assert_called_once_with(
-        worst_point,
-        rescale=True,
-        compute_radius=True,
-    )
-    proposal.radius.assert_called_once_with(worst_z, worst_q)
-    assert proposal.r == 1
+
+    if r is None:
+        proposal.forward_pass.assert_called_once_with(
+            worst_point,
+            rescale=True,
+            compute_radius=True,
+        )
+        proposal.radius.assert_called_once_with(worst_z, worst_q)
+    else:
+        assert proposal.r is r
+
+    assert proposal.r == r_out
 
     proposal.prep_latent_prior.assert_called_once()
 

@@ -20,6 +20,15 @@ def test_reset_model_weights(proposal):
     proposal.flow.reset_model.assert_called_once_with(reset_permutations=True)
 
 
+def test_train_not_initialised(proposal):
+    """Assert an error is raised if the proposal is not initialised"""
+    proposal.initialised = False
+    with pytest.raises(
+        RuntimeError, match=r"FlowProposal is not initialised."
+    ):
+        FlowProposal.train(proposal, [1, 2])
+
+
 @patch("os.path.exists", return_value=False)
 @patch("os.makedirs")
 def test_train_plot_false(mock_os_makedirs, proposal, model):

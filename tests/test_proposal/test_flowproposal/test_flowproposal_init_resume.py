@@ -122,7 +122,8 @@ def test_resume_w_update_bounds(proposal, data, count):
 
 
 @pytest.mark.parametrize("populated", [False, True])
-def test_get_state(proposal, populated):
+@pytest.mark.parametrize("mask", [None, [1, 0]])
+def test_get_state(proposal, populated, mask):
     """Test the get state method used for pickling the proposal.
 
     Tests cases where the proposal is and isn't populated.
@@ -138,11 +139,15 @@ def test_get_state(proposal, populated):
     proposal.flow.weights_file = "file"
     proposal._draw_func = lambda x: x
 
+    if mask is not None:
+        proposal.flow.model_config = {"kwargs": {"mask": mask}}
+
     state = FlowProposal.__getstate__(proposal)
 
     assert state["resume_populated"] is populated
     assert state["initialised"] is False
     assert state["weights_file"] == "file"
+    assert state["mask"] is mask
     assert "_reparameterisation" not in state
     assert "model" not in state
     assert "flow" not in state

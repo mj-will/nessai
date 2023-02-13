@@ -156,3 +156,10 @@ def test_update_flow_proposal(proposal):
     proposal.rescaled_dims = 4
     FlowProposal.update_flow_config(proposal)
     assert proposal.flow_config["model_config"]["n_inputs"] == 4
+
+
+def test_flow_config(proposal):
+    """Assert the correct config is returned"""
+    config = {"a": 1}
+    proposal._flow_config = config
+    assert FlowProposal.flow_config.__get__(proposal) is config
