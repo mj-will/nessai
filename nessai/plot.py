@@ -498,7 +498,10 @@ def plot_trace(
     axes[-1].invert_xaxis()
 
     if filename is not None:
-        fig.savefig(filename, bbox_inches="tight")
+        try:
+            fig.savefig(filename, bbox_inches="tight")
+        except ValueError:
+            pass
         plt.close(fig)
     else:
         return fig
@@ -635,7 +638,10 @@ def corner_plot(
     )
 
     if filename is not None:
-        fig.savefig(filename, bbox_inches="tight")
+        try:
+            fig.savefig(filename, bbox_inches="tight")
+        except ValueError:
+            pass
         plt.close(fig)
     else:
         return fig
