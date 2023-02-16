@@ -128,6 +128,12 @@ class PlottingConfig:
         default_factory=lambda: ["-", "--", ":", "-."]
     )
     """Default line styles."""
+    max_figsize: float = 50
+    """Maximum figure size in either width or height.
+
+    Based on the default DPI in matplotlib of 100, so this will give a maximum
+    size of 5000 pixels.
+    """
 
 
 livepoints = LivepointsConfig()
