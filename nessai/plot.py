@@ -500,8 +500,8 @@ def plot_trace(
     if filename is not None:
         try:
             fig.savefig(filename, bbox_inches="tight")
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.warning(f"Could not save trace plot. Error: {e}")
         plt.close(fig)
     else:
         return fig
@@ -640,8 +640,8 @@ def corner_plot(
     if filename is not None:
         try:
             fig.savefig(filename, bbox_inches="tight")
-        except ValueError:
-            pass
+        except ValueError as e:
+            logger.warning(f"Could not save trace plot. Error: {e}")
         plt.close(fig)
     else:
         return fig
