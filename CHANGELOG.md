@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Rescale` reparameterisation is now an alias for `ScaleAndShift`.
 - Change the default result file extension to `hdf5`, old result file format can be recovered by setting it to `json`.
 - Optimisations to `FlowProposal.populate`, including changes to `Model.in_bounds` and how sampling from the latent prior is handled.
+- Add a maximum figure size (`nessai.config.plotting.max_figsize`) to prevent very large trace plots when the number of dimensions is very high.
 
 ### Fixed
 
