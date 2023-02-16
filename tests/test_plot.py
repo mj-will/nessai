@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from nessai import plot
 from nessai import config
+from nessai.livepoint import numpy_array_to_live_points
 
 
 @pytest.fixture()
@@ -522,3 +523,16 @@ def test_corner_plot_fields_exclude_error(live_points):
     with pytest.raises(ValueError) as excinfo:
         plot.corner_plot(live_points, include=["x"], exclude=["logL"])
     assert "Cannot specify both `include` and `exclude`" in str(excinfo.value)
+
+
+@pytest.mark.integration_test
+@pytest.mark.parametrize("dims", [10, 100, 200])
+def test_plot_trace_large_dims(tmp_path, dims):
+    """Test producing a trace plot with a large number of dimensions."""
+    n = 10_000
+    names = [f"x_{i}" for i in range(dims)]
+    log_x = np.arange(n)
+    x = numpy_array_to_live_points(np.random.randn(n, dims), names)
+
+    fig = plot.plot_trace(log_x, x)
+    fig.savefig(tmp_path / "trace.png")
