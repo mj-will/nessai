@@ -641,7 +641,7 @@ def corner_plot(
         try:
             fig.savefig(filename, bbox_inches="tight")
         except ValueError as e:
-            logger.warning(f"Could not save trace plot. Error: {e}")
+            logger.warning(f"Could not save corner plot. Error: {e}")
         plt.close(fig)
     else:
         return fig
