@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix a bug where setting the livepoint precision (e.g. `f16`) did not work.
+- Fix plotting failing when sampling large number of parameters.
 
 ### Removed
 
