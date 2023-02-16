@@ -406,6 +406,22 @@ def test_trace_plot_kwargs(nested_samples):
     plt.close()
 
 
+def test_trace_plot_save_error(caplog, nested_samples):
+    """Assert a warning is printed if the figure cannot be saved"""
+    with patch.object(
+        mpl.figure.Figure,
+        "savefig",
+        side_effect=ValueError,
+    ) as mock_save:
+        plot.plot_trace(
+            np.arange(nested_samples.size),
+            nested_samples,
+            filename="trace.png",
+        )
+    mock_save.assert_called_once()
+    assert "Could not save trace plot" in str(caplog.text)
+
+
 def test_histogram_plot():
     """Test the basic histogram plot"""
     x = np.random.randn(100)
@@ -523,6 +539,18 @@ def test_corner_plot_fields_exclude_error(live_points):
     with pytest.raises(ValueError) as excinfo:
         plot.corner_plot(live_points, include=["x"], exclude=["logL"])
     assert "Cannot specify both `include` and `exclude`" in str(excinfo.value)
+
+
+def test_corner_plot_save_error(caplog, live_points):
+    """Assert a warning is printed if the figure cannot be saved"""
+    with patch.object(
+        mpl.figure.Figure,
+        "savefig",
+        side_effect=ValueError,
+    ) as mock_save:
+        plot.corner_plot(live_points, filename="corner.png")
+    mock_save.assert_called_once()
+    assert "Could not save test plot" in str(caplog.text)
 
 
 @pytest.mark.integration_test
