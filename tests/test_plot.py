@@ -550,7 +550,7 @@ def test_corner_plot_save_error(caplog, live_points):
     ) as mock_save:
         plot.corner_plot(live_points, filename="corner.png")
     mock_save.assert_called_once()
-    assert "Could not save test plot" in str(caplog.text)
+    assert "Could not save corner plot" in str(caplog.text)
 
 
 @pytest.mark.integration_test
