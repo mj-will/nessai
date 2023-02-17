@@ -222,9 +222,8 @@ def plot_1d_comparison(
             "Length of colours list must match number of arrays being plotted."
         )
 
-    fig, axs = plt.subplots(
-        len(parameters), 1, sharey=False, figsize=(3, 3 * len(parameters))
-    )
+    figsize = (3, min(config.plotting.max_figsize, 3 * len(parameters)))
+    fig, axs = plt.subplots(len(parameters), 1, sharey=False, figsize=figsize)
 
     if len(parameters) > 1:
         axs = axs.ravel()
@@ -482,9 +481,8 @@ def plot_trace(
     if kwargs:
         default_kwargs.update(kwargs)
 
-    fig, axes = plt.subplots(
-        len(labels), 1, figsize=(5, 3 * len(labels)), sharex=True
-    )
+    figsize = (5, min(config.plotting.max_figsize, 3 * len(labels)))
+    fig, axes = plt.subplots(len(labels), 1, figsize=figsize, sharex=True)
     if len(labels) > 1:
         axes = axes.ravel()
     else:
