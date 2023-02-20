@@ -278,12 +278,11 @@ def test_in_bounds(model):
 
     Tests both finite and infinite prior bounds.
     """
-    x_view = np.array([[0.5, 1.0], [2.0, 1.0]])
-    x = numpy_array_to_live_points(x_view, ["x", "y"])
+    x = numpy_array_to_live_points(
+        np.array([[0.5, 1.0], [2.0, 1.0]]), ["x", "y"]
+    )
     model.names = ["x", "y"]
-    model.unstructured_view = MagicMock(return_value=x_view)
-    model.lower_bounds = np.array([0, -np.inf])
-    model.upper_bounds = np.array([1, np.inf])
+    model.bounds = {"x": [0, 1], "y": [-np.inf, np.inf]}
     val = Model.in_bounds(model, x)
     np.testing.assert_array_equal(val, np.array([True, False]))
 
