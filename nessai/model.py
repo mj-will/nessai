@@ -406,10 +406,12 @@ class Model(ABC):
             Array with the same length as x where True indicates the point
             is within the prior bounds.
         """
-        x_view = self.unstructured_view(x)
         return ~np.any(
-            (x_view > self.upper_bounds) + (x_view < self.lower_bounds),
-            axis=-1,
+            [
+                (x[n] < self.bounds[n][0]) | (x[n] > self.bounds[n][1])
+                for n in self.names
+            ],
+            axis=0,
         )
 
     def sample_parameter(self, name, n=1):
