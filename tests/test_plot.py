@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from nessai import plot
 from nessai import config
+from nessai.livepoint import numpy_array_to_live_points
 
 
 @pytest.fixture()
@@ -405,6 +406,22 @@ def test_trace_plot_kwargs(nested_samples):
     plt.close()
 
 
+def test_trace_plot_save_error(caplog, nested_samples):
+    """Assert a warning is printed if the figure cannot be saved"""
+    with patch.object(
+        mpl.figure.Figure,
+        "savefig",
+        side_effect=ValueError,
+    ) as mock_save:
+        plot.plot_trace(
+            np.arange(nested_samples.size),
+            nested_samples,
+            filename="trace.png",
+        )
+    mock_save.assert_called_once()
+    assert "Could not save trace plot" in str(caplog.text)
+
+
 def test_histogram_plot():
     """Test the basic histogram plot"""
     x = np.random.randn(100)
@@ -522,3 +539,28 @@ def test_corner_plot_fields_exclude_error(live_points):
     with pytest.raises(ValueError) as excinfo:
         plot.corner_plot(live_points, include=["x"], exclude=["logL"])
     assert "Cannot specify both `include` and `exclude`" in str(excinfo.value)
+
+
+def test_corner_plot_save_error(caplog, live_points):
+    """Assert a warning is printed if the figure cannot be saved"""
+    with patch.object(
+        mpl.figure.Figure,
+        "savefig",
+        side_effect=ValueError,
+    ) as mock_save:
+        plot.corner_plot(live_points, filename="corner.png")
+    mock_save.assert_called_once()
+    assert "Could not save corner plot" in str(caplog.text)
+
+
+@pytest.mark.integration_test
+@pytest.mark.parametrize("dims", [10, 100, 200])
+def test_plot_trace_large_dims(tmp_path, dims):
+    """Test producing a trace plot with a large number of dimensions."""
+    n = 10_000
+    names = [f"x_{i}" for i in range(dims)]
+    log_x = np.arange(n)
+    x = numpy_array_to_live_points(np.random.randn(n, dims), names)
+
+    fig = plot.plot_trace(log_x, x)
+    fig.savefig(tmp_path / "trace.png")
