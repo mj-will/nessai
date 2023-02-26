@@ -3,10 +3,13 @@
 Tests for bilbyutils
 """
 from unittest.mock import patch
+
+import pytest
 from nessai.flowsampler import FlowSampler
 from nessai.utils.bilbyutils import (
     get_all_kwargs,
     get_run_kwargs_list,
+    _get_importance_methods,
     _get_standard_methods,
 )
 
@@ -17,7 +20,17 @@ def test_get_standard_methods():
     assert len(out) == 5
 
 
-def test_get_all_kwargs():
+def test_get_importance_methods():
+    """Assert a list of methods is returned"""
+    out = _get_importance_methods()
+    assert len(out) == 4
+
+
+@pytest.mark.parametrize(
+    "ins, get_method",
+    [(False, "_get_standard_methods"), (True, "_get_importance_methods")],
+)
+def test_get_all_kwargs(ins, get_method):
     """Assert the correct dictionary is returned.
 
     Positional arguments should be ignored.
@@ -32,15 +45,19 @@ def test_get_all_kwargs():
     expected = dict(c=2, d=None, g=3, h=True)
 
     with patch(
-        "nessai.utils.bilbyutils._get_standard_methods",
+        f"nessai.utils.bilbyutils.{get_method}",
         return_value=[func0, func1],
     ):
-        out = get_all_kwargs()
+        out = get_all_kwargs(importance_nested_sampler=ins)
 
     assert out == expected
 
 
-def test_get_run_kwargs_list():
+@pytest.mark.parametrize(
+    "ins, run_method",
+    [(False, "run_standard_sampler"), (True, "run_importance_nested_sampler")],
+)
+def test_get_run_kwargs_list(ins, run_method):
     """Assert the correct list is returned"""
 
     def func(a, b=1, c=None):
@@ -48,7 +65,7 @@ def test_get_run_kwargs_list():
 
     expected = ["b", "c"]
 
-    with patch.object(FlowSampler, "run", func):
-        out = get_run_kwargs_list()
+    with patch.object(FlowSampler, run_method, func):
+        out = get_run_kwargs_list(importance_nested_sampler=ins)
 
     assert out == expected

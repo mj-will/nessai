@@ -21,7 +21,9 @@ import numpy as np
 
 @pytest.fixture()
 def flow_sampler():
-    return create_autospec(FlowSampler)
+    sampler = create_autospec(FlowSampler)
+    sampler.importance_nested_sampler = False
+    return sampler
 
 
 @pytest.fixture(autouse=True)
@@ -228,7 +230,7 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
         expected_rf,
         model,
         flow_config=flow_config,
-        weights_file=weights_file,
+        weights_path=weights_file,
     )
 
     assert flow_sampler.ns == "ns"
@@ -352,7 +354,7 @@ def test_log_evidence_error(flow_sampler):
 )
 @patch("nessai.plot.plot_live_points")
 @patch("nessai.plot.plot_indices")
-def test_run(
+def test_run_standard(
     mock_plot_indices, mock_plot_post, mock_draw_post, flow_sampler, save, plot
 ):
     """Test the run method"""
@@ -377,7 +379,7 @@ def test_run(
     flow_sampler.close_pool = True
     flow_sampler.result_extension = "hdf5"
 
-    FlowSampler.run(flow_sampler, save=save, plot=plot)
+    FlowSampler.run_standard_sampler(flow_sampler, save=save, plot=plot)
 
     flow_sampler.ns.initialise.assert_called_once()
     mock_draw_post.assert_called_once_with(
@@ -410,21 +412,21 @@ def test_run(
         flow_sampler.ns.state.plot.assert_not_called()
 
     assert flow_sampler.logZ == log_Z
-    assert flow_sampler.nested_samples == nested_samples
+    assert flow_sampler._nested_samples == nested_samples
     np.testing.assert_array_equal(
         flow_sampler.posterior_samples, np.array([0.1])
     )
 
 
 @pytest.mark.parametrize("close_pool", [True, False, None])
-def test_run_close_pool(flow_sampler, close_pool):
+def test_run_close_pool_standard(flow_sampler, close_pool):
     """Assert close pool is called following the intended logic"""
     flow_sampler.close_pool = True
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.close_pool = MagicMock()
     flow_sampler.ns.nested_sampling_loop = MagicMock(return_value=("lZ", "ns"))
     with patch("nessai.flowsampler.draw_posterior_samples"):
-        FlowSampler.run(
+        FlowSampler.run_standard_sampler(
             flow_sampler, close_pool=close_pool, save=False, plot=False
         )
 
@@ -437,7 +439,7 @@ def test_run_close_pool(flow_sampler, close_pool):
 
 
 @pytest.mark.parametrize("method", (None, "multinomial_resampling"))
-def test_run_posterior_sampling_method(flow_sampler, method):
+def test_run_posterior_sampling_method_standard(flow_sampler, method):
     """Assert posterior sampling method is passed correctly"""
     log_w = np.random.rand(100)
     flow_sampler.ns = MagicMock()
@@ -445,7 +447,7 @@ def test_run_posterior_sampling_method(flow_sampler, method):
     flow_sampler.ns.state = MagicMock(spec=_NSIntegralState)
     flow_sampler.ns.state.log_posterior_weights = log_w
     with patch("nessai.flowsampler.draw_posterior_samples") as mock:
-        FlowSampler.run(
+        FlowSampler.run_standard_sampler(
             flow_sampler,
             close_pool=False,
             save=False,
@@ -499,6 +501,9 @@ def test_save_kwargs(flow_sampler, tmpdir, test_class):
         kwargs["flow_class"] = "flowproposal"
 
     flow_sampler.output = str(tmpdir.mkdir("test"))
+    flow_sampler.eps = 1e-8
+    flow_sampler.torch_dtype = "float32"
+    flow_sampler.importance_nested_sampler = False
 
     FlowSampler.save_kwargs(flow_sampler, kwargs)
 
@@ -705,6 +710,7 @@ def test_save_results_integration(
 
     flow_sampler.ns = ns
     flow_sampler.posterior_samples = posterior_samples
+    flow_sampler.initial_posterior_samples = posterior_samples.copy()
 
     FlowSampler.save_results(flow_sampler, filename)
 
