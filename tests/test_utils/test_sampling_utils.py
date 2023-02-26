@@ -4,10 +4,11 @@ Test utilities for sampling in the latent space.
 """
 import numpy as np
 import pytest
-from scipy import stats
-from unittest.mock import patch
+from scipy import stats, special
+from unittest.mock import create_autospec, patch
 
 from nessai.utils.sampling import (
+    NDimensionalTruncatedGaussian,
     compute_radius,
     draw_gaussian,
     draw_nsphere,
@@ -111,5 +112,39 @@ def test_draw_truncated_gaussian_1d(r, var, fuzz):
     d = stats.truncnorm(
         -r * fuzz / sigma, r * fuzz / sigma, loc=0, scale=sigma
     )
+    _, p = stats.kstest(np.squeeze(s), d.cdf)
+    assert p >= 0.05
+
+
+@pytest.mark.parametrize("dims", [1, 2, 4, 8, 16, 32, 64])
+@pytest.mark.parametrize("radius", [1.0, 2.0, 4.0])
+@pytest.mark.parametrize("fuzz", [1.0, 1.1, 1.5])
+def test_ndimensional_truncated_gaussian_u_max(dims, radius, fuzz):
+    """Check the value of the u_max"""
+    dist = create_autospec(NDimensionalTruncatedGaussian)
+
+    expected_u_max = special.gammainc(dims / 2, (radius * fuzz) ** 2 / 2)
+
+    NDimensionalTruncatedGaussian.__init__(dist, dims, radius, fuzz)
+
+    assert dist.u_max == expected_u_max
+
+
+@pytest.mark.parametrize(
+    "r, fuzz",
+    [
+        (1.0, 1.0),
+        (2.0, 1.0),
+        (2.0, 1.0),
+        (4.0, 1.5),
+        (7.0, 2.0),
+    ],
+)
+@pytest.mark.flaky(reruns=5)
+def test_ndimensional_truncated_gaussian_sample(r, fuzz):
+    """Assert samples are correctly drawn from the distribution"""
+    dist = NDimensionalTruncatedGaussian(1, r, fuzz=fuzz)
+    s = dist.sample(10_000)
+    d = stats.truncnorm(-r * fuzz, r * fuzz, loc=0)
     _, p = stats.kstest(np.squeeze(s), d.cdf)
     assert p >= 0.05

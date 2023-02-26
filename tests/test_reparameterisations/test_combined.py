@@ -270,6 +270,20 @@ def test_reset_inversion(reparam):
     r2.reset_inversion.assert_called_once()
 
 
+def test_update(reparam):
+    """Assert update calls the update method for all reparameterisations."""
+    r1 = MagicMock(spec=Angle)
+    r2 = MagicMock(spec=RescaleToBounds)
+    reparam.values = MagicMock(return_value=[r1, r2])
+
+    x = np.array((1, 2), dtype=[("x", "f8"), ("y", "f8")])
+
+    CombinedReparameterisation.update(reparam, x)
+
+    r1.update.assert_called_once_with(x)
+    r2.update.assert_called_once_with(x)
+
+
 def test_log_prior(reparam):
     """Assert log_prior is only called for reparams with has_prior==True"""
     r1 = MagicMock(spec=Reparameterisation)
@@ -283,7 +297,7 @@ def test_log_prior(reparam):
     r3.log_prior = MagicMock(return_value=-6)
     reparam.values = MagicMock(return_value=[r1, r2, r3])
 
-    x = [1, 2]
+    x = np.array([(1, 2)], dtype=[("x", "f8"), ("y", "f8")])
 
     out = CombinedReparameterisation.log_prior(reparam, x)
 
@@ -301,7 +315,7 @@ def test_x_prime_log_prior(reparam):
     r2.x_prime_log_prior = MagicMock(return_value=-5)
     reparam.values = MagicMock(return_value=[r1, r2])
 
-    x = [1, 2]
+    x = np.array([(1, 2)], dtype=[("x", "f8"), ("y", "f8")])
 
     out = CombinedReparameterisation.x_prime_log_prior(reparam, x)
 

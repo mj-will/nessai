@@ -202,7 +202,7 @@ class ImportanceFlowProposal(Proposal):
         """Convert samples from the unit hypercube to samples in x'-space"""
         x = np.atleast_2d(x)
         if self.reparam == "logit":
-            x_prime, log_j = logit(x, eps=config.EPS)
+            x_prime, log_j = logit(x, eps=config.general.eps)
             log_j = log_j.sum(axis=1)
         elif self.reparam is None:
             x_prime = x.copy()

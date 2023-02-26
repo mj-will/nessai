@@ -44,15 +44,15 @@ def nessai_style(line_styles=True):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            if config.DISABLE_STYLE:
+            if config.plotting.disable_style:
                 return func(*args, **kwargs)
-            c = cycler(color=config.LINE_COLOURS)
+            c = cycler(color=config.plotting.line_colours)
             if line_styles:
-                c += cycler(linestyle=config.LINE_STYLES)
+                c += cycler(linestyle=config.plotting.line_styles)
             d = {
                 "axes.prop_cycle": c,
             }
-            with sns.axes_style(config.SNS_STYLE), mpl.rc_context(
+            with sns.axes_style(config.plotting.sns_style), mpl.rc_context(
                 {**_rcparams, **d}
             ):
                 return func(*args, **kwargs)
@@ -97,13 +97,13 @@ def plot_live_points(
             bins="auto",
             lw=1.5,
             density=True,
-            color=config.BASE_COLOUR,
+            color=config.plotting.base_colour,
         ),
         plot_kws=dict(
             s=1.0,
             edgecolor=None,
             palette="viridis",
-            color=config.BASE_COLOUR,
+            color=config.plotting.base_colour,
         ),
     )
     pairplot_kwargs.update(kwargs)
@@ -135,13 +135,13 @@ def plot_live_points(
                 v[0],
                 ls=":",
                 alpha=0.5,
-                color=config.HIGHLIGHT_COLOUR,
+                color=config.plotting.highlight_colour,
             )
             fig.axes[i, i].axvline(
                 v[1],
                 ls=":",
                 alpha=0.5,
-                color=config.HIGHLIGHT_COLOUR,
+                color=config.plotting.highlight_colour,
             )
 
     if filename is not None:
@@ -222,9 +222,8 @@ def plot_1d_comparison(
             "Length of colours list must match number of arrays being plotted."
         )
 
-    fig, axs = plt.subplots(
-        len(parameters), 1, sharey=False, figsize=(3, 3 * len(parameters))
-    )
+    figsize = (3, min(config.plotting.max_figsize, 3 * len(parameters)))
+    fig, axs = plt.subplots(len(parameters), 1, sharey=False, figsize=figsize)
 
     if len(parameters) > 1:
         axs = axs.ravel()
@@ -430,55 +429,77 @@ def plot_loss(epoch, history, filename=None):
 
 
 @nessai_style()
-def plot_trace(log_x, nested_samples, labels=None, filename=None):
-    """Produce trace plot for all of the parameters.
+def plot_trace(
+    log_x,
+    nested_samples,
+    parameters=None,
+    labels=None,
+    filename=None,
+    **kwargs,
+):
+    """Produce trace plot for the nested samples.
 
-    This includes all parameters in the sampler, not just those included in the
-    model being sampled.
+    By default this includes all parameters in the samples, not just those
+    included in the model being sampled.
 
     Parameters
     ----------
     log_x : array_like
-        Array of log prior volumnes
-    nested_samples : ndrray
+        Array of log prior volumes
+    nested_samples : ndarray
         Array of nested samples to plot
+    parameters : list, optional
+        List of parameters to include the trace plot. If not specified, all of
+        the parameters in the nested samples are included.
     labels : list, optional
         List of labels to use instead of the names of parameters
     filename : str, optional
         Filename for saving the plot, if none plot is not saved and figure
         is returned instead.
+    kwargs :
+        Keyword arguments passed to :code:`matplotlib.pyplot.plot`.
     """
+    default_kwargs = dict(
+        marker=",",
+        linestyle="",
+    )
+
     nested_samples = np.asarray(nested_samples)
     if not nested_samples.dtype.names:
         raise TypeError("Nested samples must be a structured array")
 
-    names = nested_samples.dtype.names
+    if parameters is None:
+        parameters = nested_samples.dtype.names
     if labels is None:
-        labels = names
+        labels = parameters
 
-    if not len(labels) == len(names):
+    if not len(labels) == len(parameters):
         raise RuntimeError(
-            "Missing labels. List of labels does not have enough entries "
-            f"({len(labels)}) for parameters: {nested_samples.dtype.names}"
+            f"List of labels is the wrong length ({len(labels)}) for the "
+            f"parameters: {parameters}."
         )
+    if kwargs:
+        default_kwargs.update(kwargs)
 
-    fig, axes = plt.subplots(
-        len(labels), 1, figsize=(5, 3 * len(labels)), sharex=True
-    )
+    figsize = (5, min(config.plotting.max_figsize, 3 * len(labels)))
+    fig, axes = plt.subplots(len(labels), 1, figsize=figsize, sharex=True)
     if len(labels) > 1:
         axes = axes.ravel()
     else:
         axes = [axes]
 
-    for i, name in enumerate(names):
-        axes[i].plot(log_x, nested_samples[name], ",")
+    for i, name in enumerate(parameters):
+        axes[i].plot(log_x, nested_samples[name], **default_kwargs)
         axes[i].set_ylabel(labels[i])
 
     axes[-1].set_xlabel("log X")
     axes[-1].invert_xaxis()
 
     if filename is not None:
-        fig.savefig(filename, bbox_inches="tight")
+        try:
+            fig.savefig(filename, bbox_inches="tight")
+        except ValueError as e:
+            logger.warning(f"Could not save trace plot. Error: {e}")
         plt.close(fig)
     else:
         return fig
@@ -536,7 +557,7 @@ def corner_plot(
         List of parameters to exclude.
     labels : Optional[Iterable]
         Labels for each parameter that is to be plotted.
-    truths : Optional[Iterable]
+    truths : Optional[Union[Iterable, Dict]]
         Truth values for each parameters, parameters can be skipped by setting
         the value to None.
     filename : Optional[str]
@@ -549,8 +570,8 @@ def corner_plot(
     default_kwargs = dict(
         bins=32,
         smooth=0.9,
-        color=config.BASE_COLOUR,
-        truth_color=config.HIGHLIGHT_COLOUR,
+        color=config.plotting.base_colour,
+        truth_color=config.plotting.highlight_colour,
         quantiles=[0.16, 0.84],
         levels=(1 - np.exp(-0.5), 1 - np.exp(-2), 1 - np.exp(-9 / 2.0)),
         plot_density=True,
@@ -594,16 +615,31 @@ def corner_plot(
         labels = labels[has_range]
 
     if truths:
-        truths = np.asarray(truths)
+        if isinstance(truths, dict):
+            if include:
+                truths = np.array([truths[n] for n in include])
+            else:
+                truths = np.fromiter(truths.values(), float)
+        else:
+            truths = np.asarray(truths)
         if len(truths) != unstruct_array.shape[-1]:
-            truths = truths[has_range]
+            if not all(has_range):
+                truths = truths[has_range]
+            else:
+                raise ValueError(
+                    "Length of truths does not match number of "
+                    "parameters being plotted"
+                )
 
     fig = corner.corner(
         unstruct_array, truths=truths, labels=labels, **default_kwargs
     )
 
     if filename is not None:
-        fig.savefig(filename, bbox_inches="tight")
+        try:
+            fig.savefig(filename, bbox_inches="tight")
+        except ValueError as e:
+            logger.warning(f"Could not save corner plot. Error: {e}")
         plt.close(fig)
     else:
         return fig

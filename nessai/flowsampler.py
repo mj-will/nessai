@@ -2,18 +2,19 @@
 """
 Main code that handles running and checkpoiting the sampler.
 """
-import json
 import logging
 import os
 import signal
 import sys
+from typing import Optional
 
 from . import config
 from .livepoint import live_points_to_dict
 from .samplers import NestedSampler, ImportanceNestedSampler
 from .posterior import draw_posterior_samples
-from .utils import NessaiJSONEncoder, configure_threads
+from .utils import configure_threads
 from .utils.torchutils import set_torch_default_dtype
+from .utils.io import save_to_json, save_dict_to_hdf5
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,21 @@ class FlowSampler:
         If True, the multiprocessing pool will be closed once the run method
         has been called. Disables the option in :code:`NestedSampler` if
         enabled.
+    disable_vectorisation : bool
+        Disable likelihood vectorisation. Overrides the value of
+        :py:attr:`nessai.model.Model.allow_vectorised`.
+    likelihood_chunksize : Optional[int]
+        Chunksize used when evaluating a vectorised likelihood. Overrides the
+        of :py:attr:`nessai.model.Model.likelihood_chunksize`. Set to None to
+        evaluate the likelihood with all available points.
+    allow_multi_valued_likelihood : Optional[bool]
+        Allow for a multi-valued likelihood function that will return different
+        likelihood values for the same point in parameter space. See
+        :py:attr:`nessai.model.Model.allow_multi_valued_likelihood` for more
+        details.
+    result_extension : str
+        Extension used when saving the result format. Defaults to HDF5, but
+        also supports JSON.
     kwargs :
         Keyword arguments passed to
         :obj:`~nessai.samplers.nestedsampler.NestedSampler`.
@@ -69,6 +85,10 @@ class FlowSampler:
         close_pool=True,
         eps=None,
         torch_dtype=None,
+        disable_vectorisation=False,
+        likelihood_chunksize=None,
+        allow_multi_valued_likelihood=None,
+        result_extension="hdf5",
         **kwargs,
     ):
 
@@ -83,7 +103,7 @@ class FlowSampler:
         self.eps = eps
         if self.eps is not None:
             logger.info(f"Setting eps to {self.eps}")
-            config.EPS = self.eps
+            config.general.eps = self.eps
 
         self.torch_dtype = set_torch_default_dtype(torch_dtype)
 
@@ -95,7 +115,28 @@ class FlowSampler:
 
         self.close_pool = close_pool
 
+        self.result_extension = result_extension
+
+        if disable_vectorisation:
+            logger.warning(
+                "Overriding value of `allow_vectorised` in the model"
+            )
+            model.allow_vectorised = False
+
+        if likelihood_chunksize:
+            model.likelihood_chunksize = likelihood_chunksize
+
+        if allow_multi_valued_likelihood is not None:
+            model.allow_multi_valued_likelihood = allow_multi_valued_likelihood
+
         self.output = os.path.join(output, "")
+        os.makedirs(self.output, exist_ok=True)
+        self.save_kwargs(kwargs)
+
+        model.configure_pool(
+            n_pool=kwargs.pop("n_pool", None), pool=kwargs.pop("pool", None)
+        )
+
         if resume:
             if not resume_file:
                 raise RuntimeError(
@@ -153,8 +194,6 @@ class FlowSampler:
                 close_pool=not self.close_pool,
                 **kwargs,
             )
-
-        self.save_kwargs(kwargs)
 
         if signal_handling:
             try:
@@ -290,7 +329,10 @@ class FlowSampler:
         )
 
         if save:
-            self.save_results(os.path.join(self.output, "result.json"))
+            self.save_results(
+                os.path.join(self.output, "result"),
+                extension=self.result_extension,
+            )
 
         if plot:
             from nessai import plot
@@ -427,7 +469,7 @@ class FlowSampler:
         if close_pool:
             self.ns.close_pool()
 
-    def save_kwargs(self, kwargs):
+    def save_kwargs(self, kwargs: dict) -> None:
         """
         Save the dictionary of keyword arguments used.
 
@@ -442,26 +484,50 @@ class FlowSampler:
         d["eps"] = self.eps
         d["torch_dtype"] = self.torch_dtype
         d["importance_sampler"] = self.importance_nested_sampler
-        with open(os.path.join(self.output, "config.json"), "w") as wf:
-            json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
+        save_to_json(d, os.path.join(self.output, "config.json"))
 
-    def save_results(self, filename):
+    def save_results(
+        self,
+        filename: str,
+        extension: Optional[str] = None,
+    ) -> None:
         """
-        Save the results from sampling to a specific JSON file.
+        Save the results from sampling to a specific results file.
 
         Parameters
         ----------
         filename : str
             Name of file to save results to.
+        extension : Optional[str]
+            File extension to used. If not specified, it will be inferred from
+            the filename.
         """
         d = self.ns.get_result_dictionary()
-        d["posterior_samples"] = live_points_to_dict(self.posterior_samples)
+
+        d["posterior_samples"] = self.posterior_samples
         if hasattr(self, "initial_posterior_samples"):
-            d["initial_posterior_samples"] = live_points_to_dict(
-                self.initial_posterior_samples
+            d["initial_posterior_samples"] = self.initial_posterior_samples
+
+        ext = os.path.splitext(filename)[1].lstrip(".")
+        if extension is None:
+            if ext == "":
+                raise RuntimeError(
+                    "Must specify file extension if not present in filename!"
+                )
+            else:
+                extension = ext
+        elif ext == "":
+            filename = ".".join([filename, extension])
+
+        if extension == "json":
+            d["posterior_samples"] = live_points_to_dict(
+                d["posterior_samples"]
             )
-        with open(filename, "w") as wf:
-            json.dump(d, wf, indent=4, cls=NessaiJSONEncoder)
+            save_to_json(d, filename)
+        elif extension in ["hdf5", "h5"]:
+            save_dict_to_hdf5(d, filename)
+        else:
+            raise RuntimeError(f"Unknown file extension: {extension}")
 
     def terminate_run(self, code=None):
         """Terminate a sampling run.

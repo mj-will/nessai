@@ -165,6 +165,7 @@ def configure_model(config):
     from .realnvp import RealNVP
     from .maf import MaskedAutoregressiveFlow
     from .nsf import NeuralSplineFlow
+    from ..flowmodel import config as fmconfig
 
     kwargs = {}
     flows = {
@@ -180,6 +181,14 @@ def configure_model(config):
 
     if not isinstance(config["n_inputs"], int):
         raise TypeError("Number of inputs (n_inputs) must be an int")
+
+    allowed_keys = set(fmconfig.DEFAULT_MODEL_CONFIG.keys())
+    extra_keys = set(config.keys()) - allowed_keys
+    if extra_keys:
+        raise RuntimeError(
+            f"Unknown keys in model config: {extra_keys}. "
+            f"Known keys are: {allowed_keys}"
+        )
 
     k = config.get("kwargs", None)
     if k is not None:

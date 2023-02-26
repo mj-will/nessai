@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test methods related to popluation of the proposal after training"""
+from functools import partial
 import os
 
 import numpy as np
@@ -188,7 +189,7 @@ def test_convert_to_samples(proposal):
     out_samples = FlowProposal.convert_to_samples(proposal, samples, plot=True)
 
     assert out_samples.dtype.names == ("x",) + tuple(
-        config.NON_SAMPLING_PARAMETERS
+        config.livepoints.non_sampling_parameters
     )
 
 
@@ -216,7 +217,7 @@ def test_convert_to_samples_with_prime(mock_plot, proposal):
     )
     proposal.inverse_rescale.assert_called_once()
     assert out_samples.dtype.names == ("x",) + tuple(
-        config.NON_SAMPLING_PARAMETERS
+        config.livepoints.non_sampling_parameters
     )
 
 
@@ -229,24 +230,6 @@ def test_get_alt_distribution_truncated_gaussian(proposal):
     proposal.latent_prior = "truncated_gaussian"
     dist = FlowProposal.get_alt_distribution(proposal)
     assert dist is None
-
-
-def test_get_alt_distribution_truncated_gaussian_w_var(proposal):
-    """
-    Test getting the alternative distribution for the default latent prior, the
-    truncated Gaussian but with a specified variance.
-    """
-    proposal.draw_latent_kwargs = {"var": 2.0}
-    proposal.latent_prior = "truncated_gaussian"
-    proposal.dims = 2
-    proposal.flow = Mock()
-    proposal.flow.device = "cpu"
-
-    with patch("nessai.proposal.flowproposal.get_multivariate_normal") as mock:
-        dist = FlowProposal.get_alt_distribution(proposal)
-
-    assert dist is not None
-    mock.assert_called_once_with(2, var=2.0, device="cpu")
 
 
 @pytest.mark.parametrize("prior", ["uniform_nsphere", "uniform_nball"])
@@ -291,19 +274,78 @@ def test_radius_w_log_q(proposal):
 def test_check_prior_bounds(proposal):
     """Test the check prior bounds method."""
     x = numpy_array_to_live_points(np.arange(10)[:, np.newaxis], ["x"])
-    proposal.model = Mock()
-    proposal.model.names = ["x"]
-    proposal.model.bounds = {"x": [0, 5]}
     y = np.arange(10)
+    proposal.model = Mock()
+    proposal.model.in_bounds = MagicMock(
+        return_value=np.array(6 * [True] + 4 * [False])
+    )
     x_out, y_out = FlowProposal.check_prior_bounds(proposal, x, y)
 
     assert_structured_arrays_equal(x_out, x[:6])
     np.testing.assert_array_equal(y_out, y[:6])
 
 
+def test_prep_latent_prior_truncated(proposal):
+    """Assert prep latent prior calls the correct values"""
+
+    proposal.latent_prior = "truncated_gaussian"
+    proposal.dims = 2
+    proposal.r = 3.0
+    proposal.fuzz = 1.2
+    dist = MagicMock()
+    dist.sample = MagicMock()
+
+    with patch(
+        "nessai.proposal.flowproposal.NDimensionalTruncatedGaussian",
+        return_value=dist,
+    ) as mock_dist:
+        FlowProposal.prep_latent_prior(proposal)
+
+    mock_dist.assert_called_once_with(2, 3.0, fuzz=1.2)
+
+    assert proposal._populate_dist is dist
+    assert proposal._draw_func is dist.sample
+
+
+def test_prep_latent_prior_other(proposal):
+    """Assert partial acts as expected"""
+    proposal.latent_prior = "gaussian"
+    proposal.dims = 2
+    proposal.r = 3.0
+    proposal.fuzz = 1.2
+
+    def draw(dims, N=None, r=None, fuzz=None):
+        return np.zeros((N, dims))
+
+    proposal._draw_latent_prior = draw
+
+    with patch(
+        "nessai.proposal.flowproposal.partial", side_effect=partial
+    ) as mock_partial:
+        FlowProposal.prep_latent_prior(proposal)
+
+    mock_partial.assert_called_once_with(draw, dims=2, r=3.0, fuzz=1.2)
+
+    assert proposal._draw_func(N=10).shape == (10, 2)
+
+
+def test_draw_latent_prior(proposal):
+    proposal._draw_func = MagicMock(return_value=[1, 2])
+    out = FlowProposal.draw_latent_prior(proposal, 2)
+    proposal._draw_func.assert_called_once_with(N=2)
+    assert out == [1, 2]
+
+
 @pytest.mark.parametrize("check_acceptance", [False, True])
 @pytest.mark.parametrize("indices", [[], [1]])
-def test_populate(proposal, check_acceptance, indices):
+@pytest.mark.parametrize("r", [None, 1.0])
+@pytest.mark.parametrize(
+    "max_radius, min_radius",
+    [(0.5, None), (None, 1.5), (None, None)],
+)
+def test_populate(
+    proposal, check_acceptance, indices, r, min_radius, max_radius
+):
     """Test the main populate method"""
     n_dims = 2
     poolsize = 10
@@ -313,7 +355,7 @@ def test_populate(proposal, check_acceptance, indices):
         [[1, 2, 3]], dtype=[("x", "f8"), ("y", "f8"), ("logL", "f8")]
     )
     worst_z = np.random.randn(1, n_dims)
-    worst_q = np.random.randn(1)
+    worst_q = np.random.randn(1) if r is None else None
     z = [
         np.random.randn(drawsize, n_dims),
         np.random.randn(drawsize, n_dims),
@@ -326,15 +368,25 @@ def test_populate(proposal, check_acceptance, indices):
     ]
     log_l = np.random.rand(poolsize)
 
+    r_flow = 1.0
+
+    if r is None:
+        r_out = r_flow
+        if min_radius is not None:
+            r_out = max(r_out, min_radius)
+        if max_radius is not None:
+            r_out = min(r_out, max_radius)
+    else:
+        r_out = r
+
     proposal.initialised = True
-    proposal.max_radius = 50
+    proposal.max_radius = max_radius
     proposal.dims = n_dims
     proposal.poolsize = poolsize
     proposal.drawsize = drawsize
-    proposal.min_radius = 0.1
+    proposal.min_radius = min_radius
     proposal.fuzz = 1.0
     proposal.indices = indices
-    proposal.approx_acceptance = [0.4]
     proposal.acceptance = [0.7]
     proposal.keep_samples = False
     proposal.fixed_radius = False
@@ -343,16 +395,16 @@ def test_populate(proposal, check_acceptance, indices):
     proposal._plot_pool = True
     proposal.populated_count = 1
     proposal.population_dtype = get_dtype(["x_prime", "y_prime"])
-    proposal.draw_latent_kwargs = {"var": 2.0}
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, worst_q))
-    proposal.radius = MagicMock(return_value=(1.0, worst_q))
+    proposal.radius = MagicMock(return_value=(r_flow, worst_q))
     proposal.get_alt_distribution = MagicMock(return_value=None)
+    proposal.prep_latent_prior = MagicMock()
     proposal.draw_latent_prior = MagicMock(side_effect=z)
     proposal.rejection_sampling = MagicMock(
         side_effect=[(a[:-1], b[:-1]) for a, b in zip(z, x)]
     )
-    proposal.compute_acceptance = MagicMock(side_effect=[0.5, 0.8])
+    proposal.compute_acceptance = MagicMock(return_value=0.8)
     proposal.model = MagicMock()
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
@@ -368,24 +420,28 @@ def test_populate(proposal, check_acceptance, indices):
         "nessai.proposal.flowproposal.empty_structured_array",
         return_value=x_empty,
     ) as mock_empty:
-        FlowProposal.populate(proposal, worst_point, N=10, plot=True)
+        FlowProposal.populate(proposal, worst_point, N=10, plot=True, r=r)
 
     mock_empty.assert_called_once_with(
         poolsize,
         dtype=proposal.population_dtype,
     )
-    proposal.forward_pass.assert_called_once_with(
-        worst_point,
-        rescale=True,
-        compute_radius=True,
-    )
-    proposal.radius.assert_called_once_with(worst_z, worst_q)
-    assert proposal.r == 1
 
-    draw_calls = [
-        call(2, r=1.0, N=5, fuzz=1.0, var=2.0),
-        call(2, r=1.0, N=5, fuzz=1.0, var=2.0),
-    ]
+    if r is None:
+        proposal.forward_pass.assert_called_once_with(
+            worst_point,
+            rescale=True,
+            compute_radius=True,
+        )
+        proposal.radius.assert_called_once_with(worst_z, worst_q)
+    else:
+        assert proposal.r is r
+
+    assert proposal.r == r_out
+
+    proposal.prep_latent_prior.assert_called_once()
+
+    draw_calls = 3 * [call(5)]
     proposal.draw_latent_prior.assert_has_calls(draw_calls)
 
     rejection_calls = [
@@ -409,7 +465,6 @@ def test_populate(proposal, check_acceptance, indices):
 
     if check_acceptance:
         proposal.compute_acceptance.assert_called()
-        assert proposal.approx_acceptance == [0.4, 0.5]
         assert proposal.acceptance == [0.7, 0.8]
     else:
         proposal.compute_acceptance.assert_not_called()

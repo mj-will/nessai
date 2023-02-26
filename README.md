@@ -55,7 +55,7 @@ The normalising flows implemented in ``nessai`` are all either directly imported
 
 Other code snippets that draw on existing code reference the source in their corresponding doc-strings.
 
-The authors also thank Christian Chapman-Bird, Laurence Datrier, Fergus Hayes and Jethro Linley for their feedback and help finding bugs in ``nessai``.
+The authors also thank Christian Chapman-Bird, Laurence Datrier, Fergus Hayes, Jethro Linley and Simon Tait for their feedback and help finding bugs in ``nessai``.
 
 ## Citing
 

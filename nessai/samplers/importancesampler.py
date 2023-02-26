@@ -761,7 +761,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 x0=self.sigmoid_midpoint - self.training_points["logL"][-1],
                 k=self.update_kwargs.get("sigmoid_gradient", 1.0),
             )
-            weights = np.clip(weights, config.EPS, None)
+            weights = np.clip(weights, config.general.eps, None)
         elif self.weighted_kl:
             log_w = self.training_points["logW"].copy()
             log_w -= logsumexp(log_w)

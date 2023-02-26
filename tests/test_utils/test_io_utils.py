@@ -4,6 +4,7 @@ Test io utilities.
 """
 import os
 import json
+import h5py
 import numpy as np
 import pickle
 import pytest
@@ -13,10 +14,29 @@ from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.utils.io import (
     NessaiJSONEncoder,
+    add_dict_to_hdf5_file,
+    encode_for_hdf5,
     is_jsonable,
     safe_file_dump,
+    save_dict_to_hdf5,
     save_live_points,
+    save_to_json,
 )
+
+
+@pytest.fixture
+def data_dict():
+    data = dict(
+        a=np.array([1, 2, 3]),
+        b=np.array([(1, 2)], dtype=[("x", "f4"), ("y", "f4")]),
+        cls=object(),
+        l=[1, 2, 3],
+        dict1={"a": None, "b": 2},
+        dict2={"c": [1, 2, 3], "array": np.array([3, 4, 5])},
+        s="A string",
+        nan=None,
+    )
+    return data
 
 
 def test_is_jsonable_true():
@@ -63,6 +83,32 @@ def test_JSON_encoder_other():
         output = NessaiJSONEncoder.default(e, input)
     m.assert_called_once_with(input)
     assert output == "Hello"
+
+
+def test_save_to_json():
+    """Assert json.dump is called with the correct arguments"""
+    d = dict(a=1)
+    expected_kwargs = dict(indent=4, cls=NessaiJSONEncoder, test=True)
+    mop = mock_open()
+    filename = "test.json"
+    with patch("builtins.open", mop, create=True), patch(
+        "json.dump"
+    ) as mock_dump:
+        save_to_json(d, filename, test=True)
+    fp = mop()
+    mock_dump.assert_called_once_with(d, fp, **expected_kwargs)
+
+
+@pytest.mark.integration_test
+def test_save_to_json_integration(tmp_path, data_dict):
+    """Integration test for save to json"""
+    filename = tmp_path / "result.json"
+    save_to_json(data_dict, filename)
+    assert os.path.exists(filename)
+
+    with open(filename, "r") as fp:
+        out = json.load(fp)
+    assert list(data_dict.keys()) == list(out.keys())
 
 
 def test_safe_file_dump():
@@ -120,7 +166,8 @@ def test_save_live_points(tmp_path):
         {
             k: 2 * [v]
             for k, v in zip(
-                config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULTS
+                config.livepoints.non_sampling_parameters,
+                config.livepoints.non_sampling_defaults,
             )
         }
     )
@@ -134,3 +181,48 @@ def test_save_live_points(tmp_path):
         d_out = json.load(fp)
 
     np.testing.assert_equal(d_out, d)
+
+
+@pytest.mark.parametrize(
+    "value, expected", [(None, "__none__"), ([1, 2], [1, 2])]
+)
+def test_encode_to_hdf5(value, expected):
+    """Assert values are correctly encoded."""
+    assert encode_for_hdf5(value) == expected
+
+
+def test_add_dict_to_hdf5_file(tmp_path, data_dict):
+    """Assert dictionaries is correctly converted"""
+    data_dict.pop("cls")
+    with h5py.File(tmp_path / "test.h5", "w") as f:
+        add_dict_to_hdf5_file(f, "/", data_dict)
+        assert list(f.keys()) == sorted(data_dict.keys())
+        assert f["/dict1/a"][()].decode() == "__none__"
+        np.testing.assert_array_equal(
+            f["dict2/array"][:], data_dict["dict2"]["array"]
+        )
+
+
+def test_save_dict_to_hdf5(data_dict):
+    """Assert the correct arguments are specified"""
+    f = mock_open()
+    filename = "result.h5"
+    with patch("h5py.File", f) as mock_file, patch(
+        "nessai.utils.io.add_dict_to_hdf5_file"
+    ) as mock_add:
+        save_dict_to_hdf5(data_dict, filename)
+    mock_file.assert_called_once_with(filename, "w")
+    mock_add.assert_called_once_with(f(), "/", data_dict)
+
+
+@pytest.mark.integration_test
+def test_save_dict_to_hdf5_integration(tmp_path, data_dict):
+    """Test saving a dict to HDF5 integration"""
+    # Do not need to support saving a class to HDF5
+    data_dict.pop("cls")
+    filename = tmp_path / "result.hdf5"
+    save_dict_to_hdf5(data_dict, filename)
+
+    with h5py.File(filename, "r") as f:
+        keys = list(f.keys())
+    assert keys == sorted(list(data_dict.keys()))

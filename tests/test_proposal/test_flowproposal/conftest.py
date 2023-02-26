@@ -7,4 +7,6 @@ from nessai.proposal import FlowProposal
 
 @pytest.fixture()
 def proposal():
-    return create_autospec(FlowProposal)
+    proposal = create_autospec(FlowProposal)
+    proposal._initialised = False
+    return proposal

@@ -330,6 +330,15 @@ def test_configure_model_invalid_device(caplog, config):
     assert "Could not send the normalising flow to" in caplog.text
 
 
+def test_configure_model_invalid_key(config):
+    """Assert an error is raised if invalid keys are present in the config"""
+    config["invalid_key"] = True
+    with pytest.raises(
+        RuntimeError, match=r"Unknown keys in model config: {'invalid_key'}"
+    ):
+        configure_model(config)
+
+
 @pytest.mark.parametrize("linear_transform", ["lu", "permutation", "svd"])
 def test_create_linear_transform(linear_transform):
     """Test creating a linear transform."""

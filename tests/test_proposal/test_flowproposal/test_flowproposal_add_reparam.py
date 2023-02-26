@@ -14,7 +14,7 @@ from nessai.reparameterisations import default_reparameterisations
 general_reparameterisations = {
     k: v
     for k, v in default_reparameterisations.items()
-    if k not in ["scale", "rescale", "angle-pair"]
+    if k not in ["scale", "rescale", "angle-pair", "scaleandshift"]
 }
 
 
@@ -83,7 +83,7 @@ def test_configure_reparameterisation_angle_pair(tmpdir, model):
 
 @pytest.mark.integration_test
 def test_default_reparameterisations(caplog, tmpdir):
-    """Assert that by default reparameterisations are not used."""
+    """Assert that by default the reparameterisation is RescaleToBounds"""
     caplog.set_level("INFO")
     model = MagicMock()
     model.names = ["x", "y"]
@@ -95,4 +95,6 @@ def test_default_reparameterisations(caplog, tmpdir):
     # Mocked model so can't verify rescaling
     proposal.verify_rescaling = MagicMock()
     proposal.initialise()
-    assert proposal._reparameterisation is None
+    reparams = list(proposal._reparameterisation.values())
+    assert len(reparams) == 1
+    assert reparams[0].parameters == ["x", "y"]
