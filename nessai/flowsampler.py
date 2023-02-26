@@ -37,6 +37,10 @@ class FlowSampler:
     weights_path : str, optional
         Path to either the weights file or directory containing subdirectories
         with weight files.
+    weights_file : str, optional
+        Weights file to use, same as :code:`weights_path` and included for
+        backwards_compatibility. Will be ignored is :code:`weights_paths` has
+        also been specified.
     pytorch_threads : int
         Maximum number of threads to use for torch. If ``None`` torch uses all
         available threads.
@@ -77,6 +81,7 @@ class FlowSampler:
         importance_nested_sampler=False,
         resume=True,
         resume_file="nested_sampler_resume.pkl",
+        weights_file=None,
         weights_path=None,
         signal_handling=True,
         exit_code=130,
@@ -138,6 +143,9 @@ class FlowSampler:
         )
 
         if resume:
+
+            weights_path = weights_path or weights_file
+
             if not resume_file:
                 raise RuntimeError(
                     "`resume_file` must be specified if resume=True. "
