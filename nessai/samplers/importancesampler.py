@@ -231,12 +231,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._log_q_ns = None
         self._log_q_lp = None
 
-        self.update_level_time = 0.0
-        self.draw_time = 0.0
-        self.redraw_time = 0.0
-        self.update_ns_time = 0.0
-        self.update_live_points_time = 0.0
-        self.add_samples_time = 0.0
+        self.training_time = 0.0
+        self.draw_samples_time = 0.0
+        self.add_and_update_samples_time = 0.0
+        self.draw_final_samples_time = 0.0
 
         if self.replace_all:
             logger.warning("Replace all is experimental")
@@ -1268,12 +1266,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f"with {self.stopping_criterion} = {self.criterion}"
         )
         self.finalise()
-        logger.info(f"Level update time: {self.update_level_time}")
+        logger.info(f"Training time: {self.training_time}")
+        logger.info(f"Draw samples time: {self.draw_samples_time}")
+        logger.info(
+            f"Add and update samples time: {self.add_and_update_samples_time}"
+        )
         logger.info(f"Log-likelihood time: {self.likelihood_evaluation_time}")
-        logger.info(f"Draw time: {self.draw_time}")
-        logger.info(f"Update NS time: {self.update_ns_time}")
-        logger.info(f"Update live points time: {self.update_live_points_time}")
-        logger.info(f"Add samples time: {self.add_samples_time}")
         return self.log_evidence, self.nested_samples
 
     def draw_posterior_samples(
@@ -1545,7 +1543,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         logger.warning(f"Final ESS: {ess:.1f}")
         self.final_samples = samples
-        self.redraw_time += timer() - start_time
+        self.draw_final_samples_time += timer() - start_time
         return self.final_state.logZ, samples
 
     def train_final_flow(self):
@@ -1969,12 +1967,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d["final_log_evidence"] = self.final_log_evidence
         d["final_log_evidence_error"] = self.final_log_evidence_error
 
-        d["sampling_time"] = self.sampling_time
-        d["update_level_time"] = self.update_level_time
-        d["add_samples_time"] = self.add_samples_time
-        d["update_ns_time"] = self.update_ns_time
-        d["update_live_points_time"] = self.update_live_points_time
-        d["redraw_time"] = self.redraw_time
+        d["training_time"] = self.training_time
+        d["draw_samples_time"] = self.draw_samples_time
+        d["add_and_update_samples_time"] = self.add_and_update_samples_time
+        d["draw_final_samples_time"] = self.draw_final_samples_time
 
         return d
 
