@@ -225,13 +225,14 @@ class ImportanceFlowProposal(Proposal):
         return x, log_j
 
     def rescale(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert from live points."""
+        """Convert to the space in which the flow is trained."""
         x_hypercube = self.model.to_unit_hypercube(x)
         x_array = live_points_to_array(x_hypercube, self.model.names)
         x_prime, log_j = self.to_prime(x_array)
         return x_prime, log_j
 
     def inverse_rescale(self, x_prime: np.ndarray) -> np.ndarray:
+        """Convert from the space in which the flow is trained."""
         x_array, log_j = self.from_prime(x_prime)
         if self.clip:
             x_array = np.clip(x_array, 0.0, 1.0)
@@ -543,9 +544,9 @@ class ImportanceFlowProposal(Proposal):
         log_q_current = log_prob_fn(x)
 
         if log_q is None:
-            assert False
             logger.warning(
-                "Updating points with method prone to numerical errors"
+                "Updating points with cumulative method is prone to numerical "
+                "errors"
             )
             new_log_Q = (
                 log_q_current
