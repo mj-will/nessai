@@ -129,8 +129,10 @@ def test_rescale_bounds_incorrect_type(reparam):
     "input, expected_value",
     [
         (True, {"x": "split", "y": "split"}),
+        (False, False),
         (["x"], {"x": "split"}),
         ({"x": "split"}, {"x": "split"}),
+        (None, False),
     ],
 )
 def test_boundary_inversion_config(reparam, input, expected_value):
@@ -203,6 +205,24 @@ def test_reset_inversion(reparam):
     reparam._edges = {"x": [-10, 10], "y": [-5, 5]}
     RescaleToBounds.reset_inversion(reparam)
     assert reparam._edges == {"x": None, "y": None}
+
+
+def test_reset_inversion_no_edges(reparam):
+    """Assert the edges are reset not reset if _edges is None"""
+    reparam.parameters = ["x", "y"]
+    reparam._edges = None
+    RescaleToBounds.reset_inversion(reparam)
+    assert reparam._edges is None
+
+
+def test_update(reparam):
+    """Assert update calls the correct methods"""
+    reparam.reset_inversion = MagicMock()
+    reparam.update_bounds = MagicMock()
+    x = np.array((1, 2), dtype=[("x", "f8"), ("y", "f8")])
+    RescaleToBounds.update(reparam, x)
+    reparam.reset_inversion.assert_called_once()
+    reparam.update_bounds.assert_called_once_with(x)
 
 
 def test_x_prime_log_prior_error(reparam):
@@ -369,7 +389,7 @@ def test_reparameterise(reparam):
     reparam.parameters = ["x"]
     reparam.prime_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
-    reparam.boundary_inversion = {}
+    reparam.boundary_inversion = False
     x = numpy_array_to_live_points(
         np.array([(1.0,), (2.0,)]), reparam.parameters
     )
@@ -409,7 +429,7 @@ def test_inverse_reparameterise(reparam):
     reparam.parameters = ["x"]
     reparam.prime_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
-    reparam.boundary_inversion = {}
+    reparam.boundary_inversion = False
     x_prime = numpy_array_to_live_points(
         np.array([(1.0,), (2.0,)]), reparam.prime_parameters
     )
@@ -1027,6 +1047,50 @@ def test_pre_rescaling_integration(is_invertible, model):
     model._names.remove("y")
     model._bounds = {"x": [1.0, np.e]}
     assert is_invertible(reparam, model=model, decimal=12)
+
+
+@pytest.mark.integration_test
+def test_update_integration(model):
+    """Assert edges and bounds are updated"""
+
+    x = model.new_point(2)
+
+    new_bounds = {"x": [np.min(x["x"]), np.max(x["x"])]}
+
+    reparam = RescaleToBounds(
+        parameters="x",
+        update_bounds=True,
+        boundary_inversion=True,
+        detect_edges=True,
+        prior_bounds=model.bounds["x"],
+    )
+
+    reparam._edges = {"x": "lower"}
+    reparam.bounds = {"x": [-100, 100]}
+
+    reparam.update(x)
+
+    assert reparam._edges == {"x": None}
+    assert reparam.bounds == new_bounds
+
+
+@pytest.mark.integration_test
+def test_update_integration_no_update(model):
+    """Assert the bounds and edges are not updated if disabled."""
+    x = model.new_point(2)
+
+    reparam = RescaleToBounds(
+        parameters="x",
+        update_bounds=False,
+        boundary_inversion=False,
+        detect_edges=False,
+        prior_bounds=model.bounds["x"],
+    )
+
+    reparam.update(x)
+
+    assert reparam._edges is None
+    np.testing.assert_array_equal(reparam.bounds["x"], model.bounds["x"])
 
 
 @pytest.mark.parametrize(

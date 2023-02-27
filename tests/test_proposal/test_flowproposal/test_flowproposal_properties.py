@@ -7,7 +7,8 @@ from nessai.proposal import FlowProposal
 EXTRA_PARAMS_DTYPE = [
     (nsp, d)
     for nsp, d in zip(
-        config.NON_SAMPLING_PARAMETERS, config.NON_SAMPLING_DEFAULT_DTYPE
+        config.livepoints.non_sampling_parameters,
+        config.livepoints.non_sampling_dtype,
     )
 ]
 

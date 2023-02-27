@@ -22,40 +22,90 @@ from ..utils.rescaling import (
 logger = logging.getLogger(__name__)
 
 
-class Rescale(Reparameterisation):
-    """Reparameterisation that rescales the parameters by a constant factor
-    that does not depend on the prior bounds.
+class ScaleAndShift(Reparameterisation):
+    """Reparameterisation that shifts and scales by a value.
+
+    Applies
+
+    .. math::
+        x' = (x - shift) / scale
+
+    Can apply the Z-score rescaling if :code:`estimate_scale` and
+    :code:`estimate_shift` are both enabled.
 
     Parameters
     ----------
-    scale : float
-        Scaling constant.
+    parameters : Union[str, List[str]]
+        Name of parameters to reparameterise.
+    prior_bounds : list, dict or None
+        Prior bounds for the parameter(s).
+    scale : Optional[float]
+        Scaling constant. If not specified, :code:`estimate_scale` must be
+        True.
+    shift : Optional[float]
+        Shift constant. If not specified, no shift is applied.
+    estimate_scale : bool
+        If true, the value of :code:`scale` will be ignored and the standard
+        deviation of the data will be used.
+    estimate_shift : bool
+        If true, the value of :code:`shift` will be ignored and the standard
+        deviation of the data will be used.
     """
 
     requires_bounded_prior = False
 
-    def __init__(self, parameters=None, scale=None, prior_bounds=None):
-        if scale is None:
-            raise RuntimeError("Must specify a scale!")
+    def __init__(
+        self,
+        parameters=None,
+        prior_bounds=None,
+        scale=None,
+        shift=None,
+        estimate_scale=False,
+        estimate_shift=False,
+    ):
+        if scale is None and not estimate_scale:
+            raise RuntimeError("Must specify a scale or enable estimate_scale")
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
 
-        if isinstance(scale, (int, float)):
-            self.scale = {p: float(scale) for p in self.parameters}
-        elif isinstance(scale, list):
-            if not len(scale) == len(self.parameters):
+        self.estimate_scale = estimate_scale
+        self.estimate_shift = estimate_shift
+
+        if self.estimate_scale or self.estimate_shift:
+            self._update = True
+        else:
+            self._update = False
+
+        if self.estimate_scale:
+            self.scale = {p: None for p in parameters}
+        elif scale:
+            self.scale = self._check_value(scale, "scale")
+
+        if self.estimate_shift:
+            self.shift = {p: None for p in parameters}
+        elif shift:
+            self.shift = self._check_value(shift, "shift")
+        else:
+            self.shift = None
+
+    def _check_value(self, value, name):
+        """Helper function to check the scale or shift parameters are valid."""
+        if isinstance(value, (int, float)):
+            value = {p: float(value) for p in self.parameters}
+        elif isinstance(value, list):
+            if not len(value) == len(self.parameters):
                 raise RuntimeError(
-                    "Scale list is a different length to the parameters."
+                    f"{name} list is a different length to the parameters."
                 )
-            self.scale = {p: float(s) for p, s in zip(self.parameters, scale)}
-        elif isinstance(scale, dict):
-            if not set(self.parameters) == set(scale.keys()):
-                raise RuntimeError("Mismatched parameters with scale dict")
-            scale = {p: float(s) for p, s in scale.items()}
-            self.scale = scale
+            value = {p: float(s) for p, s in zip(self.parameters, value)}
+        elif isinstance(value, dict):
+            if not set(self.parameters) == set(value.keys()):
+                raise RuntimeError(f"Mismatched parameters with {name} dict")
+            value = {p: float(s) for p, s in value.items()}
         else:
             raise TypeError(
-                "Scale input must be an instance of int, list or dict"
+                f"{name} input must be an instance of int, list or dict"
             )
+        return value
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
         """
@@ -71,7 +121,10 @@ class Rescale(Reparameterisation):
         log_j : Log jacobian to be updated
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
-            x_prime[pp] = x[p] / self.scale[p]
+            if self.shift:
+                x_prime[pp] = (x[p] - self.shift[p]) / self.scale[p]
+            else:
+                x_prime[pp] = x[p] / self.scale[p]
             log_j -= np.log(np.abs(self.scale[p]))
         return x, x_prime, log_j
 
@@ -89,9 +142,28 @@ class Rescale(Reparameterisation):
         log_j : Log jacobian to be updated
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
-            x[p] = x_prime[pp] * self.scale[p]
+            if self.shift:
+                x[p] = (x_prime[pp] * self.scale[p]) + self.shift[p]
+            else:
+                x[p] = x_prime[pp] * self.scale[p]
             log_j += np.log(np.abs(self.scale[p]))
         return x, x_prime, log_j
+
+    def update(self, x):
+        """Update the scale and shift parameters if enabled."""
+        if self._update:
+            logger.debug("Updating scale and shift")
+            for p in self.parameters:
+                if self.estimate_scale:
+                    self.scale[p] = np.std(x[p])
+                if self.estimate_shift:
+                    self.shift[p] = np.mean(x[p])
+
+
+class Rescale(ScaleAndShift):
+    """Reparameterisation that rescales the parameters by a constant factor
+    that does not depend on the prior bounds.
+    """
 
 
 class RescaleToBounds(Reparameterisation):
@@ -160,6 +232,7 @@ class RescaleToBounds(Reparameterisation):
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
 
         self.bounds = None
+        self._edges = None
         self.detect_edge_prime = False
 
         self.has_pre_rescaling = True
@@ -194,24 +267,28 @@ class RescaleToBounds(Reparameterisation):
             elif isinstance(boundary_inversion, dict):
                 self.boundary_inversion = boundary_inversion
             elif isinstance(boundary_inversion, bool):
-                self.boundary_inversion = {
-                    p: inversion_type for p in self.parameters
-                }
+                if boundary_inversion:
+                    self.boundary_inversion = {
+                        p: inversion_type for p in self.parameters
+                    }
+                else:
+                    self.boundary_inversion = False
             else:
                 raise TypeError(
                     "boundary_inversion must be a list, dict or bool. "
                     f"Got type: {type(boundary_inversion).__name__}"
                 )
         else:
-            self.boundary_inversion = []
+            self.boundary_inversion = False
 
-        for p in self.boundary_inversion:
-            self.rescale_bounds[p] = [0, 1]
+        if self.boundary_inversion:
+            for p in self.boundary_inversion:
+                self.rescale_bounds[p] = [0, 1]
 
         self._update_bounds = update_bounds if not detect_edges else True
-        self._edges = {n: None for n in self.parameters}
         self.detect_edges = detect_edges
         if self.boundary_inversion:
+            self._edges = {n: None for n in self.parameters}
             self.detect_edges_kwargs = configure_edge_detection(
                 detect_edges_kwargs, self.detect_edges
             )
@@ -455,9 +532,9 @@ class RescaleToBounds(Reparameterisation):
                 x_prime[pp], lj = self.pre_rescaling(x[p])
                 log_j += lj
             else:
-                x_prime[pp] = x[p].copy()
+                x_prime[pp] = x[p]
 
-            if p in self.boundary_inversion:
+            if self.boundary_inversion and p in self.boundary_inversion:
                 x, x_prime, log_j = self._apply_inversion(
                     x, x_prime, log_j, p, pp, compute_radius, **kwargs
                 )
@@ -480,8 +557,8 @@ class RescaleToBounds(Reparameterisation):
                 x[p], lj = self.post_rescaling_inv(x_prime[pp])
                 log_j += lj
             else:
-                x[p] = x_prime[pp].copy()
-            if p in self.boundary_inversion:
+                x[p] = x_prime[pp]
+            if self.boundary_inversion and p in self.boundary_inversion:
                 x, x_prime, log_j = self._reverse_inversion(
                     x, x_prime, log_j, p, pp, **kwargs
                 )
@@ -496,7 +573,8 @@ class RescaleToBounds(Reparameterisation):
 
     def reset_inversion(self):
         """Reset the edges for inversion"""
-        self._edges = {n: None for n in self.parameters}
+        if self._edges:
+            self._edges = {n: None for n in self.parameters}
 
     def set_bounds(self, prior_bounds):
         """Set the initial bounds for rescaling"""
@@ -544,8 +622,12 @@ class RescaleToBounds(Reparameterisation):
                             self.pre_prior_bounds[p][1],
                             self.bounds[p][0],
                             self.bounds[p][1],
-                            invert=self._edges[p],
-                            inversion=p in self.boundary_inversion,
+                            invert=self._edges[p] if self._edges else None,
+                            inversion=(
+                                p in self.boundary_inversion
+                                if self.boundary_inversion
+                                else False
+                            ),
                             offset=self.offsets[p],
                             rescale_bounds=self.rescale_bounds[p],
                         )
@@ -554,6 +636,14 @@ class RescaleToBounds(Reparameterisation):
                 for p, pp in zip(self.parameters, self.prime_parameters)
             }
             logger.debug(f"New prime bounds: {self.prime_prior_bounds}")
+
+    def update(self, x):
+        """Update the reparameterisation given some points.
+
+        Includes resetting the inversions and updating the bounds.
+        """
+        self.update_bounds(x)
+        self.reset_inversion()
 
     def x_prime_log_prior(self, x_prime):
         """Compute the prior in the prime space assuming a uniform prior"""

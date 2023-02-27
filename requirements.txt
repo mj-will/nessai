@@ -2,7 +2,8 @@ numpy>=1.9
 pandas
 matplotlib>=2.0
 seaborn
-scipy>=0.16
+scipy>=0.16,<1.10
 torch>=1.7.0
 tqdm
-nflows
+glasflow
+h5py>=3.0

@@ -5,6 +5,7 @@ Test functions related to drawing posterior samples
 import logging
 import numpy as np
 import pytest
+from unittest.mock import patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.posterior import compute_weights, draw_posterior_samples
@@ -27,15 +28,32 @@ def method(request):
     return request.param
 
 
-@pytest.mark.parametrize("nlive", [10, np.ones(20)])
-def test_compute_weights(nlive):
+@pytest.mark.parametrize("nlive", [10, 10 * np.ones(20)])
+@pytest.mark.parametrize("expectation", ["logt", "t"])
+def test_compute_weights(nlive, expectation):
     """Test computing the weights for set of likelihood values."""
     log_l = np.random.randn(20)
 
-    log_z, log_w = compute_weights(log_l, nlive)
+    log_z, log_w = compute_weights(log_l, nlive, expectation=expectation)
 
     assert len(log_w) == len(log_l)
     assert np.isfinite(log_z)
+
+
+@pytest.mark.parametrize("expectation", ["logt", "t"])
+def test_compute_weights_correct_weights(expectation):
+    """Assert the weights (X_i) are correct"""
+    nlive = 10
+    log_l = np.random.randn(20)
+    out = -np.log1p(1 / nlive) * np.ones(len(log_l))
+    with patch("numpy.log1p", return_value=out) as mock_log1p, patch(
+        "nessai.posterior.logsubexp", return_value=np.random.rand(21)
+    ), patch("nessai.posterior.log_integrate_log_trap", return_value=0.0):
+        compute_weights(log_l, nlive=nlive, expectation=expectation)
+    if expectation == "t":
+        mock_log1p.assert_called_once()
+    else:
+        mock_log1p.assert_not_called()
 
 
 def test_compute_weights_invalid_nlive():
@@ -44,6 +62,14 @@ def test_compute_weights_invalid_nlive():
         ValueError, match=r"nlive and samples are different lengths"
     ):
         compute_weights([1, 2, 3], [4, 5])
+
+
+def test_compute_weights_invalid_expectation():
+    """Assert an error is raised if expectation is invalid"""
+    with pytest.raises(
+        ValueError, match=r"Expectation must be t or logt, got: a"
+    ):
+        compute_weights(np.random.randn(10), 10, expectation="a")
 
 
 def test_draw_posterior_samples(ns, method):

@@ -16,7 +16,7 @@ sampling_frequency = 2048.0
 
 outdir = "./outdir/"
 label = "calibration_example"
-bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level="WARNING")
+bilby.core.utils.setup_logger(outdir=outdir, label=label)
 
 np.random.seed(150914)
 

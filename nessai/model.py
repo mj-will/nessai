@@ -19,6 +19,7 @@ from .utils.multiprocessing import (
     get_n_pool,
     log_likelihood_wrapper,
 )
+from .utils.structures import array_split_chunksize
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,22 @@ class Model(ABC):
         likelihood is vectorised, it will only evaluate the likelihood one
         sample at a time.
     """
+    likelihood_chunksize = None
+    """
+    int
+        Chunksize to use with a vectorised likelihood. If specified the
+        likelihood will be called with at most chunksize points at once.
+    """
+    allow_multi_valued_likelihood = False
+    """
+    bool
+        Allow for a multi-valued likelihood function that will return different
+        likelihood values for the same point in parameter space. This is only
+        recommended when the variation is significantly smaller that the
+        variations in the likelihood across the prior.
+    """
     _vectorised_likelihood = None
+    _pool_configured = False
 
     @property
     def names(self):
@@ -168,7 +184,7 @@ class Model(ABC):
             if self.allow_vectorised:
                 x = self.new_point(N=10)
                 target = np.fromiter(
-                    map(self.log_likelihood, x), config.LOGL_DTYPE
+                    map(self.log_likelihood, x), config.livepoints.logl_dtype
                 )
                 try:
                     batch = self.log_likelihood(x)
@@ -205,12 +221,14 @@ class Model(ABC):
     def _view_dtype(self):
         """dtype used for unstructured view"""
         if self._dtype is None:
-            x = self.new_point()
+            x = empty_structured_array(0, self.names)
             self._dtype = _unstructured_view_dtype(x, self.names)
         return self._dtype
 
     def configure_pool(self, pool=None, n_pool=None):
         """Configure a multiprocessing pool for the likelihood computation.
+
+        Configuration will be skipped if the pool has already been configured.
 
         Parameters
         ----------
@@ -223,6 +241,9 @@ class Model(ABC):
             Number of threads to use to create an instance of
             :py:obj:`multiprocessing.Pool`.
         """
+        if self._pool_configured:
+            logger.warning("Multiprocessing pool has already been configured.")
+            return
         self.pool = pool
         self.n_pool = n_pool
         if self.pool:
@@ -257,9 +278,13 @@ class Model(ABC):
             )
         else:
             logger.info("pool and n_pool are none, no multiprocessing pool")
+        self._pool_configured = True
 
     def close_pool(self, code=None):
-        """Close the the multiprocessing pool"""
+        """Close the the multiprocessing pool.
+
+        Also resets the pool configuration.
+        """
         if getattr(self, "pool", None) is not None:
             logger.info("Starting to close worker pool.")
             if code == 2:
@@ -269,6 +294,7 @@ class Model(ABC):
             self.pool.join()
             self.pool = None
             logger.info("Finished closing worker pool.")
+        self._pool_configured = False
 
     def new_point(self, N=1):
         """
@@ -359,9 +385,9 @@ class Model(ABC):
                 ),
                 self.names,
             )
-            flag = np.isfinite(self.log_prior(p))
-            m = np.sum(flag)
-            new_points[n : (n + m)] = p[flag][: min(m, N - n)]
+            p = p[np.isfinite(self.log_prior(p))]
+            m = min(p.size, N - n)
+            new_points[n : (n + m)] = p[:m]
             n += m
         return new_points
 
@@ -483,19 +509,42 @@ class Model(ABC):
         if self.pool is None:
             logger.debug("Not using pool to evaluate likelihood")
             if self.allow_vectorised and self.vectorised_likelihood:
-                log_likelihood = self.log_likelihood(x)
+                if self.likelihood_chunksize:
+                    log_likelihood = np.concatenate(
+                        list(
+                            map(
+                                self.log_likelihood,
+                                array_split_chunksize(
+                                    x, self.likelihood_chunksize
+                                ),
+                            )
+                        )
+                    )
+                else:
+                    log_likelihood = self.log_likelihood(x)
             else:
                 log_likelihood = np.fromiter(
-                    map(self.log_likelihood, x), config.LOGL_DTYPE
+                    map(self.log_likelihood, x), config.livepoints.logl_dtype
                 )
         else:
             logger.debug("Using pool to evaluate likelihood")
             if self.allow_vectorised and self.vectorised_likelihood:
-                log_likelihood = np.concatenate(
-                    self.pool.map(
-                        log_likelihood_wrapper, np.array_split(x, self.n_pool)
+                if self.likelihood_chunksize:
+                    log_likelihood = np.concatenate(
+                        self.pool.map(
+                            log_likelihood_wrapper,
+                            array_split_chunksize(
+                                x, self.likelihood_chunksize
+                            ),
+                        )
                     )
-                )
+                else:
+                    log_likelihood = np.concatenate(
+                        self.pool.map(
+                            log_likelihood_wrapper,
+                            np.array_split(x, self.n_pool),
+                        )
+                    )
             else:
                 log_likelihood = np.array(
                     self.pool.map(log_likelihood_wrapper, x)
@@ -610,12 +659,18 @@ class Model(ABC):
                 "Log-likelihood function did not return " "a likelihood value"
             )
 
-        logl = np.array([self.log_likelihood(x) for _ in range(16)])
-        if not all(logl == logl[0]):
-            raise RuntimeError(
-                "Repeated calls to the log-likelihood with the same parameters"
-                " return different values."
+        if self.allow_multi_valued_likelihood:
+            logger.warning(
+                "Multi-valued likelihood is allowed. "
+                "This may lead to slow sampling and strange results."
             )
+        else:
+            logl = np.array([self.log_likelihood(x) for _ in range(16)])
+            if not all(logl == logl[0]):
+                raise RuntimeError(
+                    "Repeated calls to the log-likelihood with the same "
+                    "parameters return different values."
+                )
 
         if self.log_prior(x).dtype == np.dtype("float16"):
             logger.warning(

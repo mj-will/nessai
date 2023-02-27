@@ -13,7 +13,7 @@ from .utils.stats import effective_sample_size
 logger = logging.getLogger(__name__)
 
 
-def compute_weights(samples, nlive):
+def compute_weights(samples, nlive, expectation="logt"):
     """
     Returns the log-evidence and log-weights for the log-likelihood samples
     assumed to the result of nested sampling with nlive live points
@@ -24,6 +24,9 @@ def compute_weights(samples, nlive):
         Log-likelihood samples.
     nlive : Union[int, array_like]
         Number of live points used in nested sampling.
+    expectation : str, {logt, t}
+        Method used to compute the expectation value for the shrinkage t.
+        Choose between log <t> or <log t>. Defaults to <log t>.
 
     Returns
     -------
@@ -42,7 +45,12 @@ def compute_weights(samples, nlive):
             raise ValueError("nlive and samples are different lengths")
         nlive_per_iteration = nlive.copy()
 
-    logt = -np.log1p(1.0 / nlive_per_iteration)
+    if expectation.lower() == "logt":
+        logt = -1.0 / nlive_per_iteration
+    elif expectation.lower() == "t":
+        logt = -np.log1p(1.0 / nlive_per_iteration)
+    else:
+        raise ValueError(f"Expectation must be t or logt, got: {expectation}")
 
     # One point at X=1 and X=0
     n_vols = len(samples) + 2
@@ -73,6 +81,7 @@ def draw_posterior_samples(
     log_w=None,
     method="rejection_sampling",
     return_indices=False,
+    expectation="logt",
 ):
     """Draw posterior samples given the nested samples.
 
@@ -99,6 +108,10 @@ def draw_posterior_samples(
             - :code:`'importance_sampling'` (same as multinomial)
     return_indices : bool
         If true return the indices of the accepted samples.
+    expectation : str, {logt, t}
+        Method used to compute the expectation value for the shrinkage t.
+        Choose between log <t> or <log t>. Defaults to <log t>. Only used when
+        :code:`log_w` is not specified.
 
     Returns
     -------
@@ -115,7 +128,9 @@ def draw_posterior_samples(
     """
     nested_samples = np.asarray(nested_samples)
     if log_w is None:
-        _, log_w = compute_weights(nested_samples["logL"], nlive)
+        _, log_w = compute_weights(
+            nested_samples["logL"], nlive, expectation=expectation
+        )
     else:
         log_w = np.asarray(log_w)
     ess = effective_sample_size(log_w)

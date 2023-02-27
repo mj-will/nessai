@@ -13,7 +13,7 @@ import numpy as np
 outdir = "./outdir/"
 label = "full_gw_example"
 
-bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level="WARNING")
+bilby.core.utils.setup_logger(outdir=outdir, label=label)
 
 duration = 4.0
 sampling_frequency = 2048.0
@@ -107,8 +107,7 @@ result = bilby.core.sampler.run_sampler(
     maximum_uninformed=4000,
     seed=150914,
     analytic_priors=True,  # Bilby priors can be sampled from directly
-    flow_config=dict(model_config=dict(n_transforms=6)),
-    max_threads=3,
+    flow_config=dict(model_config=dict(n_blocks=6)),
     n_pool=2,
 )
 

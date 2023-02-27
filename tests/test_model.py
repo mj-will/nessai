@@ -68,7 +68,7 @@ def integration_model():
 
 @pytest.fixture
 def model():
-    return create_autospec(Model)
+    return create_autospec(Model, _pool_configured=False)
 
 
 @pytest.fixture
@@ -278,7 +278,9 @@ def test_in_bounds(model):
 
     Tests both finite and infinite prior bounds.
     """
-    x = numpy_array_to_live_points(np.array([[0.5, 1], [2, 1]]), ["x", "y"])
+    x = numpy_array_to_live_points(
+        np.array([[0.5, 1.0], [2.0, 1.0]]), ["x", "y"]
+    )
     model.names = ["x", "y"]
     model.bounds = {"x": [0, 1], "y": [-np.inf, np.inf]}
     val = Model.in_bounds(model, x)
@@ -796,6 +798,7 @@ def test_verify_model_likelihood_repeated_calls():
 
     class BrokenModel(TestModel):
         count = 0
+        allow_multi_valued_likelihood = False
 
         def log_likelihood(self, x):
             self.count += 1
@@ -806,6 +809,22 @@ def test_verify_model_likelihood_repeated_calls():
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
     assert "Repeated calls" in str(excinfo.value)
+
+
+def test_verify_model_likelihood_repeated_calls_allowed(caplog):
+    """Assert allow multi valued likelihood prevents an error from being
+    raised.
+    """
+
+    class MultiValuedModel(TestModel):
+        allow_multi_valued_likelihood = True
+
+        def log_likelihood(self, x):
+            return np.random.rand()
+
+    model = MultiValuedModel()
+    model.verify_model()
+    assert "Multi-valued likelihood is allowed." in str(caplog.text)
 
 
 def test_configure_pool_with_pool(model):
@@ -873,6 +892,15 @@ def test_configure_pool_none(model, caplog):
     )
 
 
+def test_configure_pool_already_configured(model, caplog):
+    """Assert configuration is skipped if the pool is already configured"""
+    model._pool_configured = True
+    model.n_pool = 2
+    Model.configure_pool(model, n_pool=4)
+    assert model.n_pool == 2
+    assert "pool has already been configured" in str(caplog.text)
+
+
 @pytest.mark.parametrize("code", [10, 2])
 def test_close_pool(model, code):
     """Test closing the pool"""
@@ -892,7 +920,8 @@ def test_close_pool(model, code):
     assert model.pool is None
 
 
-def test_evaluate_likelihoods_pool_vectorised(model):
+@pytest.mark.parametrize("chunksize", [None, 3])
+def test_evaluate_likelihoods_pool_vectorised(model, chunksize):
     """Test evaluating a vectorised likelihood with a pool."""
     samples = numpy_array_to_live_points(
         np.array([1, 2, 3, 4])[:, np.newaxis], ["x"]
@@ -903,6 +932,7 @@ def test_evaluate_likelihoods_pool_vectorised(model):
     model.n_pool = 2
     model.vectorised_likelihood = True
     model.allow_vectorised = True
+    model.likelihood_chunksize = chunksize
     model.pool.map = MagicMock(return_value=logL)
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
@@ -910,18 +940,26 @@ def test_evaluate_likelihoods_pool_vectorised(model):
     out = Model.batch_evaluate_log_likelihood(model, samples)
 
     assert model.pool.map.call_args_list[0][0][0] is log_likelihood_wrapper
-
     input_array = model.pool.map.call_args_list[0][0][1]
-    assert len(input_array) == 2
-    assert_structured_arrays_equal(
-        input_array, np.array([samples[:2], samples[2:]])
-    )
+    if chunksize is None:
+        assert len(input_array) == 2
+        assert_structured_arrays_equal(
+            input_array, np.array([samples[:2], samples[2:]])
+        )
+    else:
+        assert len(input_array) == 2
+        for i, a in enumerate(input_array):
+            assert_structured_arrays_equal(
+                a, samples[i * chunksize : (i + 1) * chunksize]
+            )
+
     model.likelihood_evaluation_time.total_seconds() > 0
     assert model.likelihood_evaluations == 104
     np.testing.assert_array_equal(out, expected)
 
 
-def test_evaluate_likelihoods_pool_not_vectorised(model):
+@pytest.mark.parametrize("chunksize", [None, 1])
+def test_evaluate_likelihoods_pool_not_vectorised(model, chunksize):
     """Test evaluating the likelihood with a pool"""
     samples = numpy_array_to_live_points(np.array([[1], [2]]), ["x"])
     logL = np.array([3, 4])
@@ -929,6 +967,7 @@ def test_evaluate_likelihoods_pool_not_vectorised(model):
     model.n_pool = 2
     model.vectorised_likelihood = False
     model.allow_vectorised = True
+    model.likelihood_chunksize = chunksize
     model.pool.map = MagicMock(return_value=logL)
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
@@ -969,6 +1008,7 @@ def test_evaluate_likelihoods_no_pool_vectorised(model):
     model.pool = None
     model.vectorised_likelihood = True
     model.allow_vectorised = True
+    model.likelihood_chunksize = None
     model.likelihood_evaluation_time = datetime.timedelta()
     model.likelihood_evaluations = 100
     model.log_likelihood = MagicMock(return_value=logL)
@@ -977,6 +1017,24 @@ def test_evaluate_likelihoods_no_pool_vectorised(model):
     model.likelihood_evaluation_time.total_seconds() > 0
     assert model.likelihood_evaluations == 102
     np.testing.assert_array_equal(out, logL)
+
+
+@pytest.mark.parametrize("chunksize", [10, 12])
+def test_evaluate_likelihood_vectorised_chunksize(model, chunksize):
+    """Assert the likelihood is called the correct number of times"""
+    n = 100
+    n_calls = np.ceil(n / chunksize)
+    samples = numpy_array_to_live_points(np.random.rand(n, 1), ["x"])
+    model.vectorised_likelihood = True
+    model.allow_vectorised = True
+    model.pool = None
+    model.likelihood_chunksize = chunksize
+    model.log_likelihood = MagicMock(
+        side_effect=lambda x: np.random.rand(x.size)
+    )
+    out = Model.batch_evaluate_log_likelihood(model, samples)
+    assert model.log_likelihood.call_count == n_calls
+    assert len(out) == n
 
 
 def test_evaluate_likelihoods_allow_vectorised_false(model):
@@ -1014,21 +1072,25 @@ def test_evaluate_likelihoods_pool_allow_vectorised_false(model):
     np.testing.assert_array_equal(out, logL)
 
 
-def test_view_dtype(model, live_point):
+def test_view_dtype(model):
     """Assert view dtype calls the correct functions with the correct inputs"""
     model._dtype = None
     model.names = ["x", "y"]
-    model.new_point = MagicMock(return_value=live_point)
 
+    array = np.empty(
+        (0,), dtype=[(n, "f8") for n in model.names + ["logL" + "logP"]]
+    )
     expected = np.dtype([(n, "f8") for n in model.names])
 
     with patch(
         "nessai.model._unstructured_view_dtype", return_value=expected
-    ) as mock:
+    ) as mock, patch(
+        "nessai.model.empty_structured_array", return_value=array
+    ) as empty_mock:
         dtype = Model._view_dtype.__get__(model)
 
-    model.new_point.assert_called_once()
-    mock.assert_called_once_with(live_point, model.names)
+    empty_mock.assert_called_once_with(0, model.names)
+    mock.assert_called_once_with(array, model.names)
     assert model._dtype == expected
     assert dtype == expected
 
@@ -1132,3 +1194,27 @@ def test_unstructured_view_integration(integration_model, live_points):
     view = integration_model.unstructured_view(live_points)
     assert view.base is live_points
     assert view.shape == (live_points.size, integration_model.dims)
+
+
+@pytest.mark.integration_test
+def test_in_bounds_integration_values(integration_model):
+    """Assert the correct booleans are returned"""
+    x = integration_model.new_point(3)
+    names = integration_model.names
+    x[names[0]][0] = integration_model.bounds[names[0]][1] + 1.0
+    x[names[1]][1] = integration_model.bounds[names[1]][0] - 1.0
+
+    expected = np.array([False, False, True])
+    out = integration_model.in_bounds(x)
+    np.testing.assert_equal(out, expected)
+
+
+@pytest.mark.parametrize("n", [1, 10])
+@pytest.mark.integration_test
+def test_in_bounds_integration_n_samples(integration_model, n):
+    """Assert single and multiple samples work"""
+    x = numpy_array_to_live_points(
+        np.random.randn(n, integration_model.dims), integration_model.names
+    )
+    flags = integration_model.in_bounds(x)
+    assert len(flags) == n

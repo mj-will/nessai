@@ -5,8 +5,14 @@ Test the base reparameterisation.
 import numpy as np
 from numpy.testing import assert_equal
 import pytest
+from unittest.mock import create_autospec
 
 from nessai.reparameterisations import Reparameterisation
+
+
+@pytest.fixture()
+def reparam():
+    return create_autospec(Reparameterisation)
 
 
 @pytest.mark.parametrize("name", ["x1", ["x1"]])
@@ -103,3 +109,11 @@ def test_methods_not_implemented():
 
     with pytest.raises(NotImplementedError):
         reparam.inverse_reparameterise(None, None, None)
+
+
+def test_update(reparam):
+    """Assert the default update method can be called and does not raised an
+    error.
+    """
+    x = np.array((1, 2), dtype=[("x", "f8"), ("y", "f8")])
+    Reparameterisation.update(reparam, x)

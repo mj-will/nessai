@@ -12,7 +12,7 @@ import numpy as np
 outdir = "./outdir/"
 label = "basic_gw_example"
 
-bilby.core.utils.setup_logger(outdir=outdir, label=label, log_level="WARNING")
+bilby.core.utils.setup_logger(outdir=outdir, label=label)
 
 duration = 4.0
 sampling_frequency = 2048.0

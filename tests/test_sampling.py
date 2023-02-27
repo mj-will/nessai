@@ -4,6 +4,7 @@ Integration tests for running the sampler with different configurations.
 """
 import logging
 import os
+from scipy.stats import norm
 import torch
 import pytest
 import numpy as np
@@ -15,6 +16,26 @@ from nessai.model import Model
 
 
 torch.set_num_threads(1)
+
+
+class BaseModel(Model):
+    """Base model class for sampling tests"""
+
+    def __init__(self):
+        self.bounds = {"x": [-5, 5], "y": [-5, 5]}
+        self.names = ["x", "y"]
+
+    def log_prior(self, x):
+        log_p = np.log(self.in_bounds(x), dtype="float")
+        for n in self.names:
+            log_p -= self.bounds[n][1] - self.bounds[n][0]
+        return log_p
+
+    def log_likelihood(self, x):
+        log_l = np.zeros(x.size)
+        for pn in self.names:
+            log_l += norm.logpdf(x[pn])
+        return log_l
 
 
 @pytest.mark.slow_integration_test
@@ -65,7 +86,10 @@ def test_sampling_with_inversion(model, flow_config, tmpdir):
         update_bounds=True,
     )
     fp.run()
-    assert fp.ns.proposal.boundary_inversion == ["x", "y"]
+    reparams = list(fp.ns.proposal._reparameterisation.values())
+    assert len(reparams) == 1
+    assert reparams[0].parameters == ["x", "y"]
+    assert list(reparams[0].boundary_inversion.keys()) == ["x", "y"]
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
 
@@ -142,7 +166,7 @@ def test_sampling_uninformed(model, flow_config, tmpdir, analytic):
         seed=1234,
         max_iteration=11,
         poolsize=10,
-        analytic_proposal=analytic,
+        analytic_priors=analytic,
     )
     fp.run()
 
@@ -176,7 +200,7 @@ def test_sampling_with_n_pool(model, flow_config, tmpdir, mp_context):
     fp.run()
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
-    assert os.path.exists(os.path.join(output, "result.json"))
+    assert os.path.exists(os.path.join(output, "result.hdf5"))
 
 
 @pytest.mark.slow_integration_test
@@ -196,7 +220,7 @@ def test_sampling_resume(model, flow_config, tmpdir):
         maximum_uninformed=9,
         rescale_parameters=True,
         checkpoint_on_iteration=True,
-        checkpoint_frequency=5,
+        checkpoint_interval=5,
         seed=1234,
         max_iteration=11,
         poolsize=10,
@@ -205,8 +229,65 @@ def test_sampling_resume(model, flow_config, tmpdir):
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
     fp = FlowSampler(
-        model, output=output, resume=True, flow_config=flow_config
+        model,
+        output=output,
+        resume=True,
+        flow_config=flow_config,
     )
+    assert fp.ns.iteration == 11
+    fp.ns.max_iteration = 21
+    fp.run()
+    assert fp.ns.iteration == 21
+    assert os.path.exists(
+        os.path.join(output, "nested_sampler_resume.pkl.old")
+    )
+
+
+@pytest.mark.slow_integration_test
+def test_sampling_resume_w_pool(model, flow_config, tmpdir, mp_context):
+    """
+    Test resuming the sampler with a pool.
+    """
+    output = str(tmpdir.mkdir("resume"))
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
+        fp = FlowSampler(
+            model,
+            output=output,
+            resume=True,
+            nlive=100,
+            plot=False,
+            flow_config=flow_config,
+            training_frequency=10,
+            maximum_uninformed=9,
+            rescale_parameters=True,
+            checkpoint_on_iteration=True,
+            checkpoint_interval=5,
+            seed=1234,
+            max_iteration=11,
+            poolsize=10,
+            n_pool=1,
+        )
+    assert fp.ns.model.n_pool == 1
+    fp.run()
+    assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
+    # Make sure the pool is already closed
+    model.close_pool()
+
+    with patch("multiprocessing.Pool", mp_context.Pool), patch(
+        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+        mp_context.get_start_method,
+    ):
+        fp = FlowSampler(
+            model,
+            output=output,
+            resume=True,
+            flow_config=flow_config,
+            n_pool=1,
+        )
+    assert fp.ns.model.n_pool == 1
     assert fp.ns.iteration == 11
     fp.ns.max_iteration = 21
     fp.run()
@@ -239,7 +320,7 @@ def test_sampling_resume_no_max_uninformed(model, flow_config, tmpdir):
         seed=1234,
         max_iteration=11,
         checkpoint_on_iteration=True,
-        checkpoint_frequency=5,
+        checkpoint_interval=5,
         poolsize=10,
     )
     fp.run()
@@ -371,3 +452,110 @@ def test_debug_log_level(model, tmpdir):
     )
     fs.run(plot=False)
     logger.setLevel(original_level)
+
+
+@pytest.mark.slow_integration_test
+def test_disable_vectorisation(model, tmp_path):
+    """Assert vectorisation can be disabled"""
+
+    class TestModel(BaseModel):
+        def log_likelihood(self, x):
+            # AssertionError won't be caught by nessai
+            assert not (x.size > 1)
+            return super().log_likelihood(x)
+
+    output = tmp_path / "disable_vec"
+    output.mkdir()
+
+    model = TestModel()
+
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        disable_vectorisation=True,
+        plot=False,
+    )
+    fs.run(plot=False)
+
+
+@pytest.mark.slow_integration_test
+def test_likelihood_chunksize(model, tmp_path):
+    """Assert likelihood chunksize limits number of samples in each call"""
+
+    class TestModel(BaseModel):
+        def log_likelihood(self, x):
+            # AssertionError won't be caught by nessai
+            assert not (x.size > self.likelihood_chunksize)
+            return super().log_likelihood(x)
+
+    output = tmp_path / "disable_vec"
+    output.mkdir()
+
+    model = TestModel()
+
+    fs = FlowSampler(
+        model, output=output, nlive=100, plot=False, likelihood_chunksize=10
+    )
+    fs.run(plot=False, save=False)
+
+
+@pytest.mark.slow_integration_test
+def test_allow_multi_valued_likelihood(model, tmp_path):
+    """Assert a multi valued likelihood can be sampled from"""
+
+    class TestModel(BaseModel):
+        def log_likelihood(self, x):
+            return super().log_likelihood(x) + 1e-10 * np.random.randn(x.size)
+
+    output = tmp_path / "multi_value"
+    output.mkdir()
+
+    model = TestModel()
+
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+        allow_multi_valued_likelihood=True,
+    )
+    fs.run(plot=False, save=False)
+
+
+@pytest.mark.integration_test
+def test_invalid_keyword_argument(model, tmp_path):
+    """Assert an error is raised if a keyword argument is unknown"""
+
+    output = tmp_path / "kwargs_error"
+    output.mkdir()
+
+    with pytest.raises(
+        RuntimeError,
+        match="Unknown kwargs for FlowProposal: {'not_a_valid_kwarg'}.",
+    ):
+        FlowSampler(
+            model,
+            output=output,
+            nlive=100,
+            plot=False,
+            not_a_valid_kwarg=True,
+        )
+
+
+@pytest.mark.parametrize("extension", ["hdf5", "h5", "json"])
+@pytest.mark.slow_integration_test
+def test_sampling_result_extension(model, tmp_path, extension):
+    """Assert the correct extension is used"""
+    output = tmp_path / "test"
+    output.mkdir()
+    fs = FlowSampler(
+        model,
+        output=output,
+        nlive=100,
+        plot=False,
+        proposal_plots=False,
+        result_extension=extension,
+    )
+    fs.run(plot=False)
+    assert os.path.exists(os.path.join(output, f"result.{extension}"))

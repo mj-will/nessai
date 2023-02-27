@@ -4,6 +4,8 @@ Combined reparameterisation.
 """
 import logging
 
+import numpy as np
+
 from ..utils.sorting import sort_reparameterisations
 
 logger = logging.getLogger(__name__)
@@ -178,11 +180,16 @@ class CombinedReparameterisation(dict):
             if hasattr(r, "reset_inversion"):
                 r.reset_inversion()
 
+    def update(self, x):
+        """Update the reparameterisations given a set of points."""
+        for r in self.values():
+            r.update(x)
+
     def log_prior(self, x):
         """
         Compute any additional priors for auxiliary parameters
         """
-        log_p = 0
+        log_p = np.zeros(x.size)
         for r in self.values():
             if r.has_prior:
                 log_p += r.log_prior(x)
@@ -192,7 +199,7 @@ class CombinedReparameterisation(dict):
         """
         Compute the prior in the prime space
         """
-        log_p = 0
+        log_p = np.zeros(x_prime.size)
         for r in self.values():
             log_p += r.x_prime_log_prior(x_prime)
         return log_p

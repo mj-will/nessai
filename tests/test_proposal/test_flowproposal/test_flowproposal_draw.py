@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, Mock
 
+from nessai.livepoint import dict_to_live_points
 from nessai.proposal import FlowProposal
 
 
@@ -67,8 +68,12 @@ def test_test_draw(proposal):
     """
     Test the method that tests the draw and populate methods when running.
     """
-    test_point = {"x": 1, "y": 2, "logP": -0.5}
-    new_point = {"x": 3, "y": 4, "logP": -0.5}
+    test_point = dict_to_live_points(
+        {"x": 1, "y": 2, "logP": -0.5}, non_sampling_parameters=False
+    )
+    new_point = dict_to_live_points(
+        {"x": 3, "y": 4, "logP": -0.5}, non_sampling_parameters=False
+    )
     proposal.model = Mock()
     proposal.model.new_point = MagicMock(return_value=test_point)
     proposal.model.log_prior = MagicMock(return_value=-0.5)

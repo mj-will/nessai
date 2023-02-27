@@ -20,6 +20,7 @@ from ..livepoint import empty_structured_array, live_points_to_dict
 from ..plot import plot_indices, plot_trace, nessai_style
 from ..evidence import _NSIntegralState
 from ..proposal import FlowProposal
+from ..proposal.utils import check_proposal_kwargs
 from ..utils import (
     compute_indices_ks_test,
     rolling_mean,
@@ -140,6 +141,9 @@ class NestedSampler(BaseNestedSampler):
     acceptance_threshold : float (0.01)
         Threshold to determine if the flow should be retrained, will not
         retrain if cooldown is not satisfied.
+    shrinkage_expectation : str, {"t", "logt"}
+        Method used to compute the expectation value for the shrinkage t.
+        Choose between log <t> or <log t>. Defaults to <log t>.
     kwargs :
         Keyword arguments passed to the flow proposal class
     """
@@ -182,6 +186,7 @@ class NestedSampler(BaseNestedSampler):
         retrain_acceptance=True,
         reset_acceptance=False,
         acceptance_threshold=0.01,
+        shrinkage_expectation="logt",
         **kwargs,
     ):
 
@@ -231,7 +236,11 @@ class NestedSampler(BaseNestedSampler):
         self.logLmax = -np.inf
         self.nested_samples = []
         self.logZ = None
-        self.state = _NSIntegralState(self.nlive, track_gradients=plot)
+        self.state = _NSIntegralState(
+            self.nlive,
+            track_gradients=plot,
+            expectation=shrinkage_expectation,
+        )
 
         # Timing
         self.training_time = datetime.timedelta()
@@ -447,8 +456,6 @@ class NestedSampler(BaseNestedSampler):
                     from ..gw.proposal import (
                         AugmentedGWFlowProposal as flow_class,
                     )
-                elif flow_class == "legacygwflowproposal":
-                    from ..gw.legacy import LegacyGWFlowProposal as flow_class
                 elif flow_class == "flowproposal":
                     flow_class = FlowProposal
                 elif flow_class == "augmentedflowproposal":
@@ -469,7 +476,10 @@ class NestedSampler(BaseNestedSampler):
             kwargs["poolsize"] = self.nlive
 
         logger.debug(f"Using flow class: {flow_class}")
-        logger.info(f"Parsing kwargs to FlowProposal: {kwargs}")
+
+        kwargs = check_proposal_kwargs(flow_class, kwargs)
+
+        logger.info(f"Passing kwargs to {flow_class.__name__}: {kwargs}")
         self._flow_proposal = flow_class(
             self.model,
             flow_config=flow_config,
@@ -976,7 +986,7 @@ class NestedSampler(BaseNestedSampler):
                 logX_its,
                 rolling_mean(np.abs(self.state.gradients), self.nlive // 10),
                 c="C1",
-                ls=config.LINE_STYLES[1],
+                ls=config.plotting.line_styles[1],
                 label="Gradient",
             )
             ax_logX_grad.set_ylabel(r"$|d\log L/d \log X|$")
@@ -1000,7 +1010,7 @@ class NestedSampler(BaseNestedSampler):
             self.dZ_history,
             label="dZ",
             c="C1",
-            ls=config.LINE_STYLES[1],
+            ls=config.plotting.line_styles[1],
         )
         ax_dz.set_ylabel("dZ")
         handles, labels = ax[3].get_legend_handles_labels()
@@ -1023,7 +1033,7 @@ class NestedSampler(BaseNestedSampler):
             self.population_radii,
             label="Radius",
             color="C2",
-            ls=config.LINE_STYLES[2],
+            ls=config.plotting.line_styles[2],
         )
         ax_r.set_ylabel("Population radius")
         handles_r, labels_r = ax_r.get_legend_handles_labels()
@@ -1072,7 +1082,7 @@ class NestedSampler(BaseNestedSampler):
         else:
             return fig
 
-    def plot_trace(self, filename=None):
+    def plot_trace(self, filename=None, **kwargs):
         """
         Make trace plots for the nested samples.
 
@@ -1081,10 +1091,16 @@ class NestedSampler(BaseNestedSampler):
         filename : str, optional
             If filename is None, the figure is returned. Else the figure
             is saved with that file name.
+        kwargs :
+            Additional keyword arguments passed to
+            :py:func:`nessai.plot.plot_trace`.
         """
         if self.nested_samples:
             fig = plot_trace(
-                self.state.log_vols[1:], self.nested_samples, filename=filename
+                self.state.log_vols[1:],
+                self.nested_samples,
+                filename=filename,
+                **kwargs,
             )
             return fig
         else:
@@ -1247,10 +1263,10 @@ class NestedSampler(BaseNestedSampler):
             self.finalise()
 
         logger.info(
-            f"Final evidence: {self.state.logZ:.3f} +/- "
+            f"Final ln-evidence: {self.state.logZ:.3f} +/- "
             f"{self.state.log_evidence_error:.3f}"
         )
-        logger.info("Information: {0:.2f}".format(self.state.info[-1]))
+        logger.info(f"Information: {self.state.info[-1]:.2f}")
 
         self.check_insertion_indices(rolling=False)
 

@@ -99,21 +99,7 @@ def test_configure_latent_prior(proposal, latent_prior, prior_func):
     proposal.latent_prior = latent_prior
     proposal.flow_config = {"model_config": {}}
     FlowProposal.configure_latent_prior(proposal)
-    assert proposal.draw_latent_prior == getattr(utils, prior_func)
-
-
-def test_configure_latent_prior_var(proposal):
-    """
-    Test the latent prior when using a truncated Gaussian with a variance.
-    """
-    proposal.latent_prior = "truncated_gaussian"
-    proposal.flow_config = {"model_config": {"kwargs": {"var": 4}}}
-    proposal.draw_latent_kwargs = {}
-    FlowProposal.configure_latent_prior(proposal)
-    assert proposal.draw_latent_prior == getattr(
-        utils, "draw_truncated_gaussian"
-    )
-    assert proposal.draw_latent_kwargs.get("var") == 4
+    assert proposal._draw_latent_prior == getattr(utils, prior_func)
 
 
 def test_configure_latent_prior_unknown(proposal):
@@ -164,81 +150,16 @@ def test_constant_volume_invalid_latent_prior(proposal):
     assert str(excinfo.value) == err
 
 
-@pytest.mark.parametrize(
-    "inversion, parameters", [(True, ["x", "y"]), (False, []), (["x"], ["x"])]
-)
-def test_set_boundary_inversion(proposal, inversion, parameters):
-    """Check the correct parameters are inverted"""
-    proposal.names = ["x", "y", "z"]
-    proposal.rescale_parameters = ["x", "y"]
-    proposal.boundary_inversion = inversion
-    proposal.inversion_type = "split"
-    FlowProposal.set_boundary_inversion(proposal)
-    assert proposal.boundary_inversion == parameters
-
-
-@pytest.mark.parametrize(
-    "rescale_parameters, parameters", [(True, ["x", "y"]), (["x"], ["x"])]
-)
-def test_set_boundary_inversion_rescale_parameters(
-    proposal, rescale_parameters, parameters
-):
-    """Check the correct parameters depending on the type of rescale
-    parameters.
-    """
-    proposal.names = ["x", "y"]
-    proposal.rescale_parameters = rescale_parameters
-    proposal.boundary_inversion = True
-    proposal.inversion_type = "split"
-    FlowProposal.set_boundary_inversion(proposal)
-    assert proposal.boundary_inversion == parameters
-
-
-def test_set_boundary_inversion_no_rescaling(proposal):
-    """Check boundary inversion is disabled if paraemters are not rescaled"""
-    proposal.rescale_parameters = False
-    proposal.boundary_inversion = ["x"]
-    with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.set_boundary_inversion(proposal)
-    assert "Boundary inversion requires rescaling" in str(excinfo.value)
-
-
-def test_set_boundary_inversion_incorrect_parameters(proposal):
-    """Check an error is raised if a parameter is not recognised"""
-    proposal.rescale_parameters = True
-    proposal.boundary_inversion = ["x", "z"]
-    proposal.names = ["x", "y"]
-    with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.set_boundary_inversion(proposal)
-    assert "Boundaries are not in known parameters" in str(excinfo.value)
-
-
-def test_set_boundary_inversion_parameter_not_rescaled(proposal):
-    """Check an error is raised if the parameter for inversion is not included
-    in the rescaled parameters.
-    """
-    proposal.names = ["x", "y"]
-    proposal.rescale_parameters = ["y"]
-    proposal.boundary_inversion = ["x"]
-    with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.set_boundary_inversion(proposal)
-    assert "Boundaries are not in rescaled parameters" in str(excinfo.value)
-
-
-def test_set_boundary_inversion_incorrect_inversion_type(proposal):
-    """Check an error is raised if the inversion type is unknown"""
-    proposal.names = ["x"]
-    proposal.rescale_parameters = True
-    proposal.boundary_inversion = True
-    proposal.inversion_type = "half"
-    with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.set_boundary_inversion(proposal)
-    assert "Unknown inversion type" in str(excinfo.value)
-
-
 def test_update_flow_proposal(proposal):
     """Assert the number of inputs is updated"""
     proposal.flow_config = {"model_config": {}}
     proposal.rescaled_dims = 4
     FlowProposal.update_flow_config(proposal)
     assert proposal.flow_config["model_config"]["n_inputs"] == 4
+
+
+def test_flow_config(proposal):
+    """Assert the correct config is returned"""
+    config = {"a": 1}
+    proposal._flow_config = config
+    assert FlowProposal.flow_config.__get__(proposal) is config

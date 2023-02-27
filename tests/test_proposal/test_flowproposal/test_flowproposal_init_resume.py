@@ -8,15 +8,10 @@ from unittest.mock import patch, MagicMock
 from nessai.proposal import FlowProposal
 
 
-@pytest.mark.parametrize(
-    "kwargs", [{"prior": "uniform"}, {"draw_latent_kwargs": {"var": 4}}]
-)
-def test_init(model, kwargs):
+def test_init(model):
     """Test init with some kwargs"""
-    fp = FlowProposal(model, poolsize=1000, **kwargs)
+    fp = FlowProposal(model, poolsize=1000)
     assert fp.model == model
-    # Make sure the dummy kwargs is ignored and not added
-    assert getattr(fp, "prior", None) is None
 
 
 @pytest.mark.parametrize(
@@ -127,7 +122,8 @@ def test_resume_w_update_bounds(proposal, data, count):
 
 
 @pytest.mark.parametrize("populated", [False, True])
-def test_get_state(proposal, populated):
+@pytest.mark.parametrize("mask", [None, [1, 0]])
+def test_get_state(proposal, populated, mask):
     """Test the get state method used for pickling the proposal.
 
     Tests cases where the proposal is and isn't populated.
@@ -141,12 +137,17 @@ def test_get_state(proposal, populated):
     proposal.initialised = True
     proposal.flow = MagicMock()
     proposal.flow.weights_file = "file"
+    proposal._draw_func = lambda x: x
+
+    if mask is not None:
+        proposal.flow.model_config = {"kwargs": {"mask": mask}}
 
     state = FlowProposal.__getstate__(proposal)
 
     assert state["resume_populated"] is populated
     assert state["initialised"] is False
     assert state["weights_file"] == "file"
+    assert state["mask"] is mask
     assert "_reparameterisation" not in state
     assert "model" not in state
     assert "flow" not in state
@@ -156,7 +157,10 @@ def test_get_state(proposal, populated):
 @pytest.mark.integration_test
 @pytest.mark.parametrize("reparameterisation", [False, True])
 @pytest.mark.parametrize("init", [False, True])
-def test_resume_pickle(model, tmpdir, reparameterisation, init):
+@pytest.mark.parametrize(
+    "latent_prior", ["truncated_gaussian", "uniform", "gaussian"]
+)
+def test_resume_pickle(model, tmpdir, reparameterisation, init, latent_prior):
     """Test pickling and resuming the proposal.
 
     Tests both with and without reparameterisations and before and after
@@ -170,6 +174,11 @@ def test_resume_pickle(model, tmpdir, reparameterisation, init):
     else:
         reparameterisations = None
 
+    if latent_prior != "truncated_gaussian":
+        constant_volume_mode = False
+    else:
+        constant_volume_mode = True
+
     proposal = FlowProposal(
         model,
         poolsize=1000,
@@ -177,6 +186,8 @@ def test_resume_pickle(model, tmpdir, reparameterisation, init):
         expansion_fraction=1,
         output=output,
         reparameterisations=reparameterisations,
+        latent_prior=latent_prior,
+        constant_volume_mode=constant_volume_mode,
     )
     if init:
         proposal.initialise()
@@ -202,7 +213,6 @@ def test_reset(proposal):
     proposal.samples = 2
     proposal.populated = True
     proposal.populated_count = 10
-    proposal._edges = {"x": 2}
     FlowProposal.reset(proposal)
     assert proposal.x is None
     assert proposal.samples is None
@@ -211,12 +221,14 @@ def test_reset(proposal):
     assert proposal.r is None
     assert proposal.alt_dist is None
     assert proposal._checked_population
-    assert proposal._edges["x"] is None
 
 
 @pytest.mark.timeout(60)
 @pytest.mark.integration_test
-def test_reset_integration(tmpdir, model):
+@pytest.mark.parametrize(
+    "latent_prior", ["truncated_gaussian", "uniform", "gaussian"]
+)
+def test_reset_integration(tmpdir, model, latent_prior):
     """Test reset method iteration with other methods"""
     config = dict(
         model_config=dict(
@@ -232,6 +244,10 @@ def test_reset_integration(tmpdir, model):
     output = str(tmpdir.mkdir("reset_integration"))
     poolsize = 2
     drawsize = 100
+    if latent_prior != "truncated_gaussian":
+        constant_volume_mode = False
+    else:
+        constant_volume_mode = True
     proposal = FlowProposal(
         model,
         output=output,
@@ -240,8 +256,8 @@ def test_reset_integration(tmpdir, model):
         poolsize=poolsize,
         drawsize=drawsize,
         expansion_fraction=None,
-        latent_prior="truncated_gaussian",
-        constant_volume_mode=True,
+        latent_prior=latent_prior,
+        constant_volume_mode=constant_volume_mode,
     )
 
     modified_proposal = FlowProposal(
@@ -252,8 +268,8 @@ def test_reset_integration(tmpdir, model):
         poolsize=poolsize,
         drawsize=drawsize,
         expansion_fraction=None,
-        latent_prior="truncated_gaussian",
-        constant_volume_mode=True,
+        latent_prior=latent_prior,
+        constant_volume_mode=constant_volume_mode,
     )
     proposal.initialise()
     modified_proposal.initialise()
@@ -263,12 +279,6 @@ def test_reset_integration(tmpdir, model):
 
     d1 = proposal.__getstate__()
     d2 = modified_proposal.__getstate__()
-    for d in [d1, d2]:
-        del d["_min"]
-        del d["_max"]
-        del d["rescale"]
-        del d["inverse_rescale"]
-
     assert d1 == d2
 
 

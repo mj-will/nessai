@@ -19,6 +19,7 @@ jobs:
       - uses: psf/black@stable
         with:
           options: "--check --diff"
+          version: "22.12"
   flake8:
     name: Lint - Flake8
     runs-on: ubuntu-latest

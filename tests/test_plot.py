@@ -7,10 +7,11 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from nessai import plot
 from nessai import config
+from nessai.livepoint import numpy_array_to_live_points
 
 
 @pytest.fixture()
@@ -39,7 +40,7 @@ def auto_close_figures():
 
 @pytest.mark.parametrize("line_styles", [True, False])
 def test_nessai_style_enabled(line_styles):
-    """Assert the style is applied with config.DISABLE_STYLE=False
+    """Assert the style is applied with config.plotting.disable_style=False
 
     Tests with `line_styles` True and False
     """
@@ -47,7 +48,7 @@ def test_nessai_style_enabled(line_styles):
     def func(a, b):
         return a + b
 
-    with patch("nessai.plot.config.DISABLE_STYLE", False), patch(
+    with patch("nessai.plot.config.plotting.disable_style", False), patch(
         "seaborn.axes_style"
     ) as mock_style, patch("matplotlib.rc_context") as mock_rc:
         out = plot.nessai_style(line_styles=line_styles)(func)(1, 2)
@@ -56,19 +57,21 @@ def test_nessai_style_enabled(line_styles):
     mock_rc.assert_called_once()
     d = mock_rc.call_args[0][0]["axes.prop_cycle"].by_key()
     if line_styles:
-        d["linestyle"] == config.LINE_STYLES
-        d["color"] == config.LINE_COLOURS
+        d["linestyle"] == config.plotting.line_styles
+        d["color"] == config.plotting.line_colours
     else:
         assert "linestyle" not in d
 
 
 def test_nessai_style_disabled():
-    """Assert the style isn't applied with config.DISABLE_STYLE=True"""
+    """
+    Assert the style isn't applied with config.plotting.disable_style=True
+    """
 
     def func(a, b):
         return a + b
 
-    with patch("nessai.plot.config.DISABLE_STYLE", True), patch(
+    with patch("nessai.plot.config.plotting.disable_style", True), patch(
         "seaborn.axes_style"
     ) as mock_style:
         out = plot.nessai_style(func)(1, 2)
@@ -88,9 +91,9 @@ def test_nessai_style_integration(line_styles):
         )
 
     colours, line_styles = plot.nessai_style(line_styles=line_styles)(func)()
-    assert colours == config.LINE_COLOURS
+    assert colours == config.plotting.line_colours
     if line_styles:
-        assert line_styles == config.LINE_STYLES
+        assert line_styles == config.plotting.line_styles
     else:
         assert line_styles is None
 
@@ -367,7 +370,7 @@ def test_trace_plot_unstructured():
 
 
 @pytest.mark.parametrize(
-    "labels", [None, ["x", "y"] + config.NON_SAMPLING_PARAMETERS]
+    "labels", [None, ["x", "y"] + config.livepoints.non_sampling_parameters]
 )
 def test_trace_plot_labels(nested_samples, labels):
     """Test trace plot generation with labels."""
@@ -379,10 +382,44 @@ def test_trace_plot_labels(nested_samples, labels):
 def test_trace_plot_labels_error(nested_samples):
     """Test to ensure error is raised if labels are incompatible"""
     log_x = np.linspace(-10, 0, nested_samples.size)
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(
+        RuntimeError, match=r"List of labels is the wrong length \(3\)"
+    ):
         plot.plot_trace(log_x, nested_samples, labels=["1", "2", "3"])
 
-    assert "Missing labels" in str(excinfo.value)
+
+def test_trace_plot_parameters(nested_samples):
+    """Assert the parameters arguments works"""
+    log_x = np.linspace(-10, 0, nested_samples.size)
+    plot.plot_trace(log_x, nested_samples, parameters=["x"])
+    plt.close()
+
+
+def test_trace_plot_kwargs(nested_samples):
+    """Assert the kwargs are passed to the plotting function."""
+    log_x = np.linspace(-10, 0, nested_samples.size)
+    mock_axes = MagicMock()
+    mock_axes.plot = MagicMock()
+    with patch("matplotlib.pyplot.subplots", return_value=(None, mock_axes)):
+        plot.plot_trace(log_x, nested_samples, marker="^", parameters=["x"])
+    mock_axes.plot.call_args[0][1] == dict(marker="^")
+    plt.close()
+
+
+def test_trace_plot_save_error(caplog, nested_samples):
+    """Assert a warning is printed if the figure cannot be saved"""
+    with patch.object(
+        mpl.figure.Figure,
+        "savefig",
+        side_effect=ValueError,
+    ) as mock_save:
+        plot.plot_trace(
+            np.arange(nested_samples.size),
+            nested_samples,
+            filename="trace.png",
+        )
+    mock_save.assert_called_once()
+    assert "Could not save trace plot" in str(caplog.text)
 
 
 def test_histogram_plot():
@@ -424,14 +461,18 @@ def test_corner_plot_check_inputs(live_points):
 
 
 @pytest.mark.parametrize(
-    "labels", [["x", "y"], ["x", "y"] + config.NON_SAMPLING_PARAMETERS]
+    "labels",
+    [["x", "y"], ["x", "y"] + config.livepoints.non_sampling_parameters],
 )
 def test_corner_plot_w_labels(live_points, labels):
     """Test the corner plot with labels"""
     plot.corner_plot(live_points, labels=labels)
 
 
-@pytest.mark.parametrize("truths", [[0, 0], [0, 0, None, None, None]])
+@pytest.mark.parametrize(
+    "truths",
+    [[0, 0], [0, 0, None, None, None], {"x": 0, "y": 0}],
+)
 def test_corner_plot_w_truths(live_points, truths):
     """Test the corner plot with truths"""
     plot.corner_plot(live_points, truths=truths)
@@ -455,6 +496,21 @@ def test_corner_plot_w_include_and_labels(live_points):
     assert len(fig.axes) == 1
 
 
+@pytest.mark.parametrize("truths", [[1], {"x": 1, "y": 1}])
+def test_corner_plot_w_include_and_truths(live_points, truths):
+    """Test the parameter is included and the truths do not raise an error"""
+    fig = plot.corner_plot(live_points, include=["x"], truths=truths)
+    assert len(fig.axes) == 1
+
+
+def test_corner_plot_w_include_and_truths_error(live_points):
+    """Assert an error is raised when the number truths do not match the
+    number of parameters
+    """
+    with pytest.raises(ValueError, match=r"truths does not match .*"):
+        plot.corner_plot(live_points, include=["x"], truths=[1, 1])
+
+
 def test_corner_plot_all_nans(caplog, live_points):
     """Test how NaNs are handled.
 
@@ -465,7 +521,9 @@ def test_corner_plot_all_nans(caplog, live_points):
     live_points["x"] = np.nan
     fig = plot.corner_plot(live_points)
     assert fig is not None
-    assert str(["x"] + config.NON_SAMPLING_PARAMETERS) in caplog.text
+    assert (
+        str(["x"] + config.livepoints.non_sampling_parameters) in caplog.text
+    )
 
 
 def test_corner_plot_save(tmpdir, live_points):
@@ -481,3 +539,28 @@ def test_corner_plot_fields_exclude_error(live_points):
     with pytest.raises(ValueError) as excinfo:
         plot.corner_plot(live_points, include=["x"], exclude=["logL"])
     assert "Cannot specify both `include` and `exclude`" in str(excinfo.value)
+
+
+def test_corner_plot_save_error(caplog, live_points):
+    """Assert a warning is printed if the figure cannot be saved"""
+    with patch.object(
+        mpl.figure.Figure,
+        "savefig",
+        side_effect=ValueError,
+    ) as mock_save:
+        plot.corner_plot(live_points, filename="corner.png")
+    mock_save.assert_called_once()
+    assert "Could not save corner plot" in str(caplog.text)
+
+
+@pytest.mark.integration_test
+@pytest.mark.parametrize("dims", [10, 100, 200])
+def test_plot_trace_large_dims(tmp_path, dims):
+    """Test producing a trace plot with a large number of dimensions."""
+    n = 10_000
+    names = [f"x_{i}" for i in range(dims)]
+    log_x = np.arange(n)
+    x = numpy_array_to_live_points(np.random.randn(n, dims), names)
+
+    fig = plot.plot_trace(log_x, x)
+    fig.savefig(tmp_path / "trace.png")
