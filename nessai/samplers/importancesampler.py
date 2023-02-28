@@ -109,7 +109,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         max_iteration: Optional[int] = None,
         min_samples: int = 500,
         min_remove: int = 1,
-        tolerance: float = np.e,
+        stopping_criterion: str = "ratio",
+        tolerance: float = 0.0,
         n_update: Optional[int] = None,
         plot_pool: bool = False,
         plot_level_cdf: bool = False,
@@ -120,17 +121,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
         trace_plot_kwargs: Optional[dict] = None,
         replace_all: bool = False,
         level_method: Literal["entropy", "quantile"] = "entropy",
-        leaky: bool = True,
         n_pool: Optional[int] = None,
         pool: Optional[Any] = None,
-        stopping_criterion: str = "ratio_ns",
         check_criteria: Literal["any", "all"] = "any",
         level_kwargs: Optional[dict] = None,
         update_kwargs: Optional[dict] = None,
         annealing_target: Optional[float] = None,
         annealing_beta: Optional[float] = None,
         sigmoid_weights: bool = False,
-        weighted_kl: bool = False,
+        weighted_kl: bool = True,
         draw_constant: bool = False,
         train_final_flow: bool = False,
         bootstrap: bool = False,
@@ -139,7 +138,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
     ):
 
         self.add_fields()
-        self.prev = None
 
         super().__init__(
             model,
@@ -182,7 +180,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.plot_training_data = plot_training_data
         self.plotting_frequency = plotting_frequency
         self.replace_all = replace_all
-        self.leaky = leaky
         self.level_method = level_method
         self.level_kwargs = {} if level_kwargs is None else level_kwargs
         self.update_kwargs = {} if update_kwargs is None else update_kwargs
