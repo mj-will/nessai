@@ -773,7 +773,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             plot=self.plot_training_data,
             weights=weights,
         )
-        self.update_level_time += timer() - st
+        self.training_time += timer() - st
         return True
 
     def update_live_points(
@@ -793,7 +793,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         if len(live_points) != len(log_q):
             raise ValueError("Inputs are not the same length")
         log_q = self.proposal.update_samples(live_points, log_q)
-        self.update_live_points_time += timer() - st
+        self.add_and_update_samples_time += timer() - st
         return log_q
 
     def update_nested_samples(self) -> None:
@@ -808,7 +808,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             "logQ"
         ] = self.proposal._compute_meta_proposal_from_log_q(self._log_q_ns)
         self.nested_samples["logW"] = -self.nested_samples["logQ"]
-        self.update_ns_time += timer() - st
+        self.add_and_update_samples_time += timer() - st
 
     def draw_n_samples(self, n: int):
         """Draw n points from the proposal"""
@@ -830,7 +830,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history["leakage_new_points"].append(
             self.compute_leakage(new_points)
         )
-        self.draw_time += timer() - st
+        self.draw_samples_time += timer() - st
         return new_points, log_q
 
     def compute_leakage(
@@ -928,7 +928,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.compute_leakage(self.live_points)
         )
         logger.info(f"Current live points ESS: {self.live_points_ess:.2f}")
-        self.add_samples_time += timer() - st
+        self.add_and_update_samples_time += timer() - st
 
     def add_to_nested_samples(
         self,
@@ -1631,7 +1631,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.history["stopping_criteria"]["dZ"],
             label="dZ",
             c="C1",
-            ls=config.LINE_STYLES[1],
+            ls=config.plotting.line_styles[1],
         )
         ax_dz.set_ylabel("|dZ|")
         ax_dz.set_yscale("log")
@@ -1691,7 +1691,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 self.history["stopping_criteria"][sc],
                 label=sc,
                 c=f"C{i}",
-                ls=config.LINE_STYLES[i],
+                ls=config.plotting.line_styles[i],
             )
             ax[m].axhline(tol, ls=":", c=f"C{i}")
         ax[m].legend()
