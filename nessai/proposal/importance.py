@@ -139,11 +139,11 @@ class ImportanceFlowProposal(Proposal):
     @staticmethod
     def _check_fields():
         """Check that the logQ and logW fields have been added."""
-        if "logQ" not in config.NON_SAMPLING_PARAMETERS:
+        if "logQ" not in config.livepoints.non_sampling_parameters:
             raise RuntimeError(
                 "logQ field missing in non-sampling parameters."
             )
-        if "logW" not in config.NON_SAMPLING_PARAMETERS:
+        if "logW" not in config.livepoints.non_sampling_parameters:
             raise RuntimeError(
                 "logW field missing in non-sampling parameters."
             )
@@ -723,7 +723,7 @@ class ImportanceFlowProposal(Proposal):
             raise ValueError("Total counts is zero")
         proposal_id = np.arange(weights.size) - 1
         prime_samples = np.empty([n, self.model.dims])
-        sample_its = np.empty(n, dtype=config.IT_DTYPE)
+        sample_its = np.empty(n, dtype=config.livepoints.it_dtype)
         count = 0
         # Draw from prior
         for id, m in zip(proposal_id, counts):
