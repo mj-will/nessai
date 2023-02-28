@@ -455,7 +455,10 @@ class FlowSampler:
         )
 
         if save:
-            self.save_results(f"{self.output}/result.json")
+            self.save_results(
+                os.path.join(self.output, "result"),
+                extension=self.result_extension,
+            )
 
         if plot and plot_posterior:
             logger.debug("Producing plots")
