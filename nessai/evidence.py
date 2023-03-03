@@ -340,27 +340,6 @@ class _INSIntegralState(_BaseNSIntegralState):
         else:
             return self.log_evidence_live_points - self.logZ
 
-    def compute_updated_log_Z(self, samples: np.ndarray) -> float:
-        """Compute the evidence if a set of samples were added.
-
-        Does not update the running estimate of log Z.
-        """
-        log_Z_s = logsumexp(samples["logL"] + samples["logW"])
-        logZ = np.logaddexp(self._logZ, log_Z_s)
-        return logZ - np.log(logZ.size)
-
-    def compute_condition(self, samples: np.ndarray) -> float:
-        """Compute the fraction change in the evidence.
-
-        If samples is None or empty, returns zero.
-        """
-        if samples is None or not len(samples):
-            return 0.0
-        logZ = self.compute_updated_log_Z(samples)
-        logger.debug(f"Current log Z: {self.logZ}, expected: {logZ}")
-        dZ = logZ - self.logZ
-        return dZ
-
     def compute_uncertainty(self) -> float:
         """Compute the uncertainty on the current estimate of the evidence."""
         n = self._n
