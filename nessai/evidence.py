@@ -262,7 +262,7 @@ class _INSIntegralState(_BaseNSIntegralState):
     @property
     def log_evidence_error(self) -> float:
         """Alias for compute_uncertainty"""
-        return self.compute_uncertainty()
+        return self.compute_uncertainty(log_evidence=True)
 
     @property
     def log_evidence_live_points(self) -> float:
@@ -340,12 +340,22 @@ class _INSIntegralState(_BaseNSIntegralState):
         else:
             return self.log_evidence_live_points - self.logZ
 
-    def compute_uncertainty(self) -> float:
-        """Compute the uncertainty on the current estimate of the evidence."""
+    def compute_uncertainty(self, log_evidence: bool = True) -> float:
+        """Compute the uncertainty on the current estimate of the evidence.
+
+        Parameters
+        ----------
+        log_evidence :
+            If true, return the uncertainty for the log-evidence rather than
+            the evidence.
+        """
         n = self._n
         Z_hat = np.exp(self.logZ, dtype=np.float128)
         Z = np.exp(self._weights, dtype=np.float128)
         # Standard error sqrt(Var[Z] / n)
         u = np.sqrt(np.sum((Z - Z_hat) ** 2) / (n * (n - 1)))
-        # sigma[ln Z] = |sigma[Z] / Z|
-        return float(np.abs(u / Z_hat))
+        if log_evidence:
+            # sigma[ln Z] = |sigma[Z] / Z|
+            return float(np.abs(u / Z_hat))
+        else:
+            return u
