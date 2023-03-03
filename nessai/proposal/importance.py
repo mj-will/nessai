@@ -277,7 +277,6 @@ class ImportanceFlowProposal(Proposal):
         samples: np.ndarray,
         plot: bool = False,
         output: Union[str, None] = None,
-        beta: float = None,
         weights: np.ndarray = None,
         **kwargs,
     ) -> None:
