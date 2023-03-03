@@ -199,7 +199,20 @@ class ImportanceFlowProposal(Proposal):
         logger.debug("Rescaling functions are invertible")
 
     def to_prime(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert samples from the unit hypercube to samples in x'-space"""
+        """Convert samples from the unit hypercube to samples in x'-space
+
+        Parameters
+        ----------
+        x_prime :
+            Unstructured array of samples in the unit hypercube
+
+        Returns
+        -------
+        x :
+            Unstructured array of samples in x'-space
+        log_j :
+            Corresponding log-Jacobian determinant.
+        """
         x = np.atleast_2d(x)
         if self.reparam == "logit":
             x_prime, log_j = logit(x, eps=config.general.eps)
@@ -212,7 +225,20 @@ class ImportanceFlowProposal(Proposal):
         return x_prime, log_j
 
     def from_prime(self, x_prime: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert samples the x'-space to samples in the unit hypercube."""
+        """Convert samples the x'-space to samples in the unit hypercube.
+
+        Parameters
+        ----------
+        x_prime :
+            Unstructured array of samples.
+
+        Returns
+        -------
+        x :
+            Unstructured array of samples in the unit hypercube.
+        log_j :
+            Corresponding log-Jacobian determinant.
+        """
         x_prime = np.atleast_2d(x_prime)
         if self.reparam == "logit":
             x, log_j = sigmoid(x_prime)
@@ -225,14 +251,20 @@ class ImportanceFlowProposal(Proposal):
         return x, log_j
 
     def rescale(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert to the space in which the flow is trained."""
+        """Convert to the space in which the flow is trained.
+
+        Returns an unstructured array.
+        """
         x_hypercube = self.model.to_unit_hypercube(x)
         x_array = live_points_to_array(x_hypercube, self.model.names)
         x_prime, log_j = self.to_prime(x_array)
         return x_prime, log_j
 
     def inverse_rescale(self, x_prime: np.ndarray) -> np.ndarray:
-        """Convert from the space in which the flow is trained."""
+        """Convert from the space in which the flow is trained.
+
+        Returns a structured array.
+        """
         x_array, log_j = self.from_prime(x_prime)
         if self.clip:
             x_array = np.clip(x_array, 0.0, 1.0)
