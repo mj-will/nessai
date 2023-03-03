@@ -84,7 +84,8 @@ def weighted_quantile(
     if log_weights is None:
         log_weights = np.zeros(len(values))
     log_weights = np.asarray(log_weights)
-    if not np.all(quantiles >= 0) and np.all(quantiles <= 1):
+
+    if not (np.all(quantiles >= 0) and np.all(quantiles <= 1)):
         raise ValueError("Quantiles should be in [0, 1]")
 
     if not values_sorted:
