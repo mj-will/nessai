@@ -11,7 +11,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import logsumexp
-from scipy import optimize
 
 from .base import BaseNestedSampler
 from .. import config
@@ -32,7 +31,6 @@ from ..utils.optimise import optimise_meta_proposal_weights
 from ..utils.rescaling import logistic_function
 from ..utils.stats import (
     effective_sample_size,
-    effective_volume,
     weighted_quantile,
 )
 from ..utils.structures import get_subset_arrays
@@ -126,8 +124,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         check_criteria: Literal["any", "all"] = "any",
         level_kwargs: Optional[dict] = None,
         update_kwargs: Optional[dict] = None,
-        annealing_target: Optional[float] = None,
-        annealing_beta: Optional[float] = None,
         sigmoid_weights: bool = False,
         weighted_kl: bool = True,
         draw_constant: bool = False,
@@ -183,7 +179,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.level_method = level_method
         self.level_kwargs = {} if level_kwargs is None else level_kwargs
         self.update_kwargs = {} if update_kwargs is None else update_kwargs
-        self.beta = None
         self.logX = 0.0
         self.min_logL = -np.inf
         self.logL_pre = -np.inf
@@ -221,8 +216,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             tolerance,
             check_criteria,
         )
-
-        self.configure_annealing(annealing_target, annealing_beta)
 
         self.nested_samples = np.empty(0, dtype=get_dtype(self.model.names))
         self._log_q_ns = None
@@ -406,47 +399,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             raise ValueError("`min_remove` must be less than `nlive`")
         return True
 
-    def configure_annealing(
-        self,
-        annealing_target: Optional[float],
-        beta: Optional[float],
-    ) -> None:
-        """Configure likelihood annealing for training the flow.
-
-        Parameters
-        ----------
-        annealing_target
-            Target volume for annealing. Must be in (0, 1).
-        beta
-            Value for the annealing parameter beta. Must be in (0, 1). If
-            annealing target is specified then this value will be used as the
-            initial value for the first iteration and then overridden.
-        """
-        if beta is not None:
-            if not (0 < beta < 1):
-                raise ValueError("Annealing beta must be in (0, 1)")
-            beta = float(beta)
-
-        if annealing_target is not None:
-            if not (0 < annealing_target < 1):
-                raise ValueError("Annealing target must be in (0, 1)")
-            self.annealing_target = float(annealing_target)
-            if beta is None:
-                self.beta = 1e-4
-            else:
-                self.beta = beta
-            self.annealing = True
-        elif beta is not None:
-            self.annealing_target = None
-            self.beta = beta
-            self.annealing = True
-        else:
-            self.annealing = False
-            self.beta = None
-            self.annealing_target = None
-
-        # self.annealing = True
-
     def sort_points(self, x: np.ndarray, *args) -> np.ndarray:
         """Correctly sort new live points.
 
@@ -541,7 +493,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 samples_entropy=[],
                 proposal_entropy=[],
                 likelihood_evaluations=[],
-                annealing_beta=[],
                 stopping_criteria={
                     k: [] for k in self.stopping_criterion_aliases.keys()
                 },
@@ -675,49 +626,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.info(f"Next level should remove {n} points")
         return n
 
-    @staticmethod
-    def get_annealing_beta(
-        log_l: np.ndarray,
-        log_w: np.ndarray,
-        target_vol: float,
-        beta0: float = 1e-3,
-    ) -> float:
-        """Determine the current annealing value.
-
-        Parameters
-        ----------
-        log_l
-            Array of log-likelihood values.
-        log_w
-            Array of log-weights. Must be normalised.
-        target_vol
-            Target volume.
-        beta0
-            Initial value for beta.
-
-        Returns
-        -------
-        float
-            Value of beta.
-        """
-        if not (0 < target_vol < 1):
-            raise ValueError("Target volume must be in (0, 1)")
-
-        def loss(beta):
-            return np.abs(target_vol - effective_volume(log_w, log_l, beta))
-
-        beta, _, ierr, msg = optimize.fsolve(loss, beta0, full_output=True)
-        beta = float(np.clip(beta, 0.0, None))
-        if ierr != 1:
-            logger.warning(
-                f"No solution when determining beta! Returned error: {msg}. "
-                "beta0 will be used."
-            )
-            beta = beta0
-        logger.debug(f"Beta: {beta}")
-
-        return beta
-
     def update_level(self):
         """Update the current likelihood contour"""
         st = timer()
@@ -727,26 +635,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f"{effective_sample_size(self.training_points['logW'])}"
         )
 
-        if self.annealing:
-            log_w = self.training_points["logW"].copy()
-            if self.annealing_target:
-                self.beta = self.get_annealing_beta(
-                    self.training_points["logL"],
-                    log_w,
-                    target_vol=self.annealing_target,
-                    beta0=self.beta,
-                )
-                self.history["annealing_beta"].append(self.beta)
-            w = np.exp(log_w)
-            lr = np.exp(
-                self.beta
-                * (
-                    self.training_points["logL"]
-                    - self.training_points["logL"].max()
-                )
-            )
-            weights = (w * lr) / np.sum(w)
-        elif self.replace_all:
+        if self.replace_all:
             weights = -np.exp(self.training_log_q[:, -1])
         elif self.sigmoid_weights:
             weights = logistic_function(
@@ -1727,8 +1616,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             Returns the figure if a filename name is not given.
         """
         n_subplots = 5
-        if self.annealing_target:
-            n_subplots += 1
 
         fig, ax = plt.subplots(n_subplots, 1, sharex=True, figsize=(15, 15))
         ax = ax.ravel()
@@ -1764,14 +1651,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].legend()
 
         m += 1
-
-        if self.annealing_target:
-            ax[m].plot(
-                its,
-                self.history["annealing_beta"],
-            )
-            ax[m].set_ylabel(r"$\beta$")
-            m += 1
 
         ax[m].plot(
             its,

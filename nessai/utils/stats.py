@@ -25,32 +25,6 @@ def effective_sample_size(log_w):
     return n
 
 
-def effective_volume(
-    log_w: np.ndarray, log_l: np.ndarray, beta: float
-) -> float:
-    """Compute the effective volume.
-
-    Use for annealing in the importance nested sampler.
-
-    Parameters
-    ----------
-    log_w
-        Log weights (ratio of prior and meta proposal).
-    log_l
-        Log-likelihood values.
-    beta
-        Annealing value.
-
-    Returns
-    -------
-    float
-        The effective volume.
-    """
-    lr = np.exp(beta * (log_l - log_l.max()))
-    w = np.exp(log_w)
-    return np.sum(w * lr) / np.sum(w)
-
-
 def rolling_mean(x, N=10):
     """Compute the rolling mean with a given window size.
 
