@@ -1,0 +1,108 @@
+"""Test the rescaling functions in ImportanceFlowProposal"""
+from unittest.mock import MagicMock, patch
+
+from nessai import config
+from nessai.livepoint import numpy_array_to_live_points
+from nessai.proposal.importance import ImportanceFlowProposal as IFP
+import numpy as np
+import pytest
+
+
+def test_to_prime_logit(ifp, x_array, x_prime):
+    """Assert logit is called and the Jacobian is correct"""
+    ifp.reparam = "logit"
+    log_j = np.random.randn(*x_array.shape)
+    log_j_exp = log_j.sum(axis=1)
+    with patch(
+        "nessai.proposal.importance.logit", return_value=(x_prime, log_j)
+    ) as mock_logit:
+        x_prime_out, log_j_out = IFP.to_prime(ifp, x_array)
+
+    mock_logit.assert_called_once_with(x_array, eps=config.general.eps)
+    assert x_prime_out is x_prime
+    np.testing.assert_array_equal(log_j_out, log_j_exp)
+
+
+def test_to_prime_none(ifp, x_array):
+    """Assert no operation is applied and the log-Jacobian is 0"""
+    ifp.reparam = None
+    x_prime_out, log_j_out = IFP.to_prime(ifp, x_array)
+    np.testing.assert_array_equal(x_prime_out, x_array)
+    assert np.all(log_j_out == 0.0)
+
+
+def test_from_prime_sigmoid(ifp, x_array, x_prime):
+    """Assert sigmoid is called and the Jacobian is correct"""
+    ifp.reparam = "logit"
+    log_j = np.random.randn(*x_array.shape)
+    log_j_exp = log_j.sum(axis=1)
+    with patch(
+        "nessai.proposal.importance.sigmoid", return_value=(x_array, log_j)
+    ) as mock_sigmoid:
+        x_out, log_j_out = IFP.from_prime(ifp, x_prime)
+
+    mock_sigmoid.assert_called_once_with(x_prime)
+    assert x_out is x_array
+    np.testing.assert_array_equal(log_j_out, log_j_exp)
+
+
+def test_from_prime_none(ifp, x_prime):
+    """Assert no operation is applied and the log-Jacobian is 0"""
+    ifp.reparam = None
+    x_out, log_j_out = IFP.from_prime(ifp, x_prime)
+    np.testing.assert_array_equal(x_out, x_prime)
+    assert np.all(log_j_out == 0.0)
+
+
+def test_rescale(ifp, x, x_prime, log_j, names):
+    """Assert rescale calls the correct functions in the correct order"""
+    x_hyper_array = np.random.randn(len(x), len(names))
+    x_hypercube = numpy_array_to_live_points(x_hyper_array, names)
+
+    ifp.model.names = names
+    ifp.model.to_unit_hypercube = MagicMock(return_value=x_hypercube)
+    ifp.to_prime = MagicMock(return_value=(x_prime, log_j))
+
+    with patch(
+        "nessai.proposal.importance.live_points_to_array",
+        return_value=x_hyper_array,
+    ) as mock_to_array:
+        x_prime_out, log_j_out = IFP.rescale(ifp, x)
+
+    ifp.model.to_unit_hypercube.assert_called_once_with(x)
+    mock_to_array.assert_called_once_with(x_hypercube, names)
+    ifp.to_prime.assert_called_once_with(x_hyper_array)
+
+    assert x_prime_out is x_prime
+    assert log_j_out is log_j
+
+
+@pytest.mark.parametrize("clip", [True, False])
+def test_inverse_rescale(ifp, x, x_prime, log_j, names, clip):
+    """
+    Assert inverse_rescale calls the correct functions in the correct order
+    """
+    x_array = np.random.randn(len(x), len(names))
+    x_hypercube = numpy_array_to_live_points(x_array, names)
+
+    ifp.clip = clip
+    ifp.model.names = names
+    ifp.model.from_unit_hypercube = MagicMock(return_value=x)
+    ifp.from_prime = MagicMock(return_value=(x_array, log_j))
+
+    with patch(
+        "nessai.proposal.importance.numpy_array_to_live_points",
+        return_value=x_hypercube,
+    ) as mock_to_array, patch("numpy.clip", return_value=x_array) as mock_clip:
+        x_out, log_j_out = IFP.inverse_rescale(ifp, x_prime)
+
+    ifp.from_prime.assert_called_once_with(x_prime)
+    if clip:
+        mock_clip.assert_called_once_with(x_array, 0.0, 1.0)
+    else:
+        mock_clip.assert_not_called()
+    mock_to_array.assert_called_once_with(x_array, names)
+    ifp.model.from_unit_hypercube.assert_called_once_with(x_hypercube)
+
+    assert x_out is x
+    assert log_j_out is log_j
