@@ -251,6 +251,40 @@ class _INSIntegralState(_BaseNSIntegralState):
         self._weights_lp = None
         self._weights = None
 
+    @property
+    def logZ(self) -> float:
+        """The current log-evidence."""
+        return self._logZ - np.log(self._n)
+
+    log_evidence = logZ
+    """Alias for logZ"""
+
+    @property
+    def log_evidence_error(self) -> float:
+        """Alias for compute_uncertainty"""
+        return self.compute_uncertainty()
+
+    @property
+    def log_evidence_live_points(self) -> float:
+        """Log-evidence in the live points."""
+        if self._weights_lp is None:
+            raise RuntimeError("Live points are not set")
+        return logsumexp(self._weights_lp) - np.log(self._weights_lp.size)
+
+    @property
+    def log_evidence_nested_samples(self):
+        """Log-evidence in the nested samples"""
+        return logsumexp(self._weights_ns) - np.log(self._weights_ns.size)
+
+    @property
+    def log_posterior_weights(self) -> np.ndarray:
+        """Compute the log posterior weights.
+
+        If the live points have been specified, then weights will be computed
+        for these as well.
+        """
+        return self._weights - self.logZ
+
     def update_evidence(
         self,
         nested_samples: np.ndarray,
@@ -281,31 +315,6 @@ class _INSIntegralState(_BaseNSIntegralState):
             self._weights_lp = None
         self._logZ = logsumexp(self._weights)
         self._n = self._weights.size
-
-    @property
-    def logZ(self) -> float:
-        """The current log-evidence."""
-        return self._logZ - np.log(self._n)
-
-    log_evidence = logZ
-    """Alias for logZ"""
-
-    @property
-    def log_evidence_error(self) -> float:
-        """Alias for compute_uncertainty"""
-        return self.compute_uncertainty()
-
-    @property
-    def log_evidence_live_points(self) -> float:
-        """Log-evidence in the live points."""
-        if self._weights_lp is None:
-            raise RuntimeError("Live points are not set")
-        return logsumexp(self._weights_lp) - np.log(self._weights_lp.size)
-
-    @property
-    def log_evidence_nested_samples(self):
-        """Log-evidence in the nested samples"""
-        return logsumexp(self._weights_ns) - np.log(self._weights_ns.size)
 
     def compute_evidence_ratio(self, ns_only: bool = False) -> float:
         """
@@ -361,12 +370,3 @@ class _INSIntegralState(_BaseNSIntegralState):
         u = np.sqrt(np.sum((Z - Z_hat) ** 2) / (n * (n - 1)))
         # sigma[ln Z] = |sigma[Z] / Z|
         return float(np.abs(u / Z_hat))
-
-    @property
-    def log_posterior_weights(self) -> np.ndarray:
-        """Compute the log posterior weights.
-
-        If the live points have been specified, then weights will be computed
-        for these as well.
-        """
-        return self._weights - self.logZ
