@@ -18,6 +18,7 @@ from nessai.flows import (
             net="mlp", batch_norm_within_layers=True, dropout_probability=0.5
         ),
         dict(use_volume_preserving=True),
+        dict(actnorm=True),
         dict(linear_transform="permutation"),
         dict(linear_transform="svd"),
         dict(linear_transform="lu"),
@@ -53,6 +54,16 @@ def test_realnvp_value_errors(kwargs, string):
     with pytest.raises(ValueError) as excinfo:
         RealNVP(2, 2, 2, 2, **kwargs)
     assert string in str(excinfo.value)
+
+
+def test_realnvp_actnorm_batchnorm():
+    """
+    Assert an error is raised if actnorm and batchnorm are enabled at once.
+    """
+    with pytest.raises(
+        RuntimeError, match=r"Cannot enable actnorm and batchnorm .*"
+    ):
+        RealNVP(2, 2, 2, 2, actnorm=True, batch_norm_between_layers=True)
 
 
 @pytest.mark.parametrize(
