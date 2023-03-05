@@ -89,6 +89,7 @@ class Model(ABC):
         recommended when the variation is significantly smaller that the
         variations in the likelihood across the prior.
     """
+    verify_with_new_point = False
     _vectorised_likelihood = None
     _pool_configured = False
 
@@ -621,7 +622,7 @@ class Model(ABC):
         if (
             np.isfinite(self.lower_bounds).all()
             and np.isfinite(self.upper_bounds).all()
-        ):
+        ) and not self.verify_with_new_point:
             logP = -np.inf
             counter = 0
             while (logP == -np.inf) or (logP == np.inf):
