@@ -9,6 +9,7 @@ functions and classes.
 from .angle import Angle, AnglePair, ToCartesian
 from .base import Reparameterisation
 from .combined import CombinedReparameterisation
+from .discrete import Dequantise
 from .null import NullReparameterisation
 from .rescale import Rescale, RescaleToBounds, ScaleAndShift
 from .utils import get_reparameterisation
@@ -62,6 +63,7 @@ default_reparameterisations = {
     "angle-pair": (AnglePair, None),
     "periodic": (Angle, {"scale": None}),
     "to-cartesian": (ToCartesian, None),
+    "dequantise": (Dequantise, None),
     "none": (NullReparameterisation, None),
     "null": (NullReparameterisation, None),
     None: (NullReparameterisation, None),
