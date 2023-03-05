@@ -66,6 +66,9 @@ class RealNVP(NFlow):
     pre_transform_kwargs : dict
         Keyword arguments to pass to the transform class used for the pre-
         transform.
+    actnorm : bool
+        Include activation normalisation as described in arXiv:1807.03039.
+        Batch norm between layers must be disabled if using this option.
     """
 
     def __init__(
@@ -85,6 +88,7 @@ class RealNVP(NFlow):
         linear_transform=None,
         pre_transform=None,
         pre_transform_kwargs=None,
+        actnorm=False,
         distribution=None,
     ):
 
@@ -92,6 +96,12 @@ class RealNVP(NFlow):
             raise ValueError(
                 "RealNVP requires at least 2 dimensions. "
                 f"Specified dimensions: {features}."
+            )
+
+        if actnorm and batch_norm_between_layers:
+            raise RuntimeError(
+                "Cannot enable actnorm and batchnorm between layers "
+                "simultaneously."
             )
 
         if use_volume_preserving:
@@ -172,6 +182,12 @@ class RealNVP(NFlow):
             )
 
         for i in range(num_layers):
+
+            if actnorm:
+                layers.append(
+                    transforms.normalization.ActNorm(features=features)
+                )
+
             if linear_transform is not None:
                 layers.append(
                     create_linear_transform(linear_transform, features)
