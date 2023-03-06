@@ -350,8 +350,8 @@ class _INSIntegralState(_BaseNSIntegralState):
             the evidence.
         """
         n = self._n
-        Z_hat = np.exp(self.logZ, dtype=np.float128)
-        Z = np.exp(self._weights, dtype=np.float128)
+        Z_hat = np.exp(self.logZ, dtype=np.longdouble)
+        Z = np.exp(self._weights, dtype=np.longdouble)
         # Standard error sqrt(Var[Z] / n)
         u = np.sqrt(np.sum((Z - Z_hat) ** 2) / (n * (n - 1)))
         if log_evidence:
