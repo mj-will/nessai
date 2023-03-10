@@ -37,13 +37,14 @@ def _get_importance_methods() -> list:
     return methods
 
 
-def get_all_kwargs(importance_nested_sampler: bool) -> dict:
+def get_all_kwargs(importance_nested_sampler: bool = False) -> dict:
     """Get a dictionary of all possible kwargs and their default values.
 
     Parameters
     ----------
     importance_nested_sampler
         Indicates whether the importance nested sampler will be used or not.
+        Defaults to :code:`False` for backwards compatibility.
 
     Returns
     -------
@@ -66,8 +67,19 @@ def get_all_kwargs(importance_nested_sampler: bool) -> dict:
     return kwargs
 
 
-def get_run_kwargs_list(importance_nested_sampler: bool) -> List[str]:
-    """Get a list of kwargs used in the run method"""
+def get_run_kwargs_list(importance_nested_sampler: bool = False) -> List[str]:
+    """Get a list of kwargs used in the run method
+
+    Parameters
+    ----------
+    importance_nested_sampler
+        Indicates whether the importance nested sampler will be used or not.
+        Defaults to :code:`False` for backwards compatibility.
+
+    Returns
+    -------
+    List of kwargs.
+    """
     from ..flowsampler import FlowSampler
 
     if importance_nested_sampler:
