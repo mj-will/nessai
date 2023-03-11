@@ -120,6 +120,12 @@ def test_current_sampling_time_finalised(sampler):
     assert BaseNestedSampler.current_sampling_time.__get__(sampler) == 10
 
 
+def test_posterior_effective_sample_suze(sampler):
+    """Assert an error is raised"""
+    with pytest.raises(NotImplementedError):
+        BaseNestedSampler.posterior_effective_sample_size.__get__(sampler)
+
+
 @patch("numpy.random.seed")
 @patch("torch.manual_seed")
 def test_set_random_seed(mock1, mock2, sampler):

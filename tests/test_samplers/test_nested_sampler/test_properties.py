@@ -91,3 +91,10 @@ def test_mean_acceptance_empty(sampler):
     """Assert nan is returned if no points have been proposed"""
     sampler.acceptance_history = deque(maxlen=10)
     assert np.isnan(NestedSampler.mean_acceptance.__get__(sampler))
+
+
+def test_posterior_effective_sample_size(sampler):
+    """Assert the state property is called"""
+    sampler.state.effective_n_posterior_samples = 10
+    out = NestedSampler.posterior_effective_sample_size.__get__(sampler)
+    assert out == 10
