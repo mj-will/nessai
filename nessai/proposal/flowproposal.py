@@ -658,7 +658,8 @@ class FlowProposal(RejectionProposal):
             r = rc(prior_bounds=prior_bounds, **default_config)
             self._reparameterisation.add_reparameterisations(r)
 
-        self.add_default_reparameterisations()
+        if self.use_default_reparameterisations:
+            self.add_default_reparameterisations()
 
         other_params = [
             n
