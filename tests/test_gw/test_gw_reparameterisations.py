@@ -3,6 +3,7 @@
 
 import pytest
 from nessai.gw.reparameterisations import (
+    AlphaBetaReparameterisation,
     DeltaPhaseReparameterisation,
     DistanceReparameterisation,
     default_gw,
@@ -208,4 +209,37 @@ def test_delta_phase_inverse_invertible():
     x_i, x_prime_i, log_j_i = reparam.reparameterise(x_f, x_prime_f, log_j_f)
     assert_structured_arrays_equal(x_prime_i, x_prime_f)
     assert_structured_arrays_equal(x_i, x)
+    np.testing.assert_array_equal(log_j_i, log_j_f)
+
+
+@pytest.mark.integration_test
+def test_alpha_beta_invertible():
+    """Assert the reparameterisation is invertible"""
+    n = 10
+    parameters = ["psi", "phase"]
+    prior_bounds = {"phase": [0.0, 2 * np.pi], "psi": [0, np.pi]}
+    reparam = AlphaBetaReparameterisation(
+        parameters=parameters, prior_bounds=prior_bounds
+    )
+    x = dict_to_live_points(
+        {
+            "phase": np.random.uniform(0, 2 * np.pi, n),
+            "psi": np.random.uniform(0, np.pi, n),
+        }
+    )
+    x_prime = empty_structured_array(
+        n,
+        names=reparam.prime_parameters,
+    )
+    log_j = np.zeros(n)
+    x_f, x_prime_f, log_j_f = reparam.reparameterise(
+        x.copy(), x_prime.copy(), log_j.copy()
+    )
+    assert_structured_arrays_equal(x_f, x)
+    np.testing.assert_array_equal(log_j_f, log_j)
+    x_i, x_prime_i, log_j_i = reparam.inverse_reparameterise(
+        x_f.copy(), x_prime_f.copy(), log_j_f.copy()
+    )
+    assert_structured_arrays_equal(x_prime_i, x_prime_f)
+    assert_structured_arrays_equal(x_i, x, atol=1e-15)
     np.testing.assert_array_equal(log_j_i, log_j_f)
