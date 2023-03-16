@@ -155,7 +155,7 @@ def test_delta_phase_reparameterise(delta_phase_reparam):
         delta_phase_reparam, x, x_prime, log_j
     )
     assert x_out == x
-    assert x_prime_out["delta_phase"] == 0.5
+    assert x_prime_out["delta_phase"] == 1.5
     assert log_j_out == 0
 
 
@@ -176,7 +176,7 @@ def test_delta_phase_inverse_reparameterise(delta_phase_reparam):
         delta_phase_reparam, x, x_prime, log_j
     )
     assert x_prime_out == x_prime
-    assert x["phase"] == 1.0
+    assert x["phase"] == 0.0
     assert log_j_out == 0
 
 
