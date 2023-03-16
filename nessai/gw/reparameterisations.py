@@ -140,6 +140,75 @@ class DistanceReparameterisation(RescaleToBounds):
         ]
 
 
+class AlphaBetaReparameterisation(Reparameterisation):
+    """Alpha-beta reparameterisation for phase and polarisation
+
+    Based on the parameters introduced in Appendix C of
+    https://arxiv.org/abs/1409.7215.
+
+    Parameters
+    ----------
+    parameters : Union[str, List[str]]
+        Name(s) of the parameter(s).
+    prior_bounds : Union[list, dict]
+        Prior bounds for the parameters
+    """
+
+    def __init__(self, parameters=None, prior_bounds=None):
+        super().__init__(parameters=parameters, prior_bounds=prior_bounds)
+        self.requires = ["psi", "theta_jn"]
+        self.prime_parameters = ["alpha_gw", "beta_gw"]
+
+    def reparameterise(self, x, x_prime, log_j, **kwargs):
+        """
+        Apply the reparameterisation to convert from x-space to the x'-space.
+
+        Parameters
+        ----------
+        x : structured array
+            Array of inputs
+        x_prime : structured array
+            Array to be update
+        log_j : array_like
+            Log jacobian to be updated
+
+        Returns
+        -------
+        x, x_prime : structured arrays
+            Update version of the x and x_prime arrays
+        log_j : array_like
+            Updated log Jacobian determinant
+        """
+        x_prime["alpha_gw"] = x["psi"] + x["phase"]
+        x_prime["beta_gw"] = x["psi"] - x["phase"]
+        return x, x_prime, log_j
+
+    def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
+        """
+        Apply the inverse reparameterisation to convert from x'-space to the
+        x-space.
+
+        Parameters
+        ----------
+        x : structured array
+            Array
+        x_prime : structured array
+            Array to be update
+        log_j : array_like
+            Log jacobian to be updated
+
+        Returns
+        -------
+        x, x_prime : structured arrays
+            Update version of the x and x_prime arrays
+        log_j : array_like
+            Updated log Jacobian determinant
+        """
+        x["psi"] = (x_prime["alpha_gw"] + x_prime["beta_gw"]) / 2
+        x["phase"] = (x_prime["alpha_gw"] - x_prime["beta_gw"]) / 2
+        return x, x_prime, log_j
+
+
 class DeltaPhaseReparameterisation(Reparameterisation):
     """Reparameterisation that converts phase to delta phase.
 
@@ -238,6 +307,8 @@ default_gw = {
     "mass": (RescaleToBounds, {"update_bounds": True}),
     "delta_phase": (DeltaPhaseReparameterisation, {}),
     "delta-phase": (DeltaPhaseReparameterisation, {}),
+    "alpha-beta": (AlphaBetaReparameterisation, {}),
+    "alpha_beta": (AlphaBetaReparameterisation, {}),
 }
 
 
