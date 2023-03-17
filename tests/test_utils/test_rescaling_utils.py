@@ -11,9 +11,11 @@ from nessai.utils.rescaling import (
     configure_edge_detection,
     detect_edge,
     determine_rescaled_bounds,
+    exp_with_log_jacobian,
     inverse_rescale_minus_one_to_one,
     inverse_rescale_zero_to_one,
     logistic_function,
+    log_with_log_jacobian,
     rescale_minus_one_to_one,
     rescale_zero_to_one,
     logit,
@@ -218,3 +220,28 @@ def test_logistic_function_reference():
 
     x = np.array([-5.0, 0.0, 5.0])
     np.testing.assert_array_equal(logistic_function(x), expit(x))
+
+
+def test_log():
+    """Assert the correct values are returned"""
+    x = np.random.rand(10)
+    x_log, logj_log = log_with_log_jacobian(x)
+    np.testing.assert_array_equal(x_log, np.log(x))
+    np.testing.assert_array_equal(logj_log, -np.log(x))
+
+
+def test_exp():
+    """Assert the correct values are returned"""
+    x = np.random.randn(10)
+    x_exp, logj = exp_with_log_jacobian(x)
+    np.testing.assert_array_equal(x_exp, np.exp(x))
+    np.testing.assert_array_equal(logj, x)
+
+
+def test_log_exp_inverse():
+    """Assert the log and exp functions are the inverse of each other"""
+    x = np.random.rand(10)
+    x_log, logj_log = log_with_log_jacobian(x)
+    x_out, logj_exp = exp_with_log_jacobian(x_log)
+    np.testing.assert_array_equal(x_out, x)
+    np.testing.assert_array_equal(logj_log, -logj_exp)
