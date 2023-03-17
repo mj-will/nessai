@@ -317,7 +317,8 @@ def test_post_rescaling_with_invalid_str(reparam):
     assert "Unknown rescaling function: not_a_rescaling" in str(excinfo.value)
 
 
-def test_post_rescaling_with_str(reparam):
+@pytest.mark.parametrize("rescaling", ["log", "logit"])
+def test_post_rescaling_with_str(reparam, rescaling):
     """Assert that specifying a str works as intended.
 
     Also test the config for the logit
@@ -326,22 +327,22 @@ def test_post_rescaling_with_str(reparam):
     reparam.parameters = ["x"]
     from nessai.utils.rescaling import rescaling_functions
 
-    rescaling = "logit"
     RescaleToBounds.configure_post_rescaling(reparam, rescaling)
     assert reparam.has_post_rescaling is True
     assert reparam.has_prime_prior is False
-    assert reparam.post_rescaling is rescaling_functions["logit"][0]
-    assert reparam.post_rescaling_inv is rescaling_functions["logit"][1]
+    assert reparam.post_rescaling is rescaling_functions[rescaling][0]
+    assert reparam.post_rescaling_inv is rescaling_functions[rescaling][1]
     assert reparam.rescale_bounds == {"x": [0, 1]}
 
 
-def test_post_rescaling_with_logit_update_bounds(reparam):
+@pytest.mark.parametrize("rescaling", ["log", "logit"])
+def test_post_rescaling_with_logit_update_bounds(reparam, rescaling):
     """Assert an error is raised if using logit and update bounds"""
     reparam._update_bounds = True
-    rescaling = "logit"
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(
+        RuntimeError, match=r"Cannot use log or logit with update bounds"
+    ):
         RescaleToBounds.configure_post_rescaling(reparam, rescaling)
-    assert "Cannot use logit with update bounds" in str(excinfo.value)
 
 
 def test_pre_rescaling_invalid_input(reparam):
@@ -1097,6 +1098,13 @@ def test_update_integration_no_update(model):
     "kwargs, decimal",
     [
         (dict(post_rescaling="logit", update_bounds=False), 10),
+        (
+            dict(
+                post_rescaling="log",
+                update_bounds=False,
+            ),
+            14,
+        ),
         (dict(update_bounds=False), None),
         (dict(update_bounds=False, boundary_inversion=True), None),
         (dict(boundary_inversion=["x"]), None),

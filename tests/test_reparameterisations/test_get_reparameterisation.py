@@ -48,6 +48,15 @@ known_reparameteristions = [
             "post_rescaling": "logit",
         },
     ),
+    (
+        "log-rescale",
+        RescaleToBounds,
+        {
+            "rescale_bounds": [0.0, 1.0],
+            "update_bounds": False,
+            "post_rescaling": "log",
+        },
+    ),
     ("scale", Rescale, {}),
     ("rescale", Rescale, {}),
     ("angle", Angle, {}),
