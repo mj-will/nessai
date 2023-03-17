@@ -156,7 +156,13 @@ class AlphaBetaReparameterisation(Reparameterisation):
 
     def __init__(self, parameters=None, prior_bounds=None):
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
-        self.requires = ["psi", "theta_jn"]
+
+        if ("phase" not in self.parameters) or ("psi" not in self.parameters):
+            raise ValueError(
+                f"Missing parameters, got {self.parameters},"
+                "require: [psi, phase]"
+            )
+
         self.prime_parameters = ["alpha_gw", "beta_gw"]
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
