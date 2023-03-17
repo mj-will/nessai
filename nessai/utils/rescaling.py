@@ -354,4 +354,45 @@ def logistic_function(x, x0=0.0, k=1.0):
     return 1.0 / (1 + np.exp(-k * (x - x0)))
 
 
-rescaling_functions = {"logit": (logit, sigmoid)}
+def log_with_log_jacobian(x):
+    """Natural log and log-Jacobian determinant.
+
+    Parameters
+    ----------
+    x : Union[float, np.ndarray]
+        Array of values
+
+    Returns
+    -------
+    Union[float, numpy.ndarray]
+        Rescaled values.
+    Union[float, numpy.ndarray]
+        Log Jacobian determinant.
+    """
+    y = np.log(x)
+    return y, -y
+
+
+def exp_with_log_jacobian(x):
+    """Exponential and log-Jacobian determinant.
+
+    Parameters
+    ----------
+    x : Union[float, np.ndarray]
+        Array of values
+
+    Returns
+    -------
+    Union[float, numpy.ndarray]
+        Rescaled values.
+    Union[float, numpy.ndarray]
+        Log Jacobian determinant.
+    """
+    return np.exp(x), x.copy()
+
+
+rescaling_functions = {
+    "logit": (logit, sigmoid),
+    "log": (log_with_log_jacobian, exp_with_log_jacobian),
+    "exp": (exp_with_log_jacobian, log_with_log_jacobian),
+}
