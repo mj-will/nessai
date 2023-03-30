@@ -7,50 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0]
+
 ### Added
 
-- Add `DeltaPhaseReparameterisation` for GW analyses.
-- Add `nessai.utils.sorting`.
-- Add `log_posterior_weights` and `effective_n_posterior_samples` to the integral state object.
-- Add a check for the multiprocessing start method when using `n_pool`.
+- Add `DeltaPhaseReparameterisation` for GW analyses. ([#244](https://github.com/mj-will/nessai/pull/244))
+- Add `nessai.utils.sorting`. ([#244](https://github.com/mj-will/nessai/pull/244))
+- Add `log_posterior_weights` and `effective_n_posterior_samples` to the integral state object. ([#248](https://github.com/mj-will/nessai/pull/248))
+- Add a check for the multiprocessing start method when using `n_pool`. ([#250](https://github.com/mj-will/nessai/pull/250))
 - Add option to reverse reparameterisations in `FlowProposal`.
-- Add `disable_vectorisation` to `FlowSampler`.
-- Add `likelihood_chunksize` which allows the user to limit how many points are passed to a vectorised likelihood function at once.
-- Add `allow_multi_valued_likelihood` which allows for multi-valued likelihoods, e.g. that include numerical integration.
-- Add `parameters` keyword argument to `nessai.plot.plot_trace` and pass additional keyword arguments to the plotting function.
-- Add option to construct live points without non-sampling parameters.
-- Add option to use a different estimate of the shrinkage. Default remains unchanged.
-- Add `ScaleAndShift` reparameterisation which includes Z-score normalisation.
-- Add option to specify default result file extension.
+- Add `disable_vectorisation` to `FlowSampler`. ([#254](https://github.com/mj-will/nessai/pull/254))
+- Add `likelihood_chunksize` which allows the user to limit how many points are passed to a vectorised likelihood function at once. ([#256](https://github.com/mj-will/nessai/pull/256))
+- Add `allow_multi_valued_likelihood` which allows for multi-valued likelihoods, e.g. that include numerical integration. ([#257](https://github.com/mj-will/nessai/pull/257))
+- Add `parameters` keyword argument to `nessai.plot.plot_trace` and pass additional keyword arguments to the plotting function. ([#259](https://github.com/mj-will/nessai/pull/259))
+- Add option to construct live points without non-sampling parameters. ([#266](https://github.com/mj-will/nessai/pull/266))
+- Add option to use a different estimate of the shrinkage. Default remains unchanged. ([#248](https://github.com/mj-will/nessai/pull/248), [#269](https://github.com/mj-will/nessai/pull/269))
+- Add `ScaleAndShift` reparameterisation which includes Z-score normalisation. ([#273](https://github.com/mj-will/nessai/pull/273))
+- Add option to specify default result file extension. ([#274](https://github.com/mj-will/nessai/pull/274))
 
 ### Changed
 
-- Refactor `nessai.reparameterisations` into a submodule.
-- Use `torch.inference_mode` instead of `torch.no_grad`.
-- Changed `CombinedReparameterisations` to sort and add reparameterisations based on their requirements.
-- Refactor `nessai.evidence._NSIntegralState` to inherit from a base class.
-- Revert default logging level to `INFO`
-- Rework logging statements to reduce the amount of information printed by default.
-- Refactor `nessai.proposal.FlowProposal.verify_rescaling` to be stricter.
-- Truth input in `nessai.plot.corner_plot` can now be an iterable or a dictionary.
-- Tweak how the prior volume is computed for the final nested sample. This will also change the evidence and posterior weights.
-- Stricter handling of keyword arguments passed to `NestedSampler`. Unknown keyword arguments will now raise an error.
-- Rework `nessai.config` to have `config.livepoints` and `config.plot` which contain global settings. Some of the setting names have also changed.
-- `Rescale` reparameterisation is now an alias for `ScaleAndShift`.
-- Change the default result file extension to `hdf5`, old result file format can be recovered by setting it to `json`.
-- Optimisations to `FlowProposal.populate`, including changes to `Model.in_bounds` and how sampling from the latent prior is handled.
-- Add a maximum figure size (`nessai.config.plotting.max_figsize`) to prevent very large trace plots when the number of dimensions is very high.
+- Refactor `nessai.reparameterisations` into a submodule. ([#241](https://github.com/mj-will/nessai/pull/241))
+- Use `torch.inference_mode` instead of `torch.no_grad`. ([#245](https://github.com/mj-will/nessai/pull/245))
+- Changed `CombinedReparameterisations` to sort and add reparameterisations based on their requirements. ([#244](https://github.com/mj-will/nessai/pull/244), [#253](https://github.com/mj-will/nessai/pull/253))
+- Refactor `nessai.evidence._NSIntegralState` to inherit from a base class. ([#248](https://github.com/mj-will/nessai/pull/248))
+- Revert default logging level to `INFO`. ([#249](https://github.com/mj-will/nessai/pull/249))
+- Rework logging statements to reduce the amount of information printed by default. ([#249](https://github.com/mj-will/nessai/pull/249))
+- Refactor `nessai.proposal.FlowProposal.verify_rescaling` to be stricter. ([#253](https://github.com/mj-will/nessai/pull/253))
+- Truth input in `nessai.plot.corner_plot` can now be an iterable or a dictionary. ([#255](https://github.com/mj-will/nessai/pull/255))
+- Tweak how the prior volume is computed for the final nested sample. This will also change the evidence and posterior weights. ([#248](https://github.com/mj-will/nessai/pull/248), [#269](https://github.com/mj-will/nessai/pull/269))
+- Stricter handling of keyword arguments passed to `NestedSampler`. Unknown keyword arguments will now raise an error. ([#270](https://github.com/mj-will/nessai/pull/270))
+- Rework `nessai.config` to have `config.livepoints` and `config.plot` which contain global settings. Some of the setting names have also changed. ([#272](https://github.com/mj-will/nessai/pull/272))
+- `Rescale` reparameterisation is now an alias for `ScaleAndShift`. ([#273](https://github.com/mj-will/nessai/pull/273))
+- Change the default result file extension to `hdf5`, old result file format can be recovered by setting it to `json`. ([#274](https://github.com/mj-will/nessai/pull/274))
+- Optimisations to `FlowProposal.populate`, including changes to `Model.in_bounds` and how sampling from the latent prior is handled. ([#277](https://github.com/mj-will/nessai/pull/277))
+- Add a maximum figure size (`nessai.config.plotting.max_figsize`) to prevent very large trace plots when the number of dimensions is very high. ([#282](https://github.com/mj-will/nessai/pull/282))
 
 ### Fixed
 
-- Fix a bug where setting the livepoint precision (e.g. `f16`) did not work.
-- Fix plotting failing when sampling large number of parameters.
+- Fix a bug where setting the livepoint precision (e.g. `f16`) did not work. ([#272](https://github.com/mj-will/nessai/pull/272))
+- Fix plotting failing when sampling large number of parameters. ([#281](https://github.com/mj-will/nessai/pull/281), [#282](https://github.com/mj-will/nessai/pull/282))
 
 ### Removed
 
-- Removed `nessai._NSIntegralState.reset`
-- Removed `nessai.gw.legacy`
-- Removed support for changing the variance of the latent distribution via `draw_latent_kwargs` from `FlowProposal`.
+- Removed `nessai._NSIntegralState.reset`. ([#248](https://github.com/mj-will/nessai/pull/248))
+- Removed `nessai.gw.legacy`. ([#267](https://github.com/mj-will/nessai/pull/267))
+- Removed support for changing the variance of the latent distribution via `draw_latent_kwargs` from `FlowProposal`. ([#277](https://github.com/mj-will/nessai/pull/277))
 
 ## [0.7.1]
 
@@ -487,7 +489,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/mj-will/nessai/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/mj-will/nessai/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/mj-will/nessai/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mj-will/nessai/compare/v0.5.1...v0.6.0
