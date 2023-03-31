@@ -181,7 +181,7 @@ class DeltaPhaseReparameterisation(Reparameterisation):
             Updated log Jacobian determinant
         """
         x_prime[self.prime_parameters[0]] = (
-            x[self.parameters[0]] - np.sign(np.cos(x["theta_jn"])) * x["psi"]
+            x[self.parameters[0]] + np.sign(np.cos(x["theta_jn"])) * x["psi"]
         )
         return x, x_prime, log_j
 
@@ -208,7 +208,7 @@ class DeltaPhaseReparameterisation(Reparameterisation):
         """
         x[self.parameters[0]] = np.mod(
             x_prime[self.prime_parameters[0]]
-            + np.sign(np.cos(x["theta_jn"])) * x["psi"],
+            - np.sign(np.cos(x["theta_jn"])) * x["psi"],
             2 * np.pi,
         )
         return x, x_prime, log_j
