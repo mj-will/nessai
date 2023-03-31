@@ -8,6 +8,68 @@ import numpy as np
 import pytest
 
 
+def test_verify_rescaling_pass(ifp, x_prime):
+    n = 10
+    names = ["x", "y"]
+    x = numpy_array_to_live_points(np.random.randn(n, len(names)), names)
+    # Make sure there are NaNs for the Nan check
+    assert np.isnan(x["logL"]).all()
+    log_j = np.random.rand(n)
+    x_re = x.copy()
+    x_re["x"] += 1e-10 * np.random.randn(n)
+    log_j_inv = -log_j
+    log_j_inv += 1e-10 * np.random.randn(n)
+
+    ifp.model.new_point = MagicMock(return_value=x)
+    ifp.rescale = MagicMock(return_value=(x_prime, log_j))
+    ifp.inverse_rescale = MagicMock(return_value=(x_re, log_j_inv))
+
+    IFP.verify_rescaling(ifp)
+
+    ifp.rescale.assert_called_once_with(x)
+    ifp.inverse_rescale.assert_called_once_with(x_prime)
+
+
+def test_verify_rescaling_fail(ifp, x_prime):
+    n = 10
+    names = ["x", "y"]
+    x = numpy_array_to_live_points(np.random.randn(n, len(names)), names)
+    # Make sure there are NaNs for the Nan check
+    assert np.isnan(x["logL"]).all()
+    log_j = np.random.rand(n)
+    x_re = x.copy()
+    x_re["x"] += 1e-6 * np.random.randn(n)
+    log_j_inv = -log_j
+    log_j_inv += 1e-10 * np.random.randn(n)
+
+    ifp.model.new_point = MagicMock(return_value=x)
+    ifp.rescale = MagicMock(return_value=(x_prime, log_j))
+    ifp.inverse_rescale = MagicMock(return_value=(x_re, log_j_inv))
+
+    with pytest.raises(RuntimeError, match=r"Rescaling is not invertible."):
+        IFP.verify_rescaling(ifp)
+
+
+def test_verify_rescaling_fail_jacobian(ifp, x_prime):
+    n = 10
+    names = ["x", "y"]
+    x = numpy_array_to_live_points(np.random.randn(n, len(names)), names)
+    # Make sure there are NaNs for the Nan check
+    assert np.isnan(x["logL"]).all()
+    log_j = np.random.rand(n)
+    x_re = x.copy()
+    x_re["x"] += 1e-10 * np.random.randn(n)
+    log_j_inv = -log_j
+    log_j_inv += 1e-7 * np.random.randn(n)
+
+    ifp.model.new_point = MagicMock(return_value=x)
+    ifp.rescale = MagicMock(return_value=(x_prime, log_j))
+    ifp.inverse_rescale = MagicMock(return_value=(x_re, log_j_inv))
+
+    with pytest.raises(RuntimeError, match=r"Forward and inverse"):
+        IFP.verify_rescaling(ifp)
+
+
 def test_to_prime_logit(ifp, x_array, x_prime):
     """Assert logit is called and the Jacobian is correct"""
     ifp.reparam = "logit"
@@ -106,3 +168,21 @@ def test_inverse_rescale(ifp, x, x_prime, log_j, names, clip):
 
     assert x_out is x
     assert log_j_out is log_j
+
+
+def test_invalid_reparam_to_prime(ifp, x):
+    """Assert an invalid reparam raises an error"""
+    ifp.reparam = "invalid"
+    with pytest.raises(
+        ValueError, match=r"Unknown reparameterisation: 'invalid'"
+    ):
+        IFP.to_prime(ifp, x)
+
+
+def test_invalid_reparam_from_prime(ifp, x_prime):
+    """Assert an invalid reparam raises an error"""
+    ifp.reparam = "invalid"
+    with pytest.raises(
+        ValueError, match=r"Unknown reparameterisation: 'invalid'"
+    ):
+        IFP.from_prime(ifp, x_prime)
