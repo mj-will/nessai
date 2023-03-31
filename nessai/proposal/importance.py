@@ -10,6 +10,7 @@ import numpy as np
 from scipy.special import logsumexp
 
 from nessai.plot import plot_1d_comparison, plot_histogram, plot_live_points
+from nessai.utils.testing import assert_structured_arrays_equal
 
 from .base import Proposal
 from .. import config
@@ -81,22 +82,12 @@ class ImportanceFlowProposal(Proposal):
         self.dtype = get_dtype(self.model.names)
 
     @property
-    def total_samples_requested(self) -> float:
-        """Return the total number of samples requested"""
-        return np.sum(np.fromiter(self.n_requested.values(), int))
-
-    @property
     def total_samples_drawn(self) -> float:
         """Return the total number of samples requested"""
         return np.sum(np.fromiter(self.n_draws.values(), int))
 
-    @property
-    def normalisation_constant(self) -> float:
-        """Normalisation constant for the meta proposal."""
-        c = self.total_samples_drawn
-        if not c:
-            c = 1.0
-        return c
+    normalisation_constant = total_samples_drawn
+    """Normalisation constant for the meta proposal."""
 
     @property
     def unnormalised_weights(self) -> dict:
@@ -161,7 +152,7 @@ class ImportanceFlowProposal(Proposal):
             config=self.flow_config, output=self.output
         )
         self.flow.initialise()
-        return super().initialise()
+        super().initialise()
 
     def verify_rescaling(
         self, n: int = 1000, rtol: float = 1e-08, atol: float = 1e-08
@@ -185,12 +176,10 @@ class ImportanceFlowProposal(Proposal):
         x_prime, log_j = self.rescale(x_in)
         x_re, log_j_inv = self.inverse_rescale(x_prime)
 
-        for f in x_in.dtype.names:
-            if np.isnan(x_re[f]).all() and np.isnan(x_in[f]).all():
-                continue
-            eq = np.allclose(x_re[f], x_in[f], atol=atol, rtol=rtol)
-            if not eq:
-                raise RuntimeError(f"Rescaling is not invertible for: {f}")
+        try:
+            assert_structured_arrays_equal(x_re, x_in, atol=atol, rtol=rtol)
+        except AssertionError as e:
+            raise RuntimeError(f"Rescaling is not invertible. Error: {e}")
 
         if not np.allclose(log_j, -log_j_inv, atol=atol, rtol=rtol):
             raise RuntimeError(
@@ -790,7 +779,6 @@ class ImportanceFlowProposal(Proposal):
         )
 
         log_q = np.zeros((samples.size, self.n_proposals))
-        # Minus because log_j is compute from the inverse
         logger.debug("Computing log_q")
         if self.n_proposals > 1:
             log_q[:, 1:] = (
