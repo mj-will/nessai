@@ -210,7 +210,7 @@ class ImportanceFlowProposal(Proposal):
             x_prime = x.copy()
             log_j = np.zeros(x.shape[0])
         else:
-            raise ValueError(self.reparam)
+            raise ValueError(f"Unknown reparameterisation: '{self.reparam}'")
         return x_prime, log_j
 
     def from_prime(self, x_prime: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -236,7 +236,7 @@ class ImportanceFlowProposal(Proposal):
             x = x_prime.copy()
             log_j = np.zeros(x.shape[0])
         else:
-            raise ValueError(self.reparam)
+            raise ValueError(f"Unknown reparameterisation: '{self.reparam}'")
         return x, log_j
 
     def rescale(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
@@ -320,9 +320,9 @@ class ImportanceFlowProposal(Proposal):
                 log_weights -= logsumexp(log_weights)
                 weights = np.exp(log_weights)
             if np.isnan(weights).any():
-                raise ValueError("Weights contain NaNs")
+                raise ValueError("Weights contain NaN(s)")
             if not np.isfinite(weights).all():
-                raise ValueError("Weights contain Infs")
+                raise ValueError("Weights contain Inf(s)")
 
             if plot:
                 plot_histogram(
@@ -332,7 +332,7 @@ class ImportanceFlowProposal(Proposal):
             weights = None
 
         self.flow.add_new_flow(reset=self._reset_flow)
-        assert len(self.flow.models) == (self.level_count + 1)
+
         logger.info(f"Training with {x_prime.shape[0]} samples")
         self.flow.train(
             x_prime,
