@@ -8,7 +8,7 @@ import signal
 import sys
 import time
 from threading import Thread
-from unittest.mock import MagicMock, create_autospec, patch
+from unittest.mock import MagicMock, call, create_autospec, patch
 
 
 import h5py
@@ -460,7 +460,7 @@ def test_run_posterior_sampling_method_standard(flow_sampler, method):
     mock.assert_called_once_with("ns", log_w=log_w, method=method)
 
 
-def test_run_plots_disabled(flow_sampler):
+def test_run_standard_plots_disabled(flow_sampler):
     """Assert individual plots can be disabled when plot=True"""
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.nested_sampling_loop = MagicMock(return_value=("lZ", "ns"))
@@ -471,7 +471,7 @@ def test_run_plots_disabled(flow_sampler):
     with patch("nessai.flowsampler.draw_posterior_samples"), patch(
         "nessai.plot.plot_indices"
     ) as mock_indices, patch("nessai.plot.plot_live_points") as mock_post:
-        FlowSampler.run(
+        FlowSampler.run_standard_sampler(
             flow_sampler,
             plot=True,
             save=False,
@@ -483,6 +483,87 @@ def test_run_plots_disabled(flow_sampler):
     mock_indices.assert_not_called()
     mock_post.assert_not_called()
     flow_sampler.state.plot.assert_not_called()
+
+
+def test_run_ins(flow_sampler):
+    """Test running the importance nested sampler"""
+    flow_sampler.importance_nested_sampler = True
+
+    flow_sampler.close_pool = False
+    logZ = 0.0
+    logZ_err = 0.1
+    nested_samples = np.array([1, 2, 3])
+    post = np.array([1, 2])
+    ns = MagicMock()
+    ns.nested_sampling_loop = MagicMock(return_value=(logZ, nested_samples))
+    ns.state.log_evidence_error = logZ_err
+    ns.draw_posterior_samples = MagicMock(return_value=post)
+    flow_sampler.ns = ns
+
+    FlowSampler.run_importance_nested_sampler(
+        flow_sampler, redraw_samples=False, save=False, plot=False
+    )
+
+    ns.draw_posterior_samples.assert_called_once_with(
+        sampling_method="importance_sampling",
+        use_final_samples=False,
+    )
+
+    assert flow_sampler.logZ is logZ
+    assert flow_sampler.logZ_error is logZ_err
+    assert flow_sampler.initial_posterior_samples is post
+    assert flow_sampler.posterior_samples is post
+
+
+def test_run_ins_redraw(flow_sampler):
+    """Test running the importance nested sampler and redrawing samples"""
+    flow_sampler.importance_nested_sampler = True
+    flow_sampler.close_pool = False
+    logZ = 0.0
+    logZ_err = 0.1
+    final_logZ = 0.01
+    final_logZ_err = 0.11
+    nested_samples = np.array([1, 2, 3])
+    final_samples = np.array([4, 5, 6])
+    post = np.array([1, 2])
+    final_post = np.array([4, 5])
+    ns = MagicMock()
+    ns.nested_sampling_loop = MagicMock(return_value=(logZ, nested_samples))
+    ns.state.log_evidence_error = logZ_err
+    ns.final_log_evidence_error = final_logZ_err
+    ns.draw_posterior_samples = MagicMock(
+        side_effect=[post, final_post],
+    )
+    ns.draw_final_samples = MagicMock(return_value=(final_logZ, final_samples))
+    flow_sampler.ns = ns
+
+    FlowSampler.run_importance_nested_sampler(
+        flow_sampler,
+        redraw_samples=True,
+        save=False,
+        plot=False,
+        compute_initial_posterior=True,
+    )
+
+    assert ns.draw_posterior_samples.has_calls(
+        [
+            call(
+                sampling_method="importance_sampling", use_final_samples=False
+            ),
+            call(
+                sampling_method="importance_sampling", use_final_samples=True
+            ),
+        ],
+        any_order=False,
+    )
+
+    assert flow_sampler.initial_logZ is logZ
+    assert flow_sampler.initial_logZ_error is logZ_err
+    assert flow_sampler.initial_posterior_samples is post
+
+    assert flow_sampler.logZ is final_logZ
+    assert flow_sampler.logZ_error is final_logZ_err
+    assert flow_sampler.posterior_samples is final_post
 
 
 @pytest.mark.parametrize("test_class", [False, True])
