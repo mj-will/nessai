@@ -155,7 +155,7 @@ def test_delta_phase_reparameterise(delta_phase_reparam):
         delta_phase_reparam, x, x_prime, log_j
     )
     assert x_out == x
-    assert x_prime_out["delta_phase"] == 0.5
+    assert x_prime_out["delta_phase"] == 1.5
     assert log_j_out == 0
 
 
@@ -176,7 +176,7 @@ def test_delta_phase_inverse_reparameterise(delta_phase_reparam):
         delta_phase_reparam, x, x_prime, log_j
     )
     assert x_prime_out == x_prime
-    assert x["phase"] == 1.0
+    assert x["phase"] == 0.0
     assert log_j_out == 0
 
 
@@ -203,9 +203,15 @@ def test_delta_phase_inverse_invertible():
     x_prime["theta_jn"] = x["theta_jn"]
     log_j = np.zeros(n)
     x_f, x_prime_f, log_j_f = reparam.reparameterise(x, x_prime, log_j)
+
+    x_in = x_f.copy()
+    x_in["phase"] = np.nan
+
     assert_structured_arrays_equal(x_f, x)
     np.testing.assert_array_equal(log_j_f, log_j)
-    x_i, x_prime_i, log_j_i = reparam.reparameterise(x_f, x_prime_f, log_j_f)
+    x_i, x_prime_i, log_j_i = reparam.inverse_reparameterise(
+        x_in, x_prime_f.copy(), log_j_f.copy()
+    )
     assert_structured_arrays_equal(x_prime_i, x_prime_f)
-    assert_structured_arrays_equal(x_i, x)
+    assert_structured_arrays_equal(x_i, x, rtol=1e-15)
     np.testing.assert_array_equal(log_j_i, log_j_f)
