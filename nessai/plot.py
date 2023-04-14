@@ -572,7 +572,7 @@ def corner_plot(
         smooth=0.9,
         color=config.plotting.base_colour,
         truth_color=config.plotting.highlight_colour,
-        quantiles=[0.16, 0.84],
+        quantiles=[0.16, 0.5, 0.84],
         levels=(1 - np.exp(-0.5), 1 - np.exp(-2), 1 - np.exp(-9 / 2.0)),
         plot_density=True,
         plot_datapoints=True,
