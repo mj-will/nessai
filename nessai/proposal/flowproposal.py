@@ -704,7 +704,7 @@ class FlowProposal(RejectionProposal):
 
         self.names = self._reparameterisation.parameters
         self.rescaled_names = self._reparameterisation.prime_parameters
-        self.rescale_parameters = [
+        self.parameters_to_rescale = [
             p
             for p in self._reparameterisation.parameters
             if p not in self._reparameterisation.prime_parameters
@@ -740,7 +740,7 @@ class FlowProposal(RejectionProposal):
         self.configure_reparameterisations(self.reparameterisations)
 
         logger.info(f"x space parameters: {self.names}")
-        logger.info(f"parameters to rescale: {self.rescale_parameters}")
+        logger.info(f"parameters to rescale: {self.parameters_to_rescale}")
         logger.info(f"x prime space parameters: {self.rescaled_names}")
         self.rescaling_set = True
 
@@ -911,7 +911,7 @@ class FlowProposal(RejectionProposal):
                 filename=os.path.join(output, "x_generated.png"),
             )
 
-        if self.rescale_parameters:
+        if self.parameters_to_rescale:
             if self._plot_training == "all":
                 plot_live_points(
                     self.training_data_prime,
