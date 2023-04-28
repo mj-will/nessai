@@ -7,6 +7,7 @@ import pytest
 
 from nessai.utils.structures import (
     array_split_chunksize,
+    get_inverse_indices,
     get_subset_arrays,
     isfinite_struct,
     replace_in_list,
@@ -135,3 +136,31 @@ def test_array_split_chunksize_invalid_chunksize():
     """Assert an error is returned if the chunksize is less than one"""
     with pytest.raises(ValueError, match="chunksize must be greater than 1"):
         array_split_chunksize(np.array([1, 2]), -1)
+
+
+def test_get_inverse_indices():
+    """Assert the correct indices are returned"""
+    indices = np.array([1, 2, 3])
+    n = 5
+    expected = np.array([0, 4])
+    out = get_inverse_indices(n, indices)
+    np.testing.assert_array_equal(out, expected)
+
+
+def test_get_inverse_indices_empty_inverse():
+    """Assert an empty array is returned in the indices are complete"""
+    indices = np.array([0, 1, 2, 3, 4])
+    n = 5
+    expected = np.array([])
+    out = get_inverse_indices(n, indices)
+    np.testing.assert_array_equal(out, expected)
+
+
+def test_get_inverse_indices_invalid_n():
+    """Assert"""
+    indices = np.array([0, 1, 4])
+    n = 4
+    with pytest.raises(
+        ValueError, match=r"Indices contain values that are out of range for n"
+    ):
+        get_inverse_indices(n, indices)
