@@ -97,3 +97,11 @@ def array_split_chunksize(x, chunksize):
     if chunksize < 1:
         raise ValueError("chunksize must be greater than 1")
     return np.array_split(x, range(chunksize, len(x), chunksize))
+
+
+def get_inverse_indices(n, indices):
+    """Return the indices that are not in input array given a size n"""
+    if indices.max() >= n:
+        raise ValueError("Indices contain values that are out of range for n")
+    inv = np.arange(n, dtype=int)
+    return inv[~np.in1d(inv, indices)]
