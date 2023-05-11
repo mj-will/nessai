@@ -39,14 +39,15 @@ def get_n_pool(pool):
 def check_multiprocessing_start_method():
     """Check the multiprocessing start method.
 
-    Raise an error if the start method is not `fork`.
+    Raise an error if the start method is not `fork` or `forkserver`.
     """
     start_method = multiprocessing.get_start_method()
-    if start_method != "fork":
+    if start_method not in ["fork", "forkserver"]:
         raise RuntimeError(
-            "nessai only supports multiprocessing using the 'fork' start "
-            f"method. Actual start method is: {start_method}. See the "
-            "multiprocessing documentation for more details."
+            "nessai only supports multiprocessing using the 'fork' or "
+            "'forkserver' start methods. Actual start method "
+            f"is: {start_method}. See the multiprocessing documentation for "
+            "more details."
         )
 
 
