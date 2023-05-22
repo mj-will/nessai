@@ -38,7 +38,8 @@ def test_training_plots(proposal, tmpdir, plot):
         array["logL"] = 0.0
 
     proposal.dims = 2
-    proposal.rescale_parameters = names
+    proposal.rescale_parameters = True
+    proposal.parameters_to_rescale = names
     proposal.rescaled_names = prime_names
 
     proposal.forward_pass = MagicMock(return_value=(z, None))

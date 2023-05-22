@@ -116,7 +116,6 @@ def test_training(proposal, tmpdir, save, plot, plot_training):
     proposal.populated = True
     proposal._plot_training = plot_training
     proposal.save_training_data = save
-    proposal.rescale_parameters = ["x"]
     proposal.rescaled_names = ["x_prime", "y_prime"]
     proposal.output = output
 

@@ -92,6 +92,8 @@ def test_flowproposal_populate_edge_cases(
     )
 
     fp.initialise()
+    assert fp.rescale_parameters is False
+    assert fp.parameters_to_rescale == []
     worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.names)
     fp.populate(worst, N=n_draw)
 
