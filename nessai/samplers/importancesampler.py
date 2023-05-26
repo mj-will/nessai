@@ -638,8 +638,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.info(f"Next level should remove {n} points")
         return n
 
-    def update_level(self):
-        """Update the current likelihood contour"""
+    def add_new_proposal(self):
+        """Add a new proposal to the meta proposal"""
         st = timer()
 
         # Implicitly includes all samples
@@ -668,7 +668,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             weights=weights,
         )
         self.training_time += timer() - st
-        return True
 
     def draw_n_samples(self, n: int):
         """Draw n points from the proposal"""
@@ -1104,7 +1103,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.logL_threshold = self.live_points[n_remove]["logL"].copy()
             logger.info(f"Log-likelihood threshold: {self.logL_threshold}")
             self.remove_points(n_remove)
-            updated = self.update_level()
+            updated = self.add_new_proposal()
             if not updated:
                 logger.warning("Stopping")
                 break
