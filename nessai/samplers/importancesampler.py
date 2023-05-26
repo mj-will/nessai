@@ -32,7 +32,7 @@ from ..utils.stats import (
     effective_sample_size,
     weighted_quantile,
 )
-from ..utils.structures import get_subset_arrays
+from ..utils.structures import get_subset_arrays, get_inverse_indices
 
 logger = logging.getLogger(__name__)
 
@@ -211,9 +211,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             check_criteria,
         )
 
-        self.nested_samples = np.empty(0, dtype=get_dtype(self.model.names))
-        self._log_q_ns = None
-        self._log_q_lp = None
+        self.samples = np.empty(0, dtype=get_dtype(self.model.names))
+        self.log_q = None
+        self.live_points_indices = None
+        self.nested_samples_indices = np.empty(0, dtype=int)
 
         self.training_time = 0.0
         self.draw_samples_time = 0.0
@@ -279,7 +280,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         where :math:`W(x) = \\pi(x)/Q(x)`.
         """
-        return differential_entropy(self.all_samples["logW"])
+        return differential_entropy(self.samples["logW"])
 
     @property
     def current_proposal_entropy(self) -> float:
@@ -287,12 +288,26 @@ class ImportanceNestedSampler(BaseNestedSampler):
         return self._current_proposal_entropy
 
     @property
-    def all_samples(self) -> np.ndarray:
-        """Return the live points + nested samples"""
-        if self.live_points is not None:
-            return np.concatenate([self.nested_samples, self.live_points])
+    def live_points(self) -> np.ndarray:
+        """The current set of live points"""
+        if self.live_points_indices is None:
+            return None
         else:
-            return self.nested_samples.copy()
+            return self.samples[self.live_points_indices]
+
+    @live_points.setter
+    def live_points(self, value):
+        if value is not None:
+            raise ValueError("Can only set live points to None!")
+        self.live_points_indices = None
+
+    @property
+    def nested_samples(self) -> np.ndarray:
+        """The current set of discarded points"""
+        if self.nested_samples_indices is None:
+            return None
+        else:
+            return self.samples[self.nested_samples_indices]
 
     @property
     def reached_tolerance(self) -> bool:
@@ -445,8 +460,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         # Since log_Q is computed in the unit-cube
         live_points["logQ"] = np.zeros(live_points.size)
         live_points["logW"] = -live_points["logQ"]
-        self.live_points = self.sort_points(live_points)
-        self._log_q_lp = np.zeros([live_points.size, 1])
+        self.samples = self.sort_points(live_points)
+        self.live_points_indices = np.arange(live_points.size, dtype=int)
+        self.log_q = np.zeros([live_points.size, 1])
 
     def initialise(self) -> None:
         """Initialise the nested sampler.
@@ -625,62 +641,34 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def update_level(self):
         """Update the current likelihood contour"""
         st = timer()
+
+        # Implicitly includes all samples
+        n_train = np.argmax(self.samples["logL"] >= self.logL_threshold)
+        self.training_samples = self.samples[n_train:].copy()
+        self.training_log_q = self.log_q[n_train:, :].copy()
+
         logger.debug("Updating the contour")
         logger.debug(
             "Training data ESS: "
-            f"{effective_sample_size(self.training_points['logW'])}"
+            f"{effective_sample_size(self.training_samples['logW'])}"
         )
 
         if self.replace_all:
             weights = -np.exp(self.training_log_q[:, -1])
         elif self.weighted_kl:
-            log_w = self.training_points["logW"].copy()
+            log_w = self.training_samples["logW"].copy()
             log_w -= logsumexp(log_w)
             weights = np.exp(log_w)
         else:
             weights = None
 
         self.proposal.train(
-            self.training_points,
+            self.training_samples,
             plot=self.plot_training_data,
             weights=weights,
         )
         self.training_time += timer() - st
         return True
-
-    def update_live_points(
-        self,
-        live_points: Optional[np.ndarray] = None,
-        log_q: Optional[np.ndarray] = None,
-    ) -> None:
-        st = timer()
-        if live_points is None:
-            logger.debug("Updating existing live points")
-            if self.live_points is None:
-                logger.warning("No live points to update!")
-                return None
-            else:
-                live_points = self.live_points
-                log_q = self._log_q_lp
-        if len(live_points) != len(log_q):
-            raise ValueError("Inputs are not the same length")
-        log_q = self.proposal.update_samples(live_points, log_q)
-        self.add_and_update_samples_time += timer() - st
-        return log_q
-
-    def update_nested_samples(self) -> None:
-        """Update the nested samples to reflect the current g."""
-        st = timer()
-        logger.debug("Updating all nested samples")
-        # This uses less memory
-        self._log_q_ns = self.proposal._update_log_q(
-            self.nested_samples, self._log_q_ns
-        )
-        self.nested_samples[
-            "logQ"
-        ] = self.proposal._compute_meta_proposal_from_log_q(self._log_q_ns)
-        self.nested_samples["logW"] = -self.nested_samples["logQ"]
-        self.add_and_update_samples_time += timer() - st
 
     def draw_n_samples(self, n: int):
         """Draw n points from the proposal"""
@@ -733,21 +721,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
             return (samples["logL"] < self.logL_threshold).sum() / samples.size
 
     def compute_importance(self, G=0.5):
-        samples = self.all_samples
-        log_q_i = np.concatenate([self._log_q_ns, self._log_q_lp], axis=0)
-        assert len(log_q_i) == len(samples)
-        imp_post = np.empty(log_q_i.shape[1])
-        imp_z = np.empty(log_q_i.shape[1])
-        for i, it in enumerate(range(-1, log_q_i.shape[-1] - 1)):
-            sidx = np.where(samples["it"] == it)[0]
-            zidx = np.where(samples["it"] >= it)[0]
+        imp_post = np.empty(self.log_q.shape[1])
+        imp_z = np.empty(self.log_q.shape[1])
+        for i, it in enumerate(range(-1, self.log_q.shape[-1] - 1)):
+            sidx = np.where(self.samples["it"] == it)[0]
+            zidx = np.where(self.samples["it"] >= it)[0]
             assert len(sidx) > 0
             imp_post[i] = np.exp(
-                logsumexp(samples["logL"][sidx] + samples["logW"][sidx])
+                logsumexp(
+                    self.samples["logL"][sidx] + self.samples["logW"][sidx]
+                )
                 - np.log(len(sidx))
             )
             imp_z[i] = np.exp(
-                logsumexp(samples["logL"][zidx] + samples["logW"][zidx])
+                logsumexp(
+                    self.samples["logL"][zidx] + self.samples["logW"][zidx]
+                )
                 - np.log(len(zidx))
             )
         imp_z /= imp_z.sum()
@@ -765,65 +754,79 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         st = timer()
         logger.debug(f"Adding {n} points")
-        new_points, log_q = self.draw_n_samples(n)
-        new_points, log_q = self.sort_points(new_points, log_q)
+        new_samples, log_q = self.draw_n_samples(n)
+        new_samples, log_q = self.sort_points(new_samples, log_q)
         self._current_proposal_entropy = differential_entropy(-log_q[:, -1])
-        new_points["it"] = self.iteration
-        logger.debug(
-            "New samples ESS: " f"{effective_sample_size(new_points['logW'])}"
-        )
+        new_samples["it"] = self.iteration
 
-        self._log_q_lp = self.update_live_points()
-        self.update_nested_samples()
-        self.history["n_added"].append(new_points.size)
+        logger.debug(
+            "New samples ESS: " f"{effective_sample_size(new_samples['logW'])}"
+        )
 
         if self.plot and self.plot_pool:
             plot_1d_comparison(
-                self.training_points,
-                new_points,
+                self.training_samples,
+                new_samples,
                 filename=os.path.join(
                     self.output, "levels", f"pool_{self.iteration}.png"
                 ),
             )
-        logger.debug("Adding all points to the live points.")
-        if self.live_points is None:
-            self.live_points = new_points
-            self._log_q_lp = log_q
-        else:
-            idx = np.searchsorted(self.live_points["logL"], new_points["logL"])
-            self.live_points = np.insert(self.live_points, idx, new_points)
-            self._log_q_lp = np.insert(self._log_q_lp, idx, log_q, axis=0)
 
-        self.history["n_live"].append(self.live_points.size)
-        self.live_points_ess = effective_sample_size(self.live_points["logW"])
+        self.log_q = self.proposal._update_log_q(self.samples, self.log_q)
+        self.samples["logQ"] = self.proposal._compute_meta_proposal_from_log_q(
+            self.log_q
+        )
+        self.samples["logW"] = -self.samples["logQ"]
+
+        self.history["n_added"].append(new_samples.size)
+
+        # Insert samples into existing samples
+        indices = np.searchsorted(self.samples["logL"], new_samples["logL"])
+        self.samples = np.insert(self.samples, indices, new_samples)
+        self.log_q = np.insert(self.log_q, indices, log_q, axis=0)
+
+        # Indices after insertion are indices + n before
+        new_indices = indices + np.arange(len(indices))
+
+        # Indices of all previous samples
+        old_indices = get_inverse_indices(self.samples.size, new_indices)
+
+        if len(old_indices) != (self.samples.size - n):
+            raise RuntimeError("Mismatch in updated_indices!")
+
+        # Updated indices of nested samples
+        self.nested_samples_indices = old_indices[self.nested_samples_indices]
+
+        if self.live_points_indices is None:
+            self.live_points_indices = new_indices
+        else:
+            self.live_points_indices = old_indices[self.live_points_indices]
+            insert_indices = np.searchsorted(
+                self.live_points_indices, new_indices
+            )
+            self.live_points_indices = np.insert(
+                self.live_points_indices,
+                insert_indices,
+                new_indices,
+            )
+
+        live_points = self.live_points
+        self.history["n_live"].append(live_points.size)
+        self.live_points_ess = effective_sample_size(live_points["logW"])
         self.history["leakage_live_points"].append(
-            self.compute_leakage(self.live_points)
+            self.compute_leakage(live_points)
         )
         logger.debug(f"Current live points ESS: {self.live_points_ess:.2f}")
         self.add_and_update_samples_time += timer() - st
 
-    def add_to_nested_samples(
-        self,
-        samples: np.ndarray,
-        log_q: Optional[np.ndarray] = None,
-    ) -> None:
+    def add_to_nested_samples(self, indices: np.ndarray) -> None:
         """Add an array of samples to the nested samples."""
-        indices = np.searchsorted(self.nested_samples["logL"], samples["logL"])
-        self.nested_samples = np.insert(
-            self.nested_samples,
+        sort_indices = np.searchsorted(self.nested_samples_indices, indices)
+        self.nested_samples_indices = np.insert(
+            self.nested_samples_indices,
+            sort_indices,
             indices,
-            samples,
         )
-        if log_q is not None:
-            if self._log_q_ns is None:
-                self._log_q_ns = log_q
-            else:
-                self._log_q_ns = np.insert(
-                    self._log_q_ns,
-                    indices,
-                    log_q,
-                    axis=0,
-                )
 
     def remove_points(self, n: int) -> None:
         """Remove points from the current set of live points.
@@ -842,28 +845,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(f"Removing {n} points")
 
         if self.replace_all:
-            self.add_to_nested_samples(self.live_points, self._log_q_lp)
-            self.training_points = self.live_points[n:].copy()
-            self.training_log_q = self._log_q_lp[n:].copy()
-            self.live_points = None
-            self._log_q_lp = None
+            self.add_to_nested_samples(self.live_points_indices)
+            self.live_points_indices = None
         else:
-            self.add_to_nested_samples(
-                self.live_points[:n], self._log_q_lp[:n]
-            )
-            self.live_points = np.delete(self.live_points, np.s_[:n])
-            self._log_q_lp = np.delete(self._log_q_lp, np.s_[:n], axis=0)
-            self.training_points = self.live_points.copy()
-
-        if self.logL_threshold < self.nested_samples["logL"][-1]:
-            logger.info("Adding previous samples above threshold")
-            n_t = np.argmax(self.nested_samples["logL"] > self.logL_threshold)
-            extra_points = self.nested_samples[n_t:]
-            self.training_points = np.concatenate(
-                [
-                    self.training_points,
-                    extra_points,
-                ]
+            self.add_to_nested_samples(self.live_points_indices[:n])
+            self.live_points_indices = np.delete(
+                self.live_points_indices, np.s_[:n]
             )
 
     def adjust_final_samples(self, n_batches=5):
@@ -879,9 +866,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(f"Final weights: {weights}")
         logger.debug(f"Final its: {list(self.proposal.n_requested.keys())}")
 
-        sort_idx = np.argsort(self.nested_samples, order="it")
-        samples = self.nested_samples[sort_idx].copy()
-        log_q = self._log_q_ns[sort_idx].copy()
+        sort_idx = np.argsort(self.samples, order="it")
+        samples = self.samples[sort_idx].copy()
+        log_q = self.log_q[sort_idx].copy()
         n_total = samples.size
 
         # This changes the proposal because the number of samples changes
@@ -967,12 +954,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         if self._train_final_flow:
             self.train_final_flow()
 
-        self.add_to_nested_samples(self.live_points, self._log_q_lp)
+        self.add_to_nested_samples(self.live_points_indices)
         self.live_points = None
-        self.state.update_evidence(
-            self.nested_samples,
-            live_points=self.live_points,
-        )
+        self.state.update_evidence(self.samples)
 
         if self.bootstrap:
             self.adjust_final_samples()
@@ -1198,8 +1182,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             return np.inf
         # logQ is computed on the unit hyper-cube where the prior is 1/1^n
         # so logP = 0
-        log_q = self.all_samples["logL"]
-        log_p = self.all_samples["logQ"]
+        log_q = self.samples["logL"].copy()
+        log_p = self.samples["logQ"].copy()
         log_q -= logsumexp(log_q)
         log_p -= logsumexp(log_p)
         # TODO: Think about if p and q are correct.
@@ -1724,23 +1708,19 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         fig, axs = plt.subplots(n, 1, sharex=True, figsize=(5, 2 * n))
 
-        samples = self.all_samples
-
-        log_w = samples["logW"]
-
         if enable_colours:
             colour_kwargs = dict(
-                c=samples["it"],
+                c=self.samples["it"],
                 vmin=-1,
-                vmax=samples["it"].max(),
+                vmax=self.samples["it"].max(),
             )
         else:
             colour_kwargs = {}
 
         for ax, p in zip(axs, parameters):
             ax.scatter(
-                log_w,
-                samples[p],
+                self.samples["logW"],
+                self.samples[p],
                 s=1.0,
                 **colour_kwargs,
             )
@@ -1771,19 +1751,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
         cmap
             Name of colourmap to use. Must be a valid colourmap in matplotlib.
         """
-        samples = self.all_samples
-        its = np.unique(samples["it"])
+        its = np.unique(self.samples["it"])
         colours = plt.get_cmap(cmap)(np.linspace(0, 1, len(its)))
-        vmax = np.max(samples["logL"])
+        vmax = np.max(self.samples["logL"])
         vmin = min(
-            vmax - 0.10 * np.ptp(samples["logL"]),
-            samples["logL"][samples["it"] == its[-1]].min(),
+            vmax - 0.10 * np.ptp(self.samples["logL"]),
+            self.samples["logL"][self.samples["it"] == its[-1]].min(),
         )
 
         fig, axs = plt.subplots(1, 2)
         for ax in axs:
             for it, c in zip(its, colours):
-                data = samples["logL"][samples["it"] == it]
+                data = self.samples["logL"][self.samples["it"] == it]
                 ax.hist(
                     data,
                     auto_bins(data, max_bins=50),
