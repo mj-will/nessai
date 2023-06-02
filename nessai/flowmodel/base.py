@@ -220,7 +220,13 @@ class FlowModel:
         return batch_size
 
     def prep_data(
-        self, samples, val_size, batch_size, weights=None, use_dataloader=False
+        self,
+        samples,
+        val_size,
+        batch_size,
+        weights=None,
+        use_dataloader=False,
+        conditional=None,
     ):
         """
         Prep data and return dataloaders for training
@@ -251,6 +257,12 @@ class FlowModel:
         if not np.isfinite(samples).all():
             raise ValueError("Cannot train with non-finite samples!")
 
+        if weights is not None and conditional is not None:
+            raise RuntimeError("weights and conditional inputs not supported")
+
+        if weights or conditional:
+            use_dataloader = False
+
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
         if weights is not None:
@@ -269,6 +281,9 @@ class FlowModel:
         if weights is not None:
             weights_train = weights[:n]
             weights_val = weights[n:]
+        if conditional is not None:
+            conditional_train = conditional[:n]
+            conditional_val = conditional[n:]
         logger.debug(f"{x_train.shape} training samples")
         logger.debug(f"{x_val.shape} validation samples")
 
@@ -295,6 +310,14 @@ class FlowModel:
                     torch.from_numpy(weights_train).type(dtype)
                 )
                 val_tensors.append(torch.from_numpy(weights_val).type(dtype))
+
+            if conditional is not None:
+                train_tensors.append(
+                    torch.from_numpy(conditional_train).type(dtype)
+                )
+                val_tensors.append(
+                    torch.from_numpy(conditional_val).type(dtype)
+                )
 
             train_dataset = torch.utils.data.TensorDataset(*train_tensors)
             train_data = torch.utils.data.DataLoader(
@@ -329,6 +352,7 @@ class FlowModel:
         noise_scale=0.0,
         is_dataloader=False,
         weighted=False,
+        is_conditional=False,
     ):
         """
         Loop over the data and update the weights
@@ -366,8 +390,8 @@ class FlowModel:
 
         else:
 
-            def loss_fn(data):
-                return -model.log_prob(data).mean()
+            def loss_fn(data, conditional):
+                return -model.log_prob(data, conditional).mean()
 
         if not is_dataloader:
             p = torch.randperm(train_data.shape[0])
@@ -387,7 +411,11 @@ class FlowModel:
                 weights = data[1].to(self.device)
                 loss = loss_fn(x, weights)
             else:
-                loss = loss_fn(x)
+                if is_conditional:
+                    conditional = data[1].to(self.device)
+                else:
+                    conditional = None
+                loss = loss_fn(x, conditional)
             train_loss += loss.item()
             loss.backward()
             if self.clip_grad_norm:
@@ -402,7 +430,13 @@ class FlowModel:
 
         return train_loss / n
 
-    def _validate(self, val_data, is_dataloader=False, weighted=False):
+    def _validate(
+        self,
+        val_data,
+        is_dataloader=False,
+        weighted=False,
+        is_conditional=False,
+    ):
         """
         Loop over the data and get validation loss
 
@@ -438,8 +472,8 @@ class FlowModel:
 
         else:
 
-            def loss_fn(data):
-                return -model.log_prob(data).mean()
+            def loss_fn(data, conditional):
+                return -model.log_prob(data, conditional).mean()
 
         if is_dataloader:
             n = 0
@@ -451,14 +485,18 @@ class FlowModel:
                     with torch.inference_mode():
                         val_loss += loss_fn(x, weights).item()
                 else:
+                    if is_conditional:
+                        conditional = data[1].to(self.device)
+                    else:
+                        conditional = None
                     with torch.inference_mode():
-                        val_loss += loss_fn(x).item()
+                        val_loss += loss_fn(x, conditional).item()
                 n += 1
 
             return val_loss / n
         else:
             with torch.inference_mode():
-                val_loss += loss_fn(val_data).item()
+                val_loss += loss_fn(val_data, None).item()
             return val_loss
 
     def finalise(self):
@@ -470,6 +508,7 @@ class FlowModel:
         self,
         samples,
         weights=None,
+        conditional=None,
         max_epochs=None,
         patience=None,
         output=None,
@@ -545,6 +584,7 @@ class FlowModel:
         self.move_to(self.device)
 
         weighted = True if weights is not None else False
+        is_conditional = True if conditional is not None else False
         use_dataloader = self.use_dataloader or weighted
 
         train_data, val_data, _ = self.prep_data(
@@ -552,6 +592,7 @@ class FlowModel:
             val_size=val_size,
             batch_size=self.batch_size,
             weights=weights,
+            conditional=conditional,
             use_dataloader=use_dataloader,
         )
 
@@ -583,11 +624,13 @@ class FlowModel:
                 noise_scale=noise_scale,
                 is_dataloader=use_dataloader,
                 weighted=weighted,
+                is_conditional=is_conditional,
             )
             val_loss = self._validate(
                 val_data,
                 is_dataloader=use_dataloader,
                 weighted=weighted,
+                is_conditional=is_conditional,
             )
             history["loss"].append(loss)
             history["val_loss"].append(val_loss)
