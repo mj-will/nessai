@@ -1103,10 +1103,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.logL_threshold = self.live_points[n_remove]["logL"].copy()
             logger.info(f"Log-likelihood threshold: {self.logL_threshold}")
             self.remove_points(n_remove)
-            updated = self.add_new_proposal()
-            if not updated:
-                logger.warning("Stopping")
-                break
+
+            self.add_new_proposal()
+
             if self.draw_constant or self.replace_all:
                 n_add = self.nlive
             else:
