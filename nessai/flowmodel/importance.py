@@ -45,7 +45,6 @@ class ImportanceFlowModel(FlowModel):
 
     @model.setter
     def model(self, model):
-        logger.info("In the setter")
         if model is not None:
             self.models.append(model)
 
