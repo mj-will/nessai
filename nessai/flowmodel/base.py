@@ -260,15 +260,15 @@ class FlowModel:
         if weights is not None and conditional is not None:
             raise RuntimeError("weights and conditional inputs not supported")
 
-        if weights or conditional:
-            use_dataloader = False
-
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
         if weights is not None:
             if not np.isfinite(weights).all():
                 raise ValueError("Weights contain non-finite values!")
             weights = weights[idx]
+            use_dataloader = True
+        if conditional is not None:
+            conditional = conditional[idx]
             use_dataloader = True
 
         logger.debug("N input samples: {}".format(len(samples)))
@@ -585,7 +585,7 @@ class FlowModel:
 
         weighted = True if weights is not None else False
         is_conditional = True if conditional is not None else False
-        use_dataloader = self.use_dataloader or weighted
+        use_dataloader = self.use_dataloader or weighted or is_conditional
 
         train_data, val_data, _ = self.prep_data(
             samples,
