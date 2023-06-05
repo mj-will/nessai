@@ -157,6 +157,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.criterion = None
         self._stop_any = None
         self._current_proposal_entropy = None
+        self.importance = dict(total=None, posterior=None, evidence=None)
 
         self.n_initial = self.nlive if n_initial is None else n_initial
         self.min_samples = min_samples
@@ -719,29 +720,36 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return (samples["logL"] < self.logL_threshold).sum() / samples.size
 
-    def compute_importance(self, G=0.5):
-        imp_post = np.empty(self.log_q.shape[1])
-        imp_z = np.empty(self.log_q.shape[1])
+    def compute_importance(self, G: float = 0.5):
+        """Compute the importance
+
+        Parameters
+        ----------
+        G :
+            relative importance of the posterior versus the evidence. G=1 is
+            only the posterior and G=0 is only the evidence,
+
+        Returns
+        -------
+        dict
+            Dictionary containing the total, posterior and evidence importance
+            as a function of iteration.
+        """
+        log_imp_post = np.empty(self.log_q.shape[1])
+        log_imp_z = np.empty(self.log_q.shape[1])
         for i, it in enumerate(range(-1, self.log_q.shape[-1] - 1)):
             sidx = np.where(self.samples["it"] == it)[0]
             zidx = np.where(self.samples["it"] >= it)[0]
-            assert len(sidx) > 0
-            imp_post[i] = np.exp(
-                logsumexp(
-                    self.samples["logL"][sidx] + self.samples["logW"][sidx]
-                )
-                - np.log(len(sidx))
-            )
-            imp_z[i] = np.exp(
-                logsumexp(
-                    self.samples["logL"][zidx] + self.samples["logW"][zidx]
-                )
-                - np.log(len(zidx))
-            )
-        imp_z /= imp_z.sum()
-        imp_post /= imp_post.sum()
+            log_imp_post[i] = logsumexp(
+                self.samples["logL"][sidx] + self.samples["logW"][sidx]
+            ) - np.log(len(sidx))
+            log_imp_z[i] = logsumexp(
+                self.samples["logL"][zidx] + self.samples["logW"][zidx]
+            ) - np.log(len(zidx))
+        imp_z = np.exp(log_imp_z - logsumexp(log_imp_z))
+        imp_post = np.exp(log_imp_post - logsumexp(log_imp_post))
         imp = (1 - G) * imp_z + G * imp_post
-        return imp, imp_post, imp_z
+        return {"total": imp, "posterior": imp_post, "evidence": imp_z}
 
     def add_and_update_points(self, n: int):
         """Add new points to the current set of live points.
@@ -1112,9 +1120,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 n_add = n_remove
             self.add_and_update_points(n_add)
 
-            self.imp, self.imp_post, self.imp_z = self.compute_importance(
-                G=0.5
-            )
+            self.importance = self.compute_importance(G=0.5)
 
             self.state.update_evidence(self.nested_samples, self.live_points)
             self.iteration += 1
@@ -1538,9 +1544,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         m += 1
 
         its_start = np.arange(-1, self.iteration)
-        ax[m].plot(its_start, self.imp, label="Importance")
-        ax[m].plot(its_start, self.imp_post, label="Posterior")
-        ax[m].plot(its_start, self.imp_z, label="Evidence")
+        ax[m].plot(its_start, self.importance["total"], label="Total")
+        ax[m].plot(its_start, self.importance["posterior"], label="Posterior")
+        ax[m].plot(its_start, self.importance["evidence"], label="Evidence")
         ax[m].legend()
         ax[m].set_ylabel("Level importance")
 
