@@ -1739,7 +1739,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return fig
 
-    @nessai_style()
+    @nessai_style(line_styles=False)
     def plot_likelihood_levels(
         self,
         filename: Optional[str] = None,
@@ -1758,15 +1758,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
         its = np.unique(self.samples["it"])
         colours = plt.get_cmap(cmap)(np.linspace(0, 1, len(its)))
         vmax = np.max(self.samples["logL"])
-        vmin = min(
-            vmax - 0.10 * np.ptp(self.samples["logL"]),
-            self.samples["logL"][self.samples["it"] == its[-1]].min(),
-        )
+        vmin = np.ma.masked_invalid(
+            self.samples["logL"][self.samples["it"] == its[-1]]
+        ).min()
+        xmins = [None, vmin]
 
         fig, axs = plt.subplots(1, 2)
-        for ax in axs:
+        for ax, xmin in zip(axs, xmins):
             for it, c in zip(its, colours):
                 data = self.samples["logL"][self.samples["it"] == it]
+                data = data[np.isfinite(data)]
+                if xmin:
+                    data = data[data >= xmin]
                 ax.hist(
                     data,
                     auto_bins(data, max_bins=50),
