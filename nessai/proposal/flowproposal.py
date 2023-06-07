@@ -466,10 +466,17 @@ class FlowProposal(RejectionProposal):
         """Configure using constant volume latent contour."""
         if self.constant_volume_mode:
             logger.debug("Configuring constant volume latent contour")
-            if not self.latent_prior == "truncated_gaussian":
+            if self.latent_prior == "truncated_gaussian":
+                pass
+            elif self.latent_prior in ["uniform_nball", "uniform_nsphere"]:
+                logger.warning(
+                    "Constant volume mode with latent_prior="
+                    f"{self.latent_prior} is experimental!"
+                )
+            else:
                 raise RuntimeError(
-                    "Constant volume requires "
-                    "`latent_prior='truncated_gaussian'`"
+                    "Constant volume mode is not supported for latent_prior="
+                    f"{self.latent_prior}"
                 )
             self.fixed_radius = compute_radius(
                 self.rescaled_dims, self.volume_fraction
