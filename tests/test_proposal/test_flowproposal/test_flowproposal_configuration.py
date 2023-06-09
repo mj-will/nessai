@@ -110,12 +110,16 @@ def test_configure_latent_prior_unknown(proposal):
     assert "Unknown latent prior: truncated, " in str(excinfo.value)
 
 
-def test_configure_constant_volume(proposal):
+@pytest.mark.parametrize(
+    "latent_prior",
+    ["truncated_gaussian", "uniform_nball", "uniform_nsphere"],
+)
+def test_configure_constant_volume(proposal, latent_prior):
     """Test configuration for constant volume mode."""
     proposal.constant_volume_mode = True
     proposal.volume_fraction = 0.95
     proposal.rescaled_dims = 5
-    proposal.latent_prior = "truncated_gaussian"
+    proposal.latent_prior = latent_prior
     proposal.max_radius = 3.0
     proposal.min_radius = 5.0
     proposal.fuzz = 1.5
@@ -142,12 +146,11 @@ def test_constant_volume_invalid_latent_prior(proposal):
     """Assert an error is raised if the latent prior is not a truncated \
         Gaussian
     """
-    err = "Constant volume requires `latent_prior='truncated_gaussian'`"
+    err = "Constant volume mode is not supported for latent_prior=gaussian"
     proposal.constant_volume_mode = True
     proposal.latent_prior = "gaussian"
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(RuntimeError, match=err):
         FlowProposal.configure_constant_volume(proposal)
-    assert str(excinfo.value) == err
 
 
 def test_update_flow_proposal(proposal):
