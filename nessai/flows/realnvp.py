@@ -69,6 +69,8 @@ class RealNVP(NFlow):
     actnorm : bool
         Include activation normalisation as described in arXiv:1807.03039.
         Batch norm between layers must be disabled if using this option.
+    kwargs :
+        Keyword arguments are passed to the coupling class.
     """
 
     def __init__(
@@ -90,6 +92,7 @@ class RealNVP(NFlow):
         pre_transform_kwargs=None,
         actnorm=False,
         distribution=None,
+        **kwargs,
     ):
 
         if features <= 1:
@@ -193,7 +196,9 @@ class RealNVP(NFlow):
                     create_linear_transform(linear_transform, features)
                 )
             transform = coupling_constructor(
-                mask=mask[i], transform_net_create_fn=create_net
+                mask=mask[i],
+                transform_net_create_fn=create_net,
+                **kwargs,
             )
             layers.append(transform)
             if batch_norm_between_layers:
