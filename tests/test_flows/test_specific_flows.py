@@ -27,6 +27,7 @@ from nessai.flows import (
         dict(mask=[1, -1]),
         dict(pre_transform="batch_norm"),
         dict(pre_transform="batch_norm", pre_transform_kwargs=dict(eps=1e-8)),
+        dict(scale_activation=lambda x: torch.sigmoid(x + 2) + 1e-3),
     ],
 )
 def test_with_realnvp_kwargs(kwargs):
