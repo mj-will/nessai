@@ -985,8 +985,8 @@ class NestedSampler(BaseNestedSampler):
 
         ax[2].plot(it, self.likelihood_evaluations, label="Evaluations")
         ax[2].set_ylabel("Likelihood\n evaluations")
-        ax[2].set_yscale('log')
-        
+        ax[2].set_yscale("log")
+
         ax[3].plot(it, self.logZ_history, label="logZ")
         ax[3].set_ylabel(r"$\log Z$")
         ax[3].legend(frameon=False)
@@ -999,7 +999,7 @@ class NestedSampler(BaseNestedSampler):
             c="C1",
             ls=config.plotting.line_styles[1],
         )
-        ax_dz.set_yscale('log')
+        ax_dz.set_yscale("log")
         ax_dz.set_ylabel(r"$dZ$")
         handles, labels = ax[3].get_legend_handles_labels()
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
@@ -1026,7 +1026,7 @@ class NestedSampler(BaseNestedSampler):
         ax_r.set_ylabel("Population radius")
         handles_r, labels_r = ax_r.get_legend_handles_labels()
         ax[4].legend(handles + handles_r, labels + labels_r, frameon=False)
-        ax[4].set_yscale('log')
+        ax[4].set_yscale("log")
         dtrain = np.array(self.training_iterations[1:]) - np.array(
             self.training_iterations[:-1]
         )
