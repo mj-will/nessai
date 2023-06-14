@@ -1012,7 +1012,6 @@ class NestedSampler(BaseNestedSampler):
             label="Population",
         )
         ax[4].set_ylabel("Acceptance")
-        ax[4].set_ylim(top=1.1)
         handles, labels = ax[4].get_legend_handles_labels()
 
         ax_r = plt.twinx(ax[4])
@@ -1027,6 +1026,7 @@ class NestedSampler(BaseNestedSampler):
         handles_r, labels_r = ax_r.get_legend_handles_labels()
         ax[4].legend(handles + handles_r, labels + labels_r, frameon=False)
         ax[4].set_yscale("log")
+        ax[4].set_ylim(top=1.1)
         dtrain = np.array(self.training_iterations[1:]) - np.array(
             self.training_iterations[:-1]
         )
