@@ -1748,6 +1748,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self,
         filename: Optional[str] = None,
         cmap: str = "viridis",
+        max_bins: int = 50,
     ) -> Optional[matplotlib.figure.Figure]:
         """Plot the distribution of the likelihood at each level.
 
@@ -1758,6 +1759,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             the figure is returned.
         cmap
             Name of colourmap to use. Must be a valid colourmap in matplotlib.
+        max_bins
+            The maximum number of bins allowed.
         """
         its = np.unique(self.samples["it"])
         colours = plt.get_cmap(cmap)(np.linspace(0, 1, len(its)))
@@ -1765,24 +1768,23 @@ class ImportanceNestedSampler(BaseNestedSampler):
         vmin = np.ma.masked_invalid(
             self.samples["logL"][self.samples["it"] == its[-1]]
         ).min()
-        xmins = [None, vmin]
 
         fig, axs = plt.subplots(1, 2)
-        for ax, xmin in zip(axs, xmins):
-            for it, c in zip(its, colours):
-                data = self.samples["logL"][self.samples["it"] == it]
-                data = data[np.isfinite(data)]
-                if xmin:
-                    data = data[data >= xmin]
+        for it, c in zip(its, colours):
+            data = self.samples["logL"][self.samples["it"] == it]
+            data = data[np.isfinite(data)]
+            if not len(data):
+                continue
+            bins = auto_bins(data, max_bins=max_bins)
+            for ax in axs:
                 ax.hist(
                     data,
-                    auto_bins(data, max_bins=50),
+                    bins,
                     histtype="step",
                     color=c,
                     density=True,
-                    cumulative=False,
                 )
-            ax.set_xlabel("Log-likelihood")
+                ax.set_xlabel("Log-likelihood")
 
         axs[0].set_ylabel("Density")
         axs[1].set_xlim(vmin, vmax)
