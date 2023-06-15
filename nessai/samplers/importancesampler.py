@@ -455,7 +455,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
 
         if not np.isfinite(live_points["logL"]).all():
-            raise RuntimeError("Found infinite values in the log-likelihood")
+            logger.warning("Found infinite values in the log-likelihood")
+
+        if np.any(live_points["logL"] == np.inf):
+            raise RuntimeError("Live points contain +inf log-likelihoods")
 
         live_points["it"] = -np.ones(live_points.size)
         # Since log_Q is computed in the unit-cube
@@ -683,7 +686,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f"{np.min(new_points['logL'])}"
         )
         if not np.isfinite(new_points["logL"]).all():
-            raise ValueError("Log-likelihood contains infs")
+            logger.warning("Log-likelihood contains infs")
+
         if np.any(new_points["logL"] == -np.inf):
             logger.warning("New points contain points with zero likelihood")
 
@@ -1065,9 +1069,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f"Update {self.iteration} - "
             f"log Z: {self.state.logZ:.3f} +/- "
             f"{self.state.compute_uncertainty():.3f} "
-            f"dZ: {self.dZ:.3f} "
             f"ESS: {self.ess:.1f} "
             f"logL min: {self.live_points['logL'].min():.3f} "
+            f"logL median: {np.nanmedian(self.live_points['logL']):.3f} "
             f"logL max: {self.live_points['logL'].max():.3f}"
         )
 
