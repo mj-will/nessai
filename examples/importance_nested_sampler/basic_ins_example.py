@@ -62,6 +62,8 @@ class RosenbrockModel(Model):
 
 # The FlowSampler object is used to managed the sampling as has more
 # configuration options
+# Note the importance nested sampler has different settings to the standard
+# sampler
 fs = FlowSampler(
     RosenbrockModel(2),
     nlive=2000,
@@ -69,8 +71,6 @@ fs = FlowSampler(
     resume=False,
     seed=1234,
     importance_nested_sampler=True,  # Use the importance nested sampler
-    stopping_criterion="dZ_ns",  # Ratio of evidence in LP vs NS
-    tolerance=0.01,  # Tolerance for stopping
     draw_constant=True,  # Draw a constant number of samples (2000)
 )
 
