@@ -1709,7 +1709,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             specified.
         """
 
-        parameters = list(self.nested_samples.dtype.names)
+        parameters = list(self.samples.dtype.names)
         for p in ["logW"]:
             parameters.remove(p)
         n = len(parameters)
