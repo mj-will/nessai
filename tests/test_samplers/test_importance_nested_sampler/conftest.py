@@ -26,10 +26,20 @@ def ins():
     return create_autospec(ImportanceNestedSampler)
 
 
+@pytest.fixture(scope="module")
+def n_it():
+    return 10
+
+
 @pytest.fixture
-def samples(model):
+def samples(model, n_it):
     x = numpy_array_to_live_points(np.random.randn(1000, 2), model.names)
-    x["it"] = np.random.randint(0, 10, size=len(x))
+    x["it"] = np.random.randint(0, n_it, size=len(x))
     x["logL"] = model.log_likelihood(x)
     x["logP"] = model.log_prior(x)
     return x
+
+
+@pytest.fixture
+def log_q(samples, n_it):
+    return np.random.randn(samples.size, n_it)
