@@ -755,6 +755,41 @@ class ImportanceNestedSampler(BaseNestedSampler):
         imp = (1 - G) * imp_z + G * imp_post
         return {"total": imp, "posterior": imp_post, "evidence": imp_z}
 
+    def add_samples(self, samples: np.ndarray, log_q: np.ndarray) -> None:
+        """Add samples the existing samples
+
+        Samples MUST be sorted by logL.
+        """
+        # Insert samples into existing samples
+        indices = np.searchsorted(self.samples["logL"], samples["logL"])
+        self.samples = np.insert(self.samples, indices, samples)
+        self.log_q = np.insert(self.log_q, indices, log_q, axis=0)
+
+        # Indices after insertion are indices + n before
+        new_indices = indices + np.arange(len(indices))
+
+        # Indices of all previous samples
+        old_indices = get_inverse_indices(self.samples.size, new_indices)
+
+        if len(old_indices) != (self.samples.size - samples.size):
+            raise RuntimeError("Mismatch in updated_indices!")
+
+        # Updated indices of nested samples
+        self.nested_samples_indices = old_indices[self.nested_samples_indices]
+
+        if self.live_points_indices is None:
+            self.live_points_indices = new_indices
+        else:
+            self.live_points_indices = old_indices[self.live_points_indices]
+            insert_indices = np.searchsorted(
+                self.live_points_indices, new_indices
+            )
+            self.live_points_indices = np.insert(
+                self.live_points_indices,
+                insert_indices,
+                new_indices,
+            )
+
     def add_and_update_points(self, n: int):
         """Add new points to the current set of live points.
 
@@ -791,35 +826,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         self.history["n_added"].append(new_samples.size)
 
-        # Insert samples into existing samples
-        indices = np.searchsorted(self.samples["logL"], new_samples["logL"])
-        self.samples = np.insert(self.samples, indices, new_samples)
-        self.log_q = np.insert(self.log_q, indices, log_q, axis=0)
-
-        # Indices after insertion are indices + n before
-        new_indices = indices + np.arange(len(indices))
-
-        # Indices of all previous samples
-        old_indices = get_inverse_indices(self.samples.size, new_indices)
-
-        if len(old_indices) != (self.samples.size - n):
-            raise RuntimeError("Mismatch in updated_indices!")
-
-        # Updated indices of nested samples
-        self.nested_samples_indices = old_indices[self.nested_samples_indices]
-
-        if self.live_points_indices is None:
-            self.live_points_indices = new_indices
-        else:
-            self.live_points_indices = old_indices[self.live_points_indices]
-            insert_indices = np.searchsorted(
-                self.live_points_indices, new_indices
-            )
-            self.live_points_indices = np.insert(
-                self.live_points_indices,
-                insert_indices,
-                new_indices,
-            )
+        self.add_samples(new_samples, log_q)
 
         live_points = self.live_points
         self.history["n_live"].append(live_points.size)
