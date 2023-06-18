@@ -120,7 +120,7 @@ def test_safe_file_dump():
     ) as msm:
         safe_file_dump(data, "test.pkl", pickle, save_existing=False)
     mo.assert_called_once_with("test.pkl.temp", "wb")
-    md.call_args_list[0][0] == data
+    np.testing.assert_array_equal(md.call_args_list[0][0][0], data)
     msm.assert_called_once_with("test.pkl.temp", "test.pkl")
 
 
@@ -136,7 +136,7 @@ def test_safe_file_dump_save_existing():
         safe_file_dump(data, "test.pkl", pickle, save_existing=True)
     mpe.assert_called_once_with("test.pkl")
     mo.assert_called_once_with("test.pkl.temp", "wb")
-    md.call_args_list[0][0] == data
+    np.testing.assert_array_equal(md.call_args_list[0][0][0], data)
     msm.assert_has_calls(
         [
             call("test.pkl", "test.pkl.old"),
