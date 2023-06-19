@@ -980,7 +980,9 @@ class FlowProposal(RejectionProposal):
 
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
-        x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
+        x_prime_array = live_points_to_array(
+            x_prime, self.rescaled_names, copy=True
+        )
 
         self.flow.train(
             x_prime_array,
@@ -1055,7 +1057,7 @@ class FlowProposal(RejectionProposal):
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
             log_J += log_J_rescale
 
-        x = live_points_to_array(x, names=self.rescaled_names)
+        x = live_points_to_array(x, names=self.rescaled_names, copy=True)
 
         if x.ndim == 1:
             x = x[np.newaxis, :]

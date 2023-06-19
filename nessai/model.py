@@ -183,11 +183,14 @@ class Model(ABC):
         if self._vectorised_likelihood is None:
             if self.allow_vectorised:
                 x = self.new_point(N=10)
-                target = np.fromiter(
-                    map(self.log_likelihood, x), config.livepoints.logl_dtype
+                target = np.array(
+                    [self.log_likelihood(xx) for xx in x],
+                    dtype=config.livepoints.logl_dtype,
                 )
                 try:
-                    batch = self.log_likelihood(x)
+                    batch = self.log_likelihood(x).astype(
+                        config.livepoints.logl_dtype
+                    )
                 except (TypeError, ValueError):
                     logger.debug(
                         "Evaluating a batch of points returned an error. "
@@ -523,9 +526,9 @@ class Model(ABC):
                 else:
                     log_likelihood = self.log_likelihood(x)
             else:
-                log_likelihood = np.fromiter(
-                    map(self.log_likelihood, x), config.livepoints.logl_dtype
-                )
+                log_likelihood = np.array(
+                    [self.log_likelihood(xx) for xx in x],
+                ).flatten()
         else:
             logger.debug("Using pool to evaluate likelihood")
             if self.allow_vectorised and self.vectorised_likelihood:
@@ -551,7 +554,7 @@ class Model(ABC):
                 ).flatten()
         self.likelihood_evaluations += x.size
         self.likelihood_evaluation_time += datetime.datetime.now() - st
-        return log_likelihood
+        return log_likelihood.astype(config.livepoints.logl_dtype)
 
     def unstructured_view(self, x):
         """An unstructured view of point(s) x that only contains the \

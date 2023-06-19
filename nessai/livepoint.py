@@ -154,7 +154,7 @@ def empty_structured_array(
     return struct_array
 
 
-def live_points_to_array(live_points, names=None):
+def live_points_to_array(live_points, names=None, copy=False):
     """
     Converts live points to unstructured arrays for training.
 
@@ -165,6 +165,11 @@ def live_points_to_array(live_points, names=None):
     names : list of str or None
         If None all fields in the structured array are added to the dictionary
         else only those included in the list are added.
+    copy : bool
+        If true, returns a copy. If false, returns a view. See numpy
+        documentation for
+        :code:`numpy.lib.recfunctions.structured_to_unstructured` for more
+        details.
 
     Returns
     -------
@@ -173,7 +178,7 @@ def live_points_to_array(live_points, names=None):
     """
     if names is None:
         names = list(live_points.dtype.names)
-    return rfn.structured_to_unstructured(live_points[names])
+    return rfn.structured_to_unstructured(live_points[names], copy=copy)
 
 
 def parameters_to_live_point(parameters, names, non_sampling_parameters=True):

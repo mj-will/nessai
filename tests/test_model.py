@@ -9,6 +9,7 @@ import pytest
 from scipy.stats import norm
 from unittest.mock import MagicMock, call, create_autospec, patch
 
+from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.model import Model, OneDimensionalModelError
 from nessai.utils.multiprocessing import (
@@ -26,7 +27,7 @@ class EmptyModel(Model):
         return None
 
 
-class TestModel(Model):
+class DevModel(Model):
     def __init__(self):
         self.bounds = {"x": [-5, 5], "y": [-5, 5]}
         self.names = ["x", "y"]
@@ -514,7 +515,7 @@ def test_verify_new_point():
     prior function raises the correct error
     """
 
-    class BrokenModel(TestModel):
+    class BrokenModel(DevModel):
         def log_prior(self, x):
             return -np.inf
 
@@ -533,7 +534,7 @@ def test_verify_log_prior_finite(log_p):
     only returns inf function raises the correct error
     """
 
-    class BrokenModel(TestModel):
+    class BrokenModel(DevModel):
         def log_prior(self, x):
             return log_p
 
@@ -549,7 +550,7 @@ def test_verify_log_prior_none():
     only returns None raises an error.
     """
 
-    class BrokenModel(TestModel):
+    class BrokenModel(DevModel):
         def log_prior(self, x):
             return None
 
@@ -567,7 +568,7 @@ def test_verify_log_likelihood_none():
     only returns None raises an error.
     """
 
-    class BrokenModel(TestModel):
+    class BrokenModel(DevModel):
         def log_likelihood(self, x):
             return None
 
@@ -721,7 +722,7 @@ def test_verify_float16(caplog, value):
     if a float16 array is returned by the prior.
     """
 
-    class BrokenModel(TestModel):
+    class BrokenModel(DevModel):
         def log_prior(self, x):
             return value
 
@@ -737,7 +738,7 @@ def test_verify_no_float16(caplog):
     Test `Model.verify_model` and ensure that a critical warning is not raised
     if array return by log_prior is not dtype float16.
     """
-    model = TestModel()
+    model = DevModel()
     out = model.verify_model()
     assert out is True
     assert "float16 precision" not in caplog.text
@@ -796,7 +797,7 @@ def test_verify_model_likelihood_repeated_calls():
     return different values.
     """
 
-    class BrokenModel(TestModel):
+    class BrokenModel(DevModel):
         count = 0
         allow_multi_valued_likelihood = False
 
@@ -816,7 +817,7 @@ def test_verify_model_likelihood_repeated_calls_allowed(caplog):
     raised.
     """
 
-    class MultiValuedModel(TestModel):
+    class MultiValuedModel(DevModel):
         allow_multi_valued_likelihood = True
 
         def log_likelihood(self, x):
@@ -1128,7 +1129,10 @@ def test_pool(integration_model, mp_context):
     x = integration_model.new_point(10)
     out = integration_model.batch_evaluate_log_likelihood(x)
 
-    target = np.fromiter(map(integration_model.log_likelihood, x), "float")
+    target = np.array(
+        [integration_model.log_likelihood(xx) for xx in x],
+        dtype=config.livepoints.logl_dtype,
+    ).flatten()
     np.testing.assert_array_equal(out, target)
     assert integration_model.likelihood_evaluations == 10
 
@@ -1158,7 +1162,10 @@ def test_pool_ray(integration_model):
     x = integration_model.new_point(10)
     out = integration_model.batch_evaluate_log_likelihood(x)
 
-    target = np.fromiter(map(integration_model.log_likelihood, x), "float")
+    target = np.array(
+        [integration_model.log_likelihood(xx) for xx in x],
+        dtype=config.livepoints.logl_dtype,
+    ).flatten()
     np.testing.assert_array_equal(out, target)
     assert integration_model.likelihood_evaluations == 10
 
@@ -1180,7 +1187,10 @@ def test_n_pool(integration_model, mp_context):
     x = integration_model.new_point(10)
     out = integration_model.batch_evaluate_log_likelihood(x)
 
-    target = np.fromiter(map(integration_model.log_likelihood, x), "float")
+    target = np.array(
+        [integration_model.log_likelihood(xx) for xx in x],
+        dtype=config.livepoints.logl_dtype,
+    ).flatten()
     np.testing.assert_array_equal(out, target)
     assert integration_model.likelihood_evaluations == 10
 
