@@ -50,6 +50,8 @@ class NeuralSplineFlow(NFlow):
     linear_transform : {'permutation', 'lu', 'svd'}
         Linear transform to use between coupling layers. Not recommended when
         using a custom mask.
+    distribution : :obj: `glasflow.nflows.distributions.Distribution`
+        Distribution for the latent space.
     kwargs : dict
         Additional kwargs parsed to the spline constructor, e.g. `tails` or
         `tail_bound`. See nflows for details
@@ -71,6 +73,7 @@ class NeuralSplineFlow(NFlow):
         linear_transform="permutation",
         tails="linear",
         tail_bound=5.0,
+        distribution=None,
         **kwargs,
     ):
 
@@ -115,7 +118,8 @@ class NeuralSplineFlow(NFlow):
             if batch_norm_between_layers:
                 transforms_list.append(transforms.BatchNorm(features=features))
 
-        distribution = StandardNormal([features])
+        if distribution is None:
+            distribution = StandardNormal([features])
 
         super().__init__(
             transform=transforms.CompositeTransform(transforms_list),

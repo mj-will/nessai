@@ -9,6 +9,7 @@ import warnings
 
 from glasflow.nflows import transforms
 from glasflow.nflows.distributions import Distribution
+from glasflow.distributions import MultivariateUniform
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -52,6 +53,7 @@ def get_base_distribution(
         "normal": MultivariateNormal,
         "lars": ResampledGaussian,
         "resampled": ResampledGaussian,
+        "uniform": MultivariateUniform,
     }
 
     DistClass = None
@@ -86,6 +88,11 @@ def get_base_distribution(
             )
             logger.debug(f"Other LARs kwargs: {kwargs}")
             dist = DistClass([n_inputs], acc_fn, **kwargs)
+        elif DistClass is MultivariateUniform:
+            dist = DistClass(
+                low=torch.zeros(n_inputs, dtype=torch.get_default_dtype()),
+                high=torch.ones(n_inputs, dtype=torch.get_default_dtype()),
+            )
         else:
             dist = DistClass([n_inputs], **kwargs)
     elif distribution is None:
