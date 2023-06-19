@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
+import numpy as np
 import pytest
 
 
@@ -8,6 +9,29 @@ def auto_close_figures():
     """Automatically close all figures after each test"""
     yield
     plt.close("all")
+
+
+def test_plot_state(ins, history, n_it):
+    ins.iteration = n_it
+    ins.history = history
+    ins.checkpoint_iterations = [3, 4]
+    ins.importance = dict(
+        total=np.arange(-1, n_it),
+        evidence=np.arange(-1, n_it),
+        posterior=np.arange(-1, n_it),
+    )
+    ins.stopping_criterion = ["ratio", "ess"]
+    ins.tolerance = [0.0, 1000]
+    fig = INS.plot_state(ins)
+    assert fig is not None
+
+
+def test_plot_extra_state(ins, history, n_it):
+    ins.iteration = n_it
+    ins.checkpoint_iterations = [3, 4]
+    ins.history = history
+    fig = INS.plot_extra_state(ins)
+    assert fig is not None
 
 
 @pytest.mark.parametrize("enable_colours", [False, True])

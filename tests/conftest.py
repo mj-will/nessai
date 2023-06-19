@@ -41,6 +41,18 @@ def model():
                 log_l += norm.logpdf(x[pn])
             return log_l
 
+        def to_unit_hypercube(self, x):
+            x_out = x.copy()
+            for n in self.names:
+                x_out[n] = (x[n] - self.bounds[n][0]) / np.ptp(self.bounds[n])
+            return x_out
+
+        def from_unit_hypercube(self, x):
+            x_out = x.copy()
+            for n in self.names:
+                x_out[n] = np.ptp(self.bounds[n]) * x[n] + self.bounds[n][0]
+            return x_out
+
     return TestModel()
 
 

@@ -1,4 +1,6 @@
 """Tests related to how samples are handled"""
+from unittest.mock import MagicMock
+
 from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 from nessai.utils.testing import assert_structured_arrays_equal
 import numpy as np
@@ -11,6 +13,27 @@ def test_sort_points(ins, samples):
     sorted_samples, sorted_extra = INS.sort_points(ins, samples, extra)
     assert_structured_arrays_equal(sorted_samples, samples[order])
     np.testing.assert_array_equal(sorted_extra, extra[order])
+
+
+def test_populate_live_points(ins, model):
+    n = 100
+    ins.n_initial = n
+    ins.model = model
+
+    def fn(x):
+        return np.sort(x, order="logL")
+
+    ins.sort_points = MagicMock(side_effect=fn)
+
+    INS.populate_live_points(ins)
+
+    assert len(ins.samples) == n
+    np.testing.assert_array_equal(ins.live_points_indices, np.arange(n))
+    assert np.isfinite(ins.samples["logL"]).all()
+    assert np.isfinite(ins.samples["logW"]).all()
+    assert np.isfinite(ins.samples["logQ"]).all()
+    assert np.isfinite(ins.samples["logP"]).all()
+    assert (ins.samples["it"] == -1).all()
 
 
 def test_add_to_nested_samples(ins):
@@ -55,3 +78,41 @@ def test_add_samples(ins, samples, log_q, has_live_points):
     assert np.all(
         np.diff(ins.samples[ins.nested_samples_indices]["logL"]) >= 0
     )
+
+
+@pytest.mark.parametrize("n", [5, 10])
+def test_remove_samples(ins, n):
+    ins.history = dict(n_removed=[5])
+    ins.replace_all = False
+    ins.add_to_nested_samples = MagicMock()
+
+    live_points_indices = np.random.choice(20, size=15, replace=False)
+    ins.live_points_indices = live_points_indices.copy()
+
+    INS.remove_samples(ins, n)
+
+    assert ins.history["n_removed"] == [5, n]
+    np.testing.assert_array_equal(
+        ins.add_to_nested_samples.call_args[0][0], live_points_indices[:n]
+    )
+    np.testing.assert_array_equal(
+        ins.live_points_indices, live_points_indices[n:]
+    )
+
+
+def test_remove_samples_replace_all(ins):
+    ins.history = dict(n_removed=[5])
+    ins.replace_all = True
+    ins.add_to_nested_samples = MagicMock()
+
+    live_points_indices = np.random.choice(20, size=15, replace=False)
+    ins.live_points_indices = live_points_indices.copy()
+    ins.live_points = np.ones(live_points_indices.size)
+
+    INS.remove_samples(ins, 10)
+
+    assert ins.history["n_removed"] == [5, live_points_indices.size]
+    np.testing.assert_array_equal(
+        ins.add_to_nested_samples.call_args[0][0], live_points_indices
+    )
+    assert ins.live_points_indices is None
