@@ -185,7 +185,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.bootstrap = bootstrap
         self.adjusted_log_evidence = None
         self.adjusted_log_evidence_error = None
-        self.weighted_kl = (weighted_kl,)
+        self.weighted_kl = weighted_kl
         self.save_existing_checkpoint = save_existing_checkpoint
 
         self.dZ = np.inf
@@ -386,9 +386,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         return proposal
 
     def configure_iterations(
-        self, min_iteration: Optional[int], max_iteration: Optional[int]
+        self,
+        min_iteration: Optional[int] = None,
+        max_iteration: Optional[int] = None,
     ) -> None:
-        """Configure the maximum iteration."""
+        """Configure the minimum and maximum iterations.
+
+        Note: will override any existing values when called.
+        """
         if min_iteration is None:
             self.min_iteration = -1
         else:
@@ -846,15 +851,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
             indices,
         )
 
-    def remove_points(self, n: int) -> None:
-        """Remove points from the current set of live points.
-
-        The evidence is updated with the discarded points.
+    def remove_samples(self, n: int) -> None:
+        """Remove samples from the current set of live points.
 
         Parameters
         ----------
         n : int
-            The number of points to remove.
+            The number of samples to remove.
         """
         if self.replace_all:
             self.history["n_removed"].append(self.live_points.size)
@@ -1121,7 +1124,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
             self.logL_threshold = self.live_points[n_remove]["logL"].copy()
             logger.info(f"Log-likelihood threshold: {self.logL_threshold}")
-            self.remove_points(n_remove)
+            self.remove_samples(n_remove)
 
             self.add_new_proposal()
 
