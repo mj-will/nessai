@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1]
+
+### Fixed
+
+- Fix incorrect sign in delta phase reparameterisation ([#292](https://github.com/mj-will/nessai/pull/292))
+- Remove maximum scipy version ([#295](https://github.com/mj-will/nessai/pull/295))
+- Specify three quantiles in default corner kwargs as required by corner 2.2.2 ([#298](https://github.com/mj-will/nessai/pull/298))
+
 ## [0.8.0]
 
 ### Added
@@ -489,7 +497,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/mj-will/nessai/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/mj-will/nessai/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/mj-will/nessai/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/mj-will/nessai/compare/v0.6.0...v0.7.0

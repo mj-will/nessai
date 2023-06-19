@@ -53,8 +53,13 @@ def test_get_reparamaterisation(mocked_fn, proposal):
 
 
 @pytest.mark.parametrize("reverse_order", [False, True])
+@pytest.mark.parametrize("use_default_reparameterisations", [False, True])
 def test_configure_reparameterisations_dict(
-    proposal, dummy_cmb_rc, dummy_rc, reverse_order
+    proposal,
+    dummy_cmb_rc,
+    dummy_rc,
+    reverse_order,
+    use_default_reparameterisations,
 ):
     """Test configuration for reparameterisations dictionary.
 
@@ -73,6 +78,7 @@ def test_configure_reparameterisations_dict(
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x"]
     proposal.reverse_reparameterisations = reverse_order
+    proposal.use_default_reparameterisations = use_default_reparameterisations
 
     with patch(
         "nessai.proposal.flowproposal.CombinedReparameterisation",
@@ -83,7 +89,12 @@ def test_configure_reparameterisations_dict(
         )
 
     proposal.get_reparameterisation.assert_called_once_with("default")
-    proposal.add_default_reparameterisations.assert_called_once()
+
+    if use_default_reparameterisations:
+        proposal.add_default_reparameterisations.assert_called_once()
+    else:
+        proposal.add_default_reparameterisations.assert_not_called()
+
     dummy_rc.assert_called_once_with(
         prior_bounds={"x": [-1, 1]}, parameters="x", boundary_inversion=True
     )
@@ -133,7 +144,7 @@ def test_configure_reparameterisations_dict_w_params(
         )
 
     proposal.get_reparameterisation.assert_called_once_with("default")
-    proposal.add_default_reparameterisations.assert_called_once()
+    proposal.add_default_reparameterisations.assert_not_called()
     dummy_rc.assert_called_once_with(
         prior_bounds={"x": [-1, 1], "y": [-1, 1]},
         parameters=["y", "x"],
@@ -213,9 +224,9 @@ def test_configure_reparameterisations_str(mocked_class, proposal):
     proposal.fallback_reparameterisation = None
     FlowProposal.configure_reparameterisations(proposal, {"x": "default"})
 
-    proposal.add_default_reparameterisations.assert_called_once()
+    proposal.add_default_reparameterisations.assert_not_called()
     assert proposal.rescaled_names == ["x_prime", "y"]
-    assert proposal.rescale_parameters == ["x"]
+    assert proposal.parameters_to_rescale == ["x"]
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
     assert mocked_class.called_once
@@ -233,9 +244,9 @@ def test_configure_reparameterisations_dict_reparam(mocked_class, proposal):
         proposal, {"default": {"parameters": ["x"]}}
     )
 
-    proposal.add_default_reparameterisations.assert_called_once()
+    proposal.add_default_reparameterisations.assert_not_called()
     assert proposal.rescaled_names == ["x_prime", "y"]
-    assert proposal.rescale_parameters == ["x"]
+    assert proposal.parameters_to_rescale == ["x"]
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
     assert mocked_class.called_once
@@ -250,10 +261,10 @@ def test_configure_reparameterisations_none(mocked_class, proposal):
     proposal.model.names = ["x", "y"]
     proposal.fallback_reparameterisation = None
     FlowProposal.configure_reparameterisations(proposal, None)
-    proposal.add_default_reparameterisations.assert_called_once()
+    proposal.add_default_reparameterisations.assert_not_called()
     assert proposal.rescaled_names == ["x", "y"]
 
-    assert proposal.rescale_parameters == []
+    assert proposal.parameters_to_rescale == []
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == ["x", "y"]
     assert all(
@@ -274,10 +285,10 @@ def test_configure_reparameterisations_fallback(mocked_class, proposal):
     proposal.model.names = ["x", "y"]
     proposal.fallback_reparameterisation = "default"
     FlowProposal.configure_reparameterisations(proposal, None)
-    proposal.add_default_reparameterisations.assert_called_once()
+    proposal.add_default_reparameterisations.assert_not_called()
     assert proposal.rescaled_names == ["x_prime", "y_prime"]
 
-    assert proposal.rescale_parameters == ["x", "y"]
+    assert proposal.parameters_to_rescale == ["x", "y"]
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == [
         "x_prime",
@@ -349,7 +360,7 @@ def test_set_rescaling_with_model(proposal, model):
 
     def update(self):
         proposal.names = model.names
-        proposal.rescale_parameters = ["x"]
+        proposal.parameters_to_rescale = ["x"]
         proposal.rescaled_names = ["x_prime"]
 
     proposal.configure_reparameterisations = MagicMock()
@@ -374,7 +385,7 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
 
     def update(self):
         proposal.names = model.names
-        proposal.rescale_parameters = ["x"]
+        proposal.parameters_to_rescale = ["x"]
         proposal.rescaled_names = ["x_prime"]
 
     proposal.configure_reparameterisations = MagicMock()
@@ -407,7 +418,7 @@ def test_set_rescaling_parameters(proposal, model, rescale_parameters):
 
     def update(self):
         proposal.names = model.names
-        proposal.rescale_parameters = _rescale_parameters
+        proposal.parameters_to_rescale = _rescale_parameters
         proposal.rescaled_names = rescaled_names
 
     proposal.model = model
@@ -441,6 +452,7 @@ def test_set_rescaling_parameters(proposal, model, rescale_parameters):
     proposal.configure_reparameterisations.assert_called_with(
         reparameterisations
     )
+    proposal.parameters_to_rescale == _rescale_parameters
 
 
 @pytest.mark.parametrize("n", [1, 10])

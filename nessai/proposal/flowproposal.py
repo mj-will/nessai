@@ -466,10 +466,17 @@ class FlowProposal(RejectionProposal):
         """Configure using constant volume latent contour."""
         if self.constant_volume_mode:
             logger.debug("Configuring constant volume latent contour")
-            if not self.latent_prior == "truncated_gaussian":
+            if self.latent_prior == "truncated_gaussian":
+                pass
+            elif self.latent_prior in ["uniform_nball", "uniform_nsphere"]:
+                logger.warning(
+                    "Constant volume mode with latent_prior="
+                    f"{self.latent_prior} is experimental!"
+                )
+            else:
                 raise RuntimeError(
-                    "Constant volume requires "
-                    "`latent_prior='truncated_gaussian'`"
+                    "Constant volume mode is not supported for latent_prior="
+                    f"{self.latent_prior}"
                 )
             self.fixed_radius = compute_radius(
                 self.rescaled_dims, self.volume_fraction
@@ -658,7 +665,8 @@ class FlowProposal(RejectionProposal):
             r = rc(prior_bounds=prior_bounds, **default_config)
             self._reparameterisation.add_reparameterisations(r)
 
-        self.add_default_reparameterisations()
+        if self.use_default_reparameterisations:
+            self.add_default_reparameterisations()
 
         other_params = [
             n
@@ -703,7 +711,7 @@ class FlowProposal(RejectionProposal):
 
         self.names = self._reparameterisation.parameters
         self.rescaled_names = self._reparameterisation.prime_parameters
-        self.rescale_parameters = [
+        self.parameters_to_rescale = [
             p
             for p in self._reparameterisation.parameters
             if p not in self._reparameterisation.prime_parameters
@@ -739,7 +747,7 @@ class FlowProposal(RejectionProposal):
         self.configure_reparameterisations(self.reparameterisations)
 
         logger.info(f"x space parameters: {self.names}")
-        logger.info(f"parameters to rescale: {self.rescale_parameters}")
+        logger.info(f"parameters to rescale: {self.parameters_to_rescale}")
         logger.info(f"x prime space parameters: {self.rescaled_names}")
         self.rescaling_set = True
 
@@ -910,7 +918,7 @@ class FlowProposal(RejectionProposal):
                 filename=os.path.join(output, "x_generated.png"),
             )
 
-        if self.rescale_parameters:
+        if self.parameters_to_rescale:
             if self._plot_training == "all":
                 plot_live_points(
                     self.training_data_prime,
@@ -972,7 +980,9 @@ class FlowProposal(RejectionProposal):
 
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
-        x_prime_array = live_points_to_array(x_prime, self.rescaled_names)
+        x_prime_array = live_points_to_array(
+            x_prime, self.rescaled_names, copy=True
+        )
 
         self.flow.train(
             x_prime_array,
@@ -1047,7 +1057,7 @@ class FlowProposal(RejectionProposal):
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
             log_J += log_J_rescale
 
-        x = live_points_to_array(x, names=self.rescaled_names)
+        x = live_points_to_array(x, names=self.rescaled_names, copy=True)
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
