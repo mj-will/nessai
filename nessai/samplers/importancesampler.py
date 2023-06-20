@@ -550,7 +550,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 getattr(self, k, np.nan)
             )
 
-    def determine_level_quantile(self, q: float = 0.8, **kwargs) -> int:
+    def determine_level_quantile(
+        self, q: float = 0.8, include_likelihood: bool = False
+    ) -> int:
         """Determine where the next level should be located.
 
         Computes the q'th quantile based on log-likelihood and log-weights.
@@ -559,19 +561,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ----------
         q : float
             Quantile to use. Defaults to 0.8
+        include_likelihood : bool
+            If True, the likelihood is included in the weights.
 
         Returns
         -------
         int
             The number of live points to discard.
         """
-        return self._determine_level_quantile_log_likelihood(q, **kwargs)
-
-    def _determine_level_quantile_log_likelihood(
-        self,
-        q: float,
-        include_likelihood: bool = False,
-    ) -> int:
         logger.debug(f"Determining {q:.3f} quantile")
         a = self.live_points["logL"]
         if include_likelihood:
@@ -925,8 +922,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def adjust_final_samples(self, n_batches=5):
         """Adjust the final samples"""
-        orig_n_total = self.nested_samples.size
-        its, counts = np.unique(self.nested_samples["it"], return_counts=True)
+        orig_n_total = self.samples.size
+        its, counts = np.unique(self.samples["it"], return_counts=True)
         assert counts.sum() == orig_n_total
         weights = counts / orig_n_total
         original_unnorm_weight = counts.copy()
@@ -998,7 +995,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             # same.
             batch_samples["logQ"] = log_Q
             batch_samples["logW"] = -log_Q
-            state = _INSIntegralState(normalised=False)
+            state = _INSIntegralState()
             state.log_meta_constant = 0.0
             state.update_evidence(batch_samples)
             log_evidences[i] = state.log_evidence
@@ -1010,9 +1007,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         logger.info(f"Mean log evidence: {mean_log_evidence:.3f}")
         logger.info(f"SE log evidence: {standard_error:.3f}")
-        if self.bootstrap:
-            self.adjusted_log_evidence = mean_log_evidence
-            self.adjusted_log_evidence_error = standard_error
+        self.adjusted_log_evidence = mean_log_evidence
+        self.adjusted_log_evidence_error = standard_error
 
     def finalise(self) -> None:
         """Finalise the sampling process."""
