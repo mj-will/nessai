@@ -7,7 +7,6 @@ from nessai.model import Model
 from nessai.proposal.importance import ImportanceFlowProposal
 import numpy as np
 
-NDIMS = 2
 NSAMPLES = 10
 
 
@@ -19,23 +18,18 @@ def ifp():
 
 
 @pytest.fixture()
-def x_array():
-    return np.random.randn(NSAMPLES, NDIMS)
-
-
-@pytest.fixture(scope="module")
-def names():
-    return [f"x_{i}" for i in range(NDIMS)]
+def x_array(model):
+    return np.random.randn(NSAMPLES, model.dims)
 
 
 @pytest.fixture
-def x(x_array, names):
-    return numpy_array_to_live_points(x_array, names)
+def x(x_array, model):
+    return numpy_array_to_live_points(x_array, model.names)
 
 
 @pytest.fixture()
-def x_prime():
-    return np.random.randn(NSAMPLES, NDIMS)
+def x_prime(model):
+    return np.random.randn(NSAMPLES, model.dims)
 
 
 @pytest.fixture

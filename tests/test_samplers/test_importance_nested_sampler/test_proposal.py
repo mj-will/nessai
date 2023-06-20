@@ -1,16 +1,10 @@
 """Tests for the proposals and meta-proposal"""
-from unittest.mock import MagicMock, create_autospec
+from unittest.mock import MagicMock
 
 from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
-from nessai.proposal.importance import ImportanceFlowProposal
 from nessai.utils.testing import assert_structured_arrays_equal
 import numpy as np
 import pytest
-
-
-@pytest.fixture()
-def proposal():
-    return create_autospec(ImportanceFlowProposal)
 
 
 @pytest.fixture()

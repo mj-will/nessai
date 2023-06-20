@@ -116,8 +116,9 @@ def test_from_prime_none(ifp, x_prime):
     assert np.all(log_j_out == 0.0)
 
 
-def test_rescale(ifp, x, x_prime, log_j, names):
+def test_rescale(ifp, x, x_prime, log_j, model):
     """Assert rescale calls the correct functions in the correct order"""
+    names = model.names
     x_hyper_array = np.random.randn(len(x), len(names))
     x_hypercube = numpy_array_to_live_points(x_hyper_array, names)
 
@@ -140,10 +141,11 @@ def test_rescale(ifp, x, x_prime, log_j, names):
 
 
 @pytest.mark.parametrize("clip", [True, False])
-def test_inverse_rescale(ifp, x, x_prime, log_j, names, clip):
+def test_inverse_rescale(ifp, x, x_prime, log_j, clip, model):
     """
     Assert inverse_rescale calls the correct functions in the correct order
     """
+    names = model.names
     x_array = np.random.randn(len(x), len(names))
     x_hypercube = numpy_array_to_live_points(x_array, names)
 

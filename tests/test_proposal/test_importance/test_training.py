@@ -60,10 +60,17 @@ def test_train_basic(ifp, x, x_prime, reset):
 @patch("nessai.proposal.importance.plot_histogram")
 @pytest.mark.usefixtures("ins_parameters")
 def test_train_plotting(
-    mock_hist, mock_plot_1d, mock_plot_live_points, ifp, x, x_prime, names
+    mock_hist,
+    mock_plot_1d,
+    mock_plot_live_points,
+    ifp,
+    x,
+    x_prime,
+    model,
 ):
     """Test plotting in training function"""
 
+    names = model.names
     level_output = os.path.join(ifp.output, "level_3", "")
 
     n = 10

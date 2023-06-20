@@ -1,6 +1,7 @@
 from unittest.mock import create_autospec
 
 import pytest
+from nessai.proposal.importance import ImportanceFlowProposal
 from nessai.samplers.importancesampler import ImportanceNestedSampler
 from nessai.livepoint import (
     numpy_array_to_live_points,
@@ -28,6 +29,11 @@ def ins():
     obj = create_autospec(ImportanceNestedSampler)
     obj.model = create_autospec(Model)
     return obj
+
+
+@pytest.fixture()
+def proposal():
+    return create_autospec(ImportanceFlowProposal)
 
 
 @pytest.fixture(scope="module")
@@ -85,7 +91,7 @@ def history(n_it):
     ]
     d = {k: np.random.randn(n_it).tolist() for k in keys}
     d["stopping_criteria"] = dict(
-        dZ=np.arange(n_it),
+        log_dZ=np.arange(n_it),
         ratio=np.arange(n_it),
         ess=np.arange(n_it),
         kl=np.arange(n_it),

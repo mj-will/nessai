@@ -1,6 +1,7 @@
 """Tests related to how samples are handled"""
 from unittest.mock import MagicMock
 
+from nessai.livepoint import numpy_array_to_live_points
 from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 from nessai.utils.testing import assert_structured_arrays_equal
 import numpy as np
@@ -154,3 +155,30 @@ def test_remove_samples_replace_all(ins):
         ins.add_to_nested_samples.call_args[0][0], live_points_indices
     )
     assert ins.live_points_indices is None
+
+
+def test_adjust_final_samples(ins, proposal, model, samples, log_q):
+    def draw(n, flow_number=None, update_counts=False):
+        assert update_counts is False
+        x = numpy_array_to_live_points(
+            np.random.randn(n, model.dims),
+            names=model.names,
+        )
+        lq = np.random.rand(n, log_q.shape[1])
+        return x, lq
+
+    def draw_from_prior(n):
+        x = model.new_point(n)
+        lq = np.random.rand(n, log_q.shape[1])
+        return x, lq
+
+    proposal.draw = MagicMock(side_effect=draw)
+    proposal.draw_from_prior = MagicMock(side_effect=draw_from_prior)
+    proposal.n_requested = {"-1": 10, "1": 10}
+
+    ins.samples = samples
+    ins.log_q = log_q
+    ins.proposal = proposal
+    ins.model = model
+
+    INS.adjust_final_samples(ins)
