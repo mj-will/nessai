@@ -696,19 +696,16 @@ class ImportanceFlowProposal(Proposal):
         elif p_it < -1 or q_it < -1:
             raise ValueError(f"Invalid p_it or q_it: {p_it}, {q_it}")
 
-        p_f = self.get_proposal_log_prob(p_it)
-        q_f = self.get_proposal_log_prob(q_it)
+        log_p_f = self.get_proposal_log_prob(p_it)
+        log_q_f = self.get_proposal_log_prob(q_it)
 
-        log_p = p_f(x_prime)
-        log_q = q_f(x_prime)
+        log_p = log_p_f(x_prime)
+        log_q = log_q_f(x_prime)
 
         if p_it > -1:
             log_p += log_j
         if q_it > -1:
             log_q += log_j
-
-        log_p -= logsumexp(log_p)
-        log_q -= logsumexp(log_q)
 
         kl = np.mean(log_p - log_q)
         logger.info(f"KL between {p_it} and {q_it} is: {kl:.3}")
