@@ -822,7 +822,10 @@ class ImportanceFlowProposal(Proposal):
         samples, log_q = get_subset_arrays(
             np.isfinite(samples["logP"]), samples, log_q
         )
-        counts = np.bincount(samples["it"] + 1).astype(int)
+        counts = np.bincount(
+            samples["it"] + 1,
+            minlength=self.n_proposals,
+        ).astype(int)
         logger.debug(f"Actual counts: {counts}")
 
         return samples, log_q, counts
