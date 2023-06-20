@@ -72,6 +72,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Enable or disable plotting the likelihood levels.
     trace_plot_kwargs
         Keyword arguments for the trace plot.
+    strict_threshold : bool
+        If true, when drawing new samples, only those with likelihoods above
+        the current threshold will be added to the live points. If false, all
+        new samples are added to the live points.
     """
 
     stopping_criterion_aliases = dict(
@@ -127,6 +131,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         train_final_flow: bool = False,
         bootstrap: bool = False,
         close_pool: bool = False,
+        strict_threshold: bool = False,
         **kwargs: Any,
     ):
 
@@ -176,6 +181,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.replace_all = replace_all
         self.level_method = level_method
         self.level_kwargs = {} if level_kwargs is None else level_kwargs
+        self.strict_threshold = strict_threshold
         self.logX = 0.0
         self.logL_threshold = -np.inf
         self.logL_pre = -np.inf
@@ -803,30 +809,40 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.samples = np.insert(self.samples, indices, samples)
         self.log_q = np.insert(self.log_q, indices, log_q, axis=0)
 
-        # Indices after insertion are indices + n before
-        new_indices = indices + np.arange(len(indices))
-
-        # Indices of all previous samples
-        old_indices = get_inverse_indices(self.samples.size, new_indices)
-
-        if len(old_indices) != (self.samples.size - samples.size):
-            raise RuntimeError("Mismatch in updated_indices!")
-
-        # Updated indices of nested samples
-        self.nested_samples_indices = old_indices[self.nested_samples_indices]
-
-        if self.live_points_indices is None:
-            self.live_points_indices = new_indices
+        if self.strict_threshold:
+            n = np.argmax(self.samples["logL"] >= self.logL_threshold)
+            indices = np.arange(len(self.samples))
+            self.nested_samples_indices = indices[:n]
+            self.live_points_indices = indices[n:]
         else:
-            self.live_points_indices = old_indices[self.live_points_indices]
-            insert_indices = np.searchsorted(
-                self.live_points_indices, new_indices
-            )
-            self.live_points_indices = np.insert(
-                self.live_points_indices,
-                insert_indices,
-                new_indices,
-            )
+            # Indices after insertion are indices + n before
+            new_indices = indices + np.arange(len(indices))
+
+            # Indices of all previous samples
+            old_indices = get_inverse_indices(self.samples.size, new_indices)
+
+            if len(old_indices) != (self.samples.size - samples.size):
+                raise RuntimeError("Mismatch in updated_indices!")
+
+            # Updated indices of nested samples
+            self.nested_samples_indices = old_indices[
+                self.nested_samples_indices
+            ]
+
+            if self.live_points_indices is None:
+                self.live_points_indices = new_indices
+            else:
+                self.live_points_indices = old_indices[
+                    self.live_points_indices
+                ]
+                insert_indices = np.searchsorted(
+                    self.live_points_indices, new_indices
+                )
+                self.live_points_indices = np.insert(
+                    self.live_points_indices,
+                    insert_indices,
+                    new_indices,
+                )
 
     def add_and_update_points(self, n: int):
         """Add new points to the current set of live points.
@@ -1146,8 +1162,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 else:
                     n_remove = 1
             if (self.live_points.size - n_remove) < self.min_samples:
-                n_remove = self.live_points.size - self.min_samples
-                logger.warning("Cannot remove all live points!")
+                logger.warning(
+                    f"Cannot remove {n_remove} from {self.live_points.size}, "
+                    f"min_samples={self.min_samples}"
+                )
+                n_remove = max(0, self.live_points.size - self.min_samples)
             elif n_remove < self.min_remove:
                 logger.warning(
                     f"Cannot remove less than {self.min_remove} samples"
