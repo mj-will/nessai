@@ -164,7 +164,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.min_remove = min_remove
         self.n_update = n_update
         self.plot_pool = plot_pool
-        self.plot_level_cdf = plot_level_cdf
+        self._plot_level_cdf = plot_level_cdf
         self._plot_trace = plot_trace
         self._plot_likelihood_levels = plot_likelihood_levels
         self._plot_extra_state = plot_extra_state
@@ -613,20 +613,53 @@ class ImportanceNestedSampler(BaseNestedSampler):
             cdf = np.arange(len(p), dtype=float)
         cdf /= cdf[-1]
         n = np.argmax(cdf >= q)
-        if self.plot and self.plot_level_cdf:
-            fig = plt.figure()
-            plt.plot(self.live_points["logL"], cdf)
-            plt.xlabel("Log-likelihood")
-            plt.title("CDF")
-            plt.axhline(q, c="C1")
-            plt.axvline(self.live_points["logL"][n], c="C1")
-            fig.savefig(
-                os.path.join(
-                    self.output, "levels", f"level_cdf_{self.iteration}.png"
-                )
+        if self.plot and self._plot_level_cdf:
+            self.plot_level_cdf(
+                cdf,
+                threshold=self.live_points["logL"][n],
+                q=q,
+                filename=os.path.join(
+                    self.output, "levels", f"level_{self.iteration}", "cdf.png"
+                ),
             )
-            plt.close()
         return int(n)
+
+    @nessai_style
+    def plot_level_cdf(
+        self,
+        cdf: np.ndarray,
+        threshold: float,
+        q: float,
+        filename: Optional[str] = None,
+    ) -> Union[matplotlib.figure.Figure, None]:
+        """Plot the CDF of the log-likelihood
+
+        Parameters
+        ----------
+        cdf : np.ndarray
+            The CDF to plot
+        filename : Optional[str]
+            Filename for saving the figure. If not specified the figure will
+            be returned instead.
+
+        Returns
+        -------
+        matplotlib.figure.Figure
+            Level CDF figure. Only returned when the filename is not
+            specified.
+        """
+        fig = plt.figure()
+        plt.plot(self.live_points["logL"], cdf)
+        plt.xlabel("Log-likelihood")
+        plt.title("CDF")
+        plt.axhline(q, c="C1")
+        plt.axvline(threshold, c="C1")
+
+        if filename is not None:
+            fig.savefig(filename)
+            plt.close()
+        else:
+            return fig
 
     def determine_level(self, method="entropy", **kwargs) -> int:
         """Determine where the next level should.
