@@ -1572,10 +1572,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
-        its_start = np.arange(-1, self.iteration)
-        ax[m].plot(its_start, self.importance["total"], label="Total")
-        ax[m].plot(its_start, self.importance["posterior"], label="Posterior")
-        ax[m].plot(its_start, self.importance["evidence"], label="Evidence")
+        ax[m].plot(its, self.importance["total"][1:], label="Total")
+        ax[m].plot(its, self.importance["posterior"][1:], label="Posterior")
+        ax[m].plot(its, self.importance["evidence"][1:], label="Evidence")
         ax[m].legend()
         ax[m].set_ylabel("Level importance")
 
