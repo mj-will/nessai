@@ -45,3 +45,15 @@ def test_plot_likelihood_levels(ins, samples):
     ins.samples = samples
     fig = INS.plot_likelihood_levels(ins)
     assert fig is not None
+
+
+def test_plot_level_cdf(ins, samples):
+    ins.live_points = samples
+    cdf = np.cumsum(samples["logW"])
+    fig = INS.plot_level_cdf(
+        ins,
+        cdf,
+        q=0.5,
+        threshold=samples[len(samples) // 2]["logL"],
+    )
+    assert fig is not None

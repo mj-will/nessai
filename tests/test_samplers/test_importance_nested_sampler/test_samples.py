@@ -47,8 +47,10 @@ def test_add_to_nested_samples(ins):
 
 
 @pytest.mark.parametrize("has_live_points", [True, False])
-def test_add_samples(ins, samples, log_q, has_live_points):
+def test_add_samples_soft(ins, samples, log_q, has_live_points):
     n = int(0.8 * samples.size)
+
+    ins.strict_threshold = False
 
     if has_live_points:
         n_ns = int(0.8 * n)
@@ -77,6 +79,42 @@ def test_add_samples(ins, samples, log_q, has_live_points):
     assert np.all(np.diff(ins.samples[ins.live_points_indices]["logL"]) >= 0)
     assert np.all(
         np.diff(ins.samples[ins.nested_samples_indices]["logL"]) >= 0
+    )
+
+
+def test_add_samples(ins, samples, log_q):
+    ins.strict_threshold = True
+
+    idx = np.argsort(samples, order="logL")
+    expected = samples[idx].copy()
+    expected_log_q = log_q[idx].copy()
+
+    perm = np.random.permutation(samples.size)
+    samples = samples[perm]
+    log_q = log_q[perm]
+    n = int(0.8 * samples.size)
+    idx = np.argsort(samples[:n], order="logL")
+    ins.samples = samples[:n][idx]
+    ins.log_q = log_q[:n][idx]
+
+    new_idx = np.argsort(samples[n:], order="logL")
+    new = samples[n:][new_idx]
+    new_log_q = log_q[n:][new_idx]
+
+    ins.logL_threshold = new[new.size // 2]["logL"].item()
+
+    n_expected = np.sum(expected["logL"] >= ins.logL_threshold)
+
+    INS.add_samples(ins, new, new_log_q)
+
+    assert_structured_arrays_equal(ins.samples, expected)
+    np.testing.assert_array_equal(ins.log_q, expected_log_q)
+    np.testing.assert_array_equal(
+        ins.nested_samples_indices, np.arange(samples.size - n_expected)
+    )
+    np.testing.assert_array_equal(
+        ins.live_points_indices,
+        np.arange(samples.size - n_expected, samples.size),
     )
 
 
