@@ -91,9 +91,9 @@ fs = FlowSampler(
     seed=1234,
     importance_nested_sampler=True,
     draw_constant=True,
-    reparam=None,
+    reparameterisation=None,
     level_kwargs={"q": 0.66},
-    reset_flows=4,
+    reset_flow=4,
     flow_config=flow_config,
 )
 
