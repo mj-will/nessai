@@ -51,20 +51,20 @@ def test_flow_config_setter(ifp, config):
 
 
 @pytest.mark.parametrize(
-    "reset_flows, level_count",
+    "reset_flow, level_count",
     [[1, 3], [4, 8], [True, 5]],
 )
-def test_reset_flow_true(ifp, reset_flows, level_count):
-    ifp.reset_flows = reset_flows
+def test_reset_flow_true(ifp, reset_flow, level_count):
+    ifp.reset_flow = reset_flow
     ifp.level_count = level_count
     assert IFP._reset_flow.__get__(ifp) is True
 
 
 @pytest.mark.parametrize(
-    "reset_flows, level_count",
+    "reset_flow, level_count",
     [[False, 4], [5, 8]],
 )
-def test_reset_flow_false(ifp, reset_flows, level_count):
-    ifp.reset_flows = reset_flows
+def test_reset_flow_false(ifp, reset_flow, level_count):
+    ifp.reset_flow = reset_flow
     ifp.level_count = level_count
     assert IFP._reset_flow.__get__(ifp) is False

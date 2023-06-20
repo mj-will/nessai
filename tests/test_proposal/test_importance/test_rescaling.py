@@ -72,7 +72,7 @@ def test_verify_rescaling_fail_jacobian(ifp, x_prime):
 
 def test_to_prime_logit(ifp, x_array, x_prime):
     """Assert logit is called and the Jacobian is correct"""
-    ifp.reparam = "logit"
+    ifp.reparameterisation = "logit"
     log_j = np.random.randn(*x_array.shape)
     log_j_exp = log_j.sum(axis=1)
     with patch(
@@ -87,7 +87,7 @@ def test_to_prime_logit(ifp, x_array, x_prime):
 
 def test_to_prime_none(ifp, x_array):
     """Assert no operation is applied and the log-Jacobian is 0"""
-    ifp.reparam = None
+    ifp.reparameterisation = None
     x_prime_out, log_j_out = IFP.to_prime(ifp, x_array)
     np.testing.assert_array_equal(x_prime_out, x_array)
     assert np.all(log_j_out == 0.0)
@@ -95,7 +95,7 @@ def test_to_prime_none(ifp, x_array):
 
 def test_from_prime_sigmoid(ifp, x_array, x_prime):
     """Assert sigmoid is called and the Jacobian is correct"""
-    ifp.reparam = "logit"
+    ifp.reparameterisation = "logit"
     log_j = np.random.randn(*x_array.shape)
     log_j_exp = log_j.sum(axis=1)
     with patch(
@@ -110,7 +110,7 @@ def test_from_prime_sigmoid(ifp, x_array, x_prime):
 
 def test_from_prime_none(ifp, x_prime):
     """Assert no operation is applied and the log-Jacobian is 0"""
-    ifp.reparam = None
+    ifp.reparameterisation = None
     x_out, log_j_out = IFP.from_prime(ifp, x_prime)
     np.testing.assert_array_equal(x_out, x_prime)
     assert np.all(log_j_out == 0.0)
@@ -170,18 +170,18 @@ def test_inverse_rescale(ifp, x, x_prime, log_j, names, clip):
     assert log_j_out is log_j
 
 
-def test_invalid_reparam_to_prime(ifp, x):
-    """Assert an invalid reparam raises an error"""
-    ifp.reparam = "invalid"
+def test_invalid_reparameterisation_to_prime(ifp, x):
+    """Assert an invalid reparameterisation raises an error"""
+    ifp.reparameterisation = "invalid"
     with pytest.raises(
         ValueError, match=r"Unknown reparameterisation: 'invalid'"
     ):
         IFP.to_prime(ifp, x)
 
 
-def test_invalid_reparam_from_prime(ifp, x_prime):
-    """Assert an invalid reparam raises an error"""
-    ifp.reparam = "invalid"
+def test_invalid_reparameterisation_from_prime(ifp, x_prime):
+    """Assert an invalid reparameterisation raises an error"""
+    ifp.reparameterisation = "invalid"
     with pytest.raises(
         ValueError, match=r"Unknown reparameterisation: 'invalid'"
     ):
