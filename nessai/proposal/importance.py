@@ -421,6 +421,11 @@ class ImportanceFlowProposal(Proposal):
         exclude_last = log_q_current is not None
         n_flows = self.flow.n_models
 
+        if self.n_proposals > 1 and log_j is None:
+            raise RuntimeError(
+                "Must specify log_j! Meta-proposal includes flows"
+            )
+
         if exclude_last:
             log_q_all[:, -1] = log_q_current + log_j
             n_samples[-1] = float(n)
@@ -552,72 +557,14 @@ class ImportanceFlowProposal(Proposal):
         logger.debug(f"Returning {samples.size} samples")
         return samples, log_q_samples
 
-    def update_samples(
+    def update_log_q(
         self,
         samples: np.ndarray,
-        log_q: Optional[np.ndarray] = None,
+        log_q: np.ndarray,
     ) -> np.ndarray:
-        """Update log W and log Q in place for a set of samples.
-
-        Parameters
-        ----------
-        samples : numpy.ndarray
-            Array of samples to update.
-        log_q : Optional[numpy.ndarray]
-            Array of log q values for each flow. If provided these are used
-            to compute log Q. This is more accurate and less prone to
-            cumulative errors.
-
-        Returns
-        -------
-        log_q : Optional[numpy.ndarray]
-            Returns the updated :code:`log_q` if it was specified, otherwise
-            returns None.
-        """
-        if self.level_count < 0:
-            raise RuntimeError(
-                "Cannot update samples unless a level has been constructed!"
-            )
-        if self.level_count not in self.n_draws:
-            raise RuntimeError(
-                "Must draw samples from the new level before updating any "
-                "existing samples!"
-            )
-        x, log_j = self.rescale(samples)
-        log_prob_fn = self.get_proposal_log_prob(self.level_count)
-        log_q_current = log_prob_fn(x)
-
-        if log_q is None:
-            logger.warning(
-                "Updating points with cumulative method is prone to numerical "
-                "errors"
-            )
-            new_log_Q = (
-                log_q_current
-                + log_j
-                + np.log(self.unnormalised_weights[self.level_count])
-            )
-            log_Q = np.logaddexp(samples["logQ"], new_log_Q)
-        else:
-            log_q = np.concatenate(
-                [log_q, log_q_current[:, np.newaxis] + log_j[:, np.newaxis]],
-                axis=1,
-            )
-
-            weights = self.poolsize / self.poolsize.sum()
-
-            log_Q = logsumexp(
-                log_q,
-                b=weights,
-                axis=1,
-            )
-
-        samples["logQ"] = log_Q
-        samples["logW"] = -samples["logQ"]
-
-        return log_q
-
-    def _update_log_q(self, samples, log_q):
+        """Update the array of proposal probabilities for a set of samples"""
+        if log_q.shape[1] == self.n_proposals:
+            raise ValueError("log_q array already contains current proposal")
         x, log_j = self.rescale(samples)
         log_prob_fn = self.get_proposal_log_prob(self.level_count)
         log_q_current = log_prob_fn(x)
@@ -627,7 +574,10 @@ class ImportanceFlowProposal(Proposal):
         )
         return log_q
 
-    def _compute_meta_proposal_from_log_q(self, log_q):
+    def compute_meta_proposal_from_log_q(self, log_q):
+        """Compute the meta-proposal from an array of proposal \
+        log-probabilities
+        """
         weights = self.poolsize / np.sum(self.poolsize)
         return logsumexp(
             log_q,

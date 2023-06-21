@@ -860,8 +860,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 ),
             )
 
-        self.log_q = self.proposal._update_log_q(self.samples, self.log_q)
-        self.samples["logQ"] = self.proposal._compute_meta_proposal_from_log_q(
+        self.log_q = self.proposal.update_log_q(self.samples, self.log_q)
+        self.samples["logQ"] = self.proposal.compute_meta_proposal_from_log_q(
             self.log_q
         )
         self.samples["logW"] = -self.samples["logQ"]
