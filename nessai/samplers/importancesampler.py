@@ -1905,7 +1905,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f"Current logZ: {obj.log_evidence:3f} "
             f"+/- {obj.log_evidence_error:.3f}"
         )
-        logger.info(f"Current dZ: {obj.dZ:.3f}")
         return obj
 
     def __getstate__(self):
