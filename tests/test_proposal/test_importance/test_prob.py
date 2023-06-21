@@ -15,6 +15,11 @@ def ifp(ifp):
     return ifp
 
 
+def test_log_prior(ifp):
+    x = np.random.randn(10, 2)
+    np.testing.assert_array_equal(IFP._log_prior(ifp, x), np.zeros(10))
+
+
 def test_compute_log_Q(ifp, x_prime):
     n_flows = 3
     ifp.poolsize = np.array([5, 10, 15, 20])
@@ -100,3 +105,82 @@ def test_kl_between_proposals(ifp, model, p_it, q_it, x):
 
     assert isinstance(out, float)
     assert np.isfinite(out)
+
+
+def test_update_log_q(ifp, model, x):
+
+    n_proposals = 5
+    ifp.level_count = 4
+
+    log_q = np.log(np.random.rand(len(x), n_proposals - 1))
+
+    def rescale(x):
+        x = model.to_unit_hypercube(x)
+        x = live_points_to_array(x, model.names)
+        return x, np.zeros(x.shape[0])
+
+    def get_proposal_log_prob(it):
+        assert it == 4
+
+        def log_prob(x):
+            return np.log(np.random.rand(len(x)))
+
+        return log_prob
+
+    ifp.n_proposals = n_proposals
+    ifp.flow.n_models = n_proposals - 1
+    ifp.rescale = MagicMock(side_effect=rescale)
+    ifp.get_proposal_log_prob = MagicMock(side_effect=get_proposal_log_prob)
+
+    log_q_out = IFP.update_log_q(ifp, x, log_q)
+
+    assert log_q_out.shape == (len(x), n_proposals)
+
+
+def test_compute_meta_proposal_from_log_q(ifp):
+    n = 100
+    n_prop = 10
+    log_q = np.log(np.random.rand(n, n_prop))
+
+    poolsize = np.random.multinomial(
+        n_prop,
+        pvals=np.ones(n_prop) / float(n_prop),
+        size=n,
+    )
+    ifp.poolsize = poolsize
+
+    expected = logsumexp(
+        log_q,
+        b=poolsize / np.sum(poolsize),
+        axis=1,
+    )
+
+    out = IFP.compute_meta_proposal_from_log_q(ifp, log_q)
+
+    assert len(out) == len(log_q)
+    np.testing.assert_array_equal(out, expected)
+
+
+@pytest.mark.usefixtures("ins_parameters")
+def test_compute_meta_proposal_samples(ifp, x, x_prime, log_j):
+
+    ifp.level_count = 2
+    ifp.n_draws = {-1: 10, 0: 10, 1: 10, 2: 10}
+
+    x["logQ"] = np.nan
+    x["logW"] = np.nan
+
+    log_Q = np.log(np.random.rand(len(x)))
+    log_q = np.log(np.random.rand(len(x), 10))
+
+    ifp.rescale = MagicMock(return_value=(x_prime, log_j))
+    ifp.compute_log_Q = MagicMock(return_value=(log_Q, log_q))
+
+    log_q_out = IFP.compute_meta_proposal_samples(ifp, x)
+
+    ifp.rescale.assert_called_once_with(x)
+    ifp.compute_log_Q.assert_called_once_with(x_prime, log_j=log_j)
+
+    np.testing.assert_array_equal(x["logQ"], log_Q)
+    np.testing.assert_array_equal(x["logW"], -log_Q)
+    np.testing.assert_array_equal(log_q_out, log_q)
