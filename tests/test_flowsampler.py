@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, call, create_autospec, patch
 
 import h5py
 import pytest
+from nessai import config as nessai_config
 from nessai.evidence import _NSIntegralState
 from nessai.flowsampler import FlowSampler
 from nessai.livepoint import numpy_array_to_live_points
@@ -55,7 +56,8 @@ def nested_samples(names):
 
 
 @pytest.mark.parametrize("resume", [False, True])
-def test_init_no_resume_file(flow_sampler, tmp_path, resume):
+@pytest.mark.parametrize("use_ins", [False, True])
+def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
     """Test the init method when there is no run to resume from"""
 
     model = MagicMock()
@@ -71,10 +73,12 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
     )
     close_pool = True
 
+    sampler_class = "ImportanceNestedSampler" if use_ins else "NestedSampler"
+
     flow_sampler.save_kwargs = MagicMock()
 
     with patch(
-        "nessai.flowsampler.NestedSampler", return_value="ns"
+        f"nessai.flowsampler.{sampler_class}", return_value="ns"
     ) as mock, patch("nessai.flowsampler.configure_threads") as mock_threads:
         FlowSampler.__init__(
             flow_sampler,
@@ -85,6 +89,7 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
             pytorch_threads=pytorch_threads,
             resume_file=resume_file,
             close_pool=close_pool,
+            importance_nested_sampler=use_ins,
             **kwargs,
         )
 
@@ -104,6 +109,27 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume):
     assert flow_sampler.ns == "ns"
 
     flow_sampler.save_kwargs.assert_called_once_with(kwargs)
+
+
+def test_init_eps(tmp_path):
+    initial_eps = nessai_config.general.eps
+
+    model = MagicMock()
+    output = tmp_path / "init"
+    output.mkdir()
+    output = str(output)
+    eps = 1e-4
+
+    flow_sampler.save_kwargs = MagicMock()
+
+    with patch("nessai.flowsampler.NestedSampler", return_value="ns"), patch(
+        "nessai.flowsampler.configure_threads"
+    ):
+        FlowSampler.__init__(flow_sampler, model, output=output, eps=eps)
+
+    assert nessai_config.general.eps == eps
+    assert nessai_config.general.eps != initial_eps
+    nessai_config.general.eps = initial_eps
 
 
 def test_disable_vectorisation(flow_sampler, tmp_path):
@@ -345,6 +371,28 @@ def test_log_evidence_error(flow_sampler):
     out = 0.1
     flow_sampler.logZ_error = out
     assert FlowSampler.log_evidence_error.__get__(flow_sampler) is out
+
+
+@pytest.mark.parametrize("use_ins", [False, True])
+def test_run(flow_sampler, use_ins):
+
+    flow_sampler.importance_nested_sampler = use_ins
+
+    kwargs = dict(
+        plot=False,
+        save=False,
+        posterior_sampling_method="test",
+        close_pool=True,
+        plot_posterior=True,
+    )
+    FlowSampler.run(flow_sampler, **kwargs)
+
+    if use_ins:
+        flow_sampler.run_importance_nested_sampler.assert_called_once_with(
+            **kwargs
+        )
+    else:
+        flow_sampler.run_standard_sampler.assert_called_once_with(**kwargs)
 
 
 @pytest.mark.parametrize("save", [False, True])
