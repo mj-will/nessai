@@ -71,7 +71,7 @@ class ImportanceFlowModel(FlowModel):
 
     def add_new_flow(self, reset=False):
         """Add a new flow"""
-        logger.info("Add a new flow")
+        logger.debug("Add a new flow")
         if reset or not self.models:
             new_flow, self.device = configure_model(self.model_config)
         else:

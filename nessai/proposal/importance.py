@@ -357,7 +357,7 @@ class ImportanceFlowProposal(Proposal):
 
         self.flow.add_new_flow(reset=self._reset_flow)
 
-        logger.info(f"Training with {x_prime.shape[0]} samples")
+        logger.debug(f"Training with {x_prime.shape[0]} samples")
         self.flow.train(
             x_prime,
             weights=weights,
