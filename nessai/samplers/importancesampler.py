@@ -2,9 +2,9 @@
 """
 Importance nested sampler.
 """
+import datetime
 import logging
 import os
-from timeit import default_timer as timer
 from typing import Any, List, Literal, Optional, Union
 
 import matplotlib
@@ -223,10 +223,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.live_points_indices = None
         self.nested_samples_indices = np.empty(0, dtype=int)
 
-        self.training_time = 0.0
-        self.draw_samples_time = 0.0
-        self.add_and_update_samples_time = 0.0
-        self.draw_final_samples_time = 0.0
+        self.training_time = datetime.timedelta()
+        self.draw_samples_time = datetime.timedelta()
+        self.add_and_update_samples_time = datetime.timedelta()
+        self.draw_final_samples_time = datetime.timedelta()
 
         if self.replace_all:
             logger.warning("Replace all is experimental")
@@ -705,7 +705,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def add_new_proposal(self):
         """Add a new proposal to the meta proposal"""
-        st = timer()
+        st = datetime.datetime.now()
 
         # Implicitly includes all samples
         n_train = np.argmax(self.samples["logL"] >= self.logL_threshold)
@@ -736,14 +736,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
             plot=self.plot_training_data,
             weights=weights,
         )
-        self.training_time += timer() - st
+        self.training_time += datetime.datetime.now() - st
 
     def draw_n_samples(self, n: int):
         """Draw n samples from the current proposal
 
         Includes computing the log-likelihood of the samples
         """
-        st = timer()
+        st = datetime.datetime.now()
         logger.info(f"Drawing {n} samples from the new proposal")
         new_points, log_q = self.proposal.draw(n)
         logger.debug("Evaluating likelihood for new points")
@@ -763,7 +763,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history["leakage_new_points"].append(
             self.compute_leakage(new_points)
         )
-        self.draw_samples_time += timer() - st
+        self.draw_samples_time += datetime.datetime.now() - st
         return new_points, log_q
 
     def compute_leakage(
@@ -877,7 +877,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n : int
             The number of points to add.
         """
-        st = timer()
+        st = datetime.datetime.now()
         logger.debug(f"Adding {n} points")
         new_samples, log_q = self.draw_n_samples(n)
         new_samples, log_q = self.sort_points(new_samples, log_q)
@@ -914,7 +914,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.compute_leakage(live_points)
         )
         logger.debug(f"Current live points ESS: {self.live_points_ess:.2f}")
-        self.add_and_update_samples_time += timer() - st
+        self.add_and_update_samples_time += datetime.datetime.now() - st
 
     def add_to_nested_samples(self, indices: np.ndarray) -> None:
         """Add an array of samples to the nested samples."""
@@ -1324,7 +1324,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.info("Drawing final samples")
         if n_post and n_draw:
             raise RuntimeError("Specify either `n_post` or `n_draw`")
-        start_time = timer()
+        start_time = datetime.datetime.now()
 
         if self.final_state:
             logger.warning("Existing final state will be overridden")
@@ -1469,7 +1469,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         logger.info(f"Final ESS: {ess:.1f}")
         self.final_samples = samples
-        self.draw_final_samples_time += timer() - start_time
+        self.draw_final_samples_time += datetime.datetime.now() - start_time
         return self.final_state.logZ, samples
 
     def train_final_flow(self):
@@ -1889,10 +1889,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d["final_log_evidence"] = self.final_log_evidence
         d["final_log_evidence_error"] = self.final_log_evidence_error
 
-        d["training_time"] = self.training_time
-        d["draw_samples_time"] = self.draw_samples_time
-        d["add_and_update_samples_time"] = self.add_and_update_samples_time
-        d["draw_final_samples_time"] = self.draw_final_samples_time
+        d["training_time"] = self.training_time.total_seconds()
+        d["draw_samples_time"] = self.draw_samples_time.total_seconds()
+        d[
+            "add_and_update_samples_time"
+        ] = self.add_and_update_samples_time.total_seconds()
+        d[
+            "draw_final_samples_time"
+        ] = self.draw_final_samples_time.total_seconds()
 
         return d
 
