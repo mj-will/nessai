@@ -252,6 +252,43 @@ def test_configure_reparameterisations_dict_reparam(mocked_class, proposal):
     assert mocked_class.called_once
 
 
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        "x.*",
+        [
+            "x.*",
+        ],
+        ("x.*",),
+    ],
+)
+@patch("nessai.reparameterisations.CombinedReparameterisation")
+def test_configure_reparameterisations_regex(
+    mocked_class, proposal, parameters
+):
+    """Test configuration for reparameterisations dictionary"""
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = get_reparameterisation
+    proposal.model.names = ["x_0", "x_1", "y"]
+    proposal.model.bounds = {"x_0": [-1, 1], "x_1": [-1, 1], "y": [-1, 1]}
+    proposal.fallback_reparameterisation = None
+    FlowProposal.configure_reparameterisations(
+        proposal,
+        {"z-score": {"parameters": parameters}},
+    )
+
+    proposal.add_default_reparameterisations.assert_not_called()
+    assert proposal.rescaled_names == ["x_0_prime", "x_1_prime", "y"]
+    assert proposal.parameters_to_rescale == ["x_0", "x_1"]
+    assert proposal._reparameterisation.parameters == ["x_0", "x_1", "y"]
+    assert proposal._reparameterisation.prime_parameters == [
+        "x_0_prime",
+        "x_1_prime",
+        "y",
+    ]
+    assert mocked_class.called_once
+
+
 @patch("nessai.reparameterisations.CombinedReparameterisation")
 def test_configure_reparameterisations_none(mocked_class, proposal):
     """Test configuration when input is None"""

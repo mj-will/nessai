@@ -94,6 +94,25 @@ def test_sampling_with_inversion(model, flow_config, tmpdir):
     assert fp.ns.proposal.training_count == 1
 
 
+def test_sampling_regex_reparams(model, flow_config, tmp_path):
+    """Test using regex to specify reparameterisations"""
+    model._names = ["x_0", "x_1"]
+    model._bounds = {"x_0": [-5, 5], "x_1": [-5, 5]}
+
+    fs = FlowSampler(
+        model,
+        nlive=100,
+        output=tmp_path / "test_regex",
+        flow_config=flow_config,
+        reparameterisations={"z-score": {"parameters": ["x.*"]}},
+        maximum_uninformed=50,
+        max_iteration=100,
+        plot=False,
+    )
+    fs.run()
+    assert fs.ns._flow_proposal.rescaled_names == ["x_0_prime", "x_1_prime"]
+
+
 @pytest.mark.slow_integration_test
 def test_sampling_without_rescale(model, flow_config, tmpdir):
     """
