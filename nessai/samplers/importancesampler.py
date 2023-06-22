@@ -22,7 +22,6 @@ from ..plot import nessai_style, plot_1d_comparison
 from ..livepoint import (
     add_extra_parameters_to_live_points,
     get_dtype,
-    live_points_to_dict,
     numpy_array_to_live_points,
 )
 from ..utils.hist import auto_bins
@@ -193,8 +192,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.draw_constant = draw_constant
         self._train_final_flow = train_final_flow
         self.bootstrap = bootstrap
-        self.adjusted_log_evidence = None
-        self.adjusted_log_evidence_error = None
+        self.bootstrap_log_evidence = None
+        self.bootstrap_log_evidence_error = None
         self.weighted_kl = weighted_kl
         self.save_existing_checkpoint = save_existing_checkpoint
 
@@ -507,7 +506,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 leakage_live_points=[],
                 leakage_new_points=[],
                 logZ=[],
-                level_importance=[],
                 n_live=[],
                 n_added=[],
                 n_removed=[],
@@ -1035,8 +1033,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         logger.info(f"Mean log evidence: {mean_log_evidence:.3f}")
         logger.info(f"SE log evidence: {standard_error:.3f}")
-        self.adjusted_log_evidence = mean_log_evidence
-        self.adjusted_log_evidence_error = standard_error
+        self.bootstrap_log_evidence = mean_log_evidence
+        self.bootstrap_log_evidence_error = standard_error
 
     def finalise(self) -> None:
         """Finalise the sampling process."""
@@ -1875,19 +1873,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """Get a dictionary contain the main results from the sampler."""
         d = super().get_result_dictionary()
         d["history"] = self.history
-        d["nested_samples"] = live_points_to_dict(self.nested_samples)
-        d["log_evidence"] = self.log_evidence
-        d["log_evidence_error"] = self.log_evidence_error
+        d["initial_samples"] = self.samples
+        d["initial_log_evidence"] = self.log_evidence
+        d["initial_log_evidence_error"] = self.log_evidence_error
         # Will all be None if the final samples haven't been drawn
-        d["adjusted_log_evidence"] = self.adjusted_log_evidence
-        d["adjusted_log_evidence_error"] = self.adjusted_log_evidence_error
-        d["final_samples"] = (
-            live_points_to_dict(self.final_samples)
-            if self.final_samples is not None
-            else None
-        )
-        d["final_log_evidence"] = self.final_log_evidence
-        d["final_log_evidence_error"] = self.final_log_evidence_error
+        d["bootstrap_log_evidence"] = self.bootstrap_log_evidence
+        d["bootstrap_log_evidence_error"] = self.bootstrap_log_evidence_error
+        d["samples"] = self.final_samples
+        d["log_evidence"] = self.final_log_evidence
+        d["log_evidence_error"] = self.final_log_evidence_error
 
         d["training_time"] = self.training_time.total_seconds()
         d["draw_samples_time"] = self.draw_samples_time.total_seconds()
@@ -1897,6 +1891,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d[
             "draw_final_samples_time"
         ] = self.draw_final_samples_time.total_seconds()
+        d["proposal_importance"] = self.importance
 
         return d
 
