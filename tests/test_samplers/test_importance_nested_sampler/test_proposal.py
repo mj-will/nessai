@@ -1,4 +1,5 @@
 """Tests for the proposals and meta-proposal"""
+import datetime
 from unittest.mock import MagicMock
 
 from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
@@ -25,7 +26,7 @@ def test_add_new_proposal(ins, samples, log_q, weighted_kl):
     ins.replace_all = False
     ins.weighted_kl = weighted_kl
     ins.plot_training_data = True
-    ins.training_time = 0.0
+    ins.training_time = datetime.timedelta(seconds=10)
 
     INS.add_new_proposal(ins)
 
@@ -38,7 +39,7 @@ def test_add_new_proposal(ins, samples, log_q, weighted_kl):
 def test_draw_n_samples(ins, samples, log_q, history):
     expected = samples.copy()
     n = len(expected)
-    ins.draw_samples_time = 0.0
+    ins.draw_samples_time = datetime.timedelta(seconds=10)
     ins.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=samples["logL"].copy()
     )
