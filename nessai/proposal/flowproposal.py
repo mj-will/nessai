@@ -7,6 +7,7 @@ import datetime
 from functools import partial
 import logging
 import os
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -630,6 +631,26 @@ class FlowProposal(RejectionProposal):
                 try:
                     rc, default_config = self.get_reparameterisation(k)
                     default_config.update(cfg)
+                    parameters = default_config.get("parameters")
+
+                    if parameters is not None:
+                        if not isinstance(parameters, list):
+                            if isinstance(parameters, str):
+                                patterns = [parameters]
+                            else:
+                                patterns = list(parameters)
+                        else:
+                            patterns = parameters.copy()
+                        matches = []
+                        for pattern in patterns:
+                            r = re.compile(pattern)
+                            matches += list(filter(r.match, self.model.names))
+                        default_config["parameters"] = matches
+                    else:
+                        logger.warning(
+                            "Reparameterisation might be missing parameters!"
+                        )
+
                 except ValueError:
                     raise RuntimeError(
                         f"{k} is not a parameter in the model or a known "

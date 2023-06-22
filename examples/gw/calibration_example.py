@@ -118,8 +118,6 @@ calib_phases = [
     "recalib_L1_phase_1",
 ]
 
-calib_parameters = calib_amplitudes + calib_phases
-
 # Entry 8 is the detector (H or L)
 for name in calib_amplitudes:
     priors[name] = bilby.prior.Gaussian(
@@ -154,5 +152,5 @@ result = bilby.run_sampler(
     plot=True,
     sampler="nessai",
     flow_class="gwflowproposal",
-    reparameterisations={"null": {"parameters": calib_parameters}},
+    reparameterisations={"z-score": {"parameters": "recalib.*"}},
 )
