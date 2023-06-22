@@ -92,7 +92,7 @@ fs = FlowSampler(
     importance_nested_sampler=True,
     draw_constant=True,
     reparameterisation=None,
-    level_kwargs={"q": 0.66},
+    threshold_kwargs={"q": 0.66},
     reset_flow=4,
     flow_config=flow_config,
 )
