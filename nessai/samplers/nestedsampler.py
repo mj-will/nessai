@@ -164,7 +164,7 @@ class NestedSampler(BaseNestedSampler):
         resume_file=None,
         seed=None,
         pool=None,
-        close_pool=True,
+        close_pool=False,
         n_pool=None,
         plot=True,
         proposal_plots=False,
@@ -328,6 +328,11 @@ class NestedSampler(BaseNestedSampler):
             return np.mean(self.acceptance_history)
         else:
             return np.nan
+
+    @property
+    def posterior_effective_sample_size(self):
+        """The effective sample size of the posterior distribution"""
+        return self.state.effective_n_posterior_samples
 
     def configure_max_iteration(self, max_iteration):
         """Configure the maximum iteration.
@@ -1312,7 +1317,7 @@ class NestedSampler(BaseNestedSampler):
         return d
 
     @classmethod
-    def resume(cls, filename, model, flow_config=None, weights_file=None):
+    def resume(cls, filename, model, flow_config=None, weights_path=None):
         """
         Resumes the interrupted state from a checkpoint pickle file.
 
@@ -1324,8 +1329,8 @@ class NestedSampler(BaseNestedSampler):
             User-defined model
         flow_config : dict, optional
             Dictionary for configuring the flow
-        weights_file : str, optional
-            Weights files to use in place of the weights file stored in the
+        weights_path : str, optional
+            Weights file to use in place of the weights file stored in the
             pickle file.
 
         Returns
@@ -1337,5 +1342,5 @@ class NestedSampler(BaseNestedSampler):
         obj._uninformed_proposal.resume(model)
         if flow_config is None:
             flow_config = {}
-        obj._flow_proposal.resume(model, flow_config, weights_file)
+        obj._flow_proposal.resume(model, flow_config, weights_path)
         return obj

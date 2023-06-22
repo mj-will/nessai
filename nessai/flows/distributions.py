@@ -4,6 +4,9 @@ Distributions to use as the 'base distribution' for normalising flows.
 """
 import math
 
+from glasflow.distributions import (
+    ResampledGaussian as BaseResampledGaussian,
+)
 from glasflow.nflows.distributions import Distribution
 from glasflow.nflows.utils import torchutils
 import numpy as np
@@ -67,3 +70,23 @@ class MultivariateNormal(Distribution):
             return self._log_z.new_zeros(self._shape)
         else:
             raise NotImplementedError
+
+
+class ResampledGaussian(BaseResampledGaussian):
+    """Wrapper for ResampledGaussian.
+
+    Adds methods needed in nessai.
+    """
+
+    end_iteration = BaseResampledGaussian.estimate_normalisation_constant
+    """Function to be called at the end of an iteration.
+
+    For LARS this updates the estimate of the normalisation constant
+    independently of the other parameters in the flow.
+    """
+
+    def finalise(self, n_samples: int = 10_000, n_batches: int = 10) -> None:
+        """Finalise the estimate of the normalisation constant."""
+        self.estimate_normalisation_constant(
+            n_samples=n_samples, n_batches=n_batches
+        )

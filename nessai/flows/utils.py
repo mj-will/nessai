@@ -9,11 +9,13 @@ import warnings
 
 from glasflow.nflows import transforms
 from glasflow.nflows.distributions import Distribution
+from glasflow.distributions import MultivariateUniform
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .distributions import MultivariateNormal
+from .distributions import MultivariateNormal, ResampledGaussian
+from .nets import MLP
 
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,9 @@ def get_base_distribution(
     distributions = {
         "mvn": MultivariateNormal,
         "normal": MultivariateNormal,
+        "lars": ResampledGaussian,
+        "resampled": ResampledGaussian,
+        "uniform": MultivariateUniform,
     }
 
     DistClass = None
@@ -63,7 +68,33 @@ def get_base_distribution(
 
     if DistClass:
         logger.debug("Creating instance of the base distribution")
-        dist = DistClass([n_inputs], **kwargs)
+        if DistClass is ResampledGaussian:
+            n_layers = kwargs.pop("n_layers", 2)
+            n_neurons = get_n_neurons(
+                kwargs.pop("n_neurons", None), n_inputs=n_inputs
+            )
+            layers_list = n_layers * [n_neurons]
+            logger.debug(
+                f"LARS acceptance network will have {n_layers} layers with "
+                f"{n_neurons} neurons each."
+            )
+            net_kwargs = kwargs.pop("net_kwargs", {})
+            acc_fn = MLP(
+                [n_inputs],
+                [1],
+                layers_list,
+                activate_output=torch.sigmoid,
+                **net_kwargs,
+            )
+            logger.debug(f"Other LARs kwargs: {kwargs}")
+            dist = DistClass([n_inputs], acc_fn, **kwargs)
+        elif DistClass is MultivariateUniform:
+            dist = DistClass(
+                low=torch.zeros(n_inputs, dtype=torch.get_default_dtype()),
+                high=torch.ones(n_inputs, dtype=torch.get_default_dtype()),
+            )
+        else:
+            dist = DistClass([n_inputs], **kwargs)
     elif distribution is None:
         dist = None
     else:

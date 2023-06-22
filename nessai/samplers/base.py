@@ -129,6 +129,12 @@ class BaseNestedSampler(ABC):
     likelihood_calls = total_likelihood_evaluations
     """Alias for :code:`total_likelihood_evaluations`"""
 
+    @property
+    @abstractmethod
+    def posterior_effective_sample_size(self):
+        """The effective sample size of the posterior distribution"""
+        raise NotImplementedError()
+
     def configure_output(
         self, output: Union[str, None], resume_file: Union[str, None] = None
     ):
@@ -220,7 +226,12 @@ class BaseNestedSampler(ABC):
                 self._last_log = now
         self.log_state()
 
-    def checkpoint(self, periodic: bool = False, force: bool = False):
+    def checkpoint(
+        self,
+        periodic: bool = False,
+        force: bool = False,
+        save_existing: bool = True,
+    ):
         """Checkpoint the classes internal state.
 
         Parameters
@@ -231,6 +242,9 @@ class BaseNestedSampler(ABC):
             the state plot.
         force : bool
             Force the sampler to checkpoint.
+        save_existing : bool
+            If True, the previous checkpoint will be copied to `.old`.
+            If False, the new checkpoint will override the previous file.
         """
         now = datetime.datetime.now()
         if not periodic:
@@ -254,7 +268,9 @@ class BaseNestedSampler(ABC):
                     return
         self.sampling_time += now - self.sampling_start_time
         logger.info("Checkpointing nested sampling")
-        safe_file_dump(self, self.resume_file, pickle, save_existing=True)
+        safe_file_dump(
+            self, self.resume_file, pickle, save_existing=save_existing
+        )
         self.sampling_start_time = datetime.datetime.now()
 
     @classmethod

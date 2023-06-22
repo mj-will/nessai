@@ -136,5 +136,14 @@ class PlottingConfig:
     """
 
 
+@dataclass
+class GeneralConfig:
+    """General configuration options"""
+
+    eps: float = 1e-8
+    """Epsilon value used for numerical stability"""
+
+
 livepoints = LivepointsConfig()
 plotting = PlottingConfig()
+general = GeneralConfig()

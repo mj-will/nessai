@@ -8,10 +8,12 @@ import signal
 import sys
 from typing import Optional
 
+from . import config
 from .livepoint import live_points_to_dict
-from .samplers.nestedsampler import NestedSampler
+from .samplers import NestedSampler, ImportanceNestedSampler
 from .posterior import draw_posterior_samples
 from .utils import configure_threads
+from .utils.torchutils import set_torch_default_dtype
 from .utils.io import save_to_json, save_dict_to_hdf5
 
 
@@ -32,9 +34,13 @@ class FlowSampler:
         If True try to resume the sampler is the resume file exists.
     resume_file : str, optional
         File to resume sampler from.
-    weights_files : str, optional
-        Weights files used to resume sampler that replaces the weights file
-        saved internally.
+    weights_path : str, optional
+        Path to either the weights file or directory containing subdirectories
+        with weight files.
+    weights_file : str, optional
+        Weights file to use, same as :code:`weights_path` and included for
+        backwards_compatibility. Will be ignored is :code:`weights_paths` has
+        also been specified.
     pytorch_threads : int
         Maximum number of threads to use for torch. If ``None`` torch uses all
         available threads.
@@ -72,14 +78,18 @@ class FlowSampler:
         self,
         model,
         output=os.getcwd(),
+        importance_nested_sampler=False,
         resume=True,
         resume_file="nested_sampler_resume.pkl",
         weights_file=None,
+        weights_path=None,
         signal_handling=True,
         exit_code=130,
         pytorch_threads=1,
         max_threads=None,
         close_pool=True,
+        eps=None,
+        torch_dtype=None,
         disable_vectorisation=False,
         likelihood_chunksize=None,
         allow_multi_valued_likelihood=None,
@@ -92,7 +102,22 @@ class FlowSampler:
             pytorch_threads=pytorch_threads,
         )
 
+        self._final_samples = None
+        self._nested_samples = None
         self.exit_code = exit_code
+        self.eps = eps
+        if self.eps is not None:
+            logger.info(f"Setting eps to {self.eps}")
+            config.general.eps = self.eps
+
+        self.torch_dtype = set_torch_default_dtype(torch_dtype)
+
+        if importance_nested_sampler:
+            SamplerClass = ImportanceNestedSampler
+        else:
+            SamplerClass = NestedSampler
+        self.importance_nested_sampler = importance_nested_sampler
+
         self.close_pool = close_pool
 
         self.result_extension = result_extension
@@ -118,6 +143,9 @@ class FlowSampler:
         )
 
         if resume:
+
+            weights_path = weights_path or weights_file
+
             if not resume_file:
                 raise RuntimeError(
                     "`resume_file` must be specified if resume=True. "
@@ -130,7 +158,7 @@ class FlowSampler:
                 )
             ):
                 logger.warning("No files to resume from, starting sampling")
-                self.ns = NestedSampler(
+                self.ns = SamplerClass(
                     model,
                     output=self.output,
                     resume_file=resume_file,
@@ -139,11 +167,11 @@ class FlowSampler:
                 )
             else:
                 try:
-                    self.ns = NestedSampler.resume(
+                    self.ns = SamplerClass.resume(
                         os.path.join(self.output, resume_file),
                         model,
                         flow_config=kwargs.get("flow_config"),
-                        weights_file=weights_file,
+                        weights_path=weights_path,
                     )
                 except (FileNotFoundError, RuntimeError) as e:
                     logger.error(
@@ -152,11 +180,11 @@ class FlowSampler:
                     )
                     try:
                         resume_file += ".old"
-                        self.ns = NestedSampler.resume(
+                        self.ns = SamplerClass.resume(
                             os.path.join(self.output, resume_file),
                             model,
                             flow_config=kwargs.get("flow_config"),
-                            weights_file=weights_file,
+                            weights_path=weights_path,
                         )
                     except RuntimeError as e:
                         logger.error(
@@ -167,7 +195,7 @@ class FlowSampler:
                             "Could not resume sampler " f"with error: {e}"
                         )
         else:
-            self.ns = NestedSampler(
+            self.ns = SamplerClass(
                 model,
                 output=self.output,
                 resume_file=resume_file,
@@ -198,28 +226,30 @@ class FlowSampler:
         """Return the most recent log evidence error"""
         return self.logZ_error
 
+    @property
+    def nested_samples(self):
+        """Return the nested samples"""
+        if self._final_samples is not None:
+            return self._final_samples
+        else:
+            return self._nested_samples
+
     def run(
         self,
         plot=True,
-        plot_indices=True,
-        plot_posterior=True,
-        plot_logXlogL=True,
         save=True,
         posterior_sampling_method=None,
         close_pool=None,
+        **kwargs,
     ):
         """Run the nested sampler.
+
+        Will pick the correct run method given the configuration used.
 
         Parameters
         ----------
         plot : bool
             Toggle all plots produced once the sampler has converged.
-        plot_indices : bool
-            Toggle the insertion indices plot.
-        plot_posterior : bool
-            Toggle the posterior distribution plot.
-        plot_logXlogL : bool
-            Toggle the log-prior volume vs log-likelihood plot.
         save : bool, optional
             Toggle automatic saving of results
         posterior_sampling_method : str, optional
@@ -231,20 +261,74 @@ class FlowSampler:
             specified, this value overrides the value passed when initialising
             the FlowSampler class.
         """
+        if self.importance_nested_sampler:
+            self.run_importance_nested_sampler(
+                plot=plot,
+                save=save,
+                posterior_sampling_method=posterior_sampling_method,
+                close_pool=close_pool,
+                **kwargs,
+            )
+        else:
+            self.run_standard_sampler(
+                plot=plot,
+                save=save,
+                posterior_sampling_method=posterior_sampling_method,
+                close_pool=close_pool,
+                **kwargs,
+            )
+
+    def run_standard_sampler(
+        self,
+        plot=True,
+        plot_indices=True,
+        plot_posterior=True,
+        plot_logXlogL=True,
+        save=True,
+        posterior_sampling_method=None,
+        close_pool=None,
+    ):
+        """Run the standard nested sampler.
+
+        Parameters
+        ----------
+        plot : bool
+            Toggle all plots produced once the sampler has converged.
+        plot_indices : bool
+            Toggle the insertion indices plot.
+        plot_posterior : bool
+            Toggle the posterior distribution plot.
+        plot_logXlogL : bool
+            Toggle the log-prior volume vs log-likelihood plot.
+        save
+            Enable or disable saving of a results file.
+        posterior_sampling_method
+            Method used for drawing posterior samples. Defaults to rejection
+            sampling.
+        close_pool : bool
+            Boolean to indicated if the pool should be closed at the end of the
+            run function. If False, the user must manually close the pool. If
+            specified, this value overrides the value passed when initialising
+            the class.
+        """
+        if self.importance_nested_sampler:
+            raise RuntimeError(
+                "Cannot run standard sampler when importance_sampler=True"
+            )
         if close_pool is None:
             close_pool = self.close_pool
         if posterior_sampling_method is None:
             posterior_sampling_method = "rejection_sampling"
 
         self.ns.initialise()
-        self.logZ, self.nested_samples = self.ns.nested_sampling_loop()
+        self.logZ, self._nested_samples = self.ns.nested_sampling_loop()
         self.logZ_error = self.ns.state.log_evidence_error
         logger.info((f"Total sampling time: {self.ns.sampling_time}"))
 
         logger.info("Starting post processing")
         logger.info("Computing posterior samples")
         self.posterior_samples = draw_posterior_samples(
-            self.nested_samples,
+            self._nested_samples,
             log_w=self.ns.state.log_posterior_weights,
             method=posterior_sampling_method,
         )
@@ -283,6 +367,119 @@ class FlowSampler:
         if close_pool:
             self.ns.close_pool()
 
+    def run_importance_nested_sampler(
+        self,
+        plot=True,
+        plot_posterior=True,
+        save=True,
+        posterior_sampling_method=None,
+        redraw_samples=True,
+        n_posterior_samples=None,
+        compute_initial_posterior=False,
+        close_pool=None,
+        **kwargs,
+    ):
+        """Run the importance nested sampler.
+
+        Parameters
+        ----------
+        plot
+            Enable or disable plotting. Independent of the value passed
+            to the :code:`NestedSampler` object.
+        save
+            Enable or disable saving of a results file.
+        posterior_sampling_method
+            Method used for drawing posterior samples. Defaults to importance
+            sampling.
+        redraw_samples
+            If True after the sampling is finished, samples are redrawn from
+            the meta proposal and used to compute an updated evidence estimate
+            and posterior. This can reduce biases in the results.
+        n_posterior_samples
+            Number of posterior samples to draw when when redrawing samples.
+        compute_initial_posterior
+            Enables or disables computing the posterior before redrawing
+            samples. If :code:`redraw_samples` is False, then this flag is
+            ignored.
+        close_pool : bool
+            Boolean to indicated if the pool should be closed at the end of the
+            run function. If False, the user must manually close the pool. If
+            specified, this value overrides the value passed when initialising
+            the class.
+        kwargs
+            Keyword arguments passed to \
+                :py:meth:`~nessai.importancesampler.ImportanceNestedSampler.draw_final_samples`
+        """
+        if not self.importance_nested_sampler:
+            raise RuntimeError(
+                "Cannot run importance sampler when importance_sampler=False"
+            )
+        if close_pool is None:
+            close_pool = self.close_pool
+        if posterior_sampling_method is None:
+            posterior_sampling_method = "importance_sampling"
+
+        self.logZ, self._nested_samples = self.ns.nested_sampling_loop()
+        self.logZ_error = self.ns.state.log_evidence_error
+        logger.info((f"Total sampling time: {self.ns.sampling_time}"))
+
+        logger.info("Starting post processing")
+
+        if redraw_samples:
+            logger.info("Redrawing samples")
+            self.initial_logZ = self.logZ
+            self.initial_logZ_error = self.logZ_error
+            self.logZ, self._final_samples = self.ns.draw_final_samples(
+                n_post=n_posterior_samples,
+                **kwargs,
+            )
+            self.logZ_error = self.ns.final_log_evidence_error
+
+        logger.info("Computing posterior samples")
+
+        if compute_initial_posterior or not redraw_samples:
+            logger.debug("Computing initial posterior samples")
+            self.initial_posterior_samples = self.ns.draw_posterior_samples(
+                sampling_method=posterior_sampling_method,
+                use_final_samples=False,
+            )
+        if redraw_samples:
+            self.posterior_samples = self.ns.draw_posterior_samples(
+                sampling_method=posterior_sampling_method,
+                use_final_samples=True,
+            )
+        else:
+            self.posterior_samples = self.initial_posterior_samples
+        logger.info(
+            f"Returned {self.posterior_samples.size} posterior samples"
+        )
+
+        if save:
+            self.save_results(
+                os.path.join(self.output, "result"),
+                extension=self.result_extension,
+            )
+
+        if plot and plot_posterior:
+            logger.debug("Producing plots")
+            from nessai import plot
+
+            plot.plot_live_points(
+                self.posterior_samples,
+                filename=os.path.join(
+                    self.output, "posterior_distribution.png"
+                ),
+            )
+            if redraw_samples and compute_initial_posterior:
+                plot.plot_live_points(
+                    self.initial_posterior_samples,
+                    filename=os.path.join(
+                        self.output, "initial_posterior_distribution.png"
+                    ),
+                )
+        if close_pool:
+            self.ns.close_pool()
+
     def save_kwargs(self, kwargs: dict) -> None:
         """
         Save the dictionary of keyword arguments used.
@@ -294,10 +491,16 @@ class FlowSampler:
         kwargs : dict
             Dictionary of kwargs to save.
         """
-        save_to_json(kwargs.copy(), os.path.join(self.output, "config.json"))
+        d = kwargs.copy()
+        d["eps"] = self.eps
+        d["torch_dtype"] = self.torch_dtype
+        d["importance_sampler"] = self.importance_nested_sampler
+        save_to_json(d, os.path.join(self.output, "config.json"))
 
     def save_results(
-        self, filename: str, extension: Optional[str] = None
+        self,
+        filename: str,
+        extension: Optional[str] = None,
     ) -> None:
         """
         Save the results from sampling to a specific results file.
@@ -311,7 +514,10 @@ class FlowSampler:
             the filename.
         """
         d = self.ns.get_result_dictionary()
+
         d["posterior_samples"] = self.posterior_samples
+        if hasattr(self, "initial_posterior_samples"):
+            d["initial_posterior_samples"] = self.initial_posterior_samples
 
         ext = os.path.splitext(filename)[1].lstrip(".")
         if extension is None:

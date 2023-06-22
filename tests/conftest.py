@@ -9,6 +9,10 @@ import time
 import torch
 import multiprocessing
 
+from nessai.livepoint import (
+    add_extra_parameters_to_live_points,
+    reset_extra_live_points_parameters,
+)
 from nessai.model import Model
 
 
@@ -36,6 +40,18 @@ def model():
             for pn in self.names:
                 log_l += norm.logpdf(x[pn])
             return log_l
+
+        def to_unit_hypercube(self, x):
+            x_out = x.copy()
+            for n in self.names:
+                x_out[n] = (x[n] - self.bounds[n][0]) / np.ptp(self.bounds[n])
+            return x_out
+
+        def from_unit_hypercube(self, x):
+            x_out = x.copy()
+            for n in self.names:
+                x_out[n] = np.ptp(self.bounds[n]) * x[n] + self.bounds[n][0]
+            return x_out
 
     return TestModel()
 
@@ -81,13 +97,13 @@ def mp_context(request):
     return multiprocessing.get_context(request.param)
 
 
-def pytest_addoption(parser):
-    parser.addoption(
-        "--bilby-compatibility",
-        action="store_true",
-        default=False,
-        help="Run bilby compatibility tests",
-    )
+@pytest.fixture()
+def ins_parameters():
+    """Add (and remove) the standard INS parameters for the tests."""
+    # Before every test
+    add_extra_parameters_to_live_points(["logQ", "logW"])
+    yield
+    reset_extra_live_points_parameters()
 
 
 def pytest_configure(config):
@@ -109,6 +125,15 @@ def pytest_configure(config):
         "markers",
         "bilby_compatibility: mark test as a bilby compatibility test, these "
         "tests will be skipped unless the command line option is specified.",
+    )
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--bilby-compatibility",
+        action="store_true",
+        default=False,
+        help="Run bilby compatibility tests",
     )
 
 

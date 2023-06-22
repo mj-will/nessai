@@ -74,6 +74,32 @@ def test_get_base_distribution_error():
     assert "Unknown distribution: not_a_distribution" in str(excinfo.value)
 
 
+@pytest.mark.parametrize("name", ["lars", "resampled"])
+@pytest.mark.parametrize("n_layers", [None, 3])
+def test_get_base_distribution_lars(name, n_layers):
+    """Test using the LARS base distribution"""
+    kwargs = dict(test=False, net_kwargs=dict(dropout=0.1))
+    if n_layers:
+        kwargs["n_layers"] = n_layers
+    else:
+        n_layers = 2
+
+    mlp = object()
+
+    with patch("nessai.flows.utils.ResampledGaussian") as mock_dist, patch(
+        "nessai.flows.utils.MLP", return_value=mlp
+    ) as mock_mlp, patch(
+        "nessai.flows.utils.get_n_neurons", return_value=8
+    ) as mock_get_neurons:
+        get_base_distribution(2, name, **kwargs)
+
+    mock_get_neurons.assert_called_once_with(None, n_inputs=2)
+    mock_mlp.assert_called_once_with(
+        [2], [1], n_layers * [8], activate_output=torch.sigmoid, dropout=0.1
+    )
+    mock_dist.assert_called_once_with([2], mlp, test=False)
+
+
 @pytest.mark.parametrize(
     "n_neurons, n_inputs, expected",
     [
