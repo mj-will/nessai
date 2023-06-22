@@ -53,8 +53,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
     check_criteria
         If using multiple stopping criteria determines whether any or all
         criteria must be met.
-    level_method
-        Method for determining new levels.
+    threshold_method
+        Method for determining new likelihood threshold.
+    threshold_kwargs
+        Keyword arguments for function that determines the likelihood
+        threshold.
     draw_constant
         If specified the sampler will always add a constant number of samples
         from each proposal whilst removing a variable amount. If False, the
@@ -92,7 +95,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def __init__(
         self,
         model: Model,
-        nlive: int = 3000,
+        nlive: int = 5000,
         n_initial: Optional[int] = None,
         output: Optional[str] = None,
         seed: Optional[int] = None,
@@ -120,13 +123,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
         plot_extra_state: bool = False,
         trace_plot_kwargs: Optional[dict] = None,
         replace_all: bool = False,
-        level_method: Literal["entropy", "quantile"] = "entropy",
+        threshold_method: Literal["entropy", "quantile"] = "entropy",
+        threshold_kwargs: Optional[dict] = None,
         n_pool: Optional[int] = None,
         pool: Optional[Any] = None,
         check_criteria: Literal["any", "all"] = "any",
-        level_kwargs: Optional[dict] = None,
-        weighted_kl: bool = True,
-        draw_constant: bool = False,
+        weighted_kl: bool = False,
+        draw_constant: bool = True,
         train_final_flow: bool = False,
         bootstrap: bool = False,
         close_pool: bool = False,
@@ -178,8 +181,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.plot_training_data = plot_training_data
         self.plotting_frequency = plotting_frequency
         self.replace_all = replace_all
-        self.level_method = level_method
-        self.level_kwargs = {} if level_kwargs is None else level_kwargs
+        self.threshold_method = threshold_method
+        self.threshold_kwargs = (
+            {} if threshold_kwargs is None else threshold_kwargs
+        )
         self.strict_threshold = strict_threshold
         self.logX = 0.0
         self.logL_threshold = -np.inf
@@ -541,10 +546,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 getattr(self, k, np.nan)
             )
 
-    def determine_level_quantile(
+    def determine_threshold_quantile(
         self, q: float = 0.8, include_likelihood: bool = False
     ) -> int:
-        """Determine where the next level should be located.
+        """Determine where the next likelihood threshold should be located.
 
         Computes the q'th quantile based on log-likelihood and log-weights.
 
@@ -575,13 +580,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(f"{q:.3} quantile is logL ={cutoff}")
         return int(n)
 
-    def determine_level_entropy(
+    def determine_threshold_entropy(
         self,
         q: float = 0.5,
         include_likelihood: bool = False,
         use_log_weights: bool = True,
     ) -> int:
-        """Determine how many points to remove based on the entropy.
+        """Determine where the next likelihood threshold should be located
+        using the entropy method.
 
         Parameters
         ----------
@@ -655,23 +661,46 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return fig
 
-    def determine_level(self, method="entropy", **kwargs) -> int:
-        """Determine where the next level should.
+    def determine_likelihood_threshold(
+        self, method="entropy", **kwargs
+    ) -> int:
+        """Determine the next likelihood threshold
 
         Returns
         -------
-        float :
-            The log-likelihood of the quantile
         int :
-            The number of samples to discard.
+            The number of samples to remove from the current live points.
         """
         if method == "quantile":
-            n = self.determine_level_quantile(**kwargs)
+            n = self.determine_threshold_quantile(**kwargs)
         elif method == "entropy":
-            n = self.determine_level_entropy(**kwargs)
+            n = self.determine_threshold_entropy(**kwargs)
         else:
             raise ValueError(method)
-        logger.info(f"Next level should remove {n} points")
+        logger.debug(f"Next iteration should remove {n} points")
+        if n == 0:
+            if self.min_remove < 1:
+                return 0
+            else:
+                n = 1
+        if (self.live_points.size - n) < self.min_samples:
+            logger.warning(
+                f"Cannot remove {n} from {self.live_points.size}, "
+                f"min_samples={self.min_samples}"
+            )
+            n = max(0, self.live_points.size - self.min_samples)
+        elif n < self.min_remove:
+            logger.warning(
+                f"Cannot remove less than {self.min_remove} samples"
+            )
+            n = self.min_remove
+        logger.info(
+            f"Removing {n}/{self.live_points.size} samples to train next "
+            "proposal"
+        )
+
+        self.logL_threshold = self.live_points[n]["logL"].copy()
+        logger.info(f"Log-likelihood threshold: {self.logL_threshold}")
         return n
 
     def add_new_proposal(self):
@@ -682,6 +711,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n_train = np.argmax(self.samples["logL"] >= self.logL_threshold)
         self.training_samples = self.samples[n_train:].copy()
         self.training_log_q = self.log_q[n_train:, :].copy()
+
+        logger.info(
+            f"Training next proposal with {len(self.training_samples)} samples"
+        )
 
         logger.debug("Updating the contour")
         logger.debug(
@@ -706,14 +739,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.training_time += timer() - st
 
     def draw_n_samples(self, n: int):
-        """Draw n points from the proposal"""
+        """Draw n samples from the current proposal
+
+        Includes computing the log-likelihood of the samples
+        """
         st = timer()
+        logger.info(f"Drawing {n} samples from the new proposal")
         new_points, log_q = self.proposal.draw(n)
         logger.debug("Evaluating likelihood for new points")
         new_points["logL"] = self.model.batch_evaluate_log_likelihood(
             new_points
         )
-        logger.info(
+        logger.debug(
             "Min. log-likelihood of new samples: "
             f"{np.min(new_points['logL'])}"
         )
@@ -1115,33 +1152,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self._compute_gradient()
 
             if self.n_update is None:
-                n_remove = self.determine_level(
-                    method=self.level_method, **self.level_kwargs
+                n_remove = self.determine_likelihood_threshold(
+                    method=self.threshold_method, **self.threshold_kwargs
                 )
-            else:
-                n_remove = self.n_update
-            if n_remove == 0:
-                if self.min_remove < 1:
+                if n_remove == 0:
                     logger.warning("No points to remove")
                     logger.warning("Stopping")
                     break
-                else:
-                    n_remove = 1
-            if (self.live_points.size - n_remove) < self.min_samples:
-                logger.warning(
-                    f"Cannot remove {n_remove} from {self.live_points.size}, "
-                    f"min_samples={self.min_samples}"
-                )
-                n_remove = max(0, self.live_points.size - self.min_samples)
-            elif n_remove < self.min_remove:
-                logger.warning(
-                    f"Cannot remove less than {self.min_remove} samples"
-                )
-                n_remove = self.min_remove
-            logger.info(f"Removing {n_remove} samples")
-
-            self.logL_threshold = self.live_points[n_remove]["logL"].copy()
-            logger.info(f"Log-likelihood threshold: {self.logL_threshold}")
+            else:
+                n_remove = self.n_update
             self.remove_samples(n_remove)
 
             self.add_new_proposal()
@@ -1203,9 +1222,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
             n=n,
             return_indices=True,
         )
+
+        # TODO: check this is correct
         log_p = log_w[indices] - log_w[indices].max()
         h = differential_entropy(log_p)
-        logger.info(f"Information in the posterior: {h:.3f} nats")
+        logger.debug(f"Information in the posterior: {h:.3f} nats")
+
         logger.info(f"Produced {posterior_samples.size} posterior samples.")
         return posterior_samples
 
@@ -1299,6 +1321,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         samples
             Structured array with the new nested samples.
         """
+        logger.info("Drawing final samples")
         if n_post and n_draw:
             raise RuntimeError("Specify either `n_post` or `n_draw`")
         start_time = timer()
@@ -1383,7 +1406,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         it = 0
         ess = 0
 
-        logger.warning("Drawing final samples")
         while True:
             if n_post and (ess > n_post):
                 break
@@ -1415,7 +1437,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             )
 
             if np.any(it_samples["logL"] > max_logL):
-                logger.critical(
+                logger.warning(
                     f"Max logL increased from {max_logL:.3f} to "
                     f"{it_samples['logL'].max():.3f}"
                 )
@@ -1441,11 +1463,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(f"New weights: {counts}")
 
         logger.info(f"Drew {samples.size} final samples")
-        logger.warning(
-            f"Final ln-evidence: {self.final_state.logZ:.3f} "
+        logger.info(
+            f"Final log-evidence: {self.final_state.logZ:.3f} "
             f"+/- {self.final_state.compute_uncertainty():.3f}"
         )
-        logger.warning(f"Final ESS: {ess:.1f}")
+        logger.info(f"Final ESS: {ess:.1f}")
         self.final_samples = samples
         self.draw_final_samples_time += timer() - start_time
         return self.final_state.logZ, samples
