@@ -4,6 +4,25 @@ Utilities for the test suite.
 """
 import numpy as np
 
+from ..model import Model
+
+
+class IntegrationTestModel(Model):
+    """Complete nessai model for use with integration tests"""
+
+    def __init__(self, dims=2):
+        self.bounds = {f"x_{i}": [-5.0, 5.0] for i in range(dims)}
+        self.names = list(self.bounds.keys())
+
+    def log_prior(self, x):
+        log_p = np.log(self.in_bounds(x), dtype="float")
+        for n in self.names:
+            log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
+        return log_p
+
+    def log_likelihood(self, x):
+        return np.sum(-0.5 * (self.unstructured_view(x) ** 2), axis=-1)
+
 
 def assert_structured_arrays_equal(x, y, atol=0.0, rtol=0.0):
     """Assert structured arrays are equal.
