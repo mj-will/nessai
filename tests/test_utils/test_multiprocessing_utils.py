@@ -5,6 +5,7 @@ Tests for rescaling functions
 import multiprocessing
 from multiprocessing.dummy import Pool
 import pytest
+import sys
 from unittest.mock import MagicMock, patch
 
 from nessai.utils.multiprocessing import (
@@ -42,6 +43,7 @@ def test_check_multiprocessing_start_method(method, caplog):
 
 
 @pytest.mark.integration_test
+@pytest.mark.skip_on_windows
 def test_check_multiprocessing_start_method_integration():
     """Integration test for checking the start method."""
     mp = multiprocessing.get_context("fork")
@@ -53,6 +55,8 @@ def test_check_multiprocessing_start_method_integration():
 @pytest.mark.integration_test
 def test_check_multiprocessing_start_method_error_integration(method, caplog):
     """Integration test for checking the start method prints a warning"""
+    if sys.platform == "win32" and method != "spawn":
+        pytest.skip("Windows only supports the 'spawn' start method")
     mp = multiprocessing.get_context(method)
     with patch("multiprocessing.get_start_method", mp.get_start_method):
         check_multiprocessing_start_method()
