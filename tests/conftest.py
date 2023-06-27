@@ -14,6 +14,7 @@ from nessai.livepoint import (
     reset_extra_live_points_parameters,
 )
 from nessai.model import Model
+from nessai.utils.testing import IntegrationTestModel
 
 
 seed(170817)
@@ -54,6 +55,11 @@ def model():
             return x_out
 
     return TestModel()
+
+
+@pytest.fixture()
+def integration_model():
+    return IntegrationTestModel()
 
 
 @pytest.fixture()

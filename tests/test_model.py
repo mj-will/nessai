@@ -17,7 +17,6 @@ from nessai.utils.multiprocessing import (
     log_likelihood_wrapper,
 )
 from nessai.utils.testing import (
-    IntegrationTestModel,
     assert_structured_arrays_equal,
 )
 
@@ -51,11 +50,6 @@ class BasicModel(Model):
 @pytest.fixture
 def model():
     return create_autospec(Model, _pool_configured=False)
-
-
-@pytest.fixture()
-def integration_model():
-    return IntegrationTestModel()
 
 
 @pytest.fixture
