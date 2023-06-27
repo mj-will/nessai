@@ -93,6 +93,8 @@ def wait():
 @pytest.fixture(params=["fork", "forkserver", "spawn"])
 def mp_context(request):
     """Multiprocessing context to test"""
+    if sys.platform == "win32" and request.param != "spawn":
+        pytest.skip("Windows only supports the 'spawn' start method")
     return multiprocessing.get_context(request.param)
 
 
