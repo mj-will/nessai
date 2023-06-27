@@ -4,7 +4,25 @@ Test the testing utilities
 import numpy as np
 import pytest
 
-from nessai.utils.testing import assert_structured_arrays_equal
+from nessai.utils.testing import (
+    IntegrationTestModel,
+    assert_structured_arrays_equal,
+)
+
+
+@pytest.mark.parametrize("n", [1, 10])
+@pytest.mark.parametrize("dims", [2, 4])
+def test_integration_test_model(n, dims):
+    """Assert the model is valid"""
+    model = IntegrationTestModel(dims)
+    model.verify_model()
+    x = model.new_point(n)
+    log_p = model.log_prior(x)
+    log_l = model.log_likelihood(x)
+    assert np.isfinite(log_p).all()
+    assert np.isfinite(log_l).all()
+    assert len(log_p) == len(x)
+    assert len(log_l) == len(x)
 
 
 def test_assert_struct_arrays_different_fields():

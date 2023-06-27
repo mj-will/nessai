@@ -5,6 +5,7 @@ Tests for rescaling functions
 import multiprocessing
 from multiprocessing.dummy import Pool
 import pytest
+import sys
 from unittest.mock import MagicMock, patch
 
 from nessai.utils.multiprocessing import (
@@ -30,20 +31,15 @@ def test_pool_variables():
     initialise_pool_variables(None)
 
 
-def test_check_multiprocessing_start_method():
-    """Test check multiprocessing start method passes for 'fork'"""
-    with patch("multiprocessing.get_start_method", return_value="fork"):
+@pytest.mark.parametrize("method", ["fork", "forkserver", "spawn"])
+def test_check_multiprocessing_start_method(method, caplog):
+    """
+    Test check multiprocessing start method passes for all methods
+    """
+    with patch("multiprocessing.get_start_method", return_value=method):
         check_multiprocessing_start_method()
-
-
-@pytest.mark.parametrize("method", ["spawn", "forkserver"])
-def test_check_multiprocessing_start_method_error(method):
-    """Assert an error is raised if the start method is not fork."""
-    error_msg = r"nessai only supports multiprocessing using the 'fork' .*"
-    with patch(
-        "multiprocessing.get_start_method", return_value=method
-    ), pytest.raises(RuntimeError, match=error_msg):
-        check_multiprocessing_start_method()
+    if method != "fork":
+        assert "This may lead to high memory usage or errors" in caplog.text
 
 
 @pytest.mark.integration_test
@@ -55,15 +51,17 @@ def test_check_multiprocessing_start_method_integration():
         check_multiprocessing_start_method()
 
 
+@pytest.mark.parametrize("method", ["fork", "forkserver", "spawn"])
 @pytest.mark.integration_test
-def test_check_multiprocessing_start_method_error_integration():
-    """Integration test for checking the start method raises an error."""
-    mp = multiprocessing.get_context("spawn")
-    error_msg = r"nessai only supports multiprocessing using the 'fork' .*"
-    with patch(
-        "multiprocessing.get_start_method", mp.get_start_method
-    ), pytest.raises(RuntimeError, match=error_msg):
+def test_check_multiprocessing_start_method_error_integration(method, caplog):
+    """Integration test for checking the start method prints a warning"""
+    if sys.platform == "win32" and method != "spawn":
+        pytest.skip("Windows only supports the 'spawn' start method")
+    mp = multiprocessing.get_context(method)
+    with patch("multiprocessing.get_start_method", mp.get_start_method):
         check_multiprocessing_start_method()
+    if method != "fork":
+        assert "This may lead to high memory usage or errors" in caplog.text
 
 
 def test_model_error():

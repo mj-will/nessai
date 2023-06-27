@@ -14,6 +14,7 @@ from nessai.livepoint import (
     reset_extra_live_points_parameters,
 )
 from nessai.model import Model
+from nessai.utils.testing import IntegrationTestModel
 
 
 seed(170817)
@@ -57,6 +58,11 @@ def model():
 
 
 @pytest.fixture()
+def integration_model():
+    return IntegrationTestModel()
+
+
+@pytest.fixture()
 def flow_config():
     d = dict(
         max_epochs=5,
@@ -84,16 +90,11 @@ def wait():
     return func
 
 
-@pytest.fixture(params=["fork", "spawn"])
+@pytest.fixture(params=["fork", "forkserver", "spawn"])
 def mp_context(request):
     """Multiprocessing context to test"""
-    if request.param == "spawn":
-        pytest.skip(
-            "nessai does not currently support multiprocessing with the "
-            "'spawn' method."
-        )
-    if sys.platform == "win32":
-        pytest.skip("Windows does not support 'fork' method")
+    if sys.platform == "win32" and request.param != "spawn":
+        pytest.skip("Windows only supports the 'spawn' start method")
     return multiprocessing.get_context(request.param)
 
 

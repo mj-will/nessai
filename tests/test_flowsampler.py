@@ -60,7 +60,7 @@ def nested_samples(names):
 def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
     """Test the init method when there is no run to resume from"""
 
-    model = MagicMock()
+    integration_model = MagicMock()
     output = tmp_path / "init"
     output.mkdir()
     output = str(output)
@@ -82,7 +82,7 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
     ) as mock, patch("nessai.flowsampler.configure_threads") as mock_threads:
         FlowSampler.__init__(
             flow_sampler,
-            model,
+            integration_model,
             output=output,
             resume=resume,
             exit_code=exit_code,
@@ -99,7 +99,7 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
     )
 
     mock.assert_called_once_with(
-        model,
+        integration_model,
         output=os.path.join(output, ""),
         resume_file=resume_file,
         close_pool=False,
@@ -137,19 +137,19 @@ def test_disable_vectorisation(flow_sampler, tmp_path):
     output = tmp_path / "test"
     output.mkdir()
 
-    model = MagicMock()
-    model.allow_vectorised = True
+    integration_model = MagicMock()
+    integration_model.allow_vectorised = True
 
     with patch("nessai.flowsampler.NestedSampler") as mock:
         FlowSampler.__init__(
             flow_sampler,
-            model,
+            integration_model,
             output=output,
             disable_vectorisation=True,
         )
     mock.assert_called_once()
-    input_model = mock.call_args[0][0]
-    assert input_model.allow_vectorised is False
+    input_integration_model = mock.call_args[0][0]
+    assert input_integration_model.allow_vectorised is False
 
 
 def test_likelihood_chunksize(flow_sampler, tmp_path):
@@ -157,19 +157,19 @@ def test_likelihood_chunksize(flow_sampler, tmp_path):
     output = tmp_path / "test"
     output.mkdir()
 
-    model = MagicMock()
-    model.likelihood_chunksize = None
+    integration_model = MagicMock()
+    integration_model.likelihood_chunksize = None
 
     with patch("nessai.flowsampler.NestedSampler") as mock:
         FlowSampler.__init__(
             flow_sampler,
-            model,
+            integration_model,
             output=output,
             likelihood_chunksize=100,
         )
     mock.assert_called_once()
-    input_model = mock.call_args[0][0]
-    assert input_model.likelihood_chunksize == 100
+    input_integration_model = mock.call_args[0][0]
+    assert input_integration_model.likelihood_chunksize == 100
 
 
 def test_allow_multi_valued_likelihood(flow_sampler, tmp_path):
@@ -177,19 +177,19 @@ def test_allow_multi_valued_likelihood(flow_sampler, tmp_path):
     output = tmp_path / "test"
     output.mkdir()
 
-    model = MagicMock()
-    model.allow_multi_value_likelihood = False
+    integration_model = MagicMock()
+    integration_model.allow_multi_value_likelihood = False
 
     with patch("nessai.flowsampler.NestedSampler") as mock:
         FlowSampler.__init__(
             flow_sampler,
-            model,
+            integration_model,
             output=output,
             allow_multi_valued_likelihood=True,
         )
     mock.assert_called_once()
-    input_model = mock.call_args[0][0]
-    assert input_model.allow_multi_valued_likelihood is True
+    input_integration_model = mock.call_args[0][0]
+    assert input_integration_model.allow_multi_valued_likelihood is True
 
 
 @pytest.mark.parametrize(
@@ -202,14 +202,14 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
     Tests the case where the first file works and the case where the first
     file fails but the old method works.
     """
-    model = MagicMock()
+    integration_model = MagicMock()
     output = tmp_path / "test"
     output.mkdir()
     resume = True
     exit_code = 131
     pytorch_threads = 2
     resume_file = "test.pkl"
-    weights_file = "model.pt"
+    weights_file = "integration_model.pt"
     flow_config = dict(lr=0.1)
 
     if test_old:
@@ -237,7 +237,7 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
     ) as mock_threads:
         FlowSampler.__init__(
             flow_sampler,
-            model,
+            integration_model,
             output=output,
             resume=resume,
             exit_code=exit_code,
@@ -254,7 +254,7 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
 
     mock_resume.assert_called_with(
         expected_rf,
-        model,
+        integration_model,
         flow_config=flow_config,
         weights_path=weights_file,
     )
@@ -266,7 +266,7 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
 
 def test_init_resume_error_cannot_resume(flow_sampler, tmp_path):
     """Assert an error is raised if neither file loads"""
-    model = MagicMock()
+    integration_model = MagicMock()
     output = tmp_path / "test"
     output.mkdir()
     resume = True
@@ -286,7 +286,7 @@ def test_init_resume_error_cannot_resume(flow_sampler, tmp_path):
     ) as excinfo:
         FlowSampler.__init__(
             flow_sampler,
-            model,
+            integration_model,
             output=output,
             resume=resume,
             resume_file=resume_file,
@@ -299,7 +299,7 @@ def test_init_resume_error_no_file(flow_sampler, tmp_path):
     """Assert an error is raised if resume=True and a resume_file is \
         not specified.
     """
-    model = MagicMock()
+    integration_model = MagicMock()
     output = tmp_path / "test"
     output.mkdir()
     output = str(output)
@@ -309,7 +309,7 @@ def test_init_resume_error_no_file(flow_sampler, tmp_path):
     ) as excinfo:
         FlowSampler.__init__(
             flow_sampler,
-            model,
+            integration_model,
             output=output,
             resume=True,
             resume_file=None,
@@ -319,42 +319,51 @@ def test_init_resume_error_no_file(flow_sampler, tmp_path):
 
 def test_init_signal_handling_enabled(flow_sampler, tmp_path):
     """Assert signal.signal is called when signal handling is enabled."""
-    model = MagicMock()
+    integration_model = MagicMock()
     output = tmp_path / "test"
     output.mkdir()
     output = str(output)
 
     with patch("signal.signal") as mocked_fn:
         FlowSampler.__init__(
-            flow_sampler, model, output=output, signal_handling=True
+            flow_sampler,
+            integration_model,
+            output=output,
+            signal_handling=True,
         )
     mocked_fn.assert_called()
 
 
 def test_init_signal_handling_disabled(flow_sampler, tmp_path):
     """Assert signal handling is not configure when disabled"""
-    model = MagicMock()
+    integration_model = MagicMock()
     output = tmp_path / "test"
     output.mkdir()
     output = str(output)
 
     with patch("signal.signal") as mocked_fn:
         FlowSampler.__init__(
-            flow_sampler, model, output=output, signal_handling=False
+            flow_sampler,
+            integration_model,
+            output=output,
+            signal_handling=False,
         )
     mocked_fn.assert_not_called()
 
 
 def test_init_signal_handling_error(flow_sampler, tmp_path, caplog):
     """Assert signal handling is skipped if an error is raised."""
-    model = MagicMock()
+    integration_model = MagicMock()
     output = tmp_path / "test"
     output.mkdir()
     output = str(output)
 
     with patch("signal.signal", side_effect=AttributeError):
         FlowSampler.__init__(
-            flow_sampler, model, output=output, signal_handling=True
+            flow_sampler,
+            integration_model,
+            output=output,
+            signal_handling=True,
         )
     assert "Cannot set signal attributes" in str(caplog.text)
 
@@ -730,7 +739,9 @@ def test_safe_exit(flow_sampler):
 @pytest.mark.slow_integration_test
 @pytest.mark.timeout(60)
 @pytest.mark.skip_on_windows
-def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
+def test_signal_handling(
+    tmp_path, caplog, integration_model, kwargs, mp_context
+):
     """Test the signal handling in nessai.
 
     Test is based on a similar test in bilby which is in turn based on: \
@@ -744,7 +755,7 @@ def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
         mp_context.get_start_method,
     ):
         fs = FlowSampler(
-            model,
+            integration_model,
             output=output,
             nlive=500,
             poolsize=1000,
@@ -779,7 +790,7 @@ def test_signal_handling(tmp_path, caplog, model, kwargs, mp_context):
 @pytest.mark.slow_integration_test
 @pytest.mark.timeout(60)
 @pytest.mark.skip_on_windows
-def test_signal_handling_disabled(tmp_path, caplog, model):
+def test_signal_handling_disabled(tmp_path, caplog, integration_model):
     """Assert signal handling is correctly disabled.
 
     Test is based on a similar test in bilby which is in turn based on: \
@@ -789,7 +800,7 @@ def test_signal_handling_disabled(tmp_path, caplog, model):
     output.mkdir()
 
     fs = FlowSampler(
-        model,
+        integration_model,
         output=output,
         nlive=500,
         poolsize=1000,
