@@ -84,16 +84,9 @@ def wait():
     return func
 
 
-@pytest.fixture(params=["fork", "spawn"])
+@pytest.fixture(params=["fork", "forkserver", "spawn"])
 def mp_context(request):
     """Multiprocessing context to test"""
-    if request.param == "spawn":
-        pytest.skip(
-            "nessai does not currently support multiprocessing with the "
-            "'spawn' method."
-        )
-    if sys.platform == "win32":
-        pytest.skip("Windows does not support 'fork' method")
     return multiprocessing.get_context(request.param)
 
 

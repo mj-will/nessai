@@ -16,7 +16,10 @@ from nessai.utils.multiprocessing import (
     initialise_pool_variables,
     log_likelihood_wrapper,
 )
-from nessai.utils.testing import assert_structured_arrays_equal
+from nessai.utils.testing import (
+    IntegrationTestModel,
+    assert_structured_arrays_equal,
+)
 
 
 class EmptyModel(Model):
@@ -27,7 +30,7 @@ class EmptyModel(Model):
         return None
 
 
-class DevModel(Model):
+class BasicModel(Model):
     def __init__(self):
         self.bounds = {"x": [-5, 5], "y": [-5, 5]}
         self.names = ["x", "y"]
@@ -45,31 +48,14 @@ class DevModel(Model):
         return log_l
 
 
-@pytest.fixture()
-def integration_model():
-    class IntegrationModel(Model):
-        def __init__(self):
-            self.bounds = {"x": [-5, 5], "y": [-5, 5]}
-            self.names = ["x", "y"]
-
-        def log_prior(self, x):
-            log_p = np.log(self.in_bounds(x), dtype="float")
-            for n in self.names:
-                log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
-            return log_p
-
-        def log_likelihood(self, x):
-            log_l = np.ones(x.size)
-            for pn in self.names:
-                log_l += norm.logpdf(x[pn])
-            return log_l
-
-    return IntegrationModel()
-
-
 @pytest.fixture
 def model():
     return create_autospec(Model, _pool_configured=False)
+
+
+@pytest.fixture()
+def integration_model():
+    return IntegrationTestModel()
 
 
 @pytest.fixture
@@ -384,8 +370,8 @@ def test_new_point_integration(integration_model):
     """
     new_point = integration_model.new_point()
     log_q = integration_model.new_point_log_prob(new_point)
-    assert (new_point["x"] < 5) & (new_point["y"] > -5)
-    assert (new_point["y"] < 5) & (new_point["y"] > -5)
+    assert (new_point["x_0"] < 5) & (new_point["x_0"] > -5)
+    assert (new_point["x_1"] < 5) & (new_point["x_1"] > -5)
     assert log_q == 0
 
 
@@ -395,14 +381,14 @@ def test_new_point_multiple_integration(integration_model):
     Test drawing multiple new points from the model
 
     Uses the model defined in `conftest.py` with bounds [-5, 5] for
-    x and y.
+    x_0 and x_1.
     """
     new_points = integration_model.new_point(N=100)
     log_q = integration_model.new_point_log_prob(new_points)
     assert new_points.size == 100
     assert all(np.isnan(new_points["logP"]))
-    assert all(new_points["x"] < 5) & all(new_points["x"] > -5)
-    assert all(new_points["y"] < 5) & all(new_points["y"] > -5)
+    assert all(new_points["x_0"] < 5) & all(new_points["x_1"] > -5)
+    assert all(new_points["x_1"] < 5) & all(new_points["x_0"] > -5)
     assert (log_q == 0).all()
 
 
@@ -515,7 +501,7 @@ def test_verify_new_point():
     prior function raises the correct error
     """
 
-    class BrokenModel(DevModel):
+    class BrokenModel(BasicModel):
         def log_prior(self, x):
             return -np.inf
 
@@ -534,7 +520,7 @@ def test_verify_log_prior_finite(log_p):
     only returns inf function raises the correct error
     """
 
-    class BrokenModel(DevModel):
+    class BrokenModel(BasicModel):
         def log_prior(self, x):
             return log_p
 
@@ -550,7 +536,7 @@ def test_verify_log_prior_none():
     only returns None raises an error.
     """
 
-    class BrokenModel(DevModel):
+    class BrokenModel(BasicModel):
         def log_prior(self, x):
             return None
 
@@ -568,7 +554,7 @@ def test_verify_log_likelihood_none():
     only returns None raises an error.
     """
 
-    class BrokenModel(DevModel):
+    class BrokenModel(BasicModel):
         def log_likelihood(self, x):
             return None
 
@@ -722,7 +708,7 @@ def test_verify_float16(caplog, value):
     if a float16 array is returned by the prior.
     """
 
-    class BrokenModel(DevModel):
+    class BrokenModel(BasicModel):
         def log_prior(self, x):
             return value
 
@@ -738,7 +724,7 @@ def test_verify_no_float16(caplog):
     Test `Model.verify_model` and ensure that a critical warning is not raised
     if array return by log_prior is not dtype float16.
     """
-    model = DevModel()
+    model = BasicModel()
     out = model.verify_model()
     assert out is True
     assert "float16 precision" not in caplog.text
@@ -797,7 +783,7 @@ def test_verify_model_likelihood_repeated_calls():
     return different values.
     """
 
-    class BrokenModel(DevModel):
+    class BrokenModel(BasicModel):
         count = 0
         allow_multi_valued_likelihood = False
 
@@ -817,7 +803,7 @@ def test_verify_model_likelihood_repeated_calls_allowed(caplog):
     raised.
     """
 
-    class MultiValuedModel(DevModel):
+    class MultiValuedModel(BasicModel):
         allow_multi_valued_likelihood = True
 
         def log_likelihood(self, x):
@@ -1118,12 +1104,37 @@ def test_get_state(model):
 
 
 @pytest.mark.integration_test
-def test_pool(integration_model, mp_context):
+@pytest.mark.parametrize("pickleable", [False, True])
+@pytest.mark.parametrize("init", ["before", "after", "function"])
+def test_pool(integration_model, mp_context, pickleable, init):
     """Integration test for evaluating the likelihood with a pool"""
-    # Cannot pickle lambda functions
-    integration_model.fn = lambda x: x
-    initialise_pool_variables(integration_model)
-    pool = mp_context.Pool(1)
+    method = mp_context.get_start_method()
+
+    if not pickleable:
+        # Cannot pickle lambda functions
+        integration_model.fn = lambda x: x
+        if method != "fork":
+            pytest.xfail(f"start method {method} requires a pickleable model")
+
+    if init == "before":
+        if method != "fork":
+            pytest.xfail(f"Must use initializer in Pool with {method}")
+        initialise_pool_variables(integration_model)
+        pool = mp_context.Pool(1)
+    elif init == "function":
+        pool = mp_context.Pool(
+            1,
+            initializer=initialise_pool_variables,
+            initargs=(integration_model,),
+        )
+    elif init == "after":
+        if method != "fork":
+            pytest.xfail(f"Must use initializer in Pool with {method}")
+        pool = mp_context.Pool(1)
+        initialise_pool_variables(integration_model)
+    else:
+        raise ValueError(init)
+
     integration_model.configure_pool(pool=pool)
     assert integration_model.pool is pool
     x = integration_model.new_point(10)
@@ -1174,10 +1185,16 @@ def test_pool_ray(integration_model):
 
 
 @pytest.mark.integration_test
-def test_n_pool(integration_model, mp_context):
+@pytest.mark.parametrize("pickleable", [False, True])
+def test_n_pool(integration_model, mp_context, pickleable):
     """Integration test for evaluating the likelihood with n_pool"""
-    # Cannot pickle lambda functions
-    integration_model.fn = lambda x: x
+    if not pickleable:
+        # Cannot pickle lambda functions
+        integration_model.fn = lambda x: x
+        method = mp_context.get_start_method()
+        if method != "fork":
+            pytest.xfail(f"start method {method} requires a pickleable model")
+
     with patch("multiprocessing.Pool", mp_context.Pool), patch(
         "nessai.utils.multiprocessing.multiprocessing.get_start_method",
         mp_context.get_start_method,
