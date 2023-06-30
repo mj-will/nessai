@@ -612,13 +612,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
         cdf /= cdf[-1]
         n = np.argmax(cdf >= q)
         if self.plot and self._plot_level_cdf:
+            output = os.path.join(
+                self.output, "levels", f"level_{self.iteration}"
+            )
+            os.makedirs(output, exist_ok=True)
             self.plot_level_cdf(
                 cdf,
                 threshold=self.live_points["logL"][n],
                 q=q,
-                filename=os.path.join(
-                    self.output, "levels", f"level_{self.iteration}", "cdf.png"
-                ),
+                filename=os.path.join(output, "cdf.png"),
             )
         return int(n)
 
