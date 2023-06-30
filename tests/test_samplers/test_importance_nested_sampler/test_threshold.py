@@ -1,4 +1,5 @@
 """Tests for level-related methods"""
+import os
 from unittest.mock import MagicMock
 
 from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
@@ -20,6 +21,22 @@ def test_determine_threshold_entropy(
         include_likelihood=include_likelihood,
     )
     assert 0 < n < samples.size
+
+
+def test_determine_threshold_entropy_plot(ins, samples, tmp_path):
+    ins.live_points = np.sort(samples, order="logL")
+    ins.plot = True
+    ins._plot_level_cdf = True
+    ins.output = tmp_path / "test_entropy_plot"
+    ins.plot_level_cdf = MagicMock()
+    ins.iteration = 2
+    n = INS.determine_threshold_entropy(
+        ins,
+        q=0.5,
+    )
+    assert 0 < n < samples.size
+    ins.plot_level_cdf.assert_called_once()
+    assert os.path.exists(os.path.join(ins.output, "levels", "level_2"))
 
 
 @pytest.mark.parametrize("include_likelihood", [False, True])
