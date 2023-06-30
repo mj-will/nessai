@@ -23,6 +23,7 @@ The code is available at: https://github.com/mj-will/nessai.
    installation
    running-the-sampler
    sampler-configuration
+   importance-nested-sampling
    reparameterisations
    normalising-flows-configuration
    parallelisation
