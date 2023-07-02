@@ -23,6 +23,7 @@ The code is available at: https://github.com/mj-will/nessai.
    installation
    running-the-sampler
    sampler-configuration
+   importance-nested-sampling
    reparameterisations
    normalising-flows-configuration
    parallelisation
@@ -56,11 +57,27 @@ If you find ``nessai`` useful in your work please cite the DOI for this code and
       url          = {https://doi.org/10.5281/zenodo.4550693}
     }
 
-    @article{williams2021nested,
-      title={Nested Sampling with Normalising Flows for Gravitational-Wave Inference},
-      author={Michael J. Williams and John Veitch and Chris Messenger},
-      year={2021},
-      eprint={2102.11056},
-      archivePrefix={arXiv},
-      primaryClass={gr-qc}
-    }
+    @article{Williams:2021qyt,
+      author = "Williams, Michael J. and Veitch, John and Messenger, Chris",
+      title = "{Nested sampling with normalizing flows for gravitational-wave inference}",
+      eprint = "2102.11056",
+      archivePrefix = "arXiv",
+      primaryClass = "gr-qc",
+      doi = "10.1103/PhysRevD.103.103006",
+      journal = "Phys. Rev. D",
+      volume = "103",
+      number = "10",
+      pages = "103006",
+      year = "2021"
+   }
+
+   @article{Williams:2023ppp,
+      author = "Williams, Michael J. and Veitch, John and Messenger, Chris",
+      title = "{Importance nested sampling with normalising flows}",
+      eprint = "2302.08526",
+      archivePrefix = "arXiv",
+      primaryClass = "astro-ph.IM",
+      reportNumber = "LIGO-P2200283",
+      month = "2",
+      year = "2023"
+   }

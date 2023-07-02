@@ -11,7 +11,7 @@
 
 ``nessai`` (/ˈnɛsi/): Nested Sampling with Artificial Intelligence
 
-``nessai`` is a nested sampling algorithm for Bayesian Inference that incorporates normalisings flows. It is designed for applications where the Bayesian likelihood is computationally expensive.
+``nessai`` is a nested sampling algorithm for Bayesian Inference that incorporates normalising flows. It is designed for applications where the Bayesian likelihood is computationally expensive.
 
 ## Installation
 
@@ -59,7 +59,7 @@ The authors also thank Christian Chapman-Bird, Laurence Datrier, Fergus Hayes, J
 
 ## Citing
 
-If you find ``nessai`` useful in your work please cite the DOI for this code and our paper:
+If you find ``nessai`` useful in your work please cite the DOI for this code and our papers:
 
 ```bibtex
 @software{nessai,
@@ -73,18 +73,29 @@ If you find ``nessai`` useful in your work please cite the DOI for this code and
   url          = {https://doi.org/10.5281/zenodo.4550693}
 }
 
-@article{PhysRevD.103.103006,
-  title = {Nested sampling with normalizing flows for gravitational-wave inference},
-  author = {Williams, Michael J. and Veitch, John and Messenger, Chris},
-  journal = {Phys. Rev. D},
-  volume = {103},
-  issue = {10},
-  pages = {103006},
-  numpages = {19},
-  year = {2021},
-  month = {May},
-  publisher = {American Physical Society},
-  doi = {10.1103/PhysRevD.103.103006},
-  url = {https://link.aps.org/doi/10.1103/PhysRevD.103.103006}
+@article{Williams:2021qyt,
+    author = "Williams, Michael J. and Veitch, John and Messenger, Chris",
+    title = "{Nested sampling with normalizing flows for gravitational-wave inference}",
+    eprint = "2102.11056",
+    archivePrefix = "arXiv",
+    primaryClass = "gr-qc",
+    doi = "10.1103/PhysRevD.103.103006",
+    journal = "Phys. Rev. D",
+    volume = "103",
+    number = "10",
+    pages = "103006",
+    year = "2021"
 }
+
+@article{Williams:2023ppp,
+    author = "Williams, Michael J. and Veitch, John and Messenger, Chris",
+    title = "{Importance nested sampling with normalising flows}",
+    eprint = "2302.08526",
+    archivePrefix = "arXiv",
+    primaryClass = "astro-ph.IM",
+    reportNumber = "LIGO-P2200283",
+    month = "2",
+    year = "2023"
+}
+
 ```
