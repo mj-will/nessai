@@ -29,6 +29,25 @@ The sampler is then run using the :py:meth:`nessai.flowsampler.FlowSampler.run`,
     sampler.run()
 
 
+.. important::
+    The importance nested sampler requires the user to define the methods :code:`to_unit_hypercube` and :code:`from_unit_hypercube` in the model class,
+    see the examples linked below.
+
+
+Configuration
+-------------
+
+All keyword arguments passed to  :py:class:`~nessai.flowsampler.FlowSampler` will in turn be passed to either
+:py:class:`~nessai.samplers.importancesampler.ImportanceNestedSampler` or :py:class:`~nessai.proposal.importance.ImportanceFlowProposal`.
+We now highlight some key settings, for a complete list see the documentation for the two classes,
+
+* :code:`nlive`: more complex problems will often need larger :code:`nlive`,
+* :code:`threshold_kwargs`: dictionary of keyword arguments for determining the likelihood threshold, the most important is :code:`q` (:math:`\rho` in the paper),
+* :code:`reparameterisation`: either :code:`'logit'` or :code:`None`, the former should be used in most cases, unless the flow has the domain on :math:`[0, 1]^n`,
+* :code:`flow_config`: identical to the standard sampler, see :ref:`normalising flows configuration` for details,
+* :code:`reset_flow`: reset the flow before training every ith iteration,
+
+
 Stopping criterion
 ------------------
 
@@ -84,7 +103,7 @@ Examples
 For basic examples, see the `examples directory <https://github.com/mj-will/nessai/tree/inessai-docs/examples/importance_nested_sampler>`_.
 
 
-Graviatational-wave inference
+Gravitational-wave inference
 =============================
 
 The importance nested sampler is not currently supported in :code:`bilby` but will be in a future release.
