@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0]
+
+### Added
+
+- Add importance nested sampler ([#285](https://github.com/mj-will/nessai/pull/285))
+- Add support for using regex for specifying parameters in the reparametersations dictionary ([#312](https://github.com/mj-will/nessai/pull/312))
+
+
+### Changed
+
+- Enable constant volume mode with uniform nball latent prior ([#306](https://github.com/mj-will/nessai/pull/306))
+- Pass kwargs in RealNVP to the coupling class ([#307](https://github.com/mj-will/nessai/pull/307))
+- Use log-scale on state plot ([#308](https://github.com/mj-will/nessai/pull/308))
+- Support `forkserver` and `spawn` multiprocessing start methods ([#313](https://github.com/mj-will/nessai/pull/313))
+
+### Fixed
+
+- Fix resume bug with fallback reparameterisation ([#302](https://github.com/mj-will/nessai/pull/302))
+- Fix bugs caused by numpy 1.25 ([#311](https://github.com/mj-will/nessai/pull/311))
+
 ## [0.8.1]
 
 ### Fixed
@@ -497,7 +517,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/mj-will/nessai/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/mj-will/nessai/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/mj-will/nessai/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/mj-will/nessai/compare/v0.7.0...v0.7.1
