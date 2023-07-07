@@ -98,3 +98,59 @@ def test_posterior_effective_sample_size(sampler):
     sampler.state.effective_n_posterior_samples = 10
     out = NestedSampler.posterior_effective_sample_size.__get__(sampler)
     assert out == 10
+
+
+def test_birth_log_likelihoods(sampler):
+    """Assert the birth log-likelihoods are correct"""
+    sampler.state.logLs = [-np.inf, 1, 2, 3, 4]
+    dtype = [("it", "i4")]
+    sampler.nested_samples = [
+        np.array(
+            [
+                0,
+            ],
+            dtype=dtype,
+        ),
+        np.array(
+            [
+                1,
+            ],
+            dtype=dtype,
+        ),
+        np.array(
+            [
+                2,
+            ],
+            dtype=dtype,
+        ),
+        np.array(
+            [
+                0,
+            ],
+            dtype=dtype,
+        ),
+        np.array(
+            [
+                0,
+            ],
+            dtype=dtype,
+        ),
+        np.array(
+            [
+                4,
+            ],
+            dtype=dtype,
+        ),
+        np.array(
+            [
+                3,
+            ],
+            dtype=dtype,
+        ),
+    ]
+
+    expected = np.array([-np.inf, 1, 2, -np.inf, -np.inf, 4, 3])
+
+    out = NestedSampler.birth_log_likelihoods.__get__(sampler)
+
+    np.testing.assert_array_equal(out, expected)
