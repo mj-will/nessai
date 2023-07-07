@@ -339,7 +339,7 @@ class NestedSampler(BaseNestedSampler):
         """Return the birth log-likelihoods for the nested samples"""
         logLs = np.array(self.state.logLs)
         its = np.array(self.nested_samples)["it"]
-        return logLs[its]
+        return logLs[its].flatten()
 
     def configure_max_iteration(self, max_iteration):
         """Configure the maximum iteration.
