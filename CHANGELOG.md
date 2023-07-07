@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Added
+
+- `birth_log_likelihoods` to `NestedSampler` and  `logL_birth` to the result dictionary
+
+### Changed
+
+- Nested samples are now stored as an array in the result object rather than a dictionary
+
 ## [0.9.0]
 
 ### Added
