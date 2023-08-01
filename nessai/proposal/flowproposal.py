@@ -644,7 +644,9 @@ class FlowProposal(RejectionProposal):
                         matches = []
                         for pattern in patterns:
                             r = re.compile(pattern)
-                            matches += list(filter(r.match, self.model.names))
+                            matches += list(
+                                filter(r.fullmatch, self.model.names)
+                            )
                         default_config["parameters"] = matches
                     else:
                         logger.warning(
