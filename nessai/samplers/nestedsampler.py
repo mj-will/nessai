@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from .base import BaseNestedSampler
 from .. import config
-from ..livepoint import empty_structured_array, live_points_to_dict
+from ..livepoint import empty_structured_array
 from ..plot import plot_indices, plot_trace, nessai_style
 from ..evidence import _NSIntegralState
 from ..proposal import FlowProposal
@@ -333,6 +333,13 @@ class NestedSampler(BaseNestedSampler):
     def posterior_effective_sample_size(self):
         """The effective sample size of the posterior distribution"""
         return self.state.effective_n_posterior_samples
+
+    @property
+    def birth_log_likelihoods(self):
+        """Return the birth log-likelihoods for the nested samples"""
+        logLs = np.array(self.state.logLs)
+        its = np.array(self.nested_samples)["it"]
+        return logLs[its].flatten()
 
     def configure_max_iteration(self, max_iteration):
         """Configure the maximum iteration.
@@ -1306,9 +1313,8 @@ class NestedSampler(BaseNestedSampler):
         d["insertion_indices"] = self.insertion_indices
         d["final_p_value"] = self.final_p_value
         d["final_ks_statistic"] = self.final_ks_statistic
-        d["nested_samples"] = live_points_to_dict(
-            np.array(self.nested_samples)
-        )
+        d["nested_samples"] = np.array(self.nested_samples)
+        d["logL_birth"] = self.birth_log_likelihoods
         d["log_evidence"] = self.log_evidence
         d["log_evidence_error"] = self.state.log_evidence_error
         d["information"] = self.information
