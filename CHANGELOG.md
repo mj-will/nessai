@@ -7,7 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-
 ### Added
 
 - `birth_log_likelihoods` to `NestedSampler` and  `logL_birth` to the result dictionary
@@ -15,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Nested samples are now stored as an array in the result object rather than a dictionary
+
+## [0.9.1]
+
+### Fixed
+
+- Fix duplicate parameters when adding reparameterisations (see [#320](https://github.com/mj-will/nessai/issues/320) for details) ([#321](https://github.com/mj-will/nessai/pull/321))
 
 ## [0.9.0]
 
@@ -526,7 +531,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/mj-will/nessai/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/mj-will/nessai/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/mj-will/nessai/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/mj-will/nessai/compare/v0.7.1...v0.8.0
