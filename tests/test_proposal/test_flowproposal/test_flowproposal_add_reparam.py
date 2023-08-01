@@ -86,7 +86,7 @@ def test_default_reparameterisations(caplog, tmpdir):
     """Assert that by default the reparameterisation is RescaleToBounds"""
     caplog.set_level("INFO")
     model = MagicMock()
-    model.names = ["x", "y"]
+    model.names = ["x1", "x10", "x11"]
     model.bounds = {p: [-1, 1] for p in model.names}
     model.reparameterisations = None
     proposal = FlowProposal(
@@ -97,4 +97,5 @@ def test_default_reparameterisations(caplog, tmpdir):
     proposal.initialise()
     reparams = list(proposal._reparameterisation.values())
     assert len(reparams) == 1
-    assert reparams[0].parameters == ["x", "y"]
+    assert reparams[0].parameters == ["x1", "x10", "x11"]
+    assert proposal.rescale_parameters == ["x1", "x10", "x11"]
