@@ -34,7 +34,9 @@ def test_setup_logger_no_label():
     This should NOT produce a log file.
     """
     logger = setup_logger(label=None)
-    assert not any([type(h) == logging.FileHandler for h in logger.handlers])
+    assert not any(
+        [isinstance(h, logging.FileHandler) for h in logger.handlers]
+    )
 
 
 @pytest.mark.parametrize("output", ["logger_dir", None])
@@ -50,7 +52,7 @@ def test_setup_logger_with_label(tmp_path, output):
     if output is None:
         output = os.getcwd()
     assert os.path.exists(os.path.join(output, "test.log"))
-    assert any([type(h) == logging.FileHandler for h in logger.handlers])
+    assert any([isinstance(h, logging.FileHandler) for h in logger.handlers])
 
 
 def test_setup_logger_with_mkdir(tmp_path):

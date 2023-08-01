@@ -76,10 +76,10 @@ class FlowModel:
         if output_file is None:
             output_file = os.path.join(self.output, "flow_config.json")
         for k, v in list(config.items()):
-            if type(v) == np.ndarray:
+            if isinstance(v, np.ndarray):
                 config[k] = np.array2string(config[k], separator=",")
         for k, v in list(config["model_config"].items()):
-            if type(v) == np.ndarray:
+            if isinstance(v, np.ndarray):
                 config["model_config"][k] = np.array2string(
                     config["model_config"][k], separator=","
                 )
@@ -272,7 +272,7 @@ class FlowModel:
         logger.debug(f"{x_train.shape} training samples")
         logger.debug(f"{x_val.shape} validation samples")
 
-        if not type(batch_size) is int:
+        if not isinstance(batch_size, int):
             if batch_size == "all" or batch_size is None:
                 batch_size = x_train.shape[0]
             else:
