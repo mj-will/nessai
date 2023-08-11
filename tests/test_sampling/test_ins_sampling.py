@@ -2,6 +2,7 @@
 import os
 
 from nessai.flowsampler import FlowSampler
+import numpy as np
 import pytest
 
 
@@ -22,6 +23,8 @@ def test_ins_resume(tmp_path, model, flow_config):
     )
     fp.run()
 
+    original_log_q = fp.ns.log_q.copy()
+
     assert fp.ns.iteration == 2
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
@@ -33,6 +36,8 @@ def test_ins_resume(tmp_path, model, flow_config):
         plot=False,
         importance_nested_sampler=True,
     )
+    new_log_q = fp.ns.log_q.copy()
 
     assert fp.ns.max_iteration == 2
     assert fp.ns.finalised is True
+    np.testing.assert_array_almost_equal(new_log_q, original_log_q)
