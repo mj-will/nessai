@@ -5,7 +5,7 @@ Importance nested sampler.
 import datetime
 import logging
 import os
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Tuple, Union
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -85,9 +85,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ratio_ns=["ratio_ns"],
         Z_err=["Z_err", "evidence_error"],
         log_dZ=["log_dZ", "log_evidence"],
-        ess=[
-            "ess",
-        ],
+        ess=["ess"],
+        iid_ratio=["iid_ratio"],
     )
     """Dictionary of available stopping criteria and their aliases."""
 
@@ -221,6 +220,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.log_q = None
         self.live_points_indices = None
         self.nested_samples_indices = np.empty(0, dtype=int)
+
+        self.iid_samples = np.empty(0, dtype=get_dtype(self.model.names))
+        self.iid_log_q = None
 
         self.training_time = datetime.timedelta()
         self.draw_samples_time = datetime.timedelta()
@@ -435,15 +437,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return x[idx]
 
-    def populate_live_points(self) -> None:
-        """Draw the initial live points from the prior.
-
-        The live points are automatically sorted and assigned the iteration
-        number -1.
-        """
-        live_points = np.empty(
-            self.n_initial, dtype=get_dtype(self.model.names)
-        )
+    def sample_prior(self, n: int) -> Tuple[np.ndarray, np.ndarray]:
+        samples = np.empty(self.n_initial, dtype=get_dtype(self.model.names))
         n = 0
         logger.debug(f"Drawing {self.n_initial} initial points")
         while n < self.n_initial:
@@ -457,26 +452,33 @@ class ImportanceNestedSampler(BaseNestedSampler):
             accept = np.isfinite(points["logP"])
             n_it = accept.sum()
             m = min(n_it, self.n_initial - n)
-            live_points[n : (n + m)] = points[accept][:m]
+            samples[n : (n + m)] = points[accept][:m]
             n += m
 
-        live_points["logL"] = self.model.batch_evaluate_log_likelihood(
-            live_points
-        )
+        samples["logL"] = self.model.batch_evaluate_log_likelihood(samples)
 
-        if not np.isfinite(live_points["logL"]).all():
+        if not np.isfinite(samples["logL"]).all():
             logger.warning("Found infinite values in the log-likelihood")
 
-        if np.any(live_points["logL"] == np.inf):
+        if np.any(samples["logL"] == np.inf):
             raise RuntimeError("Live points contain +inf log-likelihoods")
 
-        live_points["it"] = -np.ones(live_points.size)
+        samples["it"] = -np.ones(samples.size)
         # Since log_Q is computed in the unit-cube
-        live_points["logQ"] = np.zeros(live_points.size)
-        live_points["logW"] = -live_points["logQ"]
-        self.samples = self.sort_points(live_points)
-        self.live_points_indices = np.arange(live_points.size, dtype=int)
-        self.log_q = np.zeros([live_points.size, 1])
+        samples["logQ"] = np.zeros(samples.size)
+        samples["logW"] = -samples["logQ"]
+        samples = self.sort_points(samples)
+        log_q = np.zeros([samples.size, 1])
+        return samples, log_q
+
+    def populate_live_points(self) -> None:
+        """Draw the initial live points from the prior.
+
+        The live points are automatically sorted and assigned the iteration
+        number -1.
+        """
+        self.samples, self.log_q = self.sample_prior(self.n_initial)
+        self.live_points_indices = np.arange(self.samples.size, dtype=int)
 
     def initialise(self) -> None:
         """Initialise the nested sampler.
@@ -487,6 +489,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             logger.warning("Nested sampler has already initialised!")
         if self.live_points is None:
             self.populate_live_points()
+            self.iid_samples, _ = self.sample_prior(self.n_initial)
 
         self.initialise_history()
         self.proposal.initialise()
@@ -738,14 +741,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         self.training_time += datetime.datetime.now() - st
 
-    def draw_n_samples(self, n: int):
+    def draw_n_samples(self, n: int, **kwargs):
         """Draw n samples from the current proposal
 
         Includes computing the log-likelihood of the samples
         """
         st = datetime.datetime.now()
         logger.info(f"Drawing {n} samples from the new proposal")
-        new_points, log_q = self.proposal.draw(n)
+        new_points, log_q = self.proposal.draw(n, **kwargs)
         logger.debug("Evaluating likelihood for new points")
         new_points["logL"] = self.model.batch_evaluate_log_likelihood(
             new_points
@@ -924,6 +927,35 @@ class ImportanceNestedSampler(BaseNestedSampler):
             sort_indices,
             indices,
         )
+
+    def draw_iid_samples(self, n):
+        logger.info("Drawing i.i.d samples")
+        iid_samples, log_q = self.draw_n_samples(n, update_counts=False)
+        iid_samples = self.sort_points(iid_samples)
+        iid_samples["it"] = self.iteration
+
+        # Insert samples into existing samples
+        indices = np.searchsorted(
+            self.iid_samples["logL"], iid_samples["logL"]
+        )
+        self.iid_samples = np.insert(self.iid_samples, indices, iid_samples)
+
+        _ = self.proposal.compute_meta_proposal_samples(self.iid_samples)
+        self.iid_samples["logW"] = -self.iid_samples["logQ"]
+        # self.iid_log_q = np.insert(self.iid_log_q, indices, log_q, axis=0)
+
+        log_w = self.iid_samples["logL"] + self.iid_samples["logW"]
+
+        logZ = logsumexp(log_w) - np.log(len(self.iid_samples))
+        logger.info(f"i.i.d logZ = {logZ}")
+
+        above = self.iid_samples["logL"] >= self.logL_threshold
+        logZ_above = logsumexp(log_w[above]) - np.log(above.sum())
+        self.iid_ratio = logZ_above - logZ
+        logger.info(f"i.i.d ratio: {self.iid_ratio}")
+        state = _INSIntegralState()
+        state.update_evidence(self.iid_samples)
+        logger.info(f"i.i.d ESS: {state.effective_n_posterior_samples}")
 
     def remove_samples(self, n: int) -> None:
         """Remove samples from the current set of live points.
@@ -1170,6 +1202,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             else:
                 n_add = n_remove
             self.add_and_update_points(n_add)
+
+            self.draw_iid_samples(n_add)
 
             self.importance = self.compute_importance(G=0.5)
 
