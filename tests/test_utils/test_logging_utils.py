@@ -34,7 +34,9 @@ def test_setup_logger_no_label():
     This should NOT produce a log file.
     """
     logger = setup_logger(label=None)
-    assert not any([type(h) == logging.FileHandler for h in logger.handlers])
+    assert not any(
+        [isinstance(h, logging.FileHandler) for h in logger.handlers]
+    )
 
 
 @pytest.mark.parametrize("output", ["logger_dir", None])
@@ -50,7 +52,7 @@ def test_setup_logger_with_label(tmp_path, output):
     if output is None:
         output = os.getcwd()
     assert os.path.exists(os.path.join(output, "test.log"))
-    assert any([type(h) == logging.FileHandler for h in logger.handlers])
+    assert any([isinstance(h, logging.FileHandler) for h in logger.handlers])
 
 
 def test_setup_logger_with_mkdir(tmp_path):
@@ -82,13 +84,19 @@ def test_filehandler_kwargs(tmp_path, log_level):
     output = tmp_path / "logger_dir"
     handler = MagicMock(spec=logging.FileHandler)
     handler.level = 10
-    with patch("logging.FileHandler", return_value=handler) as mock:
+
+    class MockedFileHandler(MagicMock, logging.FileHandler):
+        def __new__(cls, *args, **kwargs):
+            handler(*args, **kwargs)
+            return handler
+
+    with patch("logging.FileHandler", new=MockedFileHandler):
         setup_logger(
             output=output,
             filehandler_kwargs={"mode": "w"},
             log_level=log_level,
         )
-    mock.assert_called_once_with(
+    handler.assert_called_once_with(
         os.path.join(output, "nessai.log"),
         mode="w",
     )
@@ -99,11 +107,17 @@ def test_filehandler_no_kwargs(tmp_path, log_level):
     output = tmp_path / "logger_dir"
     handler = MagicMock(spec=logging.FileHandler)
     handler.level = 10
-    with patch("logging.FileHandler", return_value=handler) as mock:
+
+    class MockedFileHandler(logging.FileHandler):
+        def __new__(cls, *args, **kwargs):
+            handler(*args, **kwargs)
+            return handler
+
+    with patch("logging.FileHandler", new=MockedFileHandler):
         setup_logger(
             output=output, filehandler_kwargs=None, log_level=log_level
         )
-    mock.assert_called_once_with(
+    handler.assert_called_once_with(
         os.path.join(output, "nessai.log"),
     )
 
@@ -121,11 +135,17 @@ def test_stream_handler_setting(tmp_path, stream, expected, log_level):
     output = tmp_path / "logger_dir"
     handler = MagicMock(spec=logging.StreamHandler)
     handler.level = 10
-    with patch("logging.StreamHandler", return_value=handler) as mock:
+
+    class MockedStreamHandler(logging.StreamHandler):
+        def __new__(cls, *args, **kwargs):
+            handler(*args, **kwargs)
+            return handler
+
+    with patch("logging.StreamHandler", new=MockedStreamHandler):
         setup_logger(
             output=output, stream=stream, label=None, log_level=log_level
         )
-    mock.assert_called_with(expected)
+    handler.assert_called_with(expected)
 
 
 def test_stream_handler_error(tmp_path):

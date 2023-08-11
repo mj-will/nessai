@@ -42,7 +42,7 @@ def setup_logger(
     """
     from .. import __version__ as version
 
-    if type(log_level) is str:
+    if isinstance(log_level, str):
         try:
             level = getattr(logging, log_level.upper())
         except AttributeError:
@@ -54,7 +54,7 @@ def setup_logger(
     logger.setLevel(level)
 
     if (
-        any([type(h) == logging.StreamHandler for h in logger.handlers])
+        any([isinstance(h, logging.StreamHandler) for h in logger.handlers])
         is False
     ):
         if isinstance(stream, str):
@@ -76,7 +76,10 @@ def setup_logger(
         stream_handler.setLevel(level)
         logger.addHandler(stream_handler)
 
-    if any([type(h) == logging.FileHandler for h in logger.handlers]) is False:
+    if (
+        any([isinstance(h, logging.FileHandler) for h in logger.handlers])
+        is False
+    ):
         if label:
             if output:
                 if not os.path.exists(output):
