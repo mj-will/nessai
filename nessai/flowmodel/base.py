@@ -272,7 +272,7 @@ class FlowModel:
         logger.debug(f"{x_train.shape} training samples")
         logger.debug(f"{x_val.shape} validation samples")
 
-        if not isinstance(batch_size, int):
+        if isinstance(batch_size, bool) or not isinstance(batch_size, int):
             if batch_size == "all" or batch_size is None:
                 batch_size = x_train.shape[0]
             else:
