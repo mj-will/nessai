@@ -84,13 +84,19 @@ def test_filehandler_kwargs(tmp_path, log_level):
     output = tmp_path / "logger_dir"
     handler = MagicMock(spec=logging.FileHandler)
     handler.level = 10
-    with patch("logging.FileHandler", return_value=handler) as mock:
+
+    class MockedFileHandler(MagicMock, logging.FileHandler):
+        def __new__(cls, *args, **kwargs):
+            handler(*args, **kwargs)
+            return handler
+
+    with patch("logging.FileHandler", new=MockedFileHandler):
         setup_logger(
             output=output,
             filehandler_kwargs={"mode": "w"},
             log_level=log_level,
         )
-    mock.assert_called_once_with(
+    handler.assert_called_once_with(
         os.path.join(output, "nessai.log"),
         mode="w",
     )
@@ -101,11 +107,17 @@ def test_filehandler_no_kwargs(tmp_path, log_level):
     output = tmp_path / "logger_dir"
     handler = MagicMock(spec=logging.FileHandler)
     handler.level = 10
-    with patch("logging.FileHandler", return_value=handler) as mock:
+
+    class MockedFileHandler(logging.FileHandler):
+        def __new__(cls, *args, **kwargs):
+            handler(*args, **kwargs)
+            return handler
+
+    with patch("logging.FileHandler", new=MockedFileHandler):
         setup_logger(
             output=output, filehandler_kwargs=None, log_level=log_level
         )
-    mock.assert_called_once_with(
+    handler.assert_called_once_with(
         os.path.join(output, "nessai.log"),
     )
 
@@ -123,11 +135,17 @@ def test_stream_handler_setting(tmp_path, stream, expected, log_level):
     output = tmp_path / "logger_dir"
     handler = MagicMock(spec=logging.StreamHandler)
     handler.level = 10
-    with patch("logging.StreamHandler", return_value=handler) as mock:
+
+    class MockedStreamHandler(logging.StreamHandler):
+        def __new__(cls, *args, **kwargs):
+            handler(*args, **kwargs)
+            return handler
+
+    with patch("logging.StreamHandler", new=MockedStreamHandler):
         setup_logger(
             output=output, stream=stream, label=None, log_level=log_level
         )
-    mock.assert_called_with(expected)
+    handler.assert_called_with(expected)
 
 
 def test_stream_handler_error(tmp_path):
