@@ -2,9 +2,8 @@
 """Tests related to drawing new points from the pool."""
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock
 
-from nessai.livepoint import dict_to_live_points
 from nessai.proposal import FlowProposal
 
 
@@ -62,44 +61,3 @@ def test_draw_not_populated(proposal, update, wait):
     proposal.populate.assert_called_once_with(1.0, N=100)
 
     assert proposal.update_poolsize_scale.called == update
-
-
-def test_test_draw(proposal):
-    """
-    Test the method that tests the draw and populate methods when running.
-    """
-    test_point = dict_to_live_points(
-        {"x": 1, "y": 2, "logP": -0.5}, non_sampling_parameters=False
-    )
-    new_point = dict_to_live_points(
-        {"x": 3, "y": 4, "logP": -0.5}, non_sampling_parameters=False
-    )
-    proposal.model = Mock()
-    proposal.model.new_point = MagicMock(return_value=test_point)
-    proposal.model.log_prior = MagicMock(return_value=-0.5)
-    proposal.populate = MagicMock()
-    proposal.draw = MagicMock(return_value=new_point)
-    proposal.reset = MagicMock()
-
-    FlowProposal.test_draw(proposal)
-
-    proposal.populate.assert_called_once_with(
-        test_point, N=1, plot=False, r=1.0
-    )
-    proposal.reset.assert_called_once()
-    proposal.draw.assert_called_once_with(test_point)
-
-
-@pytest.mark.timeout(10)
-@pytest.mark.flaky(reruns=3)
-@pytest.mark.integration_test
-def test_test_draw_integration(model, tmpdir):
-    """Integration test for the test draw method"""
-    proposal = FlowProposal(
-        model,
-        poolsize=10,
-        output=tmpdir.mkdir("test_draw"),
-        volume_fraction=0.5,
-    )
-    proposal.initialise()
-    proposal.test_draw()
