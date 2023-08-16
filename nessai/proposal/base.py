@@ -38,14 +38,9 @@ class Proposal(ABC):
 
     @initialised.setter
     def initialised(self, boolean):
-        """Setter for initialised
-
-        If value is set to true, the proposal method is tested with `test_draw`
-        """
+        """Setter for initialised"""
         if boolean:
             self._initialised = boolean
-            # TODO: make this usable
-            # self.test_draw()
         else:
             self._initialised = boolean
 
@@ -67,21 +62,6 @@ class Proposal(ABC):
         New a new point given the old point
         """
         raise NotImplementedError
-
-    def test_draw(self):
-        """
-        Test the draw method to ensure it returns a sample in the correct
-        format and the the log prior is computed.
-        """
-        logger.debug(f"Testing {self.__class__.__name__} draw method")
-
-        test_point = self.model.new_point()
-        new_point = self.draw(test_point)
-
-        if new_point["logP"] != self.model.log_prior(new_point):
-            raise RuntimeError("Log prior of new point is incorrect!")
-
-        logger.debug(f"{self.__class__.__name__} passed draw test")
 
     def train(self, x, **kwargs):
         """

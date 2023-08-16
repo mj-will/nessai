@@ -80,40 +80,6 @@ def test_draw(proposal):
         Proposal.draw(proposal, None)
 
 
-def test_test_draw(proposal):
-    """Test the test draw method"""
-    proposal.model = Mock()
-    proposal.model.new_point = Mock(return_value=1)
-    proposal.model.log_prior = Mock(return_value=-1)
-
-    new_point = numpy_array_to_live_points(np.array([[1]]), ["x"])
-    new_point["logP"] = -1
-    proposal.draw = Mock(return_value=new_point)
-    Proposal.test_draw(proposal)
-
-    proposal.model.new_point.assert_called_once()
-    proposal.draw.assert_called_once_with(1)
-    proposal.model.log_prior.assert_called_once_with(new_point)
-
-
-def test_test_draw_error(proposal):
-    """Test the test draw method with an incorrect prior value"""
-    proposal.model = Mock()
-    proposal.model.new_point = Mock(return_value=1)
-    proposal.model.log_prior = Mock(return_value=-1)
-
-    new_point = numpy_array_to_live_points(np.array([[1]]), ["x"])
-    new_point["logP"] = -2
-    proposal.draw = Mock(return_value=new_point)
-    with pytest.raises(RuntimeError) as excinfo:
-        Proposal.test_draw(proposal)
-    assert "Log prior of new point is incorrect!" in str(excinfo.value)
-
-    proposal.model.new_point.assert_called_once()
-    proposal.draw.assert_called_once_with(1)
-    proposal.model.log_prior.assert_called_once_with(new_point)
-
-
 def test_train(proposal, caplog):
     """Test the train method."""
     caplog.set_level(logging.INFO)
