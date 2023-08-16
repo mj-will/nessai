@@ -1605,26 +1605,6 @@ class FlowProposal(RejectionProposal):
             elif self.training_data is None and self.training_count:
                 raise RuntimeError("Could not resume! Missing training data!")
 
-    def test_draw(self):
-        """
-        Test the draw method to ensure it returns a sample in the correct
-        format and the the log prior is computed.
-
-        This method is not used since there are cases where the untrained
-        flow is very slow to draw a new point.
-        """
-        logger.debug(f"Testing {self.__class__.__name__} draw method")
-
-        test_point = self.model.new_point()
-        self.populate(test_point, N=1, plot=False, r=1.0)
-        new_point = self.draw(test_point)
-        if new_point["logP"] != self.model.log_prior(new_point):
-            raise RuntimeError("Log prior of new point is incorrect!")
-
-        self.reset()
-
-        logger.debug(f"{self.__class__.__name__} passed draw test")
-
     def reset(self):
         """Reset the proposal"""
         self.indices = []
