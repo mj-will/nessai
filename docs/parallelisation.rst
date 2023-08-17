@@ -47,6 +47,17 @@ Other pools
 
 When a pool object is passed to :code:`nessai` it tries to determine how many processes the pool contains and (if the likelihood is vectorised) uses this information to determine the chunk size when evaluating the likelihood. If it can not determine this, then likelihood vectorisation will be disabled. This can be avoided by specifying :code:`n_pool` and :code:`max_threads` when initialising the sampler.
 
+***********************
+PyTorch parallelisation
+***********************
+
+PyTorch supports different forms of parallelisation (see the `PyTorch documentation <https://pytorch.org/docs/stable/notes/cpu_threading_torchscript_inference.html>`_ for details).
+In ``nessai``, the user can configured the number of threads used for intra-op parallelisation by specifying the :code:`pytorch_threads` argument in :code:`FlowSampler`.
+This value does not have to match the number of threads use for the multiprocessing pool.
+By default, it is set to 1 to avoid all available resources being used.
+
+.. note::
+    Scaling with :code:`pytorch_threads` can vary greatly between different systems and installations of PyTorch. We recommended testing different values before running large-scale analyses.
 
 *************
 Example usage
