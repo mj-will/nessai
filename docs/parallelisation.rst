@@ -52,7 +52,7 @@ PyTorch parallelisation
 ***********************
 
 PyTorch supports different forms of parallelisation (see the `PyTorch documentation <https://pytorch.org/docs/stable/notes/cpu_threading_torchscript_inference.html>`_ for details).
-In ``nessai`, the user can configured the number of threads used for intra-op parallelisation by specifying the :code:`pytorch_threads` argument in code:`FlowSampler`.
+In ``nessai``, the user can configured the number of threads used for intra-op parallelisation by specifying the :code:`pytorch_threads` argument in code:`FlowSampler`.
 This value does not have to match the number of threads use for the multiprocessing pool.
 By default, it is set to 1 to avoid all available resources being used.
 
