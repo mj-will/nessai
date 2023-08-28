@@ -948,8 +948,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         logZ = logsumexp(log_w) - np.log(len(self.iid_samples))
         logger.info(f"i.i.d logZ = {logZ}")
+        logger.info(f"i.i.d logL_max = {self.iid_samples['logL'].max()}")
 
         above = self.iid_samples["logL"] >= self.logL_threshold
+
+        if not self.strict_threshold:
+            above[indices] = True
+
         logZ_above = logsumexp(log_w[above]) - np.log(above.sum())
         self.iid_ratio = logZ_above - logZ
         logger.info(f"i.i.d ratio: {self.iid_ratio}")
@@ -1475,6 +1480,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     f"Max logL increased from {max_logL:.3f} to "
                     f"{it_samples['logL'].max():.3f}"
                 )
+                max_logL = it_samples["logL"].max()
 
             samples = np.concatenate([samples, it_samples])
 
