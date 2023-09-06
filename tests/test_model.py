@@ -234,6 +234,28 @@ def test_vectorised_likelihood_setter(model):
     assert model._vectorised_likelihood == "test"
 
 
+@pytest.mark.parametrize("check_value", [True, False])
+@pytest.mark.parametrize("allow_vectorised", [True, False])
+def test_vectorised_log_prior(model, check_value, allow_vectorised):
+
+    model._vectorised_prior = None
+    model.allow_vectorised_prior = allow_vectorised
+
+    with patch(
+        "nessai.model.check_vectorised_function", return_value=check_value
+    ):
+        out = Model.vectorised_prior.__get__(model)
+
+    assert out is (check_value and allow_vectorised)
+    assert model._vectorised_prior is (check_value and allow_vectorised)
+
+
+def test_vectorised_prior_setter(model):
+    """Assert the setter sets the correct value"""
+    Model.vectorised_prior.__set__(model, "test")
+    assert model._vectorised_prior == "test"
+
+
 def test_in_bounds(model):
     """Test the `in_bounds` method.
 
