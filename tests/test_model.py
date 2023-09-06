@@ -178,43 +178,22 @@ def test_upper_bounds(model):
     np.testing.assert_array_equal(bounds, np.array([1, 1]))
 
 
-def test_vectorised_likelihood_true(model):
-    """
-    Assert the value is True if the likelihood is vectorised and returns
-    the same values.
-    """
-
-    # Just return the input since this should always work
-    def dummy_likelihood(x):
-        return x
-
+@pytest.mark.parametrize("value", [True, False])
+def test_vectorised_likelihood(model, value):
+    """Assert the correct value is stored if allow_vectorised is True"""
     model._vectorised_likelihood = None
     model.allow_vectorised = True
-    model.log_likelihood = MagicMock(side_effect=dummy_likelihood)
-    model.new_point = MagicMock(return_value=np.random.rand(10))
+    model.new_point = MagicMock(
+        side_effect=[
+            np.random.rand(1).astype([("x", "f8")]) for _ in range(10)
+        ]
+    )
 
-    out = Model.vectorised_likelihood.__get__(model)
-    assert model._vectorised_likelihood is True
-    assert out is True
+    with patch("nessai.model.check_vectorised_function", return_value=value):
+        out = Model.vectorised_likelihood.__get__(model)
 
-
-def test_vectorised_likelihood_false(model):
-    """
-    Assert the value is False if allowed_vectorised but the values do not
-    agree.
-    """
-
-    def dummy_likelihood(x):
-        return np.log(np.random.rand(x.size))
-
-    model._vectorised_likelihood = None
-    model.allow_vectorised = True
-    model.log_likelihood = MagicMock(side_effect=dummy_likelihood)
-    model.new_point = MagicMock(return_value=np.random.rand(10))
-
-    out = Model.vectorised_likelihood.__get__(model)
-    assert model._vectorised_likelihood is False
-    assert out is False
+    assert model._vectorised_likelihood is value
+    assert out is value
 
 
 @pytest.mark.parametrize("error", [TypeError, ValueError])
@@ -968,6 +947,7 @@ def test_evaluate_likelihoods_no_pool_not_vectorised(model):
     samples["logP"] = 0.0
     logL = np.array([3, 4])
     model.pool = None
+    model.n_pool = None
     model.vectorised_likelihood = False
     model.allow_vectorised = True
     model.likelihood_evaluation_time = datetime.timedelta()
@@ -988,6 +968,7 @@ def test_evaluate_likelihoods_no_pool_vectorised(model):
     samples = numpy_array_to_live_points(np.array([[1], [2]]), ["x"])
     logL = np.array([3, 4])
     model.pool = None
+    model.n_pool = None
     model.vectorised_likelihood = True
     model.allow_vectorised = True
     model.likelihood_chunksize = None
@@ -1010,6 +991,7 @@ def test_evaluate_likelihood_vectorised_chunksize(model, chunksize):
     model.vectorised_likelihood = True
     model.allow_vectorised = True
     model.pool = None
+    model.n_pool = None
     model.likelihood_chunksize = chunksize
     model.log_likelihood = MagicMock(
         side_effect=lambda x: np.random.rand(x.size)
@@ -1024,6 +1006,7 @@ def test_evaluate_likelihoods_allow_vectorised_false(model):
     samples = numpy_array_to_live_points(np.array([[1], [2]]), ["x"])
     logL = [3, 4]
     model.pool = None
+    model.n_pool = None
     model.vectorised_likelihood = True
     model.allow_vectorised = False
     model.likelihood_evaluation_time = datetime.timedelta()
