@@ -219,13 +219,16 @@ class Model(ABC):
     @property
     def vectorised_prior(self):
         if self._vectorised_prior is None:
-            # Avoids calling prior on multiple points
-            x = np.concatenate([self.new_point() for _ in range(10)])
-            self._vectorised_prior = check_vectorised_function(
-                self.log_prior,
-                x,
-                dtype=config.livepoints.default_float_dtype,
-            )
+            if self.allow_vectorised_prior:
+                # Avoids calling prior on multiple points
+                x = np.concatenate([self.new_point() for _ in range(10)])
+                self._vectorised_prior = check_vectorised_function(
+                    self.log_prior,
+                    x,
+                    dtype=config.livepoints.default_float_dtype,
+                )
+            else:
+                self._vectorised_prior = False
         return self._vectorised_prior
 
     @vectorised_prior.setter
@@ -553,7 +556,7 @@ class Model(ABC):
         return batch_evaluate_function(
             self.log_prior,
             x,
-            self.vectorised_prior,
+            self.allow_vectorised_prior and self.vectorised_prior,
             func_wrapper=log_prior_wrapper,
             pool=self.pool if self.parallelise_prior else None,
             n_pool=self.n_pool,
