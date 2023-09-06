@@ -145,10 +145,11 @@ def test_dims_no_names(model):
 
 def test_set_upper_lower(model):
     """Assert the upper and lower bounds are set correctly."""
-    model.bounds = {"x": [-1, 1], "y": [-1, 1]}
+    model.names = ["y", "x"]
+    model.bounds = {"x": [0, 1], "y": [-1, 2]}
     Model._set_upper_lower(model)
-    np.testing.assert_array_equal(model._lower, np.array([-1, -1]))
-    np.testing.assert_array_equal(model._upper, np.array([1, 1]))
+    np.testing.assert_array_equal(model._lower, np.array([-1, 0]))
+    np.testing.assert_array_equal(model._upper, np.array([2, 1]))
 
 
 def test_lower_bounds(model):

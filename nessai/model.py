@@ -150,7 +150,7 @@ class Model(ABC):
 
     def _set_upper_lower(self):
         """Set the upper and lower bounds arrays"""
-        bounds_array = np.array(list(self.bounds.values()))
+        bounds_array = np.array([self.bounds[n] for n in self.names])
         self._lower = bounds_array[:, 0]
         self._upper = bounds_array[:, 1]
 
