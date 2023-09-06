@@ -48,7 +48,7 @@ def test_populate(proposal, N):
     proposal.poolsize = poolsize
     proposal.model = Mock()
     proposal.model.new_point = Mock(return_value=samples)
-    proposal.model.batch_evalute_log_prior = Mock(return_value=log_p)
+    proposal.model.batch_evaluate_log_prior = Mock(return_value=log_p)
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
     )

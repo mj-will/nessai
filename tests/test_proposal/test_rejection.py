@@ -57,12 +57,14 @@ def test_compute_weights(proposal):
     """Test the compute weights method"""
     x = numpy_array_to_live_points(np.array([[1], [2], [3]]), "x")
     proposal.model = Mock()
-    proposal.model.log_prior = Mock(return_value=np.array([6, 6, 6]))
+    proposal.model.batch_evaluate_log_prior = Mock(
+        return_value=np.array([6, 6, 6])
+    )
     proposal.log_proposal = Mock(return_value=np.array([3, 4, np.nan]))
     log_w = np.array([0, -1, np.nan])
     out = RejectionProposal.compute_weights(proposal, x)
 
-    proposal.model.log_prior.assert_called_once_with(x)
+    proposal.model.batch_evaluate_log_prior.assert_called_once_with(x)
     proposal.log_proposal.assert_called_once_with(x)
     np.testing.assert_array_equal(out, log_w)
 
