@@ -528,7 +528,7 @@ class ImportanceFlowProposal(Proposal):
             x["logQ"], log_q_all = self.compute_log_Q(
                 x_prime, log_q_current=None, n=n_weight, log_j=log_j
             )
-            x["logP"] = self.model.log_prior(x)
+            x["logP"] = self.model.batch_evaluate_log_prior(x)
             x["logW"] = -x["logQ"]
             accept = (
                 np.isfinite(x["logP"])
@@ -765,7 +765,7 @@ class ImportanceFlowProposal(Proposal):
         )
         logger.debug(f"Mean log_q for each each flow: {log_q.mean(axis=0)}")
 
-        samples["logP"] = self.model.log_prior(samples)
+        samples["logP"] = self.model.batch_evaluate_log_prior(samples)
         samples, log_q = get_subset_arrays(
             np.isfinite(samples["logP"]), samples, log_q
         )
