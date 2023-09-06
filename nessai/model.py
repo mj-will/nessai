@@ -100,6 +100,11 @@ class Model(ABC):
         recommended when the variation is significantly smaller that the
         variations in the likelihood across the prior.
     """
+    parallelise_prior = False
+    """
+    bool
+        Parallelise calculating the log-prior using the multiprocessing pool.
+    """
     _vectorised_likelihood = None
     _vectorised_prior = None
     _pool_configured = False
@@ -550,7 +555,7 @@ class Model(ABC):
             x,
             self.vectorised_prior,
             func_wrapper=log_prior_wrapper,
-            pool=self.pool,
+            pool=self.pool if self.parallelise_prior else None,
             n_pool=self.n_pool,
         )
 

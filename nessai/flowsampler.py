@@ -66,6 +66,12 @@ class FlowSampler:
         likelihood values for the same point in parameter space. See
         :py:attr:`nessai.model.Model.allow_multi_valued_likelihood` for more
         details.
+    parallelise_prior : Optional[bool]
+        If true, and a multiprocessing pool has been specified, then the
+        log-prior calculation will be parallelised using multiprocessing.
+        If false, then the pool with not be used. Overrides the value of the
+        `parallelise_prior` attribute in the model class, which is false by
+        default.
     result_extension : str
         Extension used when saving the result format. Defaults to HDF5, but
         also supports JSON.
@@ -93,6 +99,7 @@ class FlowSampler:
         disable_vectorisation=False,
         likelihood_chunksize=None,
         allow_multi_valued_likelihood=None,
+        parallelise_prior=None,
         result_extension="hdf5",
         **kwargs,
     ):
@@ -133,6 +140,10 @@ class FlowSampler:
 
         if allow_multi_valued_likelihood is not None:
             model.allow_multi_valued_likelihood = allow_multi_valued_likelihood
+
+        if parallelise_prior is not None:
+            logger.debug("Overriding `parallelise_prior` in the model")
+            model.parallelise_prior = parallelise_prior
 
         self.output = os.path.join(output, "")
         os.makedirs(self.output, exist_ok=True)
