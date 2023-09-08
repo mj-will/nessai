@@ -52,7 +52,9 @@ class AnalyticProposal(Proposal):
         if N is None:
             N = self.poolsize
         self.samples = self.model.new_point(N=N)
-        self.samples["logP"] = self.model.log_prior(self.samples)
+        self.samples["logP"] = self.model.batch_evaluate_log_prior(
+            self.samples
+        )
         self.indices = np.random.permutation(self.samples.shape[0]).tolist()
         self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
             self.samples

@@ -33,12 +33,12 @@ def test_log_prior_wo_reparameterisation(proposal, x):
     log_prior = -np.ones(x.size)
     proposal._reparameterisation = None
     proposal.model = MagicMock()
-    proposal.model.log_prior = MagicMock(return_value=log_prior)
+    proposal.model.batch_evaluate_log_prior = MagicMock(return_value=log_prior)
 
     log_prior_out = FlowProposal.log_prior(proposal, x)
 
     assert np.array_equal(log_prior, log_prior_out)
-    proposal.model.log_prior.assert_called_once_with(x)
+    proposal.model.batch_evaluate_log_prior.assert_called_once_with(x)
 
 
 def test_log_prior_w_reparameterisation(proposal, x):
@@ -47,13 +47,15 @@ def test_log_prior_w_reparameterisation(proposal, x):
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.log_prior = MagicMock(return_value=log_prior)
     proposal.model = MagicMock()
-    proposal.model.log_prior = MagicMock(return_value=log_prior)
+    proposal.model.batch_evaluate_log_prior = MagicMock(
+        return_value=log_prior.copy()
+    )
 
     log_prior_out = FlowProposal.log_prior(proposal, x)
 
     assert np.array_equal(log_prior_out, -2 * np.ones(x.size))
     proposal._reparameterisation.log_prior.assert_called_once_with(x)
-    proposal.model.log_prior.assert_called_once_with(x)
+    proposal.model.batch_evaluate_log_prior.assert_called_once_with(x)
 
 
 def test_prime_log_prior(proposal):
@@ -180,11 +182,13 @@ def test_compute_acceptance(proposal):
 
 def test_convert_to_samples(proposal):
     """Test convert to sample without the prime prior"""
-    samples = numpy_array_to_live_points(np.random.randn(10, 4), ["x", "y"])
+    samples = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
     proposal.use_x_prime_prior = False
     proposal.model = MagicMock()
     proposal.model.names = ["x"]
-    proposal.model.log_prior = MagicMock(return_value=np.ones(10))
+    proposal.model.batch_evaluate_log_prior = MagicMock(
+        return_value=np.ones(10)
+    )
 
     out_samples = FlowProposal.convert_to_samples(proposal, samples, plot=True)
 
@@ -196,11 +200,13 @@ def test_convert_to_samples(proposal):
 @patch("nessai.proposal.flowproposal.plot_1d_comparison")
 def test_convert_to_samples_with_prime(mock_plot, proposal):
     """Test convert to sample with the prime prior"""
-    samples = numpy_array_to_live_points(np.random.randn(10, 4), ["x", "y"])
+    samples = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
     proposal.use_x_prime_prior = True
     proposal.model = MagicMock()
     proposal.model.names = ["x"]
-    proposal.model.log_prior = MagicMock(return_value=np.ones(10))
+    proposal.model.batch_evaluate_log_prior = MagicMock(
+        return_value=np.ones(10)
+    )
     proposal._plot_pool = True
     proposal.training_data_prime = "data"
     proposal.output = os.getcwd()

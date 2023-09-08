@@ -453,7 +453,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     self.model.names,
                 )
             )
-            points["logP"] = self.model.log_prior(points)
+            points["logP"] = self.model.batch_evaluate_log_prior(points)
             accept = np.isfinite(points["logP"])
             n_it = accept.sum()
             m = min(n_it, self.n_initial - n)

@@ -192,6 +192,27 @@ def test_allow_multi_valued_likelihood(flow_sampler, tmp_path):
     assert input_integration_model.allow_multi_valued_likelihood is True
 
 
+@pytest.mark.parametrize("value", [False, True])
+def test_parallelise_prior(flow_sampler, tmp_path, value):
+    """Assert parallise_prior is the correct value"""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    integration_model = MagicMock()
+    integration_model.parallelise_prior = None
+
+    with patch("nessai.flowsampler.NestedSampler") as mock:
+        FlowSampler.__init__(
+            flow_sampler,
+            integration_model,
+            output=output,
+            parallelise_prior=value,
+        )
+    mock.assert_called_once()
+    input_integration_model = mock.call_args[0][0]
+    assert input_integration_model.parallelise_prior is value
+
+
 @pytest.mark.parametrize(
     "test_old, error",
     [(False, None), (True, RuntimeError), (True, FileNotFoundError)],

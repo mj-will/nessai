@@ -1170,11 +1170,11 @@ class FlowProposal(RejectionProposal):
             Array of log prior probabilities
         """
         if self._reparameterisation:
-            return self.model.log_prior(
+            return self.model.batch_evaluate_log_prior(
                 x
             ) + self._reparameterisation.log_prior(x)
         else:
-            return self.model.log_prior(x)
+            return self.model.batch_evaluate_log_prior(x)
 
     def x_prime_log_prior(self, x):
         """
@@ -1297,7 +1297,7 @@ class FlowProposal(RejectionProposal):
                 )
 
             x, _ = self.inverse_rescale(x)
-        x["logP"] = self.model.log_prior(x)
+        x["logP"] = self.model.batch_evaluate_log_prior(x)
         return rfn.repack_fields(
             x[self.model.names + config.livepoints.non_sampling_parameters]
         )

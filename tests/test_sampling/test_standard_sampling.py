@@ -172,8 +172,13 @@ def test_sampling_uninformed(integration_model, flow_config, tmpdir, analytic):
 
 
 @pytest.mark.slow_integration_test
+@pytest.mark.parametrize("parallelise_prior", [True, False])
 def test_sampling_with_n_pool(
-    integration_model, flow_config, tmpdir, mp_context
+    integration_model,
+    flow_config,
+    tmpdir,
+    mp_context,
+    parallelise_prior,
 ):
     """
     Test running the sampler with multiprocessing.
@@ -198,6 +203,7 @@ def test_sampling_with_n_pool(
             poolsize=10,
             pytorch_threads=2,
             n_pool=2,
+            parallelise_prior=parallelise_prior,
         )
     fp.run()
     assert fp.ns.proposal.flow.weights_file is not None

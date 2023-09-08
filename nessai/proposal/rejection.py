@@ -77,7 +77,7 @@ class RejectionProposal(AnalyticProposal):
         log_w : :obj:`numpy.ndarray`
             Array of log-weights rescaled such that the maximum value is zero.
         """
-        x["logP"] = self.model.log_prior(x)
+        x["logP"] = self.model.batch_evaluate_log_prior(x)
         log_q = self.log_proposal(x)
         log_w = x["logP"] - log_q
         log_w -= np.nanmax(log_w)

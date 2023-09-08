@@ -4,12 +4,15 @@ Tests for rescaling functions
 """
 import multiprocessing
 from multiprocessing.dummy import Pool
+import numpy as np
 import pytest
 import sys
 from unittest.mock import MagicMock, patch
 
 from nessai.utils.multiprocessing import (
+    batch_evaluate_function,
     check_multiprocessing_start_method,
+    check_vectorised_function,
     initialise_pool_variables,
     get_n_pool,
     log_likelihood_wrapper,
@@ -105,3 +108,82 @@ def test_get_n_pool_unknown():
     del pool._processes
     del pool._actor_pool
     assert get_n_pool(pool) is None
+
+
+@pytest.mark.parametrize(
+    "n, vectorised, chunksize, expected_calls",
+    [
+        (10, True, None, 1),
+        (10, False, None, 10),
+        (10, True, 4, 3),
+        (10, False, 4, 10),
+    ],
+)
+def test_batch_evaluate_function_vectorised(
+    n,
+    vectorised,
+    chunksize,
+    expected_calls,
+):
+
+    global ncalls
+    ncalls = 0
+
+    def func(x):
+        global ncalls
+        ncalls = ncalls + 1
+        return (-(x**2)).sum(-1)
+
+    x = np.random.randn(n, 2)
+
+    out = batch_evaluate_function(
+        func, x, vectorised=vectorised, chunksize=chunksize
+    )
+    assert out.shape == (10,)
+    assert ncalls == expected_calls
+
+
+def test_check_vectorised_function_pass():
+    def func(x):
+        return (-(x**2)).sum(axis=-1)
+
+    x = np.arange(10)[:, np.newaxis]
+
+    out = check_vectorised_function(func, x, dtype="float64")
+    assert out is True
+
+
+def test_check_vectorised_function_error():
+    def func(x):
+        len(x)
+        return 0.5
+
+    x = np.arange(10)[:, np.newaxis]
+
+    out = check_vectorised_function(func, x)
+    assert out is False
+
+
+def test_check_vectorised_function_invalid_output():
+    def func(x):
+        return 0.5
+
+    x = np.arange(10)
+
+    out = check_vectorised_function(func, x)
+    assert out is False
+
+
+def test_check_vectorised_function_invalid_value():
+    def func(x):
+        return np.cumsum(x)
+
+    x = np.arange(10)
+
+    out = check_vectorised_function(func, x)
+    assert out is False
+
+
+def test_check_vectorised_function_invalid_input():
+    with pytest.raises(ValueError, match=r"Input has length <= 1"):
+        check_vectorised_function(lambda x: x, np.array([0]))

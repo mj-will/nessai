@@ -18,8 +18,10 @@ from .livepoint import (
 from .utils.multiprocessing import (
     get_n_pool,
     log_likelihood_wrapper,
+    log_prior_wrapper,
+    batch_evaluate_function,
+    check_vectorised_function,
 )
-from .utils.structures import array_split_chunksize
 
 
 logger = logging.getLogger(__name__)
@@ -66,6 +68,15 @@ class Model(ABC):
     obj
         Multiprocessing pool for evaluating the log-likelihood.
     """
+    allow_vectorised_prior = True
+    """
+    bool
+        Allow the model to use a vectorised prior. If True, nessai will
+        try to check if the log-prior is vectorised and use call the method
+        as a vectorised function. If False, nessai won't check and, even if the
+        log-prior is vectorised, it will only evaluate the log-prior one
+        sample at a time.
+    """
     allow_vectorised = True
     """
     bool
@@ -89,8 +100,15 @@ class Model(ABC):
         recommended when the variation is significantly smaller that the
         variations in the likelihood across the prior.
     """
+    parallelise_prior = False
+    """
+    bool
+        Parallelise calculating the log-prior using the multiprocessing pool.
+    """
     _vectorised_likelihood = None
+    _vectorised_prior = None
     _pool_configured = False
+    n_pool = None
 
     @property
     def names(self):
@@ -182,35 +200,13 @@ class Model(ABC):
         """
         if self._vectorised_likelihood is None:
             if self.allow_vectorised:
-                x = self.new_point(N=10)
-                target = np.array(
-                    [self.log_likelihood(xx) for xx in x],
+                # Avoids calling prior on multiple points
+                x = np.concatenate([self.new_point() for _ in range(10)])
+                self._vectorised_likelihood = check_vectorised_function(
+                    self.log_likelihood,
+                    x,
                     dtype=config.livepoints.logl_dtype,
                 )
-                try:
-                    batch = self.log_likelihood(x).astype(
-                        config.livepoints.logl_dtype
-                    )
-                except (TypeError, ValueError):
-                    logger.debug(
-                        "Evaluating a batch of points returned an error. "
-                        "Assuming the likelihood is not vectorised."
-                    )
-                    self._vectorised_likelihood = False
-                else:
-                    if np.array_equal(batch, target):
-                        logger.debug(
-                            "Individual and batch likelihoods are equal."
-                        )
-                        logger.info("Likelihood is vectorised")
-                        self._vectorised_likelihood = True
-                    else:
-                        logger.debug(
-                            "Individual and batch likelihoods are not equal."
-                        )
-                        logger.debug(target)
-                        logger.debug(batch)
-                        self._vectorised_likelihood = False
             else:
                 self._vectorised_likelihood = False
         return self._vectorised_likelihood
@@ -219,6 +215,26 @@ class Model(ABC):
     def vectorised_likelihood(self, value):
         """Manually set the value for vectorised likelihood."""
         self._vectorised_likelihood = value
+
+    @property
+    def vectorised_prior(self):
+        if self._vectorised_prior is None:
+            if self.allow_vectorised_prior:
+                # Avoids calling prior on multiple points
+                x = np.concatenate([self.new_point() for _ in range(10)])
+                self._vectorised_prior = check_vectorised_function(
+                    self.log_prior,
+                    x,
+                    dtype=config.livepoints.default_float_dtype,
+                )
+            else:
+                self._vectorised_prior = False
+        return self._vectorised_prior
+
+    @vectorised_prior.setter
+    def vectorised_prior(self, value):
+        """Manually set the value for vectorised prior."""
+        self._vectorised_prior = value
 
     @property
     def _view_dtype(self):
@@ -509,52 +525,42 @@ class Model(ABC):
             Array of log-likelihood values
         """
         st = datetime.datetime.now()
-        if self.pool is None:
-            logger.debug("Not using pool to evaluate likelihood")
-            if self.allow_vectorised and self.vectorised_likelihood:
-                if self.likelihood_chunksize:
-                    log_likelihood = np.concatenate(
-                        list(
-                            map(
-                                self.log_likelihood,
-                                array_split_chunksize(
-                                    x, self.likelihood_chunksize
-                                ),
-                            )
-                        )
-                    )
-                else:
-                    log_likelihood = self.log_likelihood(x)
-            else:
-                log_likelihood = np.array(
-                    [self.log_likelihood(xx) for xx in x],
-                ).flatten()
-        else:
-            logger.debug("Using pool to evaluate likelihood")
-            if self.allow_vectorised and self.vectorised_likelihood:
-                if self.likelihood_chunksize:
-                    log_likelihood = np.concatenate(
-                        self.pool.map(
-                            log_likelihood_wrapper,
-                            array_split_chunksize(
-                                x, self.likelihood_chunksize
-                            ),
-                        )
-                    )
-                else:
-                    log_likelihood = np.concatenate(
-                        self.pool.map(
-                            log_likelihood_wrapper,
-                            np.array_split(x, self.n_pool),
-                        )
-                    )
-            else:
-                log_likelihood = np.array(
-                    self.pool.map(log_likelihood_wrapper, x)
-                ).flatten()
+        log_likelihood = batch_evaluate_function(
+            self.log_likelihood,
+            x,
+            self.allow_vectorised and self.vectorised_likelihood,
+            chunksize=self.likelihood_chunksize,
+            func_wrapper=log_likelihood_wrapper,
+            pool=self.pool,
+            n_pool=self.n_pool,
+        )
         self.likelihood_evaluations += x.size
         self.likelihood_evaluation_time += datetime.datetime.now() - st
         return log_likelihood.astype(config.livepoints.logl_dtype)
+
+    def batch_evaluate_log_prior(self, x):
+        """Evaluate the log-prior for a batch of samples.
+
+        Uses the pool if available.
+
+        Parameters
+        ----------
+        x : :obj:`numpy.ndarray`
+            Array of samples
+
+        Returns
+        -------
+        :obj:`numpy.ndarray`
+            Array of log-prior values
+        """
+        return batch_evaluate_function(
+            self.log_prior,
+            x,
+            self.allow_vectorised_prior and self.vectorised_prior,
+            func_wrapper=log_prior_wrapper,
+            pool=self.pool if self.parallelise_prior else None,
+            n_pool=self.n_pool,
+        )
 
     def unstructured_view(self, x):
         """An unstructured view of point(s) x that only contains the \
