@@ -173,7 +173,7 @@ class FlowSampler:
                     model,
                     output=self.output,
                     resume_file=resume_file,
-                    close_pool=not self.close_pool,
+                    close_pool=False,
                     **kwargs,
                 )
             else:
@@ -210,7 +210,7 @@ class FlowSampler:
                 model,
                 output=self.output,
                 resume_file=resume_file,
-                close_pool=not self.close_pool,
+                close_pool=False,
                 **kwargs,
             )
 
