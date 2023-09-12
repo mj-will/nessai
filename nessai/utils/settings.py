@@ -70,7 +70,6 @@ def get_all_kwargs(
     else:
         methods, run_methods = _get_standard_methods()
 
-
     kwargs = {}
     run_kwargs = {}
     for kwds, methods in zip([kwargs, run_kwargs], [methods, run_methods]):

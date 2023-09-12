@@ -48,7 +48,14 @@ def test_get_all_kwargs(ins, get_method):
 
     with patch(
         f"nessai.utils.settings.{get_method}",
-        return_value=[[func0,], [func1,]],
+        return_value=[
+            [
+                func0,
+            ],
+            [
+                func1,
+            ],
+        ],
     ):
         out = get_all_kwargs(importance_nested_sampler=ins, split_kwargs=False)
 
@@ -75,7 +82,14 @@ def test_get_all_kwargs_split(ins, get_method):
 
     with patch(
         f"nessai.utils.settings.{get_method}",
-        return_value=[[func0,], [func1,]],
+        return_value=[
+            [
+                func0,
+            ],
+            [
+                func1,
+            ],
+        ],
     ):
         out = get_all_kwargs(importance_nested_sampler=ins, split_kwargs=True)
 
@@ -98,4 +112,3 @@ def test_get_run_kwargs_list(ins, run_method):
         out = get_run_kwargs_list(importance_nested_sampler=ins)
 
     assert out == expected
-
