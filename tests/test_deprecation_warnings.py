@@ -27,3 +27,11 @@ def test_lulinear_warning():
     assert "`nessai.flows.transforms.LULinear` is deprecated" in str(
         record[0].message
     )
+
+
+def test_bilbyutils_warning():
+    """Assert a warning is raised if bilbyutils is imported"""
+    with pytest.warns(
+        FutureWarning, match=r"`nessai.utils.bilbyutils` is deprecated"
+    ):
+        from nessai.utils.bilbyutils import get_all_kwargs  # noqa
