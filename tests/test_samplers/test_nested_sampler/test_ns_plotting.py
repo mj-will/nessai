@@ -29,7 +29,7 @@ def test_plot_state(sampler, tmpdir, filename, track_gradients):
     sampler.state.track_gradients = track_gradients
     sampler.state.gradients = np.arange(1050)
     sampler.logZ_history = x
-    sampler.dZ_history = x
+    sampler.dlogZ_history = x
     sampler.mean_acceptance_history = x
     sampler.rolling_p = np.arange(4)
 

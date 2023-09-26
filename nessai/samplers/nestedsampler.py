@@ -254,7 +254,7 @@ class NestedSampler(BaseNestedSampler):
         self.min_likelihood = []
         self.max_likelihood = []
         self.logZ_history = []
-        self.dZ_history = []
+        self.dlogZ_history = []
         self.population_acceptance = []
         self.population_radii = []
         self.population_iterations = []
@@ -556,7 +556,7 @@ class NestedSampler(BaseNestedSampler):
             f"it: {self.iteration:5d}: "
             f"n eval: {self.likelihood_calls} "
             f"H: {self.state.info[-1]:.2f} "
-            f"dZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
+            f"dlogZ: {self.condition:.3f} logZ: {self.state.logZ:.3f} "
             f"+/- {self.state.log_evidence_error:.3f} "
             f"logLmax: {self.logLmax:.2f}"
         )
@@ -696,7 +696,7 @@ class NestedSampler(BaseNestedSampler):
                 f"b_acc: {self.mean_block_acceptance:.3f} "
                 f"H: {self.state.info[-1]:.2f} "
                 f"logL: {self.logLmin:.5f} --> {proposed['logL']:.5f} "
-                f"dZ: {self.condition:.3f} "
+                f"dlogZ: {self.condition:.3f} "
                 f"logZ: {self.state.logZ:.3f} "
                 f"+/- {self.state.log_evidence_error:.3f} "
                 f"logLmax: {self.logLmax:.2f}"
@@ -1006,13 +1006,13 @@ class NestedSampler(BaseNestedSampler):
         ax_dz = plt.twinx(ax[3])
         ax_dz.plot(
             it,
-            self.dZ_history,
-            label="dZ",
+            self.dlogZ_history,
+            label="dlogZ",
             c="C1",
             ls=config.plotting.line_styles[1],
         )
         ax_dz.set_yscale("log")
-        ax_dz.set_ylabel(r"$dZ$")
+        ax_dz.set_ylabel(r"$d \log Z$")
         handles, labels = ax[3].get_legend_handles_labels()
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
         ax[3].legend(handles + handles_dz, labels + labels_dz, frameon=False)
@@ -1144,7 +1144,7 @@ class NestedSampler(BaseNestedSampler):
             self.min_likelihood.append(self.logLmin)
             self.max_likelihood.append(self.logLmax)
             self.logZ_history.append(self.state.logZ)
-            self.dZ_history.append(self.condition)
+            self.dlogZ_history.append(self.condition)
             self.mean_acceptance_history.append(self.mean_acceptance)
 
         if not (self.iteration % self.nlive) or force:
@@ -1257,7 +1257,10 @@ class NestedSampler(BaseNestedSampler):
             self.periodically_log_state()
 
             if self.iteration >= self.max_iteration:
+                logger.info("Reached max iteration")
                 break
+        logger.info(f"Stopping with dlogZ={self.condition:.3f}")
+
         # final adjustments
         # avoid repeating final adjustments if resuming a completed run.
         if not self.finalised and (self.condition <= self.tolerance):
@@ -1301,7 +1304,7 @@ class NestedSampler(BaseNestedSampler):
             max_likelihood=self.max_likelihood,
             likelihood_evaluations=self.likelihood_evaluations,
             logZ=self.logZ_history,
-            dZ=self.dZ_history,
+            dlogZ=self.dlogZ_history,
             mean_acceptance=self.mean_acceptance_history,
             rolling_p=self.rolling_p,
             population=dict(
