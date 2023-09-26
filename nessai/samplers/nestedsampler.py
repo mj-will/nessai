@@ -1012,7 +1012,7 @@ class NestedSampler(BaseNestedSampler):
             ls=config.plotting.line_styles[1],
         )
         ax_dz.set_yscale("log")
-        ax_dz.set_ylabel(r"$dlogZ$")
+        ax_dz.set_ylabel(r"$d \log Z$")
         handles, labels = ax[3].get_legend_handles_labels()
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
         ax[3].legend(handles + handles_dz, labels + labels_dz, frameon=False)
