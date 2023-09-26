@@ -23,7 +23,7 @@ def sampler(sampler):
     sampler.min_likelihood = [0.0]
     sampler.max_likelihood = [100.0]
     sampler.logZ_history = [-100.0]
-    sampler.dZ_history = [100.0]
+    sampler.dlogZ_history = [100.0]
     sampler.mean_acceptance_history = [0.5]
     # Attributed used to update stats
     sampler.model = MagicMock()
@@ -134,7 +134,7 @@ def test_update_state_history(sampler):
     assert sampler.min_likelihood == [0.0, 0.0]
     assert sampler.max_likelihood == [100.0, 150.0]
     assert sampler.logZ_history == [-100.0, -50.0]
-    assert sampler.dZ_history == [100.0, 50.0]
+    assert sampler.dlogZ_history == [100.0, 50.0]
     assert sampler.mean_acceptance_history == [0.5, 0.5]
     assert not sampler.checkpoint.called
 
