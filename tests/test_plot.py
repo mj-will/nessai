@@ -395,6 +395,19 @@ def test_trace_plot_parameters(nested_samples):
     plt.close()
 
 
+def test_trace_plot_live_points(nested_samples):
+    n = nested_samples.size // 2
+    nested_samples, live_points = nested_samples[:n], nested_samples[n:]
+    log_x = np.linspace(-10, -5, nested_samples.size)
+    log_x_live_points = np.linspace(-5, 0, nested_samples.size)
+    plot.plot_trace(
+        log_x,
+        nested_samples,
+        live_points=live_points,
+        log_x_live_points=log_x_live_points,
+    )
+
+
 def test_trace_plot_kwargs(nested_samples):
     """Assert the kwargs are passed to the plotting function."""
     log_x = np.linspace(-10, 0, nested_samples.size)
