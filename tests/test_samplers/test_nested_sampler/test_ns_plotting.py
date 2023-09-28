@@ -46,13 +46,24 @@ def test_plot_state(sampler, tmpdir, filename, track_gradients):
 
 @pytest.mark.parametrize("samples", [[], [1, 2, 3]])
 @pytest.mark.parametrize("filename", [None, "trace.png"])
+@pytest.mark.parametrize("live_points", [True, False])
+@pytest.mark.parametrize("trace_parameters", [None, ["x", "y"]])
 @patch("nessai.samplers.nestedsampler.plot_trace", return_value="fig")
-def test_plot_trace(mock_plot, sampler, tmpdir, samples, filename):
+def test_plot_trace(mock_plot, sampler, tmpdir, samples, live_points, trace_parameters, filename):
     """Test the plot_trace method"""
     sampler.nested_samples = samples
-    sampler.state = MagicMock()
+    sampler.state = MagicMock
     sampler.state.log_vols = [1, 2, 3, 4]
     sampler.output = os.getcwd()
+    sampler.nlive = 10
+    logx_live = list(5 + np.arange(sampler.nlive))
+    sampler.state.get_logx_live_points = MagicMock(return_value=logx_live)
+    sampler.trace_parameters = trace_parameters
+
+    if live_points:
+        sampler.live_points = list(np.random.randn(sampler.nlive))
+    else:
+        sampler.live_points = None
 
     if filename is not None:
         sampler.output = tmpdir.mkdir("test_plot_trace")
@@ -64,10 +75,22 @@ def test_plot_trace(mock_plot, sampler, tmpdir, samples, filename):
         mock_plot.assert_not_called()
         assert fig is None
     else:
+        if live_points:
+            sampler.state.get_logx_live_points.assert_called_once_with(
+                sampler.nlive
+            )
+        else:
+            sampler.state.get_logx_live_points.assert_not_called()
         mock_plot.assert_called_once_with(
-            [2, 3, 4], samples, filename=filename
+            [2, 3, 4],
+            samples,
+            parameters=trace_parameters,
+            live_points=sampler.live_points,
+            log_x_live_points=logx_live if live_points else None,
+            filename=filename,
         )
         assert fig == "fig"
+
 
 
 @pytest.mark.parametrize("filename", [None, "trace.png"])
