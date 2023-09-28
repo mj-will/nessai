@@ -49,7 +49,15 @@ def test_plot_state(sampler, tmpdir, filename, track_gradients):
 @pytest.mark.parametrize("live_points", [True, False])
 @pytest.mark.parametrize("trace_parameters", [None, ["x", "y"]])
 @patch("nessai.samplers.nestedsampler.plot_trace", return_value="fig")
-def test_plot_trace(mock_plot, sampler, tmpdir, samples, live_points, trace_parameters, filename):
+def test_plot_trace(
+    mock_plot,
+    sampler,
+    tmpdir,
+    samples,
+    live_points,
+    trace_parameters,
+    filename,
+):
     """Test the plot_trace method"""
     sampler.nested_samples = samples
     sampler.state = MagicMock
@@ -90,7 +98,6 @@ def test_plot_trace(mock_plot, sampler, tmpdir, samples, live_points, trace_para
             filename=filename,
         )
         assert fig == "fig"
-
 
 
 @pytest.mark.parametrize("filename", [None, "trace.png"])

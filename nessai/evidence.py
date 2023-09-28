@@ -187,7 +187,7 @@ class _NSIntegralState(_BaseNSIntegralState):
 
     def get_logx_live_points(self, nlive: int):
         """Get the log-prior volume of the current live points.
-        
+
         Computes the values assuming the run were to terminate at the current
         iteration.
 
