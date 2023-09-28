@@ -118,6 +118,29 @@ def test_log_evidence_error(ns_state, nlive):
     assert out == expected
 
 
+@pytest.mark.parametrize("nlive", [10, 20])
+@pytest.mark.parametrize("expectation", ["t", "logt"])
+def test_get_logx_live_points(ns_state, nlive, expectation):
+    nit = 100
+    nlive_per_iteration = np.arange(nlive, 0, -1, dtype=float)
+
+    ns_state.expectation = expectation
+
+    if expectation == "logt":
+        logt = -1.0 / nlive
+        logt_final = -1.0 / nlive_per_iteration
+    elif expectation == "t":
+        logt = -np.log1p(1.0 / nlive)
+        logt_final = -np.log1p(1.0 / nlive_per_iteration)
+    else:
+        raise ValueError
+
+    ns_state.logw = nit * logt
+    expected = nit * logt + np.cumsum(logt_final)
+    out = _NSIntegralState.get_logx_live_points(ns_state, nlive)
+    np.testing.assert_equal(out, expected)
+
+
 def test_finalise(nlive):
     """Test the check that finalise returns an improved logZ"""
     state = _NSIntegralState(nlive)

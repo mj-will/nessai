@@ -4,6 +4,7 @@ Plotting utilities.
 """
 import functools
 import logging
+from typing import List, Optional
 
 from cycler import cycler
 import matplotlib as mpl
@@ -430,11 +431,13 @@ def plot_loss(epoch, history, filename=None):
 
 @nessai_style()
 def plot_trace(
-    log_x,
-    nested_samples,
-    parameters=None,
-    labels=None,
-    filename=None,
+    log_x: np.ndarray,
+    nested_samples: np.ndarray,
+    parameters: Optional[List[str]] = None,
+    live_points: Optional[np.ndarray] = None,
+    log_x_live_points: Optional[np.ndarray] = None,
+    labels: Optional[List[str]] = None,
+    filename: Optional[str] = None,
     **kwargs,
 ):
     """Produce trace plot for the nested samples.
@@ -451,6 +454,12 @@ def plot_trace(
     parameters : list, optional
         List of parameters to include the trace plot. If not specified, all of
         the parameters in the nested samples are included.
+    live_points : ndarray
+        Optional array of live points to include in the plot. See also
+        :code:`log_x_live_points`.
+    log_x_live_points : ndarray
+        Optional array of log-prior volumes for the live points. Required if
+        :code:`live_points` is specified.
     labels : list, optional
         List of labels to use instead of the names of parameters
     filename : str, optional
@@ -490,6 +499,10 @@ def plot_trace(
 
     for i, name in enumerate(parameters):
         axes[i].plot(log_x, nested_samples[name], **default_kwargs)
+        if live_points is not None:
+            axes[i].plot(
+                log_x_live_points, live_points[name], **default_kwargs
+            )
         axes[i].set_ylabel(labels[i])
 
     axes[-1].set_xlabel("log X")

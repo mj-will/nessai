@@ -185,6 +185,30 @@ class _NSIntegralState(_BaseNSIntegralState):
                 / (self.log_vols[-1] - self.log_vols[-2])
             )
 
+    def get_logx_live_points(self, nlive: int):
+        """Get the log-prior volume of the current live points.
+
+        Computes the values assuming the run were to terminate at the current
+        iteration.
+
+        Parameters
+        ----------
+        nlive : int
+            The number of live points.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of log-prior volumes of length :code:`nlive`.
+        """
+        nlive_per_iteration = np.arange(nlive, 0, -1, dtype=float)
+        if self.expectation.lower() == "logt":
+            logt = -1.0 / nlive_per_iteration
+        elif self.expectation.lower() == "t":
+            logt = -np.log1p(1.0 / nlive_per_iteration)
+        log_x = self.logw + np.cumsum(logt)
+        return log_x
+
     def finalise(self):
         """
         Compute the final evidence with more accurate integrator

@@ -144,6 +144,9 @@ class NestedSampler(BaseNestedSampler):
     shrinkage_expectation : str, {"t", "logt"}
         Method used to compute the expectation value for the shrinkage t.
         Choose between log <t> or <log t>. Defaults to <log t>.
+    trace_parameters : Optional[list[str]]
+        List of parameters to include in the trace plot. If None, all model
+        parameters are included.
     kwargs :
         Keyword arguments passed to the flow proposal class
     """
@@ -187,6 +190,7 @@ class NestedSampler(BaseNestedSampler):
         reset_acceptance=False,
         acceptance_threshold=0.01,
         shrinkage_expectation="logt",
+        trace_parameters=None,
         **kwargs,
     ):
 
@@ -223,6 +227,9 @@ class NestedSampler(BaseNestedSampler):
         self.block_iteration = 0
         self.retrain_acceptance = retrain_acceptance
         self.reset_acceptance = reset_acceptance
+        self.trace_parameters = (
+            trace_parameters if trace_parameters is not None else model.names
+        )
 
         self.insertion_indices = []
         self.rolling_p = []
@@ -1097,9 +1104,16 @@ class NestedSampler(BaseNestedSampler):
             :py:func:`nessai.plot.plot_trace`.
         """
         if self.nested_samples:
+            if self.live_points is not None:
+                log_x_live_points = self.state.get_logx_live_points(self.nlive)
+            else:
+                log_x_live_points = None
             fig = plot_trace(
                 self.state.log_vols[1:],
                 self.nested_samples,
+                parameters=self.trace_parameters,
+                live_points=self.live_points,
+                log_x_live_points=log_x_live_points,
                 filename=filename,
                 **kwargs,
             )
@@ -1207,6 +1221,7 @@ class NestedSampler(BaseNestedSampler):
         for i, p in enumerate(self.live_points):
             self.state.increment(p["logL"], nlive=self.nlive - i)
             self.nested_samples.append(p)
+        self.live_points = None
 
         # Refine evidence estimate
         self.update_state(force=True)
