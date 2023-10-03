@@ -1948,7 +1948,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             ].likelihood_evaluation_time.total_seconds()
         else:
             state["_previous_likelihood_evaluations"] = 0
-            state["_previous_likelihood_evaluations_time"] = 0
+            state["_previous_likelihood_evaluation_time"] = 0
         state["log_q"] = None
         return state, self.proposal
 
