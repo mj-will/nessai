@@ -1898,7 +1898,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         return d
 
     @classmethod
-    def resume(cls, filename, model, flow_config={}, weights_path=None):
+    def resume(cls, filename, model, flow_config=None, weights_path=None):
         """
         Resumes the interrupted state from a checkpoint pickle file.
 
@@ -1921,6 +1921,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         cls.add_fields()
         obj = super().resume(filename, model)
+        if flow_config is None:
+            flow_config = {}
         obj.proposal.resume(model, flow_config, weights_path=weights_path)
 
         if obj.log_q is None:
