@@ -288,7 +288,7 @@ class BaseNestedSampler(ABC):
         obj
             Instance of BaseNestedSampler
         """
-        logger.info("Resuming NestedSampler from " + filename)
+        logger.info(f"Resuming {cls.__name__} from {filename}")
         with open(filename, "rb") as f:
             obj = pickle.load(f)
         model.likelihood_evaluations += obj._previous_likelihood_evaluations

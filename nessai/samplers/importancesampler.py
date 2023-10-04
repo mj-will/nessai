@@ -1898,7 +1898,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         return d
 
     @classmethod
-    def resume(cls, filename, model, flow_config={}, weights_path=None):
+    def resume(cls, filename, model, flow_config=None, weights_path=None):
         """
         Resumes the interrupted state from a checkpoint pickle file.
 
@@ -1921,7 +1921,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         cls.add_fields()
         obj = super().resume(filename, model)
+        if flow_config is None:
+            flow_config = {}
         obj.proposal.resume(model, flow_config, weights_path=weights_path)
+
+        if obj.log_q is None:
+            logger.debug("Recomputing log_q")
+            obj.log_q = obj.proposal.compute_meta_proposal_samples(obj.samples)
+
         logger.info(f"Resuming sampler at iteration {obj.iteration}")
         logger.info(f"Current number of samples: {len(obj.nested_samples)}")
         logger.info(
@@ -1932,14 +1939,19 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def __getstate__(self):
         d = self.__dict__
-        exclude = {"model", "proposal"}
+        exclude = {"model", "proposal", "log_q"}
         state = {k: d[k] for k in d.keys() - exclude}
-        state["_previous_likelihood_evaluations"] = d[
-            "model"
-        ].likelihood_evaluations
-        state["_previous_likelihood_evaluation_time"] = d[
-            "model"
-        ].likelihood_evaluation_time.total_seconds()
+        if d.get("model") is not None:
+            state["_previous_likelihood_evaluations"] = d[
+                "model"
+            ].likelihood_evaluations
+            state["_previous_likelihood_evaluation_time"] = d[
+                "model"
+            ].likelihood_evaluation_time.total_seconds()
+        else:
+            state["_previous_likelihood_evaluations"] = 0
+            state["_previous_likelihood_evaluation_time"] = 0
+        state["log_q"] = None
         return state, self.proposal
 
     def __setstate__(self, state):
