@@ -34,6 +34,10 @@ class FlowSampler:
         If True try to resume the sampler is the resume file exists.
     resume_file : str, optional
         File to resume sampler from.
+    resume_data: Any, optional
+        Data to resume the sampler from instead of a resume file. The data will
+        be passed to the :code:`resume_from_pickled_sampler` of the relevant
+        class.
     weights_path : str, optional
         Path to either the weights file or directory containing subdirectories
         with weight files.
@@ -87,6 +91,7 @@ class FlowSampler:
         importance_nested_sampler=False,
         resume=True,
         resume_file="nested_sampler_resume.pkl",
+        resume_data=None,
         weights_file=None,
         weights_path=None,
         signal_handling=True,
@@ -153,58 +158,24 @@ class FlowSampler:
             n_pool=kwargs.pop("n_pool", None), pool=kwargs.pop("pool", None)
         )
 
-        if resume:
-
+        if resume and self.check_resume(resume_file, resume_data):
             weights_path = weights_path or weights_file
-
-            if not resume_file:
-                raise RuntimeError(
-                    "`resume_file` must be specified if resume=True. "
-                    f"Current value: {resume_file}"
-                )
-            if not any(
-                (
-                    os.path.exists(os.path.join(self.output, f))
-                    for f in [resume_file, resume_file + ".old"]
-                )
-            ):
-                logger.warning("No files to resume from, starting sampling")
-                self.ns = SamplerClass(
-                    model,
-                    output=self.output,
-                    resume_file=resume_file,
-                    close_pool=False,
-                    **kwargs,
+            if resume_data is not None:
+                self.ns = self._resume_from_data(
+                    SamplerClass,
+                    resume_data=resume_data,
+                    model=model,
+                    weights_path=weights_path,
+                    flow_config=kwargs.get("flow_config"),
                 )
             else:
-                try:
-                    self.ns = SamplerClass.resume(
-                        os.path.join(self.output, resume_file),
-                        model,
-                        flow_config=kwargs.get("flow_config"),
-                        weights_path=weights_path,
-                    )
-                except (FileNotFoundError, RuntimeError) as e:
-                    logger.error(
-                        f"Could not load resume file from: {self.output} "
-                        f"with error {e}"
-                    )
-                    try:
-                        resume_file += ".old"
-                        self.ns = SamplerClass.resume(
-                            os.path.join(self.output, resume_file),
-                            model,
-                            flow_config=kwargs.get("flow_config"),
-                            weights_path=weights_path,
-                        )
-                    except RuntimeError as e:
-                        logger.error(
-                            "Could not load old resume "
-                            f"file from: {self.output}"
-                        )
-                        raise RuntimeError(
-                            "Could not resume sampler " f"with error: {e}"
-                        )
+                self.ns = self._resume_from_file(
+                    SamplerClass,
+                    resume_file=resume_file,
+                    model=model,
+                    weights_path=weights_path,
+                    flow_config=kwargs.get("flow_config"),
+                )
         else:
             self.ns = SamplerClass(
                 model,
@@ -226,6 +197,70 @@ class FlowSampler:
                 "Signal handling is disabled. nessai will not automatically "
                 "checkpoint when exitted."
             )
+
+    def check_resume(self, resume_file, resume_data):
+        """Check if it is possible to resume the sampler"""
+        return (
+            any(
+                (
+                    os.path.exists(os.path.join(self.output, f))
+                    for f in [resume_file, resume_file + ".old"]
+                )
+            )
+            or resume_data is not None
+        )
+
+    def _resume_from_file(
+        self,
+        SamplerClass,
+        model,
+        resume_file,
+        weights_path,
+        flow_config,
+    ):
+        try:
+            ns = SamplerClass.resume(
+                os.path.join(self.output, resume_file),
+                model,
+                weights_path=weights_path,
+                flow_config=flow_config,
+            )
+        except (FileNotFoundError, RuntimeError) as e:
+            logger.error(
+                f"Could not load resume file from: {self.output} "
+                f"with error {e}"
+            )
+            try:
+                resume_file += ".old"
+                ns = SamplerClass.resume(
+                    os.path.join(self.output, resume_file),
+                    model,
+                    weights_path=weights_path,
+                    flow_config=flow_config,
+                )
+            except RuntimeError as e:
+                logger.error(
+                    "Could not load old resume " f"file from: {self.output}"
+                )
+                raise RuntimeError(
+                    "Could not resume sampler " f"with error: {e}"
+                )
+        return ns
+
+    def _resume_from_data(
+        self,
+        SamplerClass,
+        resume_data,
+        model,
+        weights_path,
+        flow_config,
+    ):
+        return SamplerClass.resume_from_pickled_sampler(
+            resume_data,
+            model,
+            weights_path=weights_path,
+            flow_config=flow_config,
+        )
 
     @property
     def log_evidence(self):

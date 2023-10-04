@@ -1341,28 +1341,30 @@ class NestedSampler(BaseNestedSampler):
         return d
 
     @classmethod
-    def resume(cls, filename, model, flow_config=None, weights_path=None):
-        """
-        Resumes the interrupted state from a checkpoint pickle file.
+    def resume_from_pickled_sampler(
+        cls, sampler, model, flow_config=None, weights_path=None
+    ):
+        """Resume from a pickled sampler.
 
         Parameters
         ----------
-        filename : str
-            Pickle pickle to resume from
+        sampler: Any
+            Pickled sampler.
         model : :obj:`nessai.model.Model`
             User-defined model
-        flow_config : dict, optional
+        flow_config : Optional[dict]
             Dictionary for configuring the flow
-        weights_path : str, optional
+        weights_path : Optional[str]
             Weights file to use in place of the weights file stored in the
             pickle file.
 
         Returns
         -------
-        obj
-            Instance of NestedSampler
+        Instance of NestedSampler
         """
-        obj = super().resume(filename, model)
+        obj = super(NestedSampler, cls).resume_from_pickled_sampler(
+            sampler, model
+        )
         obj._uninformed_proposal.resume(model)
         if flow_config is None:
             flow_config = {}
