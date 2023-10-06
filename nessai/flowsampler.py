@@ -177,6 +177,7 @@ class FlowSampler:
                     flow_config=kwargs.get("flow_config"),
                 )
         else:
+            logger.debug("Not resuming sampler")
             self.ns = SamplerClass(
                 model,
                 output=self.output,
@@ -218,6 +219,7 @@ class FlowSampler:
         weights_path,
         flow_config,
     ):
+        logger.info(f"Trying to resume sampler from {resume_file}")
         try:
             ns = SamplerClass.resume(
                 os.path.join(self.output, resume_file),
@@ -255,6 +257,7 @@ class FlowSampler:
         weights_path,
         flow_config,
     ):
+        logger.info("Trying to resume sampler from `resume_data`")
         return SamplerClass.resume_from_pickled_sampler(
             resume_data,
             model,
