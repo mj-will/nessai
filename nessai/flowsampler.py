@@ -171,8 +171,8 @@ class FlowSampler:
             else:
                 self.ns = self._resume_from_file(
                     SamplerClass,
-                    resume_file=resume_file,
                     model=model,
+                    resume_file=resume_file,
                     weights_path=weights_path,
                     flow_config=kwargs.get("flow_config"),
                 )
@@ -214,8 +214,8 @@ class FlowSampler:
     def _resume_from_file(
         self,
         SamplerClass,
-        model,
         resume_file,
+        model,
         weights_path,
         flow_config,
     ):
