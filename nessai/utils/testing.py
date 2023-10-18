@@ -23,6 +23,18 @@ class IntegrationTestModel(Model):
     def log_likelihood(self, x):
         return np.sum(-0.5 * (self.unstructured_view(x) ** 2), axis=-1)
 
+    def to_unit_hypercube(self, x):
+        x_out = x.copy()
+        for n in self.names:
+            x_out[n] = (x[n] - self.bounds[n][0]) / np.ptp(self.bounds[n])
+        return x_out
+
+    def from_unit_hypercube(self, x):
+        x_out = x.copy()
+        for n in self.names:
+            x_out[n] = np.ptp(self.bounds[n]) * x[n] + self.bounds[n][0]
+        return x_out
+
 
 def assert_structured_arrays_equal(x, y, atol=0.0, rtol=0.0):
     """Assert structured arrays are equal.
