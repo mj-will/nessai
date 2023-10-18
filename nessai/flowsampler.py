@@ -202,14 +202,14 @@ class FlowSampler:
     def check_resume(self, resume_file, resume_data):
         """Check if it is possible to resume the sampler"""
         return (
-            any(
+            resume_file
+            and any(
                 (
                     os.path.exists(os.path.join(self.output, f))
                     for f in [resume_file, resume_file + ".old"]
                 )
             )
-            or resume_data is not None
-        )
+        ) or resume_data is not None
 
     def _resume_from_file(
         self,
