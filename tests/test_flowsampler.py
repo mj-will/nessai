@@ -382,7 +382,7 @@ def test_init_resume(tmp_path, test_old, error):
     assert fs.ns == "ns"
 
 
-def test_init_resume_error_cannot_resume(flow_sampler, tmp_path):
+def test_resume_error_cannot_resume(flow_sampler, tmp_path):
     """Assert an error is raised if neither file loads"""
     integration_model = MagicMock()
     output = tmp_path / "test"
@@ -411,6 +411,52 @@ def test_init_resume_error_cannot_resume(flow_sampler, tmp_path):
             weights_path=None,
             flow_config=None,
         )
+
+
+@pytest.mark.parametrize(
+    "test_old, error",
+    [(False, None), (True, RuntimeError), (True, FileNotFoundError)],
+)
+def test_resume_from_file(flow_sampler, tmp_path, test_old, error):
+    """Assert the sampler can be resumed"""
+    integration_model = MagicMock()
+    output = tmp_path / "test"
+    output.mkdir()
+    resume_file = "test.pkl"
+    ns = object()
+
+    if test_old:
+        expected_rf = output / (resume_file + ".old")
+        side_effect = [error, ns]
+    else:
+        expected_rf = output / resume_file
+        side_effect = [ns]
+    expected_rf.write_text("contents")
+
+    output = str(output)
+    flow_sampler.output = output
+    expected_rf = str(expected_rf)
+    assert os.path.exists(expected_rf)
+
+    with patch(
+        "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
+    ) as mock_resume:
+        out = FlowSampler._resume_from_file(
+            flow_sampler,
+            NestedSampler,
+            resume_file=resume_file,
+            model=integration_model,
+            weights_path=None,
+            flow_config=None,
+        )
+    mock_resume.assert_called_with(
+        expected_rf,
+        integration_model,
+        weights_path=None,
+        flow_config=None,
+    )
+
+    assert out is ns
 
 
 @pytest.mark.integration_test

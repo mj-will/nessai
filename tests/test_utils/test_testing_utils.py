@@ -23,6 +23,10 @@ def test_integration_test_model(n, dims):
     assert np.isfinite(log_l).all()
     assert len(log_p) == len(x)
     assert len(log_l) == len(x)
+    x_hyper = model.to_unit_hypercube(x)
+    x_re = model.from_unit_hypercube(x_hyper)
+    assert_structured_arrays_equal(x_re, x)
+    assert len(x_hyper) == len(x)
 
 
 def test_assert_struct_arrays_different_fields():
