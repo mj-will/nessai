@@ -77,6 +77,11 @@ class BaseFlow(Module, ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def sample_latent_distribution(self, n, context=None):
+        """Sample from the latent distribution."""
+        raise NotImplementedError
+
+    @abstractmethod
     def base_distribution_log_prob(self, z, context=None):
         """
         Computes the log probability of samples in the latent for
@@ -236,6 +241,11 @@ class NFlow(BaseFlow):
         noise, logabsdet = self._transform(inputs, context=context)
         log_prob = self._distribution.log_prob(noise)
         return log_prob + logabsdet
+
+    def sample_latent_distribution(self, n, context=None):
+        if context is not None:
+            raise NotImplementedError
+        return self._distribution.sample(n)
 
     def base_distribution_log_prob(self, z, context=None):
         """
