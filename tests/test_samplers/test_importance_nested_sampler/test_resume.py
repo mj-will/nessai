@@ -35,9 +35,9 @@ def test_getstate_model(ins):
     assert proposal is ins.proposal
 
 
-def test_resume(model, tmp_path, samples):
+def test_resume_from_pickled_Sampler(model, samples):
 
-    filename = str(tmp_path / "test.pkl")
+    sampler = MagicMock()
 
     obj = MagicMock()
     obj.log_q = None
@@ -49,9 +49,11 @@ def test_resume(model, tmp_path, samples):
     obj.proposal.compute_meta_proposal_samples = MagicMock(return_value=log_q)
 
     with patch(
-        "nessai.samplers.importancesampler.BaseNestedSampler.resume",
+        "nessai.samplers.importancesampler.BaseNestedSampler.resume_from_pickled_sampler",  # noqa
         return_value=obj,
-    ):
-        out = INS.resume(filename, model)
+    ) as mock_resume:
+        out = INS.resume_from_pickled_sampler(sampler, model)
+
+    mock_resume.assert_called_once_with(sampler, model)
 
     assert out.log_q is log_q

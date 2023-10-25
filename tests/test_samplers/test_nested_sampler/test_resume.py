@@ -62,17 +62,20 @@ def test_resume(model, flow_config):
 
     weights_file = "weight.pt"
 
+    sampler = MagicMock()
+
     with patch(
-        "nessai.samplers.base.BaseNestedSampler.resume", return_value=obj
+        "nessai.samplers.base.BaseNestedSampler.resume_from_pickled_sampler",
+        return_value=obj,
     ) as mock:
-        out = NestedSampler.resume(
-            "test.pkl",
+        out = NestedSampler.resume_from_pickled_sampler(
+            sampler,
             model,
             flow_config=flow_config,
             weights_path=weights_file,
         )
     assert out is obj
-    mock.assert_called_once_with("test.pkl", model)
+    mock.assert_called_once_with(sampler, model)
     obj._uninformed_proposal.resume.assert_called_once_with(
         model,
     )

@@ -274,7 +274,33 @@ class BaseNestedSampler(ABC):
         self.sampling_start_time = datetime.datetime.now()
 
     @classmethod
-    def resume(cls, filename: str, model: Model):
+    def resume_from_pickled_sampler(cls, sampler: Any, model: Model):
+        """Resume from pickle data.
+
+        Parameters
+        ----------
+        data : Any
+            Pickle data
+        model : :obj:`nessai.model.Model`
+            User-defined model
+
+        Returns
+        -------
+        Instance of BaseNestedSampler
+        """
+        logger.info(f"Resuming instance of {cls.__name__}")
+        model.likelihood_evaluations += (
+            sampler._previous_likelihood_evaluations
+        )
+        model.likelihood_evaluation_time += datetime.timedelta(
+            seconds=sampler._previous_likelihood_evaluation_time
+        )
+        sampler.model = model
+        sampler.resumed = True
+        return sampler
+
+    @classmethod
+    def resume(cls, filename: str, model: Model, **kwargs):
         """Resumes the interrupted state from a checkpoint pickle file.
 
         Parameters
@@ -283,6 +309,7 @@ class BaseNestedSampler(ABC):
             Pickle file to resume from
         model : :obj:`nessai.model.Model`
             User-defined model
+
         Returns
         -------
         obj
@@ -290,14 +317,8 @@ class BaseNestedSampler(ABC):
         """
         logger.info(f"Resuming {cls.__name__} from {filename}")
         with open(filename, "rb") as f:
-            obj = pickle.load(f)
-        model.likelihood_evaluations += obj._previous_likelihood_evaluations
-        model.likelihood_evaluation_time += datetime.timedelta(
-            seconds=obj._previous_likelihood_evaluation_time
-        )
-        obj.model = model
-        obj.resumed = True
-        return obj
+            sampler = pickle.load(f)
+        return cls.resume_from_pickled_sampler(sampler, model, **kwargs)
 
     @abstractmethod
     def nested_sampling_loop(self):

@@ -3,7 +3,9 @@
 Tests for the FlowSampler class.
 """
 import json
+import logging
 import os
+import pickle
 import signal
 import sys
 import time
@@ -16,6 +18,7 @@ import pytest
 from nessai import config as nessai_config
 from nessai.evidence import _NSIntegralState
 from nessai.flowsampler import FlowSampler
+from nessai.samplers import NestedSampler
 from nessai.livepoint import numpy_array_to_live_points
 import numpy as np
 
@@ -55,6 +58,58 @@ def nested_samples(names):
     return numpy_array_to_live_points(np.random.randn(20, len(names)), names)
 
 
+def test_nested_samples_final(flow_sampler):
+    flow_sampler._final_samples = [
+        1,
+    ]
+    flow_sampler._nested_samples = [
+        2,
+    ]
+    assert (
+        FlowSampler.nested_samples.__get__(flow_sampler)
+        is flow_sampler._final_samples
+    )
+
+
+def test_nested_samples_ns(flow_sampler):
+    flow_sampler._final_samples = None
+    flow_sampler._nested_samples = [
+        2,
+    ]
+    assert (
+        FlowSampler.nested_samples.__get__(flow_sampler)
+        is flow_sampler._nested_samples
+    )
+
+
+def test_check_resume_data_only(flow_sampler):
+    assert (
+        FlowSampler.check_resume(
+            flow_sampler, resume_file=None, resume_data=object()
+        )
+        is True
+    )
+
+
+def test_check_resume_neither(flow_sampler):
+    assert (
+        FlowSampler.check_resume(
+            flow_sampler, resume_file=None, resume_data=None
+        )
+        is False
+    )
+
+
+def test_check_resume_files_do_not_exist(flow_sampler, tmp_path):
+    flow_sampler.output = tmp_path / "test"
+    assert (
+        FlowSampler.check_resume(
+            flow_sampler, resume_file="test.pkl", resume_data=None
+        )
+        is False
+    )
+
+
 @pytest.mark.parametrize("resume", [False, True])
 @pytest.mark.parametrize("use_ins", [False, True])
 def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
@@ -76,6 +131,7 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
     sampler_class = "ImportanceNestedSampler" if use_ins else "NestedSampler"
 
     flow_sampler.save_kwargs = MagicMock()
+    flow_sampler.check_resume = MagicMock(return_value=False)
 
     with patch(
         f"nessai.flowsampler.{sampler_class}", return_value="ns"
@@ -111,7 +167,48 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
     flow_sampler.save_kwargs.assert_called_once_with(kwargs)
 
 
-def test_init_eps(tmp_path):
+def test_resume_from_resume_data(flow_sampler, model, tmp_path):
+    """Test for resume from data"""
+    output = tmp_path / "test"
+    data = object()
+    flow_sampler.check_resume = MagicMock(return_value=True)
+    flow_sampler._resume_from_data = MagicMock()
+    FlowSampler.__init__(
+        flow_sampler, model, output=output, resume_data=data, resume=True
+    )
+    flow_sampler._resume_from_data.assert_called_once_with(
+        NestedSampler,
+        resume_data=data,
+        model=model,
+        weights_path=None,
+        flow_config=None,
+    )
+
+
+def test_resume_from_resume_file(flow_sampler, model, tmp_path):
+    """Test for resume from data"""
+    output = tmp_path / "test"
+    resume_file = "resume.pkl"
+    flow_sampler.check_resume = MagicMock(return_value=True)
+    flow_sampler._resume_from_file = MagicMock()
+    FlowSampler.__init__(
+        flow_sampler,
+        model,
+        output=output,
+        resume_data=None,
+        resume=True,
+        resume_file=resume_file,
+    )
+    flow_sampler._resume_from_file.assert_called_once_with(
+        NestedSampler,
+        resume_file=resume_file,
+        model=model,
+        weights_path=None,
+        flow_config=None,
+    )
+
+
+def test_init_eps(flow_sampler, tmp_path):
     initial_eps = nessai_config.general.eps
 
     model = MagicMock()
@@ -139,6 +236,7 @@ def test_disable_vectorisation(flow_sampler, tmp_path):
 
     integration_model = MagicMock()
     integration_model.allow_vectorised = True
+    flow_sampler.check_resume = MagicMock(return_value=False)
 
     with patch("nessai.flowsampler.NestedSampler") as mock:
         FlowSampler.__init__(
@@ -159,6 +257,7 @@ def test_likelihood_chunksize(flow_sampler, tmp_path):
 
     integration_model = MagicMock()
     integration_model.likelihood_chunksize = None
+    flow_sampler.check_resume = MagicMock(return_value=False)
 
     with patch("nessai.flowsampler.NestedSampler") as mock:
         FlowSampler.__init__(
@@ -179,6 +278,7 @@ def test_allow_multi_valued_likelihood(flow_sampler, tmp_path):
 
     integration_model = MagicMock()
     integration_model.allow_multi_value_likelihood = False
+    flow_sampler.check_resume = MagicMock(return_value=False)
 
     with patch("nessai.flowsampler.NestedSampler") as mock:
         FlowSampler.__init__(
@@ -200,6 +300,7 @@ def test_parallelise_prior(flow_sampler, tmp_path, value):
 
     integration_model = MagicMock()
     integration_model.parallelise_prior = None
+    flow_sampler.check_resume = MagicMock(return_value=False)
 
     with patch("nessai.flowsampler.NestedSampler") as mock:
         FlowSampler.__init__(
@@ -217,7 +318,8 @@ def test_parallelise_prior(flow_sampler, tmp_path, value):
     "test_old, error",
     [(False, None), (True, RuntimeError), (True, FileNotFoundError)],
 )
-def test_init_resume(flow_sampler, tmp_path, test_old, error):
+@pytest.mark.integration_test
+def test_init_resume(tmp_path, test_old, error):
     """Test the init method when the sampler should resume.
 
     Tests the case where the first file works and the case where the first
@@ -249,15 +351,12 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
         flow_config=flow_config,
     )
 
-    flow_sampler.save_kwargs = MagicMock()
-
     with patch(
         "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
     ) as mock_resume, patch(
         "nessai.flowsampler.configure_threads"
     ) as mock_threads:
-        FlowSampler.__init__(
-            flow_sampler,
+        fs = FlowSampler(
             integration_model,
             output=output,
             resume=resume,
@@ -280,17 +379,14 @@ def test_init_resume(flow_sampler, tmp_path, test_old, error):
         weights_path=weights_file,
     )
 
-    assert flow_sampler.ns == "ns"
-
-    flow_sampler.save_kwargs.assert_called_once_with(kwargs)
+    assert fs.ns == "ns"
 
 
-def test_init_resume_error_cannot_resume(flow_sampler, tmp_path):
+def test_resume_error_cannot_resume(flow_sampler, tmp_path):
     """Assert an error is raised if neither file loads"""
     integration_model = MagicMock()
     output = tmp_path / "test"
     output.mkdir()
-    resume = True
     resume_file = "test.pkl"
     expected_rf = output / (resume_file + ".old")
     expected_rf.write_text("contents")
@@ -300,20 +396,97 @@ def test_init_resume_error_cannot_resume(flow_sampler, tmp_path):
 
     assert os.path.exists(expected_rf)
 
+    flow_sampler.output = output
+
     with patch(
         "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
     ), patch("nessai.flowsampler.configure_threads"), pytest.raises(
-        RuntimeError
-    ) as excinfo:
-        FlowSampler.__init__(
+        RuntimeError, match=r"Could not resume sampler with error:"
+    ):
+        FlowSampler._resume_from_file(
             flow_sampler,
+            NestedSampler,
             integration_model,
-            output=output,
-            resume=resume,
-            resume_file=resume_file,
+            resume_file,
+            weights_path=None,
             flow_config=None,
         )
-    assert "Could not resume sampler with error: " in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "test_old, error",
+    [(False, None), (True, RuntimeError), (True, FileNotFoundError)],
+)
+def test_resume_from_file(flow_sampler, tmp_path, test_old, error):
+    """Assert the sampler can be resumed"""
+    integration_model = MagicMock()
+    output = tmp_path / "test"
+    output.mkdir()
+    resume_file = "test.pkl"
+    ns = object()
+
+    if test_old:
+        expected_rf = output / (resume_file + ".old")
+        side_effect = [error, ns]
+    else:
+        expected_rf = output / resume_file
+        side_effect = [ns]
+    expected_rf.write_text("contents")
+
+    output = str(output)
+    flow_sampler.output = output
+    expected_rf = str(expected_rf)
+    assert os.path.exists(expected_rf)
+
+    with patch(
+        "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
+    ) as mock_resume:
+        out = FlowSampler._resume_from_file(
+            flow_sampler,
+            NestedSampler,
+            resume_file=resume_file,
+            model=integration_model,
+            weights_path=None,
+            flow_config=None,
+        )
+    mock_resume.assert_called_with(
+        expected_rf,
+        integration_model,
+        weights_path=None,
+        flow_config=None,
+    )
+
+    assert out is ns
+
+
+@pytest.mark.integration_test
+def test_init_cannot_resume_integration(tmp_path, integration_model):
+    """Integration test for invalid resume files"""
+    output = tmp_path / "test"
+    output.mkdir()
+    resume_file = "test.pkl"
+    expected_rf = output / (resume_file + ".old")
+    expected_rf.write_text("contents")
+    side_effect = [RuntimeError, RuntimeError]
+    output = str(output)
+    expected_rf = str(expected_rf)
+
+    assert os.path.exists(expected_rf)
+
+    flow_sampler.output = output
+
+    with patch(
+        "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
+    ), pytest.raises(
+        RuntimeError, match=r"Could not resume sampler with error"
+    ):
+        FlowSampler(
+            integration_model,
+            output=output,
+            resume_file=resume_file,
+            resume_data=None,
+            resume=True,
+        )
 
 
 def test_init_resume_error_no_file(flow_sampler, tmp_path):
@@ -323,11 +496,13 @@ def test_init_resume_error_no_file(flow_sampler, tmp_path):
     integration_model = MagicMock()
     output = tmp_path / "test"
     output.mkdir()
-    output = str(output)
+    output = str(output)  #
 
-    with patch("nessai.flowsampler.configure_threads"), pytest.raises(
-        RuntimeError
-    ) as excinfo:
+    flow_sampler.check_resume = MagicMock(return_value=False)
+
+    with patch("nessai.flowsampler.configure_threads"), patch(
+        "nessai.flowsampler.NestedSampler"
+    ) as mock_init:
         FlowSampler.__init__(
             flow_sampler,
             integration_model,
@@ -335,7 +510,28 @@ def test_init_resume_error_no_file(flow_sampler, tmp_path):
             resume=True,
             resume_file=None,
         )
-    assert "`resume_file` must be specified" in str(excinfo.value)
+
+    mock_init.assert_called_once()
+
+
+def test_resume_from_data(flow_sampler, model):
+    """Test the resume from data method"""
+    data = MagicMock()
+    SamplerClass = MagicMock()
+    weights_path = "test.pkl"
+    flow_config = {"n_neurons": 24}
+    FlowSampler._resume_from_data(
+        flow_sampler,
+        SamplerClass,
+        data,
+        model,
+        weights_path,
+        flow_config,
+    )
+
+    SamplerClass.resume_from_pickled_sampler.assert_called_once_with(
+        data, model, weights_path=weights_path, flow_config=flow_config
+    )
 
 
 def test_init_signal_handling_enabled(flow_sampler, tmp_path):
@@ -563,11 +759,12 @@ def test_run_standard_plots_disabled(flow_sampler):
     flow_sampler.state.plot.assert_not_called()
 
 
-def test_run_ins(flow_sampler):
+@pytest.mark.parametrize("close_pool", [False, True])
+def test_run_ins(flow_sampler, close_pool):
     """Test running the importance nested sampler"""
     flow_sampler.importance_nested_sampler = True
 
-    flow_sampler.close_pool = False
+    flow_sampler.close_pool = close_pool
     logZ = 0.0
     logZ_err = 0.1
     nested_samples = np.array([1, 2, 3])
@@ -576,6 +773,7 @@ def test_run_ins(flow_sampler):
     ns.nested_sampling_loop = MagicMock(return_value=(logZ, nested_samples))
     ns.state.log_evidence_error = logZ_err
     ns.draw_posterior_samples = MagicMock(return_value=post)
+    ns.close_pool = MagicMock()
     flow_sampler.ns = ns
 
     FlowSampler.run_importance_nested_sampler(
@@ -591,6 +789,8 @@ def test_run_ins(flow_sampler):
     assert flow_sampler.logZ_error is logZ_err
     assert flow_sampler.initial_posterior_samples is post
     assert flow_sampler.posterior_samples is post
+    if close_pool:
+        ns.close_pool.assert_called_once()
 
 
 def test_run_ins_redraw(flow_sampler):
@@ -888,3 +1088,49 @@ def test_save_results_integration(
     np.testing.assert_array_equal(
         out["posterior_samples"]["x"], posterior_samples["x"]
     )
+
+
+@pytest.mark.integration_test
+@pytest.mark.parametrize("ins", [True, False])
+def test_resume_from_data_integration(
+    integration_model, tmp_path, caplog, ins
+):
+    output = tmp_path / "test"
+
+    caplog.set_level(logging.INFO)
+
+    kwargs = {}
+    if ins:
+        kwargs["min_samples"] = 1
+
+    fs = FlowSampler(
+        integration_model,
+        nlive=10,
+        output=output,
+        max_iteration=5,
+        checkpointing=False,
+        resume_file=None,
+        importance_nested_sampler=ins,
+        **kwargs,
+    )
+    fs.run()
+
+    pickled_sampler = pickle.dumps(fs.ns)
+    resume_data = pickle.loads(pickled_sampler)
+
+    fs_resume = FlowSampler(
+        integration_model,
+        nlive=10,
+        output=output,
+        max_iteration=5,
+        checkpointing=False,
+        resume_data=resume_data,
+        resume_file=None,
+        importance_nested_sampler=ins,
+        **kwargs,
+    )
+
+    fs_resume.ns.iteration == fs.ns.iteration
+    fs_resume.ns.log_evidence == fs.ns.log_evidence
+
+    assert "Trying to resume sampler from `resume_data`" in str(caplog.text)
