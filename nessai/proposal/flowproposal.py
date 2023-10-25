@@ -1382,7 +1382,7 @@ class FlowProposal(RejectionProposal):
         if self.truncate_log_q:
             log_q_live_points = self.forward_pass(self.training_data)[1]
             min_log_q = log_q_live_points.min()
-            logger.debug("Truncating with log_q={min_log_q:.3f}")
+            logger.debug(f"Truncating with log_q={min_log_q:.3f}")
         else:
             min_log_q = None
 
