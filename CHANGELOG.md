@@ -7,13 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0]
+
 ### Added
 
-- `birth_log_likelihoods` to `NestedSampler` and  `logL_birth` to the result dictionary
+- `birth_log_likelihoods` to `NestedSampler` and  `logL_birth` to the result dictionary ([#318](https://github.com/mj-will/nessai/pull/318))
+- Support for non-vectorised log-prior functions ([#330](https://github.com/mj-will/nessai/pull/330))
+- Add the live points to the trace plot for the standard nested sampler ([#334](https://github.com/mj-will/nessai/pull/334))
+- Add an option to resume from a pickle object rather than a resume file ([#337](https://github.com/mj-will/nessai/pull/337))
 
 ### Changed
 
-- Nested samples are now stored as an array in the result object rather than a dictionary
+- Nested samples are now stored as an array in the result object rather than a dictionary ([#318](https://github.com/mj-will/nessai/pull/318))
+- Reduce the size of importance nested sampling checkpoints ([#327](https://github.com/mj-will/nessai/pull/327))
+- Rename `nessai.utils.bilbyutils` to `nessai.utils.settings` ([#332](https://github.com/mj-will/nessai/pull/332))
+- Changed name of `dZ` to `dlogZ`, this does not change how the stopping criterion is calculated ([#333](https://github.com/mj-will/nessai/pull/333))
+
+### Fixed
+
+- Fix a bug with the prior bounds that occurred when `bounds` and `names` had different orders ([#329](https://github.com/mj-will/nessai/pull/329))
+- Fix a bug with `close_pool` that lead to the pool being closed irrespective of the value ([#331](https://github.com/mj-will/nessai/pull/331))
+
+### Deprecated
+
+- `nessai.utils.bilbyutils` is deprecated in favour on `nessai.utils.settings` and will be removed in a future release ([#332](https://github.com/mj-will/nessai/pull/332))
 
 ## [0.9.1]
 
@@ -531,7 +548,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/mj-will/nessai/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/mj-will/nessai/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/mj-will/nessai/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/mj-will/nessai/compare/v0.8.0...v0.8.1
