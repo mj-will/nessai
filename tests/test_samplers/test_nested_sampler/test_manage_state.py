@@ -262,6 +262,7 @@ def test_get_result_dictionary(sampler):
     ]
     sampler.final_p_value = 0.5
     sampler.final_ks_statistic = 0.1
+    sampler.state.log_posterior_weights = [0.5, 0.5]
 
     with patch(
         "nessai.samplers.base.BaseNestedSampler.get_result_dictionary",
