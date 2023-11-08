@@ -1882,7 +1882,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d["bootstrap_log_evidence"] = self.bootstrap_log_evidence
         d["bootstrap_log_evidence_error"] = self.bootstrap_log_evidence_error
         d["samples"] = self.final_samples
-        d["log_posterior_weights"] = self.state.log_posterior_weights()
+        d["log_posterior_weights"] = self.state.log_posterior_weights
         d["log_evidence"] = self.final_log_evidence
         d["log_evidence_error"] = self.final_log_evidence_error
 
