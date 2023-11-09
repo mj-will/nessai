@@ -174,7 +174,7 @@ def batch_evaluate_function(
     return out
 
 
-def check_vectorised_function(func, x, dtype=None):
+def check_vectorised_function(func, x, dtype=None, atol=1e-15, rtol=1e-15):
     """Check if a function is vectorised given a set of inputs.
 
     Parameters
@@ -186,6 +186,10 @@ def check_vectorised_function(func, x, dtype=None):
     dtype :  Optional[Union[str, numpy.dtype]]
         Dtype to cast the results to. If not specified, the default dtype
         for livepoints is used.
+    rtol : float
+        Relative tolerance, see numpy documentation for :code:`allclose`.
+    atol : float
+        Abosoulte tolerance, see numpy documentation for :code:`allclose`.
 
     Returns
     -------
@@ -205,7 +209,7 @@ def check_vectorised_function(func, x, dtype=None):
         logger.debug("Assuming function is not vectorised")
         return False
     else:
-        if np.array_equal(target, batch):
+        if np.allclose(target, batch, atol=atol, rtol=rtol):
             logger.debug("Function is vectorised")
             return True
         else:
