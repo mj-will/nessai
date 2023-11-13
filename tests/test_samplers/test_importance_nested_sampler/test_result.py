@@ -1,13 +1,17 @@
 """Tests related to the results returned by the sampler"""
 import datetime
+from unittest.mock import MagicMock
 
 from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
+from nessai.evidence import _INSIntegralState
+import numpy as np
 
 
 def test_get_result_dictionary(ins, history, samples):
     ins.samples = samples.copy()
     ins.final_samples = samples
     ins.history = history
+    ins.state = MagicMock(spec=_INSIntegralState)
 
     ins.seed = 1234
     ins.sampling_time = datetime.timedelta(seconds=10)
@@ -24,6 +28,8 @@ def test_get_result_dictionary(ins, history, samples):
 
     ins.bootstrap_log_evidence = None
     ins.bootstrap_log_evidence_error = None
+
+    ins.state.log_posterior_weights = np.log(np.random.rand(len(samples)))
 
     ins.importance = {
         "total": [1, 2, 3],

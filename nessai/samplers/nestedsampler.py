@@ -1332,6 +1332,7 @@ class NestedSampler(BaseNestedSampler):
         d["final_p_value"] = self.final_p_value
         d["final_ks_statistic"] = self.final_ks_statistic
         d["nested_samples"] = np.array(self.nested_samples)
+        d["log_posterior_weights"] = self.state.log_posterior_weights
         d["logL_birth"] = self.birth_log_likelihoods
         d["log_evidence"] = self.log_evidence
         d["log_evidence_error"] = self.state.log_evidence_error
