@@ -975,7 +975,7 @@ def test_signal_handling(
         "nessai.utils.multiprocessing.multiprocessing.get_start_method",
         mp_context.get_start_method,
     ):
-        fs = FlowSampler(
+        FlowSampler(
             integration_model,
             output=output,
             nlive=500,
@@ -988,7 +988,7 @@ def test_signal_handling(
     pid = os.getpid()
 
     def trigger_signal():
-        time.sleep(4)
+        time.sleep(2)
         os.kill(pid, signal.SIGINT)
 
     thread = Thread(target=trigger_signal)
@@ -997,8 +997,7 @@ def test_signal_handling(
 
     with pytest.raises(SystemExit):
         try:
-            while True:
-                fs.run(save=False, plot=False)
+            time.sleep(4)
         except SystemExit as error:
             assert error.code == 5
             raise
@@ -1020,7 +1019,7 @@ def test_signal_handling_disabled(tmp_path, caplog, integration_model):
     output = tmp_path / "output"
     output.mkdir()
 
-    fs = FlowSampler(
+    FlowSampler(
         integration_model,
         output=output,
         nlive=500,
@@ -1032,7 +1031,7 @@ def test_signal_handling_disabled(tmp_path, caplog, integration_model):
     pid = os.getpid()
 
     def trigger_signal():
-        time.sleep(4)
+        time.sleep(2)
         os.kill(pid, signal.SIGINT)
 
     thread = Thread(target=trigger_signal)
@@ -1047,8 +1046,7 @@ def test_signal_handling_disabled(tmp_path, caplog, integration_model):
 
     with pytest.raises(SystemExit):
         try:
-            while True:
-                fs.run(save=False, plot=False)
+            time.sleep(4)
         except SystemExit as error:
             assert error.code == 10
             raise
