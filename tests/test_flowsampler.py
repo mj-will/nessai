@@ -182,6 +182,7 @@ def test_resume_from_resume_data(flow_sampler, model, tmp_path):
         model=model,
         weights_path=None,
         flow_config=None,
+        checkpoint_callback=None,
     )
 
 
@@ -205,6 +206,7 @@ def test_resume_from_resume_file(flow_sampler, model, tmp_path):
         model=model,
         weights_path=None,
         flow_config=None,
+        checkpoint_callback=None,
     )
 
 
@@ -377,6 +379,7 @@ def test_init_resume(tmp_path, test_old, error):
         integration_model,
         flow_config=flow_config,
         weights_path=weights_file,
+        checkpoint_callback=None,
     )
 
     assert fs.ns == "ns"
