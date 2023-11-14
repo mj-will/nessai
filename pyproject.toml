@@ -1,6 +1,72 @@
 [build-system]
-requires = ["setuptools", "wheel", "setuptools_scm[toml]"]
+requires = ["setuptools>=45", "setuptools-scm[toml]>=6.2", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "nessai"
+authors = [
+    {name = "Michael J. Williams", email = "michaeljw1@googlemail.com"},
+]
+description = "Nessai: Nested Sampling with Artificial Intelligence"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+keywords = [
+    "nested sampling",
+    "normalizing flows",
+    "machine learning",
+]
+dependencies = [
+    "glasflow",
+    "h5py>=3.0",
+    "matplotlib>=2.0",
+    "numpy>=1.9",
+    "pandas",
+    "scipy>0.16",
+    "seaborn",
+    "torch>=1.11.0",
+    "tqdm",
+]
+dynamic = [
+    "version",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/mj-will/nessai"
+"Documentation" = "https://nessai.readthedocs.io/"
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "pytest-rerunfailures",
+    "pytest-integration",
+]
+gw = [
+    "lalsuite; sys_platform != 'win32'",
+    "bilby",
+    "astropy",
+]
+dev = [
+    "pre-commit",
+    "ray[default]",
+    "corner",
+]
+docs = [
+    "sphinx",
+    "sphinx_rtd_theme",
+    "numpydoc",
+    "sphinx-autoapi",
+]
+nflows = [
+    "nflows",
+]
 
 [tool.setuptools_scm]
 
@@ -18,9 +84,7 @@ testpaths = [
 source = [
     "nessai"
 ]
-omit = [
-    "nessai/gw/legacy.py"
-]
+
 [tool.coverage.report]
 exclude_lines = [
     "pragma: no cover",
@@ -29,4 +93,7 @@ exclude_lines = [
 
 [tool.black]
 line-length = 79
-target-version = ['py39', 'py310']
+target-version = [
+    "py39",
+    "py310",
+]

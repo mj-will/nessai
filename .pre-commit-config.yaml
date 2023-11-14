@@ -12,10 +12,14 @@ repos:
       - id: black
         language_version: python3
 -   repo: https://github.com/pycqa/flake8
-    rev: 3.8.3
+    rev: 6.1.0
     hooks:
-    -   id: flake8
+      - id: flake8
+        additional_dependencies:
+          - Flake8-pyproject
 -   repo: https://github.com/codespell-project/codespell
-    rev: v2.1.0
+    rev: v2.2.4
     hooks:
-    -   id: codespell
+      - id: codespell
+        additional_dependencies:
+        - tomli
