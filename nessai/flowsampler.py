@@ -53,7 +53,7 @@ class FlowSampler:
     signal_handling : bool
         Enable or disable signal handling.
     exit_code : int, optional
-        Exit code to use when forceably exiting the sampler.
+        Exit code to use when forcibly exiting the sampler.
     close_pool : bool
         If True, the multiprocessing pool will be closed once the run method
         has been called. Disables the option in :code:`NestedSampler` if
@@ -198,7 +198,7 @@ class FlowSampler:
         else:
             logger.warning(
                 "Signal handling is disabled. nessai will not automatically "
-                "checkpoint when exitted."
+                "checkpoint when exited."
             )
 
     def check_resume(self, resume_file, resume_data):
@@ -269,7 +269,7 @@ class FlowSampler:
             model,
             weights_path=weights_path,
             flow_config=flow_config,
-            **kwargs
+            **kwargs,
         )
 
     @property
