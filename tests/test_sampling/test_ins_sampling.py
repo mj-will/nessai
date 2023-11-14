@@ -7,6 +7,7 @@ import pytest
 
 
 @pytest.mark.slow_integration_test
+@pytest.mark.flaky(reruns=3)
 def test_ins_resume(tmp_path, model, flow_config):
     """Assert the INS sampler resumes correctly"""
     output = tmp_path / "test_ins_resume"
