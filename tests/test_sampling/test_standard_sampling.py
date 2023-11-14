@@ -622,3 +622,53 @@ def test_sampling_result_extension(integration_model, tmp_path, extension):
     )
     fs.run(plot=False)
     assert os.path.exists(os.path.join(output, f"result.{extension}"))
+
+
+@pytest.mark.slow_integration_test
+def test_sampling_with_checkpoint_callback(integration_model, tmp_path):
+    """Test the usage if the checkpoint callbacks"""
+    import pickle
+
+    output = tmp_path / "test_callbacks"
+    output.mkdir()
+
+    checkpoint_file = output / "test.pkl"
+
+    def callback(state):
+        with open(checkpoint_file, "wb") as f:
+            pickle.dump(state, f)
+
+    fs = FlowSampler(
+        integration_model,
+        output=output,
+        nlive=100,
+        plot=False,
+        proposal_plots=False,
+        checkpoint_callback=callback,
+        max_iteration=100,
+        checkpoint_on_iteration=True,
+        checkpoint_interval=50,
+    )
+    fs.run(plot=False)
+    assert fs.ns.iteration == 100
+
+    del fs
+
+    with open(checkpoint_file, "rb") as f:
+        resume_data = pickle.load(f)
+
+    fs = FlowSampler(
+        integration_model,
+        output=output,
+        nlive=100,
+        plot=False,
+        proposal_plots=False,
+        checkpoint_callback=callback,
+        checkpoint_on_iteration=True,
+        checkpoint_interval=50,
+        resume_data=resume_data,
+        resume=True,
+    )
+    fs.ns.max_iteration = 200
+    fs.run()
+    assert fs.ns.iteration == 200
