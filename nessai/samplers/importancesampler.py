@@ -1946,7 +1946,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def __getstate__(self):
         d = self.__dict__
-        exclude = {"model", "proposal", "log_q"}
+        exclude = {"model", "proposal", "log_q", "checkpoint_callback"}
         state = {k: d[k] for k in d.keys() - exclude}
         if d.get("model") is not None:
             state["_previous_likelihood_evaluations"] = d[
