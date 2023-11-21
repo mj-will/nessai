@@ -1164,7 +1164,10 @@ class FlowProposal(RejectionProposal):
         """
         r = np.sqrt(np.sum(z**2.0, axis=-1))
         i = np.nanargmax(r)
-        return (r[i],) + (a[i] for a in arrays)
+        if arrays:
+            return (r[i],) + tuple(a[i] for a in arrays)
+        else:
+            return r[i]
 
     def log_prior(self, x):
         """
@@ -1372,7 +1375,7 @@ class FlowProposal(RejectionProposal):
                 logger.debug("Using previous live points to compute radius")
             worst_z = self.forward_pass(
                 worst_point, rescale=True, compute_radius=True
-            )
+            )[0]
             r = self.radius(worst_z)
             if self.max_radius and r > self.max_radius:
                 r = self.max_radius
