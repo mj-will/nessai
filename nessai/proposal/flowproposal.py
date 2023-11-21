@@ -1373,6 +1373,7 @@ class FlowProposal(RejectionProposal):
             logger.debug(f"Populating with worst point: {worst_point}")
             if self.compute_radius_with_all:
                 logger.debug("Using previous live points to compute radius")
+                worst_point = self.training_data
             worst_z = self.forward_pass(
                 worst_point, rescale=True, compute_radius=True
             )[0]
