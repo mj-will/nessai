@@ -86,7 +86,9 @@ def test_backward_pass(proposal, model, log_p):
     )
     proposal.rescaled_names = model.names
     proposal.alt_dist = None
-    proposal.check_prior_bounds = MagicMock(side_effect=lambda a, b: (a, b))
+    proposal.check_prior_bounds = MagicMock(
+        side_effect=lambda a, b, c: (a, b, c)
+    )
     proposal.flow = MagicMock()
     proposal.flow.sample_and_log_prob = MagicMock(return_value=[x, log_p])
 
