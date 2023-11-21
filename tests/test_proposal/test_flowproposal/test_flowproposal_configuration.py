@@ -92,6 +92,7 @@ def test_configure_plotting(proposal, plot, plot_pool, plot_train):
         ("uniform", "draw_uniform"),
         ("uniform_nsphere", "draw_nsphere"),
         ("uniform_nball", "draw_nsphere"),
+        ("flow", None),
     ],
 )
 def test_configure_latent_prior(proposal, latent_prior, prior_func):
@@ -99,7 +100,10 @@ def test_configure_latent_prior(proposal, latent_prior, prior_func):
     proposal.latent_prior = latent_prior
     proposal.flow_config = {"model_config": {}}
     FlowProposal.configure_latent_prior(proposal)
-    assert proposal._draw_latent_prior == getattr(utils, prior_func)
+    if prior_func:
+        assert proposal._draw_latent_prior == getattr(utils, prior_func)
+    else:
+        assert proposal._draw_latent_prior is None
 
 
 def test_configure_latent_prior_unknown(proposal):

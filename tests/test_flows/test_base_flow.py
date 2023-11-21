@@ -43,6 +43,7 @@ def test_base_flow_abstract_methods():
         "base_distribution_log_prob",
         "forward_and_log_prob",
         "sample_and_log_prob",
+        "sample_latent_distribution",
     ],
 )
 def test_base_flow_methods(method, flow):
