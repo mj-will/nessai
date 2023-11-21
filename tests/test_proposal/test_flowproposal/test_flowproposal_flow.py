@@ -75,10 +75,14 @@ def test_forward_pass(proposal, model, n):
 
 
 @pytest.mark.parametrize("log_p", [np.ones(2), np.array([-1, np.inf])])
-def test_backward_pass(proposal, model, log_p):
+@pytest.mark.parametrize("discard_nans", [False, True])
+def test_backward_pass(proposal, model, log_p, discard_nans):
     """Test the forward pass method"""
     n = 2
-    acc = int(np.isfinite(log_p).sum())
+    if discard_nans:
+        acc = int(np.isfinite(log_p).sum())
+    else:
+        acc = len(log_p)
     x = np.random.randn(n, model.dims)
     z = np.random.randn(n, model.dims)
     proposal.inverse_rescale = MagicMock(
@@ -92,7 +96,11 @@ def test_backward_pass(proposal, model, log_p):
     proposal.flow = MagicMock()
     proposal.flow.sample_and_log_prob = MagicMock(return_value=[x, log_p])
 
-    x_out, log_p = FlowProposal.backward_pass(proposal, z)
+    x_out, log_p = FlowProposal.backward_pass(
+        proposal,
+        z,
+        discard_nans=discard_nans,
+    )
 
     assert len(x_out) == acc
     proposal.inverse_rescale.assert_called_once()

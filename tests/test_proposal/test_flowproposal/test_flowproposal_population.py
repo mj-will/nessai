@@ -325,6 +325,15 @@ def test_prep_latent_prior_other(proposal):
     assert proposal._draw_func(N=10).shape == (10, 2)
 
 
+def test_prep_latent_prior_flow(proposal):
+    proposal.latent_prior = "flow"
+    proposal.flow = MagicMock()
+    proposal.flow.sample_latent_distribution = MagicMock()
+    FlowProposal.prep_latent_prior(proposal)
+    proposal._draw_func(10)
+    proposal.flow.sample_latent_distribution.assert_called_once_with(10)
+
+
 def test_draw_latent_prior(proposal):
     proposal._draw_func = MagicMock(return_value=[1, 2])
     out = FlowProposal.draw_latent_prior(proposal, 2)
@@ -479,3 +488,90 @@ def test_populate_not_initialised(proposal):
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.populate(proposal, 1.0)
     assert "Proposal has not been initialised. " in str(excinfo.value)
+
+
+def test_populate_truncate_log_q(proposal):
+    n_dims = 2
+    nlive = 8
+    poolsize = 10
+    drawsize = 5
+    names = ["x", "y"]
+    r_flow = 2.0
+    worst_point = np.array(
+        [[1, 2, 3]], dtype=[("x", "f8"), ("y", "f8"), ("logL", "f8")]
+    )
+    z = [
+        np.random.randn(drawsize, n_dims),
+        np.random.randn(drawsize, n_dims),
+        np.random.randn(drawsize, n_dims),
+    ]
+    x = [
+        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+    ]
+    log_l = np.random.rand(poolsize)
+
+    proposal.initialised = True
+    proposal.dims = n_dims
+    proposal.poolsize = poolsize
+    proposal.drawsize = drawsize
+    proposal.fuzz = 1.0
+    proposal.indices = None
+    proposal.acceptance = [0.7]
+    proposal.keep_samples = False
+    proposal.fixed_radius = 2.0
+    proposal.compute_radius_with_all = False
+    proposal.check_acceptance = False
+    proposal._plot_pool = False
+    proposal.populated_count = 1
+    proposal.population_dtype = get_dtype(["x_prime", "y_prime"])
+    proposal.truncate_log_q = True
+    proposal.training_data = numpy_array_to_live_points(
+        np.random.randn(nlive, n_dims),
+        names=names,
+    )
+
+    log_q_live = np.log(np.random.rand(nlive))
+    min_log_q = log_q_live.min()
+
+    proposal.forward_pass = MagicMock(
+        return_value=(nlive * [None], log_q_live)
+    )
+    proposal.radius = MagicMock(return_value=r_flow)
+    proposal.get_alt_distribution = MagicMock(return_value=None)
+    proposal.prep_latent_prior = MagicMock()
+    proposal.draw_latent_prior = MagicMock(side_effect=z)
+    proposal.rejection_sampling = MagicMock(
+        side_effect=[(a[:-1], b[:-1]) for a, b in zip(z, x)]
+    )
+    proposal.compute_acceptance = MagicMock(return_value=0.8)
+    proposal.model = MagicMock()
+    proposal.model.batch_evaluate_log_likelihood = MagicMock(
+        return_value=log_l
+    )
+
+    proposal.convert_to_samples = MagicMock(
+        side_effect=lambda *args, **kwargs: args[0]
+    )
+
+    x_empty = np.empty(poolsize, dtype=proposal.population_dtype)
+    with patch(
+        "nessai.proposal.flowproposal.empty_structured_array",
+        return_value=x_empty,
+    ) as mock_empty:
+        FlowProposal.populate(proposal, worst_point, N=10, plot=False)
+
+    mock_empty.assert_called_once_with(
+        poolsize,
+        dtype=proposal.population_dtype,
+    )
+
+    proposal.forward_pass.assert_called_once_with(proposal.training_data)
+
+    rejection_calls = [
+        call(z[0], min_log_q=min_log_q),
+        call(z[1], min_log_q=min_log_q),
+        call(z[2], min_log_q=min_log_q),
+    ]
+    proposal.rejection_sampling.assert_has_calls(rejection_calls)
