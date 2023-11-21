@@ -273,6 +273,7 @@ def test_checkpoint_iteration(sampler, wait, periodic):
     sampler.checkpoint_iterations = [10]
     sampler.checkpoint_on_iteration = True
     sampler.checkpoint_interval = 10
+    sampler.checkpoint_callback = None
     sampler._last_checkpoint = 0
     sampler.iteration = 20
     now = datetime.datetime.now()
@@ -307,6 +308,7 @@ def test_checkpoint_time(sampler, wait):
     sampler.checkpoint_iterations = [10]
     sampler.checkpoint_on_iteration = False
     sampler.checkpoint_interval = 15 * 60
+    sampler.checkpoint_callback = None
     sampler.sampling_start_time = now - datetime.timedelta(minutes=32)
     sampler._last_checkpoint = now - datetime.timedelta(minutes=16)
     sampler.iteration = 20
@@ -335,6 +337,7 @@ def test_checkpoint_periodic_skipped_iteration(sampler):
     sampler.iteration = 10
     sampler._last_checkpoint = 9
     sampler.checkpoint_interval = 10
+    sampler.checkpoint_callback = None
     with patch("nessai.samplers.base.safe_file_dump") as sfd_mock:
         BaseNestedSampler.checkpoint(sampler, periodic=True)
     sfd_mock.assert_not_called()
@@ -346,6 +349,7 @@ def test_checkpoint_periodic_skipped_time(sampler):
     sampler.iteration = 10
     sampler._last_checkpoint = datetime.datetime.now()
     sampler.checkpoint_interval = 600
+    sampler.checkpoint_callback = None
     with patch("nessai.samplers.base.safe_file_dump") as sfd_mock:
         BaseNestedSampler.checkpoint(sampler, periodic=True)
     sfd_mock.assert_not_called()
@@ -357,11 +361,31 @@ def test_checkpoint_force(sampler):
     sampler.sampling_start_time = now - datetime.timedelta(minutes=32)
     sampler.sampling_time = datetime.timedelta()
     sampler.resume_file = "test.pkl"
+    sampler.checkpoint_callback = None
     with patch("nessai.samplers.base.safe_file_dump") as sfd_mock:
         BaseNestedSampler.checkpoint(sampler, periodic=True, force=True)
     sfd_mock.assert_called_once_with(
         sampler, sampler.resume_file, pickle, save_existing=True
     )
+
+
+def test_checkpoint_callback(sampler):
+    """Assert the checkpoint callback is used"""
+
+    callback = MagicMock()
+
+    sampler.checkpoint_iterations = [10]
+    sampler.checkpoint_on_iteration = True
+    sampler.checkpoint_interval = 10
+    sampler.checkpoint_callback = callback
+    sampler._last_checkpoint = 0
+    sampler.iteration = 20
+    now = datetime.datetime.now()
+    sampler.sampling_start_time = now
+    sampler.sampling_time = datetime.timedelta()
+
+    BaseNestedSampler.checkpoint(sampler)
+    callback.assert_called_once_with(sampler)
 
 
 def test_nested_sampling_loop(sampler):

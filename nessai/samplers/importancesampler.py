@@ -5,7 +5,7 @@ Importance nested sampler.
 import datetime
 import logging
 import os
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Callable, List, Literal, Optional, Union
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -101,6 +101,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         checkpointing: bool = True,
         checkpoint_interval: int = 600,
         checkpoint_on_iteration: bool = False,
+        checkpoint_callback: Optional[Callable] = None,
         save_existing_checkpoint: bool = False,
         logging_interval: int = None,
         log_on_iteration: bool = True,
@@ -146,6 +147,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             checkpointing=checkpointing,
             checkpoint_interval=checkpoint_interval,
             checkpoint_on_iteration=checkpoint_on_iteration,
+            checkpoint_callback=checkpoint_callback,
             logging_interval=logging_interval,
             log_on_iteration=log_on_iteration,
             resume_file=resume_file,
@@ -1900,7 +1902,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     @classmethod
     def resume_from_pickled_sampler(
-        cls, sampler, model, flow_config=None, weights_path=None
+        cls, sampler, model, flow_config=None, weights_path=None, **kwargs
     ):
         """Resume from a pickled sampler.
 
@@ -1915,6 +1917,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         weights_path : Optional[dict]
             Path to the weights files that will override the value stored in
             the proposal.
+        kwargs :
+            Keyword arguments passed to the parent class's method.
 
         Returns
         -------
@@ -1922,7 +1926,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         cls.add_fields()
         obj = super(ImportanceNestedSampler, cls).resume_from_pickled_sampler(
-            sampler, model
+            sampler, model, **kwargs
         )
         if flow_config is None:
             flow_config = {}
@@ -1942,7 +1946,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def __getstate__(self):
         d = self.__dict__
-        exclude = {"model", "proposal", "log_q"}
+        exclude = {"model", "proposal", "log_q", "checkpoint_callback"}
         state = {k: d[k] for k in d.keys() - exclude}
         if d.get("model") is not None:
             state["_previous_likelihood_evaluations"] = d[

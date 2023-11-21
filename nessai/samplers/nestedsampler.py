@@ -162,6 +162,7 @@ class NestedSampler(BaseNestedSampler):
         checkpoint_interval=600,
         checkpoint_on_iteration=False,
         checkpoint_on_training=False,
+        checkpoint_callback=None,
         logging_interval=None,
         log_on_iteration=True,
         resume_file=None,
@@ -202,6 +203,7 @@ class NestedSampler(BaseNestedSampler):
             checkpointing=checkpointing,
             checkpoint_interval=checkpoint_interval,
             checkpoint_on_iteration=checkpoint_on_iteration,
+            checkpoint_callback=checkpoint_callback,
             logging_interval=logging_interval,
             log_on_iteration=log_on_iteration,
             resume_file=resume_file,
@@ -1343,7 +1345,7 @@ class NestedSampler(BaseNestedSampler):
 
     @classmethod
     def resume_from_pickled_sampler(
-        cls, sampler, model, flow_config=None, weights_path=None
+        cls, sampler, model, flow_config=None, weights_path=None, **kwargs
     ):
         """Resume from a pickled sampler.
 
@@ -1358,13 +1360,15 @@ class NestedSampler(BaseNestedSampler):
         weights_path : Optional[str]
             Weights file to use in place of the weights file stored in the
             pickle file.
+        kwargs :
+            Keyword arguments passed to the parent class's method.
 
         Returns
         -------
         Instance of NestedSampler
         """
         obj = super(NestedSampler, cls).resume_from_pickled_sampler(
-            sampler, model
+            sampler, model, **kwargs
         )
         obj._uninformed_proposal.resume(model)
         if flow_config is None:

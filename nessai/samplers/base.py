@@ -6,7 +6,7 @@ import logging
 import os
 import pickle
 import time
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from glasflow import __version__ as glasflow_version
 import numpy as np
@@ -41,6 +41,10 @@ class BaseNestedSampler(ABC):
     checkpoint_on_iteration : bool
         If true the checkpointing interval is checked against the number of
         iterations
+    checkpoint_callback : Callback
+        Callback function to be used instead of the default function. The
+        function will be called in the code:`checkpoint` method as:
+        :code`checkpoint_callback(self)`.
     logging_interval : int, optional
         The interval in seconds used for periodic logging. If not specified,
         then periodic logging is disabled.
@@ -69,6 +73,7 @@ class BaseNestedSampler(ABC):
         checkpointing: bool = True,
         checkpoint_interval: int = 600,
         checkpoint_on_iteration: bool = False,
+        checkpoint_callback: Optional[Callable] = None,
         logging_interval: int = None,
         log_on_iteration: bool = True,
         resume_file: str = None,
@@ -90,6 +95,7 @@ class BaseNestedSampler(ABC):
         self.checkpointing = checkpointing
         self.checkpoint_interval = checkpoint_interval
         self.checkpoint_on_iteration = checkpoint_on_iteration
+        self.checkpoint_callback = checkpoint_callback
         if self.checkpoint_on_iteration:
             self._last_checkpoint = 0
         else:
@@ -268,13 +274,21 @@ class BaseNestedSampler(ABC):
                     return
         self.sampling_time += now - self.sampling_start_time
         logger.info("Checkpointing nested sampling")
-        safe_file_dump(
-            self, self.resume_file, pickle, save_existing=save_existing
-        )
+        if self.checkpoint_callback:
+            self.checkpoint_callback(self)
+        else:
+            safe_file_dump(
+                self, self.resume_file, pickle, save_existing=save_existing
+            )
         self.sampling_start_time = datetime.datetime.now()
 
     @classmethod
-    def resume_from_pickled_sampler(cls, sampler: Any, model: Model):
+    def resume_from_pickled_sampler(
+        cls,
+        sampler: Any,
+        model: Model,
+        checkpoint_callback: Optional[Callable] = None,
+    ):
         """Resume from pickle data.
 
         Parameters
@@ -283,6 +297,9 @@ class BaseNestedSampler(ABC):
             Pickle data
         model : :obj:`nessai.model.Model`
             User-defined model
+        checkpoint_callback : Optional[Callable]
+            Checkpoint callback function. If not specified, the default method
+            will be used.
 
         Returns
         -------
@@ -297,6 +314,7 @@ class BaseNestedSampler(ABC):
         )
         sampler.model = model
         sampler.resumed = True
+        sampler.checkpoint_callback = checkpoint_callback
         return sampler
 
     @classmethod
@@ -349,7 +367,7 @@ class BaseNestedSampler(ABC):
 
     def __getstate__(self):
         d = self.__dict__
-        exclude = {"model", "proposal"}
+        exclude = {"model", "proposal", "checkpoint_callback"}
         state = {k: d[k] for k in d.keys() - exclude}
         state["_previous_likelihood_evaluations"] = d[
             "model"

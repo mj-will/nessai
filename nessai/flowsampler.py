@@ -53,7 +53,7 @@ class FlowSampler:
     signal_handling : bool
         Enable or disable signal handling.
     exit_code : int, optional
-        Exit code to use when forceably exiting the sampler.
+        Exit code to use when forcibly exiting the sampler.
     close_pool : bool
         If True, the multiprocessing pool will be closed once the run method
         has been called. Disables the option in :code:`NestedSampler` if
@@ -167,6 +167,7 @@ class FlowSampler:
                     model=model,
                     weights_path=weights_path,
                     flow_config=kwargs.get("flow_config"),
+                    checkpoint_callback=kwargs.get("checkpoint_callback"),
                 )
             else:
                 self.ns = self._resume_from_file(
@@ -175,6 +176,7 @@ class FlowSampler:
                     resume_file=resume_file,
                     weights_path=weights_path,
                     flow_config=kwargs.get("flow_config"),
+                    checkpoint_callback=kwargs.get("checkpoint_callback"),
                 )
         else:
             logger.debug("Not resuming sampler")
@@ -196,7 +198,7 @@ class FlowSampler:
         else:
             logger.warning(
                 "Signal handling is disabled. nessai will not automatically "
-                "checkpoint when exitted."
+                "checkpoint when exited."
             )
 
     def check_resume(self, resume_file, resume_data):
@@ -218,6 +220,7 @@ class FlowSampler:
         model,
         weights_path,
         flow_config,
+        **kwargs,
     ):
         logger.info(f"Trying to resume sampler from {resume_file}")
         try:
@@ -226,6 +229,7 @@ class FlowSampler:
                 model,
                 weights_path=weights_path,
                 flow_config=flow_config,
+                **kwargs,
             )
         except (FileNotFoundError, RuntimeError) as e:
             logger.error(
@@ -239,6 +243,7 @@ class FlowSampler:
                     model,
                     weights_path=weights_path,
                     flow_config=flow_config,
+                    **kwargs,
                 )
             except RuntimeError as e:
                 logger.error(
@@ -256,6 +261,7 @@ class FlowSampler:
         model,
         weights_path,
         flow_config,
+        **kwargs,
     ):
         logger.info("Trying to resume sampler from `resume_data`")
         return SamplerClass.resume_from_pickled_sampler(
@@ -263,6 +269,7 @@ class FlowSampler:
             model,
             weights_path=weights_path,
             flow_config=flow_config,
+            **kwargs,
         )
 
     @property

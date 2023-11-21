@@ -67,3 +67,11 @@ autoapi_type = "python"
 autoapi_dirs = ["../nessai/"]
 autoapi_add_toctree_entry = False
 autoapi_options = ["members", "show-inheritance", "show-module-summary"]
+
+# -- RST config --------------------------------------------------------------
+# Inline python highlighting, base on https://stackoverflow.com/a/68931907
+rst_prolog = """
+.. role:: python(code)
+    :language: python
+    :class: highlight
+"""
