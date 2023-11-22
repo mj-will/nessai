@@ -423,6 +423,17 @@ def test_sample(model):
     np.testing.assert_array_equal(out, x.numpy())
 
 
+def test_sample_latent_distribution(model):
+    """Assert the correct method is called"""
+    n = 10
+    z = torch.randn(n, 2)
+    model.model = MagicMock()
+    model.model.sample_latent_distribution = MagicMock(return_value=z)
+    out = FlowModel.sample_latent_distribution(model, n)
+    model.model.sample_latent_distribution.assert_called_once_with(n)
+    np.testing.assert_array_equal(out, z.numpy())
+
+
 def test_move_to_update_default(model):
     """Ensure the stored device is updated"""
     model.device = "cuda"

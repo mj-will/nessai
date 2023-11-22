@@ -3,6 +3,7 @@
 Test the base flow class
 """
 import pytest
+import torch
 from unittest.mock import MagicMock, create_autospec, patch
 
 from nessai.flows.base import BaseFlow, NFlow
@@ -42,6 +43,7 @@ def test_base_flow_abstract_methods():
         "base_distribution_log_prob",
         "forward_and_log_prob",
         "sample_and_log_prob",
+        "sample_latent_distribution",
     ],
 )
 def test_base_flow_methods(method, flow):
@@ -140,3 +142,16 @@ def test_nflow_unfreeze(nflow):
     nflow._transform.requires_grad_ = MagicMock()
     NFlow.unfreeze_transform(nflow)
     nflow._transform.requires_grad_.assert_called_once_with(True)
+
+
+def test_nflow_sample_latent_distribution(nflow):
+    n = 10
+    NFlow.sample_latent_distribution(nflow, n)
+    nflow._distribution.sample.assert_called_once_with(n)
+
+
+def test_nflow_sample_latent_distribution_context(nflow):
+    n = 10
+    context = torch.randn(10)
+    with pytest.raises(NotImplementedError):
+        NFlow.sample_latent_distribution(nflow, n, context=context)

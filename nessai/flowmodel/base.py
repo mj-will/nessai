@@ -775,6 +775,23 @@ class FlowModel:
             x = self.model.sample(int(n))
         return x.cpu().numpy().astype(np.float64)
 
+    def sample_latent_distribution(self, n: int = 1) -> np.ndarray:
+        """Sample from the latent distribution.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples to draw
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of samples
+        """
+        with torch.inference_mode():
+            z = self.model.sample_latent_distribution(n)
+        return z.cpu().numpy().astype(np.float64)
+
     def sample_and_log_prob(self, N=1, z=None, alt_dist=None):
         """
         Generate samples from samples drawn from the base distribution or
