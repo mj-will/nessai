@@ -12,6 +12,7 @@ import re
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.lib.recfunctions as rfn
+from scipy.special import logsumexp
 import torch
 
 from .. import config
@@ -1201,15 +1202,11 @@ class FlowProposal(RejectionProposal):
         """
         raise RuntimeError("Prime prior is not implemented")
 
-    def compute_weights(self, x, log_q):
+    def compute_weights(self, x, log_q, return_log_prior=False):
         """
         Compute weights for the samples.
 
-        Computes the log weights for rejection sampling sampling such that
-        that the maximum log probability is zero.
-
-        Also sets the fields `logP` and `logL`. Note `logL` is set as the
-        proposal probability.
+        Does NOT normalise the weights
 
         Parameters
         ----------
@@ -1217,6 +1214,8 @@ class FlowProposal(RejectionProposal):
             Array of points
         log_q : array_like
             Array of log proposal probabilities.
+        return_log_prior: bool
+            If true, the log-prior probability is also returned.
 
         Returns
         -------
@@ -1224,14 +1223,15 @@ class FlowProposal(RejectionProposal):
             Log-weights for rejection sampling.
         """
         if self.use_x_prime_prior:
-            x["logP"] = self.x_prime_log_prior(x)
+            log_p = self.x_prime_log_prior(x)
         else:
-            x["logP"] = self.log_prior(x)
+            log_p = self.log_prior(x)
 
-        x["logL"] = log_q
-        log_w = x["logP"] - log_q
-        log_w -= np.max(log_w)
-        return log_w
+        log_w = log_p - log_q
+        if return_log_prior:
+            return log_w, log_p
+        else:
+            return log_w
 
     def rejection_sampling(self, z, min_log_q=None):
         """
@@ -1400,48 +1400,40 @@ class FlowProposal(RejectionProposal):
                 "Existing pool of samples is not empty. "
                 "Discarding existing samples."
             )
-        self.x = empty_structured_array(N, dtype=self.population_dtype)
         self.indices = []
-        z_samples = np.empty([N, self.dims])
-
-        proposed = 0
-        accepted = 0
-        percent = 0.1
-        warn = True
+        samples = empty_structured_array(0, dtype=self.population_dtype)
 
         self.prep_latent_prior()
 
-        while accepted < N:
+        log_n = np.log(N)
+        log_n_expected = -np.inf
+        n_proposed = 0
+        log_weights = np.empty(0)
+        log_constant = 0.0
+
+        while log_n_expected < log_n:
             z = self.draw_latent_prior(self.drawsize)
-            proposed += z.shape[0]
+            n_proposed += z.shape[0]
 
-            z, x = self.rejection_sampling(z, min_log_q=min_log_q)
+            x, log_q = self.backward_pass(
+                z, rescale=not self.use_x_prime_prior
+            )
+            log_w, x["logP"] = self.compute_weights(
+                x, log_q, return_log_prior=True
+            )
 
-            if not x.size:
-                continue
+            samples = np.concatenate([samples, x])
+            log_weights = np.concatenate([log_weights, log_w])
+            log_constant = np.nanmax(log_w)
+            log_n_expected = logsumexp(log_weights - log_constant)
 
-            if warn and (x.size / self.drawsize < 0.01):
-                logger.debug(
-                    "Rejection sampling accepted less than 1 percent of "
-                    f"samples! ({x.size / self.drawsize})"
-                )
-                warn = False
-
-            n = min(x.size, N - accepted)
-            self.x[accepted : (accepted + n)] = x[:n]
-            z_samples[accepted : (accepted + n), ...] = z[:n]
-            accepted += n
-            if accepted > percent * N:
-                logger.debug(
-                    f"Accepted {accepted} / {N} points, "
-                    f"acceptance: {accepted/proposed:.4}"
-                )
-                percent += 0.1
-
+        log_u = np.log(np.random.rand(len(log_weights)))
+        accept = (log_weights - log_constant) > log_u
+        self.x = samples[accept]
         self.samples = self.convert_to_samples(self.x, plot=plot)
 
         if self._plot_pool and plot:
-            self.plot_pool(z_samples, self.samples)
+            self.plot_pool(None, self.samples)
 
         logger.debug("Evaluating log-likelihoods")
         self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
@@ -1454,13 +1446,13 @@ class FlowProposal(RejectionProposal):
             logger.debug(f"Current acceptance {self.acceptance[-1]}")
 
         self.indices = np.random.permutation(self.samples.size).tolist()
-        self.population_acceptance = self.x.size / proposed
+        self.population_acceptance = self.x.size / n_proposed
         self.populated_count += 1
         self.populated = True
         self._checked_population = False
         logger.debug(f"Proposal populated with {len(self.indices)} samples")
         logger.debug(
-            f"Overall proposal acceptance: {self.x.size / proposed:.4}"
+            f"Overall proposal acceptance: {self.x.size / n_proposed:.4}"
         )
 
     def get_alt_distribution(self):
