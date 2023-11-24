@@ -60,28 +60,32 @@ class RejectionProposal(AnalyticProposal):
         """
         return self.model.new_point_log_prob(x)
 
-    def compute_weights(self, x):
+    def compute_weights(self, x, return_log_prior=False):
         """
         Get weights for the samples.
 
-        Computes the log weights for rejection sampling sampling such that
-        that the maximum log probability is zero.
+        Computes the log weights for rejection sampling sampling but does not
+        normalize the weights.
 
         Parameters
         ----------
         x :  structured_array
             Array of points
+        return_log_prior: bool
+            If true, the log-prior probability is also returned.
 
         Returns
         -------
         log_w : :obj:`numpy.ndarray`
             Array of log-weights rescaled such that the maximum value is zero.
         """
-        x["logP"] = self.model.batch_evaluate_log_prior(x)
+        log_p = self.model.batch_evaluate_log_prior(x)
         log_q = self.log_proposal(x)
-        log_w = x["logP"] - log_q
-        log_w -= np.nanmax(log_w)
-        return log_w
+        log_w = log_p - log_q
+        if return_log_prior:
+            return log_w, log_p
+        else:
+            return log_w
 
     def populate(self, N=None):
         """
@@ -101,7 +105,9 @@ class RejectionProposal(AnalyticProposal):
         if N is None:
             N = self.poolsize
         x = self.draw_proposal(N=N)
-        log_w = self.compute_weights(x)
+        log_w, log_p = self.compute_weights(x, return_log_prior=True)
+        log_w -= np.nanmax(log_w)
+        x["logP"] = log_p
         log_u = np.log(np.random.rand(N))
         indices = np.where((log_w - log_u) >= 0)[0]
         self.samples = x[indices]
