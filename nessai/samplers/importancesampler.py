@@ -134,6 +134,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         bootstrap: bool = False,
         close_pool: bool = False,
         strict_threshold: bool = False,
+        draw_iid_live: bool = False,
         **kwargs: Any,
     ):
 
@@ -166,6 +167,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._stop_any = None
         self._current_proposal_entropy = None
         self.importance = dict(total=None, posterior=None, evidence=None)
+
+        self.draw_iid_live = draw_iid_live
+        self.iid_samples = np.empty(0, dtype=get_dtype(self.model.names))
+        self.iid_log_q = None
 
         self.n_initial = self.nlive if n_initial is None else n_initial
         self.min_samples = min_samples
@@ -443,29 +448,30 @@ class ImportanceNestedSampler(BaseNestedSampler):
         The live points are automatically sorted and assigned the iteration
         number -1.
         """
-        live_points = np.empty(
-            self.n_initial, dtype=get_dtype(self.model.names)
-        )
+        if self.draw_iid_live:
+            target = int(2 * self.n_initial)
+        else:
+            target = self.n_initial
+        live_points = np.empty(target, dtype=get_dtype(self.model.names))
         n = 0
         logger.debug(f"Drawing {self.n_initial} initial points")
-        while n < self.n_initial:
+        while n < target:
             points = self.model.from_unit_hypercube(
                 numpy_array_to_live_points(
-                    np.random.rand(self.n_initial, self.model.dims),
+                    np.random.rand(target, self.model.dims),
                     self.model.names,
                 )
             )
             points["logP"] = self.model.batch_evaluate_log_prior(points)
             accept = np.isfinite(points["logP"])
             n_it = accept.sum()
-            m = min(n_it, self.n_initial - n)
+            m = min(n_it, target - n)
             live_points[n : (n + m)] = points[accept][:m]
             n += m
 
         live_points["logL"] = self.model.batch_evaluate_log_likelihood(
             live_points
         )
-
         if not np.isfinite(live_points["logL"]).all():
             logger.warning("Found infinite values in the log-likelihood")
 
@@ -476,9 +482,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
         # Since log_Q is computed in the unit-cube
         live_points["logQ"] = np.zeros(live_points.size)
         live_points["logW"] = -live_points["logQ"]
+
+        if self.draw_iid_live:
+            live_points, iid_samples = (
+                live_points[: self.n_initial],
+                live_points[self.n_initial :],
+            )
+            self.iid_samples = self.sort_points(iid_samples)
+            self.iid_log_q = np.zeros([self.iid_samples.size, 1])
+
         self.samples = self.sort_points(live_points)
         self.live_points_indices = np.arange(live_points.size, dtype=int)
-        self.log_q = np.zeros([live_points.size, 1])
+        self.log_q = np.zeros([self.samples.size, 1])
 
     def initialise(self) -> None:
         """Initialise the nested sampler.
@@ -881,10 +896,19 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         st = datetime.datetime.now()
         logger.debug(f"Adding {n} points")
+        if self.draw_iid_live:
+            n *= 2
         new_samples, log_q = self.draw_n_samples(n)
+        new_samples["it"] = self.iteration
+        if self.draw_iid_live:
+            new_samples, iid_samples = (
+                new_samples[: n // 2],
+                new_samples[n // 2 :],
+            )
+            log_q, iid_log_q = log_q[: n // 2], log_q[n // 2 :]
+            idd_samples, iid_log_q = self.sort_points(iid_samples, iid_log_q)
         new_samples, log_q = self.sort_points(new_samples, log_q)
         self._current_proposal_entropy = differential_entropy(-log_q[:, -1])
-        new_samples["it"] = self.iteration
 
         logger.debug(
             "New samples ESS: " f"{effective_sample_size(new_samples['logW'])}"
@@ -900,10 +924,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
             )
 
         self.log_q = self.proposal.update_log_q(self.samples, self.log_q)
+
         self.samples["logQ"] = self.proposal.compute_meta_proposal_from_log_q(
             self.log_q
         )
         self.samples["logW"] = -self.samples["logQ"]
+        if self.draw_iid_live:
+            self.iid_log_q = self.proposal.update_log_q(
+                self.iid_samples, self.iid_log_q
+            )
+            self.iid_samples[
+                "logQ"
+            ] = self.proposal.compute_meta_proposal_from_log_q(self.iid_log_q)
+            self.iid_samples["logW"] = -self.iid_samples["logQ"]
+            self.add_iid_samples(iid_samples, iid_log_q)
 
         self.history["n_added"].append(new_samples.size)
 
@@ -917,6 +951,28 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         logger.debug(f"Current live points ESS: {self.live_points_ess:.2f}")
         self.add_and_update_samples_time += datetime.datetime.now() - st
+
+    def add_iid_samples(self, iid_samples, iid_log_q):
+        logger.info("Drawing i.i.d samples")
+
+        # Insert samples into existing samples
+        indices = np.searchsorted(
+            self.iid_samples["logL"], iid_samples["logL"]
+        )
+        self.iid_samples = np.insert(self.iid_samples, indices, iid_samples)
+        self.iid_log_q = np.insert(self.iid_log_q, indices, iid_log_q, axis=0)
+        log_w = self.iid_samples["logL"] + self.iid_samples["logW"]
+        logZ = logsumexp(log_w) - np.log(len(self.iid_samples))
+        logger.info(f"i.i.d logZ = {logZ}")
+        above = self.iid_samples["logL"] >= self.logL_threshold
+        logZ_above = logsumexp(log_w[above]) - np.log(above.sum())
+        self.iid_ratio = logZ_above - logZ
+        logger.info(f"i.i.d ratio: {self.iid_ratio}")
+        self.iid_state = _INSIntegralState()
+        self.iid_state.update_evidence(self.iid_samples)
+        logger.info(
+            f"i.i.d ESS: {self.iid_state.effective_n_posterior_samples}"
+        )
 
     def add_to_nested_samples(self, indices: np.ndarray) -> None:
         """Add an array of samples to the nested samples."""
@@ -1057,15 +1113,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
         if self.bootstrap:
             self.adjust_final_samples()
 
-        final_kl = self.kl_divergence(self.samples)
+        if self.draw_iid_live:
+            self.final_samples = self.iid_samples
+            self.final_state = self.iid_state
+            final_kl = self.kl_divergence(self.final_samples)
+            state = self.final_state
+        else:
+            final_kl = self.kl_divergence(self.samples)
+            state = self.state
         logger.info(
-            f"Final log Z: {self.state.logZ:.3f} "
-            f"+/- {self.state.compute_uncertainty():.3f}"
+            f"Final log Z: {state.logZ:.3f} "
+            f"+/- {state.compute_uncertainty():.3f}"
         )
         logger.info(f"Final KL divergence: {final_kl:.3f}")
-        logger.info(
-            f"Final ESS: {self.state.effective_n_posterior_samples:.3f}"
-        )
+        logger.info(f"Final ESS: {state.effective_n_posterior_samples:.3f}")
         self.finalised = True
         self.checkpoint(periodic=True, force=True)
         self.produce_plots()
