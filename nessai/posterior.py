@@ -142,6 +142,8 @@ def draw_posterior_samples(
                 "Number of samples cannot be specified for rejection sampling"
             )
         log_w = log_w - np.max(log_w)
+        n_expected = np.exp(logsumexp(log_w))
+        logger.info(f"Expect {n_expected} samples from rejection sampling")
         log_u = np.log(np.random.rand(nested_samples.size))
         indices = np.where(log_w > log_u)[0]
         samples = nested_samples[indices]
