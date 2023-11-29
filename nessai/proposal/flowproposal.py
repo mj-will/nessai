@@ -1429,7 +1429,7 @@ class FlowProposal(RejectionProposal):
 
         log_u = np.log(np.random.rand(len(log_weights)))
         accept = (log_weights - log_constant) > log_u
-        self.x = samples[accept]
+        self.x = samples[accept][:N]
         self.samples = self.convert_to_samples(self.x, plot=plot)
 
         if self._plot_pool and plot:
