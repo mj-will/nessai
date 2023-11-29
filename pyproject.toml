@@ -9,7 +9,7 @@ authors = [
 ]
 description = "Nessai: Nested Sampling with Artificial Intelligence"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.8"
 license = {text = "MIT"}
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -94,6 +94,7 @@ exclude_lines = [
 [tool.black]
 line-length = 79
 target-version = [
+    "py38",
     "py39",
     "py310",
     "py311",
@@ -103,3 +104,4 @@ target-version = [
 extend-ignore = [
     "E203",
 ]
+
