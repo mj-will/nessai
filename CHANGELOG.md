@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0]
+
+### Added
+
+- Add log-posterior weights to the result dictionary and file ([#341](https://github.com/mj-will/nessai/pull/341))
+- Add support for checkpoint callbacks ([#355](https://github.com/mj-will/nessai/pull/355))
+
+### Changed
+
+- Explicitly support and test against Python 3.11 ([#352](https://github.com/mj-will/nessai/pull/352))
+
+
 ## [0.10.1]
 
 ### Fixed
@@ -334,7 +346,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed an issue where `nessai.reparameterisations.AnglePair` would silently break when the prior range for RA or azimuth was set to a range that wasn't [0, 2pi]. It now correctly handles both [0, 2pi] and [-pi, pi] and raises an error for any other ranges. ([#114](https://github.com/mj-will/nessai/pull/114))
-- Fixed various spelling mistakes throughtout the source code and documentation. ([#116](https://github.com/mj-will/nessai/pull/116))
+- Fixed various spelling mistakes throughout the source code and documentation. ([#116](https://github.com/mj-will/nessai/pull/116))
 
 
 ## [0.3.1] Minor improvements and bug fixes - 2021-08-23
@@ -554,7 +566,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/mj-will/nessai/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/mj-will/nessai/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/mj-will/nessai/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/mj-will/nessai/compare/v0.9.0...v0.9.1
