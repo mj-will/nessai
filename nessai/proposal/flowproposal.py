@@ -8,6 +8,7 @@ from functools import partial
 import logging
 import os
 import re
+from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -1255,6 +1256,12 @@ class FlowProposal(RejectionProposal):
         array_like
             Array of accepted samples in the X space.
         """
+        msg = (
+            "`FlowProposal.rejection_sampling` is deprecated and will be "
+            "removed in a future release."
+        )
+        warn(msg, FutureWarning)
+
         x, log_q, z = self.backward_pass(
             z,
             rescale=not self.use_x_prime_prior,
@@ -1410,8 +1417,9 @@ class FlowProposal(RejectionProposal):
         n_proposed = 0
         log_weights = np.empty(0)
         log_constant = 0.0
+        n_accepted = 0
 
-        while log_n_expected < log_n:
+        while n_accepted < N:
             z = self.draw_latent_prior(self.drawsize)
             n_proposed += z.shape[0]
 
@@ -1421,6 +1429,9 @@ class FlowProposal(RejectionProposal):
             if self.truncate_log_q:
                 above_min_log_q = log_q > min_log_q
                 x, log_q = get_subset_arrays(above_min_log_q, x, log_q)
+            # Handle case where all samples are below min_log_q
+            if not len(x):
+                continue
             log_w = self.compute_weights(x, log_q)
 
             samples = np.concatenate([samples, x])
@@ -1428,8 +1439,13 @@ class FlowProposal(RejectionProposal):
             log_constant = np.nanmax(log_w)
             log_n_expected = logsumexp(log_weights - log_constant)
 
-        log_u = np.log(np.random.rand(len(log_weights)))
-        accept = (log_weights - log_constant) > log_u
+            # Only try rejection sampling if we expected to accept enough
+            # points. In the case where we don't, we continue drawing samples
+            if log_n_expected >= log_n:
+                log_u = np.log(np.random.rand(len(log_weights)))
+                accept = (log_weights - log_constant) > log_u
+                n_accepted = np.sum(accept)
+
         self.x = samples[accept][:N]
         self.samples = self.convert_to_samples(self.x, plot=plot)
 
@@ -1447,7 +1463,7 @@ class FlowProposal(RejectionProposal):
             logger.debug(f"Current acceptance {self.acceptance[-1]}")
 
         self.indices = np.random.permutation(self.samples.size).tolist()
-        self.population_acceptance = self.x.size / n_proposed
+        self.population_acceptance = n_accepted / n_proposed
         self.populated_count += 1
         self.populated = True
         self._checked_population = False
