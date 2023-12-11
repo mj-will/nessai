@@ -348,7 +348,7 @@ def test_draw_latent_prior(proposal):
     [(0.5, None), (None, 1.5), (None, None)],
 )
 def test_populate(
-    proposal, check_acceptance, indices, r, min_radius, max_radius
+    proposal, check_acceptance, indices, r, min_radius, max_radius, wait
 ):
     """Test the main populate method"""
     n_dims = 2
@@ -383,6 +383,7 @@ def test_populate(
     rand_u = 0.5 * np.ones(3 * drawsize)
 
     log_l = np.random.rand(poolsize)
+    log_p = np.random.rand(poolsize)
 
     r_flow = 1.0
 
@@ -428,10 +429,14 @@ def test_populate(
         return_value=log_l
     )
 
+    def convert_to_samples(samples, plot):
+        samples["logP"] = log_p
+        # wait for windows
+        wait()
+        return samples
+
     proposal.plot_pool = MagicMock()
-    proposal.convert_to_samples = MagicMock(
-        side_effect=lambda *args, **kwargs: args[0]
-    )
+    proposal.convert_to_samples = MagicMock(side_effect=convert_to_samples)
 
     x_empty = np.empty(0, dtype=proposal.population_dtype)
     with patch(
