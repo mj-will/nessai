@@ -1367,6 +1367,7 @@ class FlowProposal(RejectionProposal):
             plots with samples, these are often a few MB in size so
             proceed with caution!
         """
+        st = datetime.datetime.now()
         if not self.initialised:
             raise RuntimeError(
                 "Proposal has not been initialised. "
@@ -1452,6 +1453,7 @@ class FlowProposal(RejectionProposal):
         if self._plot_pool and plot:
             self.plot_pool(self.samples)
 
+        self.population_time += datetime.datetime.now() - st
         logger.debug("Evaluating log-likelihoods")
         self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
             self.samples
@@ -1519,10 +1521,8 @@ class FlowProposal(RejectionProposal):
             self.populating = True
             if self.update_poolsize:
                 self.update_poolsize_scale(self.ns_acceptance)
-            st = datetime.datetime.now()
             while not self.populated:
                 self.populate(worst_point, N=self.poolsize)
-            self.population_time += datetime.datetime.now() - st
             self.populating = False
         # new sample is drawn randomly from proposed points
         # popping from right end is faster
