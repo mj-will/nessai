@@ -105,9 +105,8 @@ class RejectionProposal(AnalyticProposal):
         if N is None:
             N = self.poolsize
         x = self.draw_proposal(N=N)
-        log_w, log_p = self.compute_weights(x, return_log_prior=True)
+        log_w, x["logP"] = self.compute_weights(x, return_log_prior=True)
         log_w -= np.nanmax(log_w)
-        x["logP"] = log_p
         log_u = np.log(np.random.rand(N))
         indices = np.where((log_w - log_u) >= 0)[0]
         self.samples = x[indices]
