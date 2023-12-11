@@ -53,16 +53,21 @@ def test_log_proposal(proposal):
     np.testing.assert_array_equal(out, log_prob)
 
 
-def test_compute_weights(proposal):
+@pytest.mark.parametrize("return_log_prior", [False, True])
+def test_compute_weights(proposal, return_log_prior):
     """Test the compute weights method"""
     x = numpy_array_to_live_points(np.array([[1], [2], [3]]), "x")
     proposal.model = Mock()
-    proposal.model.batch_evaluate_log_prior = Mock(
-        return_value=np.array([6, 6, 6])
-    )
+    log_p = np.array([6, 6, 6])
+    proposal.model.batch_evaluate_log_prior = Mock(return_value=log_p)
     proposal.log_proposal = Mock(return_value=np.array([3, 4, np.nan]))
-    log_w = np.array([0, -1, np.nan])
-    out = RejectionProposal.compute_weights(proposal, x)
+    log_w = np.array([3, 2, np.nan])
+    out = RejectionProposal.compute_weights(
+        proposal, x, return_log_prior=return_log_prior
+    )
+    if return_log_prior:
+        assert out[1] is log_p
+        out = out[0]
 
     proposal.model.batch_evaluate_log_prior.assert_called_once_with(x)
     proposal.log_proposal.assert_called_once_with(x)
@@ -84,11 +89,12 @@ def test_populate(proposal, N):
     u[::2] = 1e-10
     samples = x[::2]
     log_l = np.log(np.random.rand(samples.size))
+    log_prior = np.zeros(len(x))
     samples["logL"] = log_l
     proposal.poolsize = poolsize
     proposal.populated = False
     proposal.draw_proposal = Mock(return_value=x)
-    proposal.compute_weights = Mock(return_value=log_w)
+    proposal.compute_weights = Mock(return_value=(log_w, log_prior))
     proposal.model = Mock()
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
