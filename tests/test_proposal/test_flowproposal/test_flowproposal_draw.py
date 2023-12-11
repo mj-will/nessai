@@ -33,11 +33,8 @@ def test_draw_populated_last_sample(proposal):
 @pytest.mark.parametrize("update", [False, True])
 def test_draw_not_populated(proposal, update, wait):
     """Test the draw method when the proposal is not populated"""
-    import datetime
-
     proposal.populated = False
     proposal.poolsize = 100
-    proposal.population_time = datetime.timedelta()
     proposal.samples = None
     proposal.indices = []
     proposal.update_poolsize = update
@@ -56,7 +53,6 @@ def test_draw_not_populated(proposal, update, wait):
 
     assert out == 2
     assert proposal.populated is True
-    assert proposal.population_time.total_seconds() > 0.0
 
     proposal.populate.assert_called_once_with(1.0, N=100)
 

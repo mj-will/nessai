@@ -276,6 +276,16 @@ def test_reset_integration(tmpdir, model, latent_prior):
     modified_proposal.populate(model.new_point())
     modified_proposal.reset()
 
+    # attributes that should be different
+    ignore = [
+        "population_time",
+    ]
+
     d1 = proposal.__getstate__()
     d2 = modified_proposal.__getstate__()
+
+    for key in ignore:
+        d1.pop(key)
+        d2.pop(key)
+
     assert d1 == d2

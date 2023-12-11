@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test methods related to popluation of the proposal after training"""
+import datetime
 from functools import partial
 import os
 
@@ -394,6 +395,7 @@ def test_populate(
     else:
         r_out = r
 
+    proposal.population_time = datetime.timedelta()
     proposal.initialised = True
     proposal.max_radius = max_radius
     proposal.dims = n_dims
@@ -494,6 +496,8 @@ def test_populate(
     )
     np.testing.assert_array_equal(proposal.samples["logL"], log_l)
 
+    assert proposal.population_time.total_seconds() > 0.0
+
 
 def test_populate_not_initialised(proposal):
     """Assert populate fails if the proposal is not initialised"""
@@ -541,6 +545,7 @@ def test_populate_truncate_log_q(proposal):
 
     log_l = np.random.rand(poolsize)
 
+    proposal.population_time = datetime.timedelta()
     proposal.initialised = True
     proposal.dims = n_dims
     proposal.poolsize = poolsize
