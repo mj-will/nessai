@@ -1433,7 +1433,7 @@ class FlowProposal(RejectionProposal):
         self.samples = self.convert_to_samples(self.x, plot=plot)
 
         if self._plot_pool and plot:
-            self.plot_pool(None, self.samples)
+            self.plot_pool(self.samples)
 
         logger.debug("Evaluating log-likelihoods")
         self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
@@ -1518,14 +1518,12 @@ class FlowProposal(RejectionProposal):
         return new_sample
 
     @nessai_style()
-    def plot_pool(self, z, x):
+    def plot_pool(self, x):
         """
         Plot the pool of points.
 
         Parameters
         ----------
-        z : array_like
-            Latent samples to plot
         x : array_like
             Corresponding samples to plot in the physical space.
         """
@@ -1547,7 +1545,12 @@ class FlowProposal(RejectionProposal):
                 ),
             )
 
-            z_tensor = torch.from_numpy(z).to(self.flow.device)
+            z, log_q = self.forward_pass(x, compute_radius=False)
+            z_tensor = (
+                torch.from_numpy(z)
+                .type(torch.get_default_dtype())
+                .to(self.flow.device)
+            )
             with torch.inference_mode():
                 if self.alt_dist is not None:
                     log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
@@ -1560,8 +1563,8 @@ class FlowProposal(RejectionProposal):
 
             fig, axs = plt.subplots(3, 1, figsize=(3, 9))
             axs = axs.ravel()
-            axs[0].hist(x["logL"], 20, histtype="step", label="log q")
-            axs[1].hist(x["logL"] - log_p, 20, histtype="step", label="log J")
+            axs[0].hist(log_q, 20, histtype="step", label="log q")
+            axs[1].hist(log_q - log_p, 20, histtype="step", label="log J")
             axs[2].hist(
                 np.sqrt(np.sum(z**2, axis=1)),
                 20,
