@@ -9,6 +9,7 @@ import os
 import shutil
 import torch
 from torch.nn.utils import clip_grad_norm_
+from typing import Optional, Tuple
 
 from .utils import update_config
 
@@ -747,7 +748,17 @@ class FlowModel:
         )
         logger.debug("Resetting optimiser")
 
-    def forward_and_log_prob(self, x):
+    def numpy_array_to_tensor(self, array: np.ndarray, /) -> torch.Tensor:
+        """Convert a numpy array to a tensor and move it to the device"""
+        return (
+            torch.from_numpy(array)
+            .type(torch.get_default_dtype())
+            .to(self.model.device)
+        )
+
+    def forward_and_log_prob(
+        self, x: np.ndarray, conditional: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Forward pass through the model and return the samples in the latent
         space with their log probabilities
@@ -764,20 +775,21 @@ class FlowModel:
         log_prob : ndarray
             Log probabilities for each samples
         """
-        x = (
-            torch.from_numpy(x)
-            .type(torch.get_default_dtype())
-            .to(self.model.device)
-        )
+        x = self.numpy_array_to_tensor(x)
+        if conditional is not None:
+            conditional = self.numpy_array_to_tensor(conditional)
         self.model.eval()
         with torch.inference_mode():
-            z, log_prob = self.model.forward_and_log_prob(x)
-
+            z, log_prob = self.model.forward_and_log_prob(
+                x, context=conditional
+            )
         z = z.detach().cpu().numpy().astype(np.float64)
         log_prob = log_prob.detach().cpu().numpy().astype(np.float64)
         return z, log_prob
 
-    def log_prob(self, x: np.ndarray) -> np.ndarray:
+    def log_prob(
+        self, x: np.ndarray, conditional: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """Compute the log-probability of a sample.
 
         Parameters
@@ -790,32 +802,36 @@ class FlowModel:
         ndarray
             Array of log-probabilities.
         """
-        x = (
-            torch.from_numpy(x)
-            .type(torch.get_default_dtype())
-            .to(self.model.device)
-        )
+        x = self.numpy_array_to_tensor(x)
+        if conditional is not None:
+            conditional = self.numpy_array_to_tensor(conditional)
         self.model.eval()
         with torch.inference_mode():
-            log_prob = self.model.log_prob(x)
+            log_prob = self.model.log_prob(x, context=conditional)
         log_prob = log_prob.cpu().numpy().astype(np.float64)
         return log_prob
 
-    def sample(self, n: int = 1) -> np.ndarray:
+    def sample(
+        self, n: int = 1, conditional: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """Sample from the flow.
 
         Parameters
         ----------
         n : int
             Number of samples to draw
+        conditional : numpy.ndarray
+            Array of conditional inputs
 
         Returns
         -------
         numpy.ndarray
             Array of samples
         """
+        if conditional is not None:
+            conditional = self.numpy_array_to_tensor(conditional)
         with torch.inference_mode():
-            x = self.model.sample(int(n))
+            x = self.model.sample(int(n), context=conditional)
         return x.cpu().numpy().astype(np.float64)
 
     def sample_latent_distribution(self, n: int = 1) -> np.ndarray:
@@ -835,7 +851,9 @@ class FlowModel:
             z = self.model.sample_latent_distribution(n)
         return z.cpu().numpy().astype(np.float64)
 
-    def sample_and_log_prob(self, N=1, z=None, alt_dist=None):
+    def sample_and_log_prob(
+        self, N=1, z=None, alt_dist=None, conditional=None
+    ):
         """
         Generate samples from samples drawn from the base distribution or
         and alternative distribution from provided latent samples
@@ -865,9 +883,13 @@ class FlowModel:
             raise RuntimeError("Model is not initialised yet!")
         if self.model.training:
             self.model.eval()
+        if conditional is not None:
+            conditional = self.numpy_array_to_tensor(conditional)
         if z is None:
             with torch.inference_mode():
-                x, log_prob = self.model.sample_and_log_prob(int(N))
+                x, log_prob = self.model.sample_and_log_prob(
+                    int(N), context=conditional
+                )
         else:
             if alt_dist is not None:
                 log_prob_fn = alt_dist.log_prob
@@ -876,13 +898,9 @@ class FlowModel:
 
             with torch.inference_mode():
                 if isinstance(z, np.ndarray):
-                    z = (
-                        torch.from_numpy(z)
-                        .type(torch.get_default_dtype())
-                        .to(self.model.device)
-                    )
+                    z = self.numpy_array_to_tensor(z)
                 log_prob = log_prob_fn(z)
-                x, log_J = self.model.inverse(z, context=None)
+                x, log_J = self.model.inverse(z, context=conditional)
                 log_prob -= log_J
 
         x = x.detach().cpu().numpy().astype(np.float64)
