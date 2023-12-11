@@ -1418,9 +1418,10 @@ class FlowProposal(RejectionProposal):
             x, log_q = self.backward_pass(
                 z, rescale=not self.use_x_prime_prior
             )
-            log_w, x["logP"] = self.compute_weights(
-                x, log_q, return_log_prior=True
-            )
+            if self.truncate_log_q:
+                above_min_log_q = log_q > min_log_q
+                x, log_q = get_subset_arrays(above_min_log_q, x, log_q)
+            log_w = self.compute_weights(x, log_q)
 
             samples = np.concatenate([samples, x])
             log_weights = np.concatenate([log_weights, log_w])
