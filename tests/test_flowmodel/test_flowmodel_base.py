@@ -21,8 +21,24 @@ def data_dim():
 
 
 @pytest.fixture()
+def n_samples():
+    return 10
+
+
+@pytest.fixture(params=[False, True])
+def conditional(request, n_samples):
+    if request.param:
+        return np.random.randn(n_samples, 2)
+    else:
+        return None
+
+
+@pytest.fixture()
 def model():
-    return create_autospec(FlowModel)
+    m = create_autospec(FlowModel)
+    m.numpy_array_to_tensor = torch.tensor
+    m.model = MagicMock()
+    return m
 
 
 @pytest.fixture(scope="function")
@@ -352,6 +368,15 @@ def test_sample_and_log_prob_with_latent(flow_model, data_dim, N):
     assert log_prob.size == N
 
 
+def test_numpy_array_to_tensor(model, n_samples):
+    x = np.random.randn(n_samples, 2).astype("float32")
+    model.model.device = "cpu"
+    out = FlowModel.numpy_array_to_tensor(model, x)
+    assert isinstance(out, torch.Tensor)
+    assert out.dtype == torch.get_default_dtype()
+    np.testing.assert_equal(x, out.numpy())
+
+
 def test_sample_log_prob_alt_dist(model):
     """Assert the alternate distribution is used."""
     z = torch.randn(5, 2)
@@ -378,48 +403,64 @@ def test_sample_log_prob_alt_dist(model):
     np.testing.assert_equal(log_prob_out, log_prob_expected)
 
 
-def test_forward_and_log_prob(model):
+def test_forward_and_log_prob(model, n_samples, conditional):
     """Assert the method from the flow is called"""
-    x = np.random.randn(5, 2)
-    log_prob = torch.randn(5)
-    z = torch.randn(5, 2)
+    x = np.random.randn(n_samples, 2)
+    log_prob = torch.randn(n_samples)
+    z = torch.randn(n_samples, 2)
     model.model = MagicMock()
     model.model.device = "cpu"
     model.model.eval = MagicMock()
     model.model.forward_and_log_prob = MagicMock(return_value=(z, log_prob))
 
-    out_z, out_log_prob = FlowModel.forward_and_log_prob(model, x)
+    out_z, out_log_prob = FlowModel.forward_and_log_prob(
+        model, x, conditional=conditional
+    )
 
     model.model.eval.assert_called_once()
+    model.model.forward_and_log_prob.assert_called_once()
+    if conditional is not None:
+        assert np.array_equal(
+            model.model.forward_and_log_prob.call_args_list[0][1]["context"],
+            conditional,
+        )
     np.testing.assert_equal(out_z, z.numpy())
     np.testing.assert_equal(out_log_prob, log_prob.numpy())
 
 
-def test_log_prob(model):
+def test_log_prob(model, n_samples, conditional):
     """Assert the correct method from the flow is called"""
-    x = np.random.randn(5, 2)
-    log_prob = torch.randn(5)
+    x = np.random.randn(n_samples, 2)
+    log_prob = torch.randn(n_samples)
     model.model = MagicMock()
     model.model.device = "cpu"
     model.model.eval = MagicMock()
     model.model.log_prob = MagicMock(return_value=log_prob)
 
-    out = FlowModel.log_prob(model, x)
+    out = FlowModel.log_prob(model, x, conditional=conditional)
 
     model.model.eval.assert_called_once()
+    if conditional is not None:
+        assert np.array_equal(
+            model.model.log_prob.call_args_list[0][1]["context"], conditional
+        )
     np.testing.assert_equal(out, log_prob.numpy())
 
 
-def test_sample(model):
+def test_sample(model, n_samples, conditional):
     """Assert the correct method from the flow is called."""
-    n = 10
-    x = torch.randn(n, 2)
+    x = torch.randn(n_samples, 2)
     model.model = MagicMock()
     model.model.sample = MagicMock(return_value=x)
 
-    out = FlowModel.sample(model, n)
+    out = FlowModel.sample(model, n_samples, conditional=conditional)
 
-    model.model.sample.assert_called_once_with(n)
+    model.model.sample.assert_called_once()
+    assert model.model.sample.call_args_list[0][0][0] == n_samples
+    if conditional is not None:
+        assert np.array_equal(
+            model.model.sample.call_args_list[0][1]["context"], conditional
+        )
     np.testing.assert_array_equal(out, x.numpy())
 
 
@@ -502,12 +543,18 @@ def test_get_state(flow_model):
 
 
 @pytest.mark.parametrize("N", [1, 100])
+@pytest.mark.parametrize("conditional", [None, True])
 @pytest.mark.integration_test
-def test_forward_and_log_prob_integration(flow_model, data_dim, N):
+def test_forward_and_log_prob_integration(
+    flow_model, data_dim, N, conditional
+):
     """Test the basic use of forward and log prob"""
+    if conditional:
+        conditional = np.random.randn(N, 1)
+        flow_model.model_config["kwargs"]["context_features"] = 1
     flow_model.initialise()
     x = np.random.randn(N, data_dim)
-    z, log_prob = flow_model.forward_and_log_prob(x)
+    z, log_prob = flow_model.forward_and_log_prob(x, conditional=conditional)
     assert z.shape == (N, data_dim)
     assert log_prob.size == N
 
