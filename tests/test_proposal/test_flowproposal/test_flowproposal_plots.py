@@ -70,7 +70,7 @@ def test_plot_pool_all(proposal):
     proposal.populated_count = 0
     x = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
     with patch("nessai.proposal.flowproposal.plot_live_points") as plot:
-        FlowProposal.plot_pool(proposal, None, x)
+        FlowProposal.plot_pool(proposal, x)
     plot.assert_called_once_with(
         x, c="logL", filename=os.path.join("test", "pool_0.png")
     )
@@ -90,7 +90,7 @@ def test_plot_pool_1d(proposal, tmpdir, alt_dist):
 
     z = np.random.randn(10, 2)
     x = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
-    x["logL"] = np.random.randn(10)
+    log_q = np.random.randn(10)
     x["logP"] = np.random.randn(10)
     training_data = numpy_array_to_live_points(
         np.random.randn(10, 2), ["x", "y"]
@@ -100,6 +100,7 @@ def test_plot_pool_1d(proposal, tmpdir, alt_dist):
     proposal.training_data = training_data
     log_p = torch.arange(10)
 
+    proposal.forward_pass = MagicMock(return_value=(z, log_q))
     proposal.flow = MagicMock()
     proposal.flow.device = "cpu"
     if alt_dist:
@@ -111,7 +112,7 @@ def test_plot_pool_1d(proposal, tmpdir, alt_dist):
         )
         proposal.alt_dist = None
     with patch("nessai.proposal.flowproposal.plot_1d_comparison") as plot:
-        FlowProposal.plot_pool(proposal, z, x)
+        FlowProposal.plot_pool(proposal, x)
 
     plot.assert_called_once_with(
         training_data,
