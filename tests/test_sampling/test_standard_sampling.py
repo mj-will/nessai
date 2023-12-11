@@ -460,6 +460,21 @@ def test_constant_volume_mode(integration_model, tmpdir):
 
 
 @pytest.mark.slow_integration_test
+def test_sampling_with_plotting(integration_model, tmpdir):
+    """Test sampling with plots enabled"""
+    output = str(tmpdir.mkdir("test"))
+    fs = FlowSampler(
+        integration_model,
+        output=output,
+        nlive=100,
+        plot=True,
+        proposal_plots=True,
+        stopping=1.0,
+    )
+    fs.run(plot=True)
+
+
+@pytest.mark.slow_integration_test
 def test_truncate_log_q(integration_model, tmpdir):
     """Test sampling with truncate_log_q"""
     output = str(tmpdir.mkdir("test"))
