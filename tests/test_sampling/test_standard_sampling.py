@@ -469,9 +469,10 @@ def test_sampling_with_plotting(integration_model, tmpdir):
         nlive=100,
         plot=True,
         proposal_plots=True,
-        stopping=1.0,
     )
     fs.run(plot=True)
+    assert os.path.exists(os.path.join(output, "proposal", "pool_0.png"))
+    assert os.path.exists(os.path.join(output, "proposal", "pool_0_log_q.png"))
 
 
 @pytest.mark.slow_integration_test
