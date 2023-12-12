@@ -89,6 +89,21 @@ def test_compute_weights(proposal, x, log_q):
     np.testing.assert_array_equal(log_w, out)
 
 
+def test_compute_weights_return_prior(proposal, x, log_q):
+    """Assert prior is returned"""
+    proposal.use_x_prime_prior = False
+    log_p = -np.ones(x.size)
+    proposal.log_prior = MagicMock(return_value=log_p)
+    log_w, log_p_out = FlowProposal.compute_weights(
+        proposal, x, log_q, return_log_prior=True
+    )
+
+    proposal.log_prior.assert_called_once_with(x)
+    expected = -1 - log_q
+    np.testing.assert_array_equal(log_w, expected)
+    assert log_p_out is log_p
+
+
 def test_compute_weights_prime_prior(proposal, x, log_q):
     """Test method for computing rejection sampling weights with the prime
     prior.
