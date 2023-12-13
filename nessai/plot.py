@@ -273,7 +273,7 @@ def plot_1d_comparison(
             legend_labels.values(),
             legend_labels.keys(),
             frameon=False,
-            ncol=len(labels),
+            # ncol=len(labels),
             loc="upper center",
             bbox_to_anchor=(0, 0.1 / len(parameters), 1, 1),
             bbox_transform=plt.gcf().transFigure,
