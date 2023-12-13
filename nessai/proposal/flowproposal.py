@@ -1525,6 +1525,7 @@ class FlowProposal(RejectionProposal):
         # make live point and return
         return new_sample
 
+    @nessai_style()
     def plot_pool(self, z, x):
         """
         Plot the pool of points.
@@ -1548,7 +1549,7 @@ class FlowProposal(RejectionProposal):
             plot_1d_comparison(
                 self.training_data,
                 x,
-                labels=["live points", "pool"],
+                # labels=["live points", "pool"],
                 filename=os.path.join(
                     self.output, f"pool_{self.populated_count}.png"
                 ),
