@@ -266,18 +266,27 @@ def plot_1d_comparison(
             axs[i].axvline(bounds[f][0], ls=":", alpha=0.5, color="k")
             axs[i].axvline(bounds[f][1], ls=":", alpha=0.5, color="k")
 
+    # Get the handles
+    # Some axes may have less due to e.g. all NaN values, so loop over them
+    # all until a valid set of handles is found.
     if len(labels) > 1:
-        handles, labels = plt.gca().get_legend_handles_labels()
-        legend_labels = dict(zip(labels, handles))
-        fig.legend(
-            legend_labels.values(),
-            legend_labels.keys(),
-            frameon=False,
-            # ncol=len(labels),
-            loc="upper center",
-            bbox_to_anchor=(0, 0.1 / len(parameters), 1, 1),
-            bbox_transform=plt.gcf().transFigure,
-        )
+        for ax in axs:
+            handles, _ = ax.get_legend_handles_labels()
+            if len(handles) == len(labels):
+                break
+        if len(handles) == len(labels):
+            legend_labels = dict(zip(labels, handles))
+            fig.legend(
+                legend_labels.values(),
+                legend_labels.keys(),
+                frameon=False,
+                ncol=len(labels),
+                loc="upper center",
+                bbox_to_anchor=(0, 0.1 / len(parameters), 1, 1),
+                bbox_transform=plt.gcf().transFigure,
+            )
+        else:
+            logger.warning("Could not plot legend")
 
     plt.tight_layout()
     if filename is not None:
