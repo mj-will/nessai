@@ -462,11 +462,11 @@ def test_constant_volume_mode(integration_model, tmpdir):
 @pytest.mark.slow_integration_test
 def test_sampling_with_plotting(integration_model, tmpdir):
     """Test sampling with plots enabled"""
-    output = str(tmpdir.mkdir("test"))
+    output = str(tmpdir.mkdir("test_plotting"))
     fs = FlowSampler(
         integration_model,
         output=output,
-        nlive=100,
+        nlive=500,
         plot=True,
         proposal_plots=True,
         stopping=1.0,
