@@ -1525,7 +1525,6 @@ class FlowProposal(RejectionProposal):
         # make live point and return
         return new_sample
 
-    @nessai_style()
     def plot_pool(self, z, x):
         """
         Plot the pool of points.
