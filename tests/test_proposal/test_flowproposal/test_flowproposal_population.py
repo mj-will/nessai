@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test methods related to popluation of the proposal after training"""
+import datetime
 from functools import partial
 import os
 
@@ -85,8 +86,22 @@ def test_compute_weights(proposal, x, log_q):
 
     proposal.log_prior.assert_called_once_with(x)
     out = -1 - log_q
-    out -= out.max()
-    assert np.array_equal(log_w, out)
+    np.testing.assert_array_equal(log_w, out)
+
+
+def test_compute_weights_return_prior(proposal, x, log_q):
+    """Assert prior is returned"""
+    proposal.use_x_prime_prior = False
+    log_p = -np.ones(x.size)
+    proposal.log_prior = MagicMock(return_value=log_p)
+    log_w, log_p_out = FlowProposal.compute_weights(
+        proposal, x, log_q, return_log_prior=True
+    )
+
+    proposal.log_prior.assert_called_once_with(x)
+    expected = -1 - log_q
+    np.testing.assert_array_equal(log_w, expected)
+    assert log_p_out is log_p
 
 
 def test_compute_weights_prime_prior(proposal, x, log_q):
@@ -99,8 +114,7 @@ def test_compute_weights_prime_prior(proposal, x, log_q):
 
     proposal.x_prime_log_prior.assert_called_once_with(x)
     out = -1 - log_q
-    out -= out.max()
-    assert np.array_equal(log_w, out)
+    np.testing.assert_array_equal(log_w, out)
 
 
 @patch("numpy.random.rand", return_value=np.array([0.1, 0.9]))
@@ -349,7 +363,7 @@ def test_draw_latent_prior(proposal):
     [(0.5, None), (None, 1.5), (None, None)],
 )
 def test_populate(
-    proposal, check_acceptance, indices, r, min_radius, max_radius
+    proposal, check_acceptance, indices, r, min_radius, max_radius, wait
 ):
     """Test the main populate method"""
     n_dims = 2
@@ -370,11 +384,23 @@ def test_populate(
         numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
         numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
     ]
+    log_q = [
+        np.log(np.random.rand(drawsize)),
+        np.log(np.random.rand(drawsize)),
+        np.log(np.random.rand(drawsize)),
+    ]
+    log_w = [
+        np.log(np.concatenate([np.ones(drawsize - 1), np.zeros(1)])),
+        np.log(np.concatenate([np.ones(drawsize - 1), np.zeros(1)])),
+        np.log(np.concatenate([np.ones(drawsize - 1), np.zeros(1)])),
+    ]
+    # Control rejection sampling using log_w
+    rand_u = 0.5 * np.ones(3 * drawsize)
+
     log_l = np.random.rand(poolsize)
+    log_p = np.random.rand(poolsize)
 
     r_flow = 1.0
-
-    min_log_q = None
 
     if r is None:
         r_out = r_flow
@@ -385,6 +411,7 @@ def test_populate(
     else:
         r_out = r
 
+    proposal.population_time = datetime.timedelta()
     proposal.initialised = True
     proposal.max_radius = max_radius
     proposal.dims = n_dims
@@ -400,39 +427,48 @@ def test_populate(
     proposal.check_acceptance = check_acceptance
     proposal._plot_pool = True
     proposal.populated_count = 1
-    proposal.population_dtype = get_dtype(["x_prime", "y_prime"])
+    proposal.population_dtype = get_dtype(names)
     proposal.truncate_log_q = False
+    proposal.use_x_prime_prior = False
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, np.nan))
+    proposal.backward_pass = MagicMock(side_effect=zip(x, log_q))
     proposal.radius = MagicMock(return_value=r_flow)
     proposal.get_alt_distribution = MagicMock(return_value=None)
     proposal.prep_latent_prior = MagicMock()
     proposal.draw_latent_prior = MagicMock(side_effect=z)
-    proposal.rejection_sampling = MagicMock(
-        side_effect=[(a[:-1], b[:-1]) for a, b in zip(z, x)]
-    )
+    proposal.compute_weights = MagicMock(side_effect=log_w)
     proposal.compute_acceptance = MagicMock(return_value=0.8)
     proposal.model = MagicMock()
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
     )
 
-    proposal.plot_pool = MagicMock()
-    proposal.convert_to_samples = MagicMock(
-        side_effect=lambda *args, **kwargs: args[0]
-    )
+    def convert_to_samples(samples, plot):
+        samples["logP"] = log_p
+        # wait for windows
+        wait()
+        return samples
 
-    x_empty = np.empty(poolsize, dtype=proposal.population_dtype)
+    proposal.plot_pool = MagicMock()
+    proposal.convert_to_samples = MagicMock(side_effect=convert_to_samples)
+
+    x_empty = np.empty(0, dtype=proposal.population_dtype)
     with patch(
         "nessai.proposal.flowproposal.empty_structured_array",
         return_value=x_empty,
-    ) as mock_empty:
-        FlowProposal.populate(proposal, worst_point, N=10, plot=True, r=r)
+    ) as mock_empty, patch(
+        "numpy.random.rand", return_value=rand_u
+    ) as mock_rand:
+        FlowProposal.populate(
+            proposal, worst_point, N=poolsize, plot=True, r=r
+        )
 
     mock_empty.assert_called_once_with(
-        poolsize,
+        0,
         dtype=proposal.population_dtype,
     )
+    mock_rand.assert_called_once_with(3 * drawsize)
 
     if r is None:
         proposal.forward_pass.assert_called_once_with(
@@ -451,12 +487,11 @@ def test_populate(
     draw_calls = 3 * [call(5)]
     proposal.draw_latent_prior.assert_has_calls(draw_calls)
 
-    rejection_calls = [
-        call(z[0], min_log_q=min_log_q),
-        call(z[1], min_log_q=min_log_q),
-        call(z[2], min_log_q=min_log_q),
-    ]
-    proposal.rejection_sampling.assert_has_calls(rejection_calls)
+    backwards_calls = [call(zz, rescale=True) for zz in z]
+    proposal.backward_pass.assert_has_calls(backwards_calls)
+
+    compute_weights_calls = [call(xx, lq) for xx, lq in zip(x, log_q)]
+    proposal.compute_weights.assert_has_calls(compute_weights_calls)
 
     proposal.plot_pool.assert_called_once()
     proposal.convert_to_samples.assert_called_once()
@@ -465,7 +500,7 @@ def test_populate(
     )
     assert proposal.convert_to_samples.call_args[1]["plot"] is True
 
-    assert proposal.population_acceptance == (10 / 15)
+    assert proposal.population_acceptance == (12 / 15)
     assert proposal.populated_count == 2
     assert proposal.populated is True
     assert proposal.x.size == 10
@@ -481,6 +516,8 @@ def test_populate(
     )
     np.testing.assert_array_equal(proposal.samples["logL"], log_l)
 
+    assert proposal.population_time.total_seconds() > 0.0
+
 
 def test_populate_not_initialised(proposal):
     """Assert populate fails if the proposal is not initialised"""
@@ -493,7 +530,7 @@ def test_populate_not_initialised(proposal):
 def test_populate_truncate_log_q(proposal):
     n_dims = 2
     nlive = 8
-    poolsize = 10
+    poolsize = 8
     drawsize = 5
     names = ["x", "y"]
     r_flow = 2.0
@@ -510,8 +547,25 @@ def test_populate_truncate_log_q(proposal):
         numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
         numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
     ]
+    log_q = [
+        np.zeros(drawsize),
+        np.zeros(drawsize),
+        np.zeros(drawsize),
+    ]
+    # This sample will be discarded because of the logq min check
+    for i in range(3):
+        log_q[i][-1] = np.nan_to_num(-np.inf)
+    log_w = [
+        np.log(np.concatenate([np.ones(drawsize - 2), np.zeros(1)])),
+        np.log(np.concatenate([np.ones(drawsize - 2), np.zeros(1)])),
+        np.log(np.concatenate([np.ones(drawsize - 2), np.zeros(1)])),
+    ]
+    # Control rejection sampling using log_w
+    rand_u = 0.5 * np.ones(3 * (drawsize - 1))
+
     log_l = np.random.rand(poolsize)
 
+    proposal.population_time = datetime.timedelta()
     proposal.initialised = True
     proposal.dims = n_dims
     proposal.poolsize = poolsize
@@ -524,20 +578,23 @@ def test_populate_truncate_log_q(proposal):
     proposal.compute_radius_with_all = False
     proposal.check_acceptance = False
     proposal._plot_pool = False
+    proposal.use_x_prime_prior = False
     proposal.populated_count = 1
-    proposal.population_dtype = get_dtype(["x_prime", "y_prime"])
+    proposal.population_dtype = get_dtype(names)
     proposal.truncate_log_q = True
     proposal.training_data = numpy_array_to_live_points(
         np.random.randn(nlive, n_dims),
         names=names,
     )
 
-    log_q_live = np.log(np.random.rand(nlive))
-    min_log_q = log_q_live.min()
+    log_q_live = np.zeros(nlive)
+    log_q_live[-1] = -1.0
 
     proposal.forward_pass = MagicMock(
         return_value=(nlive * [None], log_q_live)
     )
+    proposal.backward_pass = MagicMock(side_effect=zip(x, log_q))
+    proposal.compute_weights = MagicMock(side_effect=log_w)
     proposal.radius = MagicMock(return_value=r_flow)
     proposal.get_alt_distribution = MagicMock(return_value=None)
     proposal.prep_latent_prior = MagicMock()
@@ -555,23 +612,32 @@ def test_populate_truncate_log_q(proposal):
         side_effect=lambda *args, **kwargs: args[0]
     )
 
-    x_empty = np.empty(poolsize, dtype=proposal.population_dtype)
+    x_empty = np.empty(0, dtype=proposal.population_dtype)
     with patch(
         "nessai.proposal.flowproposal.empty_structured_array",
         return_value=x_empty,
-    ) as mock_empty:
-        FlowProposal.populate(proposal, worst_point, N=10, plot=False)
+    ) as mock_empty, patch(
+        "numpy.random.rand", return_value=rand_u
+    ) as mock_rand:
+        FlowProposal.populate(proposal, worst_point, N=poolsize, plot=False)
 
     mock_empty.assert_called_once_with(
-        poolsize,
+        0,
         dtype=proposal.population_dtype,
     )
+    mock_rand.assert_called_once_with(3 * drawsize - 3)
+
+    assert proposal.population_acceptance == (9 / 15)
 
     proposal.forward_pass.assert_called_once_with(proposal.training_data)
 
-    rejection_calls = [
-        call(z[0], min_log_q=min_log_q),
-        call(z[1], min_log_q=min_log_q),
-        call(z[2], min_log_q=min_log_q),
-    ]
-    proposal.rejection_sampling.assert_has_calls(rejection_calls)
+    backwards_calls = [call(zz, rescale=True) for zz in z]
+    proposal.backward_pass.assert_has_calls(backwards_calls)
+
+    compute_weights_calls = [(xx[:-1], lq[:-1]) for xx, lq in zip(x, log_q)]
+    for actual_call, expected_call in zip(
+        proposal.compute_weights.call_args_list,
+        compute_weights_calls,
+    ):
+        assert_structured_arrays_equal(actual_call[0][0], expected_call[0])
+        np.testing.assert_array_equal(actual_call[0][1], expected_call[1])
