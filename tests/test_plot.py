@@ -257,6 +257,25 @@ def test_plot_1d_comparison_infinite_var_comp(
     assert "No finite points for y, skipping." not in str(caplog.text)
 
 
+def test_plot_1d_comparison_one_valid(live_points, live_points_1, caplog):
+    """Test generating a 1d comparison plot with one invalid"""
+    live_points["logL"] = np.random.rand(live_points.size)
+    live_points_1["logL"] = np.nan
+    plot.plot_1d_comparison(live_points, live_points_1, parameters=["logL"])
+    plt.close()
+    assert "Could not plot legend" in caplog.text
+
+
+def test_plot_1d_comparison_last_invalid(live_points, live_points_1):
+    """Test generating a 1d comparison plot when the last parameter has NANs"""
+    live_points["logL"] = np.random.rand(live_points.size)
+    live_points_1["logL"] = np.nan
+    plot.plot_1d_comparison(
+        live_points, live_points_1, parameters=["x", "logL"]
+    )
+    plt.close()
+
+
 @pytest.mark.parametrize("colours", [None, ["r", "g"]])
 def test_plot_1d_comparison_colours(colours, live_points, live_points_1):
     """Test generating a 1d comparison plot with only one parameter"""
