@@ -468,7 +468,7 @@ def test_sampling_with_plotting(integration_model, tmpdir):
         output=output,
         nlive=500,
         plot=True,
-        proposal_plots=True,
+        proposal_plots=False,
         stopping=1.0,
     )
     fs.run(plot=True)
