@@ -243,5 +243,5 @@ def test_log_exp_inverse():
     x = np.random.rand(10)
     x_log, logj_log = log_with_log_jacobian(x)
     x_out, logj_exp = exp_with_log_jacobian(x_log)
-    np.testing.assert_array_equal(x_out, x)
-    np.testing.assert_array_equal(logj_log, -logj_exp)
+    np.testing.assert_almost_equal(x_out, x, decimal=14)
+    np.testing.assert_almost_equal(logj_log, -logj_exp, decimal=14)
