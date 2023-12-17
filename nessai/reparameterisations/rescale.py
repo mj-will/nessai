@@ -394,10 +394,12 @@ class RescaleToBounds(Reparameterisation):
             logger.debug("Disabling prime prior with post-rescaling")
             self.has_prime_prior = False
 
-            if post_rescaling == "logit":
+            if post_rescaling in ["logit", "log"]:
                 if self._update_bounds:
-                    raise RuntimeError("Cannot use logit with update bounds")
-                logger.debug("Setting bounds to [0, 1] for logit")
+                    raise RuntimeError(
+                        "Cannot use log or logit with update bounds"
+                    )
+                logger.debug("Setting bounds to [0, 1] for log/logit")
                 self.rescale_bounds = {p: [0, 1] for p in self.parameters}
             self.has_post_rescaling = True
         else:

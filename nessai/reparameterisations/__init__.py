@@ -43,6 +43,14 @@ default_reparameterisations = {
             "post_rescaling": "logit",
         },
     ),
+    "log-rescale": (
+        RescaleToBounds,
+        {
+            "rescale_bounds": [0.0, 1.0],
+            "update_bounds": False,
+            "post_rescaling": "log",
+        },
+    ),
     "scale": (Rescale, None),
     "scaleandshift": (ScaleAndShift, None),
     "rescale": (Rescale, None),
