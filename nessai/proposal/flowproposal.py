@@ -1437,7 +1437,7 @@ class FlowProposal(RejectionProposal):
 
             samples = np.concatenate([samples, x])
             log_weights = np.concatenate([log_weights, log_w])
-            log_constant = np.nanmax(log_w)
+            log_constant = max(np.nanmax(log_w), log_constant)
             log_n_expected = logsumexp(log_weights - log_constant)
 
             # Only try rejection sampling if we expected to accept enough
