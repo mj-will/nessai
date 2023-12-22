@@ -375,7 +375,11 @@ class FlowSampler:
         self.ns.initialise()
         self.logZ, self._nested_samples = self.ns.nested_sampling_loop()
         self.logZ_error = self.ns.state.log_evidence_error
-        logger.info((f"Total sampling time: {self.ns.sampling_time}"))
+        logger.info(f"Total sampling time: {self.ns.sampling_time}")
+        logger.info(
+            "Total likelihood evaluations: "
+            f"{self.ns.total_likelihood_evaluations}"
+        )
 
         logger.info("Starting post processing")
         logger.info("Computing posterior samples")
@@ -425,7 +429,7 @@ class FlowSampler:
         plot_posterior=True,
         save=True,
         posterior_sampling_method=None,
-        redraw_samples=True,
+        redraw_samples=False,
         n_posterior_samples=None,
         compute_initial_posterior=False,
         close_pool=None,
@@ -471,9 +475,15 @@ class FlowSampler:
         if posterior_sampling_method is None:
             posterior_sampling_method = "importance_sampling"
 
-        self.logZ, self._nested_samples = self.ns.nested_sampling_loop()
+        self.ns.nested_sampling_loop()
+        self._nested_samples = self.ns.samples
+        self.logZ = self.ns.state.log_evidence
         self.logZ_error = self.ns.state.log_evidence_error
-        logger.info((f"Total sampling time: {self.ns.sampling_time}"))
+        logger.info(f"Total sampling time: {self.ns.sampling_time}")
+        logger.info(
+            "Total likelihood evaluations: "
+            f"{self.ns.total_likelihood_evaluations}"
+        )
 
         logger.info("Starting post processing")
 
@@ -490,7 +500,7 @@ class FlowSampler:
         logger.info("Computing posterior samples")
 
         if compute_initial_posterior or not redraw_samples:
-            logger.debug("Computing initial posterior samples")
+            logger.debug("Computing posterior samples")
             self.initial_posterior_samples = self.ns.draw_posterior_samples(
                 sampling_method=posterior_sampling_method,
                 use_final_samples=False,
