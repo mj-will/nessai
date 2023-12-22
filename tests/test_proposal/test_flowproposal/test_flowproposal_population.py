@@ -362,7 +362,7 @@ def test_draw_latent_prior(proposal):
     "max_radius, min_radius",
     [(0.5, None), (None, 1.5), (None, None)],
 )
-def test_populate(
+def test_populate_accumulate_weights(
     proposal, check_acceptance, indices, r, min_radius, max_radius, wait
 ):
     """Test the main populate method"""
@@ -430,6 +430,7 @@ def test_populate(
     proposal.population_dtype = get_dtype(names)
     proposal.truncate_log_q = False
     proposal.use_x_prime_prior = False
+    proposal.accumulate_weights = True
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, np.nan))
     proposal.backward_pass = MagicMock(side_effect=zip(x, log_q))
@@ -469,6 +470,175 @@ def test_populate(
         dtype=proposal.population_dtype,
     )
     mock_rand.assert_called_once_with(3 * drawsize)
+
+    if r is None:
+        proposal.forward_pass.assert_called_once_with(
+            worst_point,
+            rescale=True,
+            compute_radius=True,
+        )
+        proposal.radius.assert_called_once_with(worst_z)
+    else:
+        assert proposal.r is r
+
+    assert proposal.r == r_out
+
+    proposal.prep_latent_prior.assert_called_once()
+
+    draw_calls = 3 * [call(5)]
+    proposal.draw_latent_prior.assert_has_calls(draw_calls)
+
+    backwards_calls = [call(zz, rescale=True) for zz in z]
+    proposal.backward_pass.assert_has_calls(backwards_calls)
+
+    compute_weights_calls = [call(xx, lq) for xx, lq in zip(x, log_q)]
+    proposal.compute_weights.assert_has_calls(compute_weights_calls)
+
+    proposal.plot_pool.assert_called_once()
+    proposal.convert_to_samples.assert_called_once()
+    assert_structured_arrays_equal(
+        proposal.convert_to_samples.call_args[0][0], proposal.x
+    )
+    assert proposal.convert_to_samples.call_args[1]["plot"] is True
+
+    assert proposal.population_acceptance == (12 / 15)
+    assert proposal.populated_count == 2
+    assert proposal.populated is True
+    assert proposal.x.size == 10
+
+    if check_acceptance:
+        proposal.compute_acceptance.assert_called()
+        assert proposal.acceptance == [0.7, 0.8]
+    else:
+        proposal.compute_acceptance.assert_not_called()
+
+    proposal.model.batch_evaluate_log_likelihood.assert_called_once_with(
+        proposal.samples
+    )
+    np.testing.assert_array_equal(proposal.samples["logL"], log_l)
+
+    assert proposal.population_time.total_seconds() > 0.0
+
+
+@pytest.mark.parametrize("check_acceptance", [False, True])
+@pytest.mark.parametrize("indices", [[], [1]])
+@pytest.mark.parametrize("r", [None, 1.0])
+@pytest.mark.parametrize(
+    "max_radius, min_radius",
+    [(0.5, None), (None, 1.5), (None, None)],
+)
+def test_populate_not_accumulate_weights(
+    proposal, check_acceptance, indices, r, min_radius, max_radius, wait
+):
+    """Test the main populate method"""
+    n_dims = 2
+    poolsize = 10
+    drawsize = 5
+    names = ["x", "y"]
+    worst_point = np.array(
+        [[1, 2, 3]], dtype=[("x", "f8"), ("y", "f8"), ("logL", "f8")]
+    )
+    worst_z = np.random.randn(1, n_dims)
+    z = [
+        np.random.randn(drawsize, n_dims),
+        np.random.randn(drawsize, n_dims),
+        np.random.randn(drawsize, n_dims),
+    ]
+    x = [
+        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+    ]
+    log_q = [
+        np.log(np.random.rand(drawsize)),
+        np.log(np.random.rand(drawsize)),
+        np.log(np.random.rand(drawsize)),
+    ]
+    log_w = [
+        np.log(np.concatenate([np.ones(drawsize - 1), np.zeros(1)])),
+        np.log(np.concatenate([np.ones(drawsize - 1), np.zeros(1)])),
+        np.log(np.concatenate([np.ones(drawsize - 1), np.zeros(1)])),
+    ]
+    # Control rejection sampling using log_w
+    rand_u = [
+        0.5 * np.ones(drawsize),
+        0.5 * np.ones(drawsize),
+        0.5 * np.ones(drawsize),
+    ]
+
+    log_l = np.random.rand(poolsize)
+    log_p = np.random.rand(poolsize)
+
+    r_flow = 1.0
+
+    if r is None:
+        r_out = r_flow
+        if min_radius is not None:
+            r_out = max(r_out, min_radius)
+        if max_radius is not None:
+            r_out = min(r_out, max_radius)
+    else:
+        r_out = r
+
+    proposal.population_time = datetime.timedelta()
+    proposal.initialised = True
+    proposal.max_radius = max_radius
+    proposal.dims = n_dims
+    proposal.poolsize = poolsize
+    proposal.drawsize = drawsize
+    proposal.min_radius = min_radius
+    proposal.fuzz = 1.0
+    proposal.indices = indices
+    proposal.acceptance = [0.7]
+    proposal.keep_samples = False
+    proposal.fixed_radius = False
+    proposal.compute_radius_with_all = False
+    proposal.check_acceptance = check_acceptance
+    proposal._plot_pool = True
+    proposal.populated_count = 1
+    proposal.population_dtype = get_dtype(names)
+    proposal.truncate_log_q = False
+    proposal.use_x_prime_prior = False
+    proposal.accumulate_weights = False
+
+    proposal.forward_pass = MagicMock(return_value=(worst_z, np.nan))
+    proposal.backward_pass = MagicMock(side_effect=zip(x, log_q))
+    proposal.radius = MagicMock(return_value=r_flow)
+    proposal.get_alt_distribution = MagicMock(return_value=None)
+    proposal.prep_latent_prior = MagicMock()
+    proposal.draw_latent_prior = MagicMock(side_effect=z)
+    proposal.compute_weights = MagicMock(side_effect=log_w)
+    proposal.compute_acceptance = MagicMock(return_value=0.8)
+    proposal.model = MagicMock()
+    proposal.model.batch_evaluate_log_likelihood = MagicMock(
+        return_value=log_l
+    )
+
+    def convert_to_samples(samples, plot):
+        samples["logP"] = log_p
+        # wait for windows
+        wait()
+        return samples
+
+    proposal.plot_pool = MagicMock()
+    proposal.convert_to_samples = MagicMock(side_effect=convert_to_samples)
+
+    x_empty = np.empty(poolsize, dtype=proposal.population_dtype)
+    with patch(
+        "nessai.proposal.flowproposal.empty_structured_array",
+        return_value=x_empty,
+    ) as mock_empty, patch(
+        "numpy.random.rand", side_effect=rand_u
+    ) as mock_rand:
+        FlowProposal.populate(
+            proposal, worst_point, N=poolsize, plot=True, r=r
+        )
+
+    mock_empty.assert_called_once_with(
+        poolsize,
+        dtype=proposal.population_dtype,
+    )
+    mock_rand.assert_has_calls(3 * [call(drawsize)])
 
     if r is None:
         proposal.forward_pass.assert_called_once_with(
@@ -586,6 +756,7 @@ def test_populate_truncate_log_q(proposal):
         np.random.randn(nlive, n_dims),
         names=names,
     )
+    proposal.accumulate_weights = True
 
     log_q_live = np.zeros(nlive)
     log_q_live[-1] = -1.0
