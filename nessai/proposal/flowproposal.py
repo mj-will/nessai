@@ -186,6 +186,7 @@ class FlowProposal(RejectionProposal):
         max_radius=50.0,
         max_poolsize_scale=10,
         update_poolsize=True,
+        accumulate_weights=False,
         save_training_data=False,
         compute_radius_with_all=False,
         detect_edges=False,
@@ -222,6 +223,7 @@ class FlowProposal(RejectionProposal):
         self._reparameterisation = None
         self.rescaling_set = False
         self.use_x_prime_prior = False
+        self.accumulate_weights = accumulate_weights
 
         self.reparameterisations = reparameterisations
         if use_default_reparameterisations is not None:
@@ -1350,7 +1352,9 @@ class FlowProposal(RejectionProposal):
         """Draw n samples from the latent prior."""
         return self._draw_func(N=n)
 
-    def populate(self, worst_point, N=10000, plot=True, r=None):
+    def populate(
+        self, worst_point, N=10000, plot=True, r=None, max_samples=1_000_000
+    ):
         """
         Populate a pool of latent points given the current worst point.
 
@@ -1409,7 +1413,11 @@ class FlowProposal(RejectionProposal):
                 "Discarding existing samples."
             )
         self.indices = []
-        samples = empty_structured_array(0, dtype=self.population_dtype)
+
+        if self.accumulate_weights:
+            samples = empty_structured_array(0, dtype=self.population_dtype)
+        else:
+            samples = empty_structured_array(N, dtype=self.population_dtype)
 
         self.prep_latent_prior()
 
@@ -1419,6 +1427,7 @@ class FlowProposal(RejectionProposal):
         log_weights = np.empty(0)
         log_constant = 0.0
         n_accepted = 0
+        accept = None
 
         while n_accepted < N:
             z = self.draw_latent_prior(self.drawsize)
@@ -1435,19 +1444,44 @@ class FlowProposal(RejectionProposal):
                 continue
             log_w = self.compute_weights(x, log_q)
 
-            samples = np.concatenate([samples, x])
-            log_weights = np.concatenate([log_weights, log_w])
-            log_constant = np.nanmax(log_w)
-            log_n_expected = logsumexp(log_weights - log_constant)
+            if self.accumulate_weights:
 
-            # Only try rejection sampling if we expected to accept enough
-            # points. In the case where we don't, we continue drawing samples
-            if log_n_expected >= log_n:
+                samples = np.concatenate([samples, x])
+                log_weights = np.concatenate([log_weights, log_w])
+                log_constant = max(np.nanmax(log_w), log_constant)
+                log_n_expected = logsumexp(log_weights - log_constant)
+
+                logger.debug("n expected: %s / %s", np.exp(log_n_expected), N)
+
+                # Only try rejection sampling if we expected to accept enough
+                # points. In the case where we don't, we continue drawing
+                # samples
+                if log_n_expected >= log_n:
+                    log_u = np.log(np.random.rand(len(log_weights)))
+                    accept = (log_weights - log_constant) > log_u
+                    n_accepted = np.sum(accept)
+                if n_proposed > max_samples:
+                    logger.warning("Reached max samples (%s)", max_samples)
+                    break
+
+            else:
+                log_w -= log_w.max()
+                log_u = np.log(np.random.rand(len(log_w)))
+                accept = log_w > log_u
+                n_accept_batch = accept.sum()
+                m = min(N - n_accepted, n_accept_batch)
+                samples[n_accepted : n_accepted + m] = x[accept][:m]
+                n_accepted += n_accept_batch
+                logger.debug("n accepted: %s / %s", n_accepted, N)
+
+        if self.accumulate_weights:
+            if accept is None or len(accept) != len(samples):
                 log_u = np.log(np.random.rand(len(log_weights)))
                 accept = (log_weights - log_constant) > log_u
-                n_accepted = np.sum(accept)
+            self.x = samples[accept][:N]
+        else:
+            self.x = samples[:N]
 
-        self.x = samples[accept][:N]
         self.samples = self.convert_to_samples(self.x, plot=plot)
 
         if self._plot_pool and plot:

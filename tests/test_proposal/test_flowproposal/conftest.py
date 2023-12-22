@@ -9,4 +9,5 @@ from nessai.proposal import FlowProposal
 def proposal():
     proposal = create_autospec(FlowProposal)
     proposal._initialised = False
+    proposal.accumulate_weights = False
     return proposal
