@@ -1100,13 +1100,15 @@ def test_resume_from_data_integration(
 
     kwargs = {}
     if ins:
-        kwargs["min_samples"] = 1
+        kwargs["min_samples"] = 4
+        kwargs["max_iteration"] = 2
+    else:
+        kwargs["max_iteration"] = 10
 
     fs = FlowSampler(
         integration_model,
         nlive=10,
         output=output,
-        max_iteration=5,
         checkpointing=False,
         resume_file=None,
         importance_nested_sampler=ins,
@@ -1121,7 +1123,6 @@ def test_resume_from_data_integration(
         integration_model,
         nlive=10,
         output=output,
-        max_iteration=5,
         checkpointing=False,
         resume_data=resume_data,
         resume_file=None,
