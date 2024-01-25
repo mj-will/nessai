@@ -1206,6 +1206,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     break
             else:
                 n_remove = self.n_update
+                if (self.live_points_unit.size - n_remove) < self.min_samples:
+                    n_remove = self.live_points_unit.size - self.min_samples
+                logger.info(
+                    f"Removing {n_remove} samples from "
+                    f"{self.live_points_unit.size}"
+                )
+                self.logL_threshold = self.live_points_unit[n_remove][
+                    "logL"
+                ].copy()
+                self.training_samples.update_log_likelihood_threshold(
+                    self.logL_threshold
+                )
+                if self.iid_samples:
+                    self.iid_samples.update_log_likelihood_threshold(
+                        self.logL_threshold
+                    )
             self.remove_samples(n_remove)
 
             self.add_new_proposal()
