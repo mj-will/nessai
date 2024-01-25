@@ -459,6 +459,7 @@ class ImportanceFlowProposal(Proposal):
         n: int,
         flow_number: Optional[int] = None,
         update_counts: bool = True,
+        log_likelihood_threshold: Optional[float] = None,
     ) -> np.ndarray:
         """Draw n new points.
 
@@ -540,14 +541,33 @@ class ImportanceFlowProposal(Proposal):
 
             x, log_q_all = get_subset_arrays(accept, x, log_q_all)
 
+            if log_likelihood_threshold is not None:
+                x["logL"] = self.model.batch_evaluate_log_likelihood(
+                    x,
+                    unit_hypercube=True,
+                )
+                n_batch = (x["logL"] > log_likelihood_threshold).sum()
+            else:
+                n_batch = x.size
+
             samples = np.concatenate([samples, x])
             log_q_samples = np.concatenate([log_q_samples, log_q_all], axis=0)
 
-            n_accepted += x.size
+            n_accepted += n_batch
             logger.debug(f"Accepted: {n_accepted}")
 
-        samples = samples[:n]
-        log_q_samples = log_q_samples[:n]
+        if log_likelihood_threshold:
+            n_cut = (
+                np.argmax(
+                    np.cumsum(samples["logL"] > log_likelihood_threshold) >= n
+                )
+                + 1
+            )
+        else:
+            n_cut = n
+
+        samples = samples[:n_cut]
+        log_q_samples = log_q_samples[:n_cut]
 
         if update_counts:
             self.n_draws[flow_number] += samples.size

@@ -133,6 +133,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         bootstrap: bool = False,
         close_pool: bool = False,
         strict_threshold: bool = False,
+        strict_threshold_proposal: bool = False,
         draw_iid_live: bool = True,
         **kwargs: Any,
     ):
@@ -188,6 +189,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             {} if threshold_kwargs is None else threshold_kwargs
         )
         self.strict_threshold = strict_threshold
+        self.strict_threshold_proposal = strict_threshold_proposal
         self.logX = 0.0
         self.logL_threshold = -np.inf
         self.logL_pre = -np.inf
@@ -831,12 +833,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         st = datetime.datetime.now()
         logger.info(f"Drawing {n} samples from the new proposal")
-        new_points, log_q = self.proposal.draw(n)
-        logger.debug("Evaluating likelihood for new points")
-        new_points["logL"] = self.model.batch_evaluate_log_likelihood(
-            new_points,
-            unit_hypercube=True,
+        new_points, log_q = self.proposal.draw(
+            n,
+            log_likelihood_threshold=self.logL_threshold
+            if self.strict_threshold_proposal
+            else None,
         )
+        logger.debug("Evaluating likelihood for new points")
+        if not self.strict_threshold_proposal:
+            new_points["logL"] = self.model.batch_evaluate_log_likelihood(
+                new_points,
+                unit_hypercube=True,
+            )
         logger.debug(
             "Min. log-likelihood of new samples: "
             f"{np.min(new_points['logL'])}"
@@ -2124,6 +2132,10 @@ class OrderedSamples:
         """Add samples the existing samples"""
         # Insert samples into existing samples
         samples, log_q = self.sort_samples(samples, log_q)
+        logger.debug(
+            "n samples above threshold: "
+            f"{np.sum(samples['logL'] > self.log_likelihood_threshold)}"
+        )
         indices = np.searchsorted(self.samples["logL"], samples["logL"])
         self.samples = np.insert(self.samples, indices, samples)
         self.log_q = np.insert(self.log_q, indices, log_q, axis=0)
@@ -2164,6 +2176,7 @@ class OrderedSamples:
                     insert_indices,
                     new_indices,
                 )
+        logger.info(f"Current nlive: {self.live_points.size}")
 
     def add_to_nested_samples(self, indices: np.ndarray) -> None:
         """Add an array of samples to the nested samples."""
