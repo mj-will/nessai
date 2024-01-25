@@ -792,8 +792,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         st = datetime.datetime.now()
 
         # Implicitly includes all samples
-        n_train = np.argmax(
-            self.training_samples.samples["logL"] >= self.logL_threshold
+        # Ensure at least min_samples are used for training
+        # This reduces the likelihood threshold but avoids issues with training
+        # with e.g. 1 point.
+        n_train = min(
+            np.argmax(
+                self.training_samples.samples["logL"] >= self.logL_threshold
+            ),
+            self.training_samples.samples.size - self.min_samples,
         )
         self.current_training_samples = self.training_samples.samples[
             n_train:
@@ -977,6 +983,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             self.history["n_removed"].append(n)
         logger.debug(f"Removing {n} points")
+        print(n)
+        print(self.training_samples.live_points.size)
+        print(self.iid_samples.live_points.size)
         self.training_samples.remove_samples(n)
         if self.draw_iid_live:
             self.iid_samples.remove_samples(n)
