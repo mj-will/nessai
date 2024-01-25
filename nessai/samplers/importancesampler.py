@@ -2076,6 +2076,7 @@ class OrderedSamples:
         self.strict_threshold = strict_threshold
         self.replace_all = replace_all
         self.state = _INSIntegralState()
+        self.log_likelihood_threshold = None
 
     @property
     def live_points(self) -> np.ndarray:
