@@ -1128,7 +1128,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.log_dZ = np.inf
         self.ratio = self.state.compute_evidence_ratio(ns_only=False)
         self.ratio_ns = self.state.compute_evidence_ratio(ns_only=True)
-        self.kl = self.kl_divergence(self.samples_unit)
         self.ess = self.state.effective_n_posterior_samples
         self.Z_err = np.exp(self.log_evidence_error)
         cond = [getattr(self, sc) for sc in self.stopping_criterion]
@@ -1741,7 +1740,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Union[matplotlib.figure.Figure, None]
             Returns the figure if a filename name is not given.
         """
-        n_subplots = 5
+        n_subplots = 4
 
         fig, ax = plt.subplots(n_subplots, 1, sharex=True, figsize=(15, 15))
         ax = ax.ravel()
@@ -1791,10 +1790,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ax[m].set_ylabel("Differential\n entropy")
         ax[m].legend()
 
-        m += 1
-
-        ax[m].plot(its, self.history["stopping_criteria"]["kl"])
-        ax[m].set_ylabel("KL(Q||posterior)")
         m += 1
 
         ax[-1].set_xlabel("Iteration")
