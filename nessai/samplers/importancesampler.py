@@ -895,11 +895,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
         new_samples, log_q = self.draw_n_samples(n)
         new_samples["it"] = self.iteration
         if self.draw_iid_live:
+            split_index = new_samples.size // 2
             new_samples, iid_samples = (
-                new_samples[: n // 2],
-                new_samples[n // 2 :],
+                new_samples[:split_index],
+                new_samples[split_index:],
             )
-            log_q, iid_log_q = log_q[: n // 2, ...], log_q[n // 2 :, ...]
+            log_q, iid_log_q = (
+                log_q[:split_index, ...],
+                log_q[split_index:, ...],
+            )
             self.iid_samples.log_q = self.proposal.update_log_q(
                 self.iid_samples.samples, self.iid_samples.log_q
             )
