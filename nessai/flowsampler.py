@@ -48,8 +48,6 @@ class FlowSampler:
     pytorch_threads : int
         Maximum number of threads to use for torch. If ``None`` torch uses all
         available threads.
-    max_threads : int
-        Deprecated and will be removed in a future release.
     signal_handling : bool
         Enable or disable signal handling.
     exit_code : int, optional
@@ -97,7 +95,6 @@ class FlowSampler:
         signal_handling=True,
         exit_code=130,
         pytorch_threads=1,
-        max_threads=None,
         close_pool=True,
         eps=None,
         torch_dtype=None,
@@ -110,7 +107,6 @@ class FlowSampler:
     ):
 
         configure_threads(
-            max_threads=max_threads,
             pytorch_threads=pytorch_threads,
         )
 
