@@ -151,7 +151,6 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
 
     mock_threads.assert_called_once_with(
         pytorch_threads=pytorch_threads,
-        max_threads=None,
     )
 
     mock.assert_called_once_with(
@@ -371,7 +370,6 @@ def test_init_resume(tmp_path, test_old, error):
 
     mock_threads.assert_called_once_with(
         pytorch_threads=pytorch_threads,
-        max_threads=None,
     )
 
     mock_resume.assert_called_with(

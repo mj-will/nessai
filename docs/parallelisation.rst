@@ -45,7 +45,7 @@ Using ``ray``
 Other pools
 -----------
 
-When a pool object is passed to :code:`nessai` it tries to determine how many processes the pool contains and (if the likelihood is vectorised) uses this information to determine the chunk size when evaluating the likelihood. If it can not determine this, then likelihood vectorisation will be disabled. This can be avoided by specifying :code:`n_pool` and :code:`max_threads` when initialising the sampler.
+When a pool object is passed to :code:`nessai` it tries to determine how many processes the pool contains and (if the likelihood is vectorised) uses this information to determine the chunk size when evaluating the likelihood. If it can not determine this, then likelihood vectorisation will be disabled. This can be avoided by specifying :code:`n_pool` when initialising the sampler.
 
 ***********************
 PyTorch parallelisation
