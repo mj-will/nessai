@@ -18,8 +18,8 @@ def test_plot_state(sampler, tmpdir, filename, track_gradients):
     sampler.train_on_empty = False
     sampler.history = dict(
         iterations=np.arange(10),
-        min_likelihood=x,
-        max_likelihood=x,
+        min_log_likelihood=x,
+        max_log_likelihood=x,
         logZ=x,
         dlogZ=x,
         likelihood_evaluations=x,

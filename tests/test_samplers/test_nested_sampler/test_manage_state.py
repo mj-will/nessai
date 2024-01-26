@@ -20,8 +20,8 @@ def sampler(sampler):
         population_iterations=[0],
         population_acceptance=[0.5],
         likelihood_evaluations=[10],
-        min_likelihood=[0.0],
-        max_likelihood=[100.0],
+        min_log_likelihood=[0.0],
+        max_log_likelihood=[100.0],
         logZ=[-100.0],
         dlogZ=[100.0],
         mean_acceptance=[0.5],
@@ -110,8 +110,8 @@ def test_update_history(sampler):
     mock.assert_called_once()
 
     assert sampler.history["population_acceptance"] == [0.5]
-    assert sampler.history["min_likelihood"] == [0.0, 0.0]
-    assert sampler.history["max_likelihood"] == [100.0, 150.0]
+    assert sampler.history["min_log_likelihood"] == [0.0, 0.0]
+    assert sampler.history["max_log_likelihood"] == [100.0, 150.0]
     assert sampler.history["logZ"] == [-100.0, -50.0]
     assert sampler.history["dlogZ"] == [100.0, 50.0]
     assert sampler.history["mean_acceptance"] == [0.5, 0.5]
@@ -273,8 +273,8 @@ def test_get_result_dictionary(sampler):
     )
     sampler.nlive = 1
     sampler.iteration = 3
-    sampler.min_likelihood = [-3, -2, 1]
-    sampler.max_likelihood = [1, 2, 3]
+    sampler.min_log_likelihood = [-3, -2, 1]
+    sampler.max_log_likelihood = [1, 2, 3]
     sampler.likelihood_evaluations = 3
     sampler.logZ_history = [1, 2, 3]
     sampler.mean_acceptance_history = [1, 2, 3]
