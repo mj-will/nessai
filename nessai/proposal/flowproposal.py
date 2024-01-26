@@ -1425,7 +1425,7 @@ class FlowProposal(RejectionProposal):
         log_n_expected = -np.inf
         n_proposed = 0
         log_weights = np.empty(0)
-        log_constant = 0.0
+        log_constant = -np.inf
         n_accepted = 0
         accept = None
 
@@ -1438,6 +1438,10 @@ class FlowProposal(RejectionProposal):
             )
             if self.truncate_log_q:
                 above_min_log_q = log_q > min_log_q
+                logger.debug(
+                    "Discarding %s samples below log_q_min",
+                    self.drawsize - above_min_log_q.sum(),
+                )
                 x, log_q = get_subset_arrays(above_min_log_q, x, log_q)
             # Handle case where all samples are below min_log_q
             if not len(x):
@@ -1451,7 +1455,12 @@ class FlowProposal(RejectionProposal):
                 log_constant = max(np.nanmax(log_w), log_constant)
                 log_n_expected = logsumexp(log_weights - log_constant)
 
-                logger.debug("n expected: %s / %s", np.exp(log_n_expected), N)
+                logger.debug(
+                    "Drawn %s - n expected: %s / %s",
+                    samples.size,
+                    np.exp(log_n_expected),
+                    N,
+                )
 
                 # Only try rejection sampling if we expected to accept enough
                 # points. In the case where we don't, we continue drawing
@@ -1478,6 +1487,7 @@ class FlowProposal(RejectionProposal):
             if accept is None or len(accept) != len(samples):
                 log_u = np.log(np.random.rand(len(log_weights)))
                 accept = (log_weights - log_constant) > log_u
+            logger.debug("Total number of samples: %s", samples.size)
             self.x = samples[accept][:N]
         else:
             self.x = samples[:N]
