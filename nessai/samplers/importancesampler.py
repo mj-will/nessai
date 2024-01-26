@@ -500,8 +500,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             super().initialise_history()
             self.history.update(
                 dict(
-                    min_logL=[],
-                    max_logL=[],
+                    min_log_likelihood=[],
+                    max_log_likelihood=[],
                     logL_threshold=[],
                     logX=[],
                     gradients=[],
@@ -527,8 +527,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def update_history(self) -> None:
         """Update the history dictionary"""
-        self.history["min_logL"].append(np.min(self.live_points["logL"]))
-        self.history["max_logL"].append(np.max(self.live_points["logL"]))
+        self.history["min_log_likelihood"].append(
+            np.min(self.live_points["logL"])
+        )
+        self.history["max_log_likelihood"].append(
+            np.max(self.live_points["logL"])
+        )
         self.history["median_logL"].append(np.median(self.live_points["logL"]))
         self.history["logL_threshold"].append(self.logL_threshold)
         self.history["logX"].append(self.logX)
@@ -1339,7 +1343,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         max_samples = int(max_samples_ratio * self.nested_samples.size)
 
-        max_logL = np.max(self.nested_samples["logL"])
+        max_log_likelihood = np.max(self.nested_samples["logL"])
 
         logger.debug(f"Expected efficiency: {eff:.3f}")
         if not any([n_post, n_draw]):
@@ -1439,9 +1443,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 it_samples
             )
 
-            if np.any(it_samples["logL"] > max_logL):
+            if np.any(it_samples["logL"] > max_log_likelihood):
                 logger.warning(
-                    f"Max logL increased from {max_logL:.3f} to "
+                    f"Max logL increased from {max_log_likelihood:.3f} to "
                     f"{it_samples['logL'].max():.3f}"
                 )
 
@@ -1528,12 +1532,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         ax[m].plot(
             its,
-            self.history["min_logL"],
+            self.history["min_log_likelihood"],
             label="Min. Log L",
         )
         ax[m].plot(
             its,
-            self.history["max_logL"],
+            self.history["max_log_likelihood"],
             label="Max. Log L",
         )
         ax[m].plot(

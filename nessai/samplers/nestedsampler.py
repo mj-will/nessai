@@ -552,8 +552,8 @@ class NestedSampler(BaseNestedSampler):
             self.history.update(
                 dict(
                     iterations=[],
-                    min_likelihood=[],
-                    max_likelihood=[],
+                    min_log_likelihood=[],
+                    max_log_likelihood=[],
                     logZ=[],
                     dlogZ=[],
                     mean_acceptance=[],
@@ -568,8 +568,8 @@ class NestedSampler(BaseNestedSampler):
     def update_history(self):
         super().update_history()
         self.history["iterations"].append(self.iteration)
-        self.history["min_likelihood"].append(self.logLmin)
-        self.history["max_likelihood"].append(self.logLmax)
+        self.history["min_log_likelihood"].append(self.logLmin)
+        self.history["max_log_likelihood"].append(self.logLmax)
         self.history["logZ"].append(self.state.logZ)
         self.history["dlogZ"].append(self.condition)
         self.history["mean_acceptance"].append(self.mean_acceptance)
@@ -992,8 +992,8 @@ class NestedSampler(BaseNestedSampler):
         for a in ax:
             a.axvline(self.iteration, c="#ff9900", ls="-.")
 
-        ax[0].plot(it, self.history["min_likelihood"], label="Min log L")
-        ax[0].plot(it, self.history["max_likelihood"], label="Max log L")
+        ax[0].plot(it, self.history["min_log_likelihood"], label="Min log L")
+        ax[0].plot(it, self.history["max_log_likelihood"], label="Max log L")
         ax[0].set_ylabel(r"$\log L$")
         ax[0].legend(frameon=False)
 
