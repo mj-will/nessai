@@ -310,7 +310,7 @@ class NestedSampler(BaseNestedSampler):
     @property
     def last_updated(self):
         """Last time the normalising flow was retrained"""
-        if self.history["training_iterations"]:
+        if self.history and self.history["training_iterations"]:
             return self.history["training_iterations"][-1]
         else:
             return 0
