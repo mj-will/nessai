@@ -5,6 +5,7 @@ Base object for all proposal classes.
 from abc import ABC, abstractmethod
 import datetime
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class Proposal(ABC):
         self.training_count = 0
         self.population_acceptance = None
         self.population_time = datetime.timedelta()
-        self.r = None
+        self.r = np.nan
         self.samples = []
         self.indices = []
         self._checked_population = True

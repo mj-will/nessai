@@ -1695,7 +1695,7 @@ class FlowProposal(RejectionProposal):
         self.populated_count = 0
         self.population_acceptance = None
         self._poolsize_scale = 1.0
-        self.r = None
+        self.r = np.nan
         self.alt_dist = None
         self._checked_population = True
         self.acceptance = []
