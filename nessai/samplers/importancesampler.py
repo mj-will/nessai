@@ -497,29 +497,30 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def initialise_history(self) -> None:
         """Initialise the dictionary to store history"""
         if self.history is None:
-            logger.debug("Initialising history dictionary")
-            self.history = dict(
-                min_logL=[],
-                max_logL=[],
-                logL_threshold=[],
-                logX=[],
-                gradients=[],
-                median_logL=[],
-                leakage_live_points=[],
-                leakage_new_points=[],
-                logZ=[],
-                n_live=[],
-                n_added=[],
-                n_removed=[],
-                n_post=[],
-                live_points_ess=[],
-                pool_entropy=[],
-                samples_entropy=[],
-                proposal_entropy=[],
-                likelihood_evaluations=[],
-                stopping_criteria={
-                    k: [] for k in self.stopping_criterion_aliases.keys()
-                },
+            super().initialise_history()
+            self.history.update(
+                dict(
+                    min_logL=[],
+                    max_logL=[],
+                    logL_threshold=[],
+                    logX=[],
+                    gradients=[],
+                    median_logL=[],
+                    leakage_live_points=[],
+                    leakage_new_points=[],
+                    logZ=[],
+                    n_live=[],
+                    n_added=[],
+                    n_removed=[],
+                    n_post=[],
+                    live_points_ess=[],
+                    pool_entropy=[],
+                    samples_entropy=[],
+                    proposal_entropy=[],
+                    stopping_criteria={
+                        k: [] for k in self.stopping_criterion_aliases.keys()
+                    },
+                )
             )
         else:
             logger.debug("History dictionary already initialised")
@@ -1520,7 +1521,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         its = np.arange(self.iteration)
 
         for a in ax:
-            a.vlines(self.checkpoint_iterations, 0, 1, color="C2")
+            a.vlines(self.history["checkpoint_iterations"], 0, 1, color="C2")
 
         # Counter for each plot
         m = 0
@@ -1876,7 +1877,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def get_result_dictionary(self):
         """Get a dictionary contain the main results from the sampler."""
         d = super().get_result_dictionary()
-        d["history"] = self.history
         d["initial_samples"] = self.samples
         d["initial_log_evidence"] = self.log_evidence
         d["initial_log_evidence_error"] = self.log_evidence_error
