@@ -72,7 +72,7 @@ def test_populate_live_points_none_returned(sampler):
 def test_insertion_indices(mock_fn, rolling, sampler):
     """Test computing the distribution of insertion indices"""
     sampler.iteration = 100
-    sampler.rolling_p = []
+    sampler.history = dict(rolling_p=[])
     sampler.final_p_value = None
     sampler.final_ks_statistic = None
     sampler.insertion_indices = np.random.randint(
@@ -82,7 +82,7 @@ def test_insertion_indices(mock_fn, rolling, sampler):
     NestedSampler.check_insertion_indices(sampler, rolling=rolling)
 
     if rolling:
-        assert len(sampler.rolling_p) == 1
+        assert len(sampler.history["rolling_p"]) == 1
         np.testing.assert_array_equal(
             mock_fn.call_args_list[0][0][0],
             sampler.insertion_indices[-sampler.nlive :],

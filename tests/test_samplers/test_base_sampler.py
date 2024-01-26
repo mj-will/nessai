@@ -78,6 +78,7 @@ def test_init(sampler, checkpoint_on_iteration):
     assert sampler.live_points is None
     assert sampler.iteration == 0
     assert sampler.finalised is False
+    assert sampler.history is None
 
 
 def test_likelihood_evaluation_time(sampler):
@@ -270,7 +271,7 @@ def test_checkpoint_iteration(sampler, wait, periodic):
     Make sure a file is produced and that the sampling time is updated.
     Also checks to make sure that the iteration is recorded when periodic=False
     """
-    sampler.checkpoint_iterations = [10]
+    sampler.history = dict(checkpoint_iterations=[10])
     sampler.checkpoint_on_iteration = True
     sampler.checkpoint_interval = 10
     sampler.checkpoint_callback = None
@@ -293,10 +294,10 @@ def test_checkpoint_iteration(sampler, wait, periodic):
     assert sampler.sampling_time.total_seconds() > 0.0
 
     if periodic:
-        assert sampler.checkpoint_iterations == [10]
+        assert sampler.history["checkpoint_iterations"] == [10]
         assert sampler._last_checkpoint == 20
     else:
-        assert sampler.checkpoint_iterations == [10, 20]
+        assert sampler.history["checkpoint_iterations"] == [10, 20]
 
 
 def test_checkpoint_time(sampler, wait):
@@ -374,7 +375,7 @@ def test_checkpoint_callback(sampler):
 
     callback = MagicMock()
 
-    sampler.checkpoint_iterations = [10]
+    sampler.history = dict(checkpoint_iterations=[10])
     sampler.checkpoint_on_iteration = True
     sampler.checkpoint_interval = 10
     sampler.checkpoint_callback = callback
@@ -443,6 +444,7 @@ def test_get_result_dictionary(sampler):
     sampler.likelihood_evaluation_time = datetime.timedelta(seconds=2)
     sampler.model.truth = 1.0
     sampler.model.likelihood_evaluations = 10
+    sampler.history = None
 
     d = BaseNestedSampler.get_result_dictionary(sampler)
 
@@ -451,6 +453,7 @@ def test_get_result_dictionary(sampler):
     assert d["total_likelihood_evaluations"] == 10
     assert d["likelihood_evaluation_time"] == 2
     assert d["truth"] == 1.0
+    assert "history" in d
 
 
 def test_getstate(sampler):

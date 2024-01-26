@@ -268,7 +268,7 @@ def test_train_proposal(sampler, wait):
     sampler.cooldown = 20
     sampler.memory = False
     sampler.training_time = datetime.timedelta()
-    sampler.training_iterations = []
+    sampler.history = dict(training_iterations=[])
     sampler.live_points = np.arange(10)
     sampler.checkpoint_on_training = True
     sampler.block_iteration = 10
@@ -280,7 +280,7 @@ def test_train_proposal(sampler, wait):
     sampler.proposal.train.assert_called_once()
     sampler.checkpoint.assert_called_once_with(periodic=True)
 
-    assert sampler.training_iterations == [100]
+    assert sampler.history["training_iterations"] == [100]
     assert sampler.training_time.total_seconds() > 0
     assert sampler.completed_training is True
     assert sampler.block_iteration == 0
@@ -298,7 +298,7 @@ def test_train_proposal_memory(sampler, wait):
     sampler.cooldown = 20
     sampler.memory = 2
     sampler.training_time = datetime.timedelta()
-    sampler.training_iterations = []
+    sampler.history = dict(training_iterations=[])
     sampler.nested_samples = np.arange(5)
     sampler.live_points = np.arange(5, 10)
     sampler.checkpoint_on_training = True
@@ -315,7 +315,7 @@ def test_train_proposal_memory(sampler, wait):
         sampler.proposal.train.call_args[0], np.array([[5, 6, 7, 8, 9, 3, 4]])
     )
 
-    assert sampler.training_iterations == [100]
+    assert sampler.history["training_iterations"] == [100]
     assert sampler.training_time.total_seconds() > 0
     assert sampler.completed_training is True
     assert sampler.block_iteration == 0
