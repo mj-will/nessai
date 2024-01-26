@@ -464,3 +464,27 @@ def test_getstate(sampler):
     assert "model" not in d
     assert d["_previous_likelihood_evaluations"] == 10
     assert d["_previous_likelihood_evaluation_time"] == 4
+
+
+def test_initialise_history(sampler):
+    sampler.history = None
+    BaseNestedSampler.initialise_history(sampler)
+    assert isinstance(sampler.history, dict)
+    assert "sampling_time" in sampler.history
+    assert "likelihood_evaluations" in sampler.history
+
+
+def test_initialise_history_skip(sampler, caplog):
+    caplog.set_level("DEBUG")
+    sampler.history = {}
+    BaseNestedSampler.initialise_history(sampler)
+    assert "already initialised" in str(caplog.text)
+
+
+def test_update_history(sampler):
+    sampler.total_likelihood_evaluations = 20
+    sampler.current_sampling_time = datetime.timedelta(seconds=2)
+    sampler.history = dict(likelihood_evaluations=[10], sampling_time=[1])
+    BaseNestedSampler.update_history(sampler)
+    assert sampler.history["likelihood_evaluations"] == [10, 20]
+    assert sampler.history["sampling_time"] == [1, 2]
