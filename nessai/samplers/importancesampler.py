@@ -983,9 +983,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             self.history["n_removed"].append(n)
         logger.debug(f"Removing {n} points")
-        print(n)
-        print(self.training_samples.live_points.size)
-        print(self.iid_samples.live_points.size)
         self.training_samples.remove_samples(n)
         if self.draw_iid_live:
             self.iid_samples.remove_samples(n)
