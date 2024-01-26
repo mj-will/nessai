@@ -1025,8 +1025,24 @@ class NestedSampler(BaseNestedSampler):
         )
         ax[2].set_ylabel("Likelihood\n evaluations")
         ax[2].set_yscale("log")
+        ax[2].legend()
 
-        ax[3].plot(it, self.logZ_history, label="logZ")
+        ax_time = plt.twinx(ax[2])
+        ax_time.plot(
+            it,
+            np.array(self.history["sampling_time"]) / 60,
+            ls=config.plotting.line_styles[1],
+            color="C1",
+            label="Time",
+        )
+        ax_time.set_ylabel("Sampling \ntime [min]")
+        handles, labels = ax[2].get_legend_handles_labels()
+        handles_time, labels_time = ax_time.get_legend_handles_labels()
+        ax[2].legend(
+            handles + handles_time, labels + labels_time, frameon=False
+        )
+
+        ax[3].plot(it, self.history["logZ"], label="logZ")
         ax[3].set_ylabel(r"$\log Z$")
         ax[3].legend(frameon=False)
 
