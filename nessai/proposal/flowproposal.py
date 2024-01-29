@@ -1488,6 +1488,7 @@ class FlowProposal(RejectionProposal):
                 log_u = np.log(np.random.rand(len(log_weights)))
                 accept = (log_weights - log_constant) > log_u
             logger.debug("Total number of samples: %s", samples.size)
+            n_accepted = np.sum(accept)
             self.x = samples[accept][:N]
         else:
             self.x = samples[:N]
