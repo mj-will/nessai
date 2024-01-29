@@ -275,7 +275,12 @@ class BaseNestedSampler(ABC):
         """
         now = datetime.datetime.now()
         if not periodic:
-            self.history["checkpoint_iterations"] += [self.iteration]
+            if self.history:
+                self.history["checkpoint_iterations"] += [self.iteration]
+            else:
+                logger.warning(
+                    "Could not log checkpoint iteration in the history"
+                )
         elif force:
             pass
         else:
