@@ -189,7 +189,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         self.strict_threshold = strict_threshold
         self.logX = 0.0
-        self.logL_threshold = -np.inf
+        self.log_likelihood_threshold = -np.inf
         self.logL_pre = -np.inf
         self.logL = -np.inf
         self.draw_constant = draw_constant
@@ -600,7 +600,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history["median_logL"].append(
             np.median(self.live_points_unit["logL"])
         )
-        self.history["logL_threshold"].append(self.logL_threshold)
+        self.history["logL_threshold"].append(self.log_likelihood_threshold)
         self.history["logX"].append(self.logX)
         self.history["gradients"].append(self.gradient)
         self.history["logZ"].append(self.state.logZ)
@@ -618,7 +618,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             )
 
     def determine_threshold_quantile(
-        self, q: float = 0.8, include_likelihood: bool = False
+        self,
+        samples: np.ndarray,
+        q: float = 0.8,
+        include_likelihood: bool = False,
     ) -> int:
         """Determine where the next likelihood threshold should be located.
 
@@ -626,6 +629,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         Parameters
         ----------
+        samples : np.ndarray
+            An array of samples
         q : float
             Quantile to use. Defaults to 0.8
         include_likelihood : bool
@@ -637,13 +642,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
             The number of live points to discard.
         """
         logger.debug(f"Determining {q:.3f} quantile")
-        a = self.live_points_unit["logL"]
+        a = samples["logL"]
         if include_likelihood:
-            log_weights = (
-                self.live_points_unit["logW"] + self.live_points_unit["logL"]
-            )
+            log_weights = samples["logW"] + samples["logL"]
         else:
-            log_weights = self.live_points_unit["logW"].copy()
+            log_weights = samples["logW"].copy()
         cutoff = weighted_quantile(
             a, q, log_weights=log_weights, values_sorted=True
         )
@@ -655,6 +658,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def determine_threshold_entropy(
         self,
+        samples: np.ndarray,
         q: float = 0.5,
         include_likelihood: bool = False,
         use_log_weights: bool = True,
@@ -674,11 +678,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             log-weights.
         """
         if include_likelihood:
-            log_weights = (
-                self.live_points_unit["logW"] + self.live_points_unit["logL"]
-            )
+            log_weights = samples["logW"] + samples["logL"]
         else:
-            log_weights = self.live_points_unit["logW"]
+            log_weights = samples["logW"]
         if use_log_weights:
             p = log_weights
         else:
@@ -694,8 +696,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             )
             os.makedirs(output, exist_ok=True)
             self.plot_level_cdf(
+                samples["logL"],
                 cdf,
-                threshold=self.live_points_unit["logL"][n],
+                threshold=samples["logL"][n],
                 q=q,
                 filename=os.path.join(output, "cdf.png"),
             )
@@ -704,6 +707,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     @nessai_style
     def plot_level_cdf(
         self,
+        log_likelihood_values: np.ndarray,
         cdf: np.ndarray,
         threshold: float,
         q: float,
@@ -713,6 +717,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         Parameters
         ----------
+        log_likelihood_values : np.ndarray
+            The log-likelihood values for the CDF
         cdf : np.ndarray
             The CDF to plot
         filename : Optional[str]
@@ -726,7 +732,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             specified.
         """
         fig = plt.figure()
-        plt.plot(self.live_points_unit["logL"], cdf)
+        plt.plot(log_likelihood_values, cdf)
         plt.xlabel("Log-likelihood")
         plt.title("CDF")
         plt.axhline(q, c="C1")
@@ -738,20 +744,33 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return fig
 
-    def determine_likelihood_threshold(
-        self, method="entropy", **kwargs
+    def determine_log_likelihood_threshold(
+        self,
+        samples: np.ndarray,
+        method: Literal["entropy", "quantile"] = "entropy",
+        **kwargs,
     ) -> int:
         """Determine the next likelihood threshold
 
+        Parameters
+        ----------
+        samples : numpy.ndarray
+            An array of samples
+        method : Literal["entropy", "quantile"]
+            The method to use
+        kwargs :
+            Keyword arguments passed to the function for the chosen method.
+
+
         Returns
         -------
-        int :
-            The number of samples to remove from the current live points.
+        float
+            The log-likelihood threshold
         """
         if method == "quantile":
-            n = self.determine_threshold_quantile(**kwargs)
+            n = self.determine_threshold_quantile(samples, **kwargs)
         elif method == "entropy":
-            n = self.determine_threshold_entropy(**kwargs)
+            n = self.determine_threshold_entropy(samples, **kwargs)
         else:
             raise ValueError(method)
         logger.debug(f"Next iteration should remove {n} points")
@@ -760,28 +779,30 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 return 0
             else:
                 n = 1
-        if (self.live_points_unit.size - n) < self.min_samples:
+        if (samples.size - n) < self.min_samples:
             logger.warning(
-                f"Cannot remove {n} from {self.live_points_unit.size}, "
+                f"Cannot remove {n} from {samples.size}, "
                 f"min_samples={self.min_samples}"
             )
-            n = max(0, self.live_points_unit.size - self.min_samples)
+            n = max(0, samples.size - self.min_samples)
         elif n < self.min_remove:
             logger.warning(
                 f"Cannot remove less than {self.min_remove} samples"
             )
             n = self.min_remove
 
-        self.logL_threshold = self.live_points_unit[n]["logL"].copy()
+        threshold = samples[n]["logL"].copy()
+        return threshold
+
+    def update_log_likelihood_threshold(self, threshold: float) -> None:
+        self.log_likelihood_threshold = threshold
         self.training_samples.update_log_likelihood_threshold(
-            self.logL_threshold
+            self.log_likelihood_threshold
         )
         if self.iid_samples:
             self.iid_samples.update_log_likelihood_threshold(
-                self.logL_threshold
+                self.log_likelihood_threshold
             )
-        logger.info(f"Log-likelihood threshold: {self.logL_threshold}")
-        return n
 
     def add_new_proposal(self):
         """Add a new proposal to the meta proposal"""
@@ -793,7 +814,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         # with e.g. 1 point.
         n_train = min(
             np.argmax(
-                self.training_samples.samples["logL"] >= self.logL_threshold
+                self.training_samples.samples["logL"]
+                >= self.log_likelihood_threshold
             ),
             self.training_samples.samples.size - self.min_samples,
         )
@@ -887,11 +909,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         if weights:
             return (
-                np.sum(samples["logW"][samples["logL"] < self.logL_threshold])
+                np.sum(
+                    samples["logW"][
+                        samples["logL"] < self.log_likelihood_threshold
+                    ]
+                )
                 / samples["logW"].sum()
             )
         else:
-            return (samples["logL"] < self.logL_threshold).sum() / samples.size
+            return (
+                samples["logL"] < self.log_likelihood_threshold
+            ).sum() / samples.size
 
     def add_and_update_points(self, n: int):
         """Add new points to the current set of live points.
@@ -968,25 +996,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history["leakage_live_points"].append(
             self.compute_leakage(self.live_points_unit)
         )
+        logger.info(f"Current n samples: {self.live_points_unit.size}")
         logger.debug(f"Current live points ESS: {self.live_points_ess:.2f}")
+
         self.add_and_update_samples_time += datetime.datetime.now() - st
 
-    def remove_samples(self, n: int) -> None:
-        """Remove samples from the current set of live points.
-
-        Parameters
-        ----------
-        n : int
-            The number of samples to remove.
-        """
-        if self.replace_all:
-            self.history["n_removed"].append(self.live_points_unit.size)
-        else:
-            self.history["n_removed"].append(n)
-        logger.debug(f"Removing {n} points")
-        self.training_samples.remove_samples(n)
+    def remove_samples(self) -> int:
+        """Remove samples from the current set of live points."""
+        n_removed = self.training_samples.remove_samples()
         if self.draw_iid_live:
-            self.iid_samples.remove_samples(n)
+            n_removed = self.iid_samples.remove_samples()
+        self.history["n_removed"].append(n_removed)
+        return n_removed
 
     def adjust_final_samples(self, n_batches=5):
         """Adjust the final samples"""
@@ -1206,44 +1227,30 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self._compute_gradient()
 
             if self.n_update is None:
-                n_remove = self.determine_likelihood_threshold(
-                    method=self.threshold_method, **self.threshold_kwargs
+                threshold = self.determine_log_likelihood_threshold(
+                    self.live_points_unit,
+                    method=self.threshold_method,
+                    **self.threshold_kwargs,
                 )
-                if n_remove == 0:
-                    logger.warning("No points to remove")
-                    logger.warning("Stopping")
-                    break
             else:
-                n_remove = self.n_update
-                if (self.live_points_unit.size - n_remove) < self.min_samples:
-                    n_remove = self.live_points_unit.size - self.min_samples
-                logger.info(
-                    f"Removing {n_remove} samples from "
-                    f"{self.live_points_unit.size}"
-                )
-                self.logL_threshold = self.live_points_unit[n_remove][
-                    "logL"
-                ].copy()
-                self.training_samples.update_log_likelihood_threshold(
-                    self.logL_threshold
-                )
-                if self.iid_samples:
-                    self.iid_samples.update_log_likelihood_threshold(
-                        self.logL_threshold
-                    )
-            self.remove_samples(n_remove)
+                threshold = self.live_points_unit[self.n_update]["logL"].copy()
+
+            logger.info(f"Log-likelihood threshold: {threshold}")
+            self.update_log_likelihood_threshold(threshold)
+
+            n_removed = self.remove_samples()
 
             self.add_new_proposal()
 
             if self.draw_constant or self.replace_all:
                 n_add = self.nlive
             else:
-                n_add = n_remove
+                n_add = n_removed
             self.add_and_update_points(n_add)
 
-            self.importance = self.compute_importance(importance_ratio=0.5)
-
             self.update_evidence()
+
+            self.importance = self.compute_importance(importance_ratio=0.5)
 
             self.criterion = self.compute_stopping_criterion()
 
@@ -2201,22 +2208,28 @@ class OrderedSamples:
             indices,
         )
 
-    def remove_samples(self, n: int) -> None:
-        """Remove samples from the current set of live points.
+    def remove_samples(self) -> int:
+        """Remove samples all samples below the current log-likelihood
+        threshold.
 
-        Parameters
-        ----------
+        Returns
+        -------
         n : int
-            The number of samples to remove.
+            The number of samples removed
         """
         if self.replace_all:
+            n = len(self.live_points_indices)
             self.add_to_nested_samples(self.live_points_indices)
             self.live_points_indices = None
         else:
+            n = np.argmax(
+                self.live_points["logL"] >= self.log_likelihood_threshold
+            )
             self.add_to_nested_samples(self.live_points_indices[:n])
             self.live_points_indices = np.delete(
                 self.live_points_indices, np.s_[:n]
             )
+        return n
 
     def update_evidence(self) -> None:
         """Update the evidence estimate given the current samples"""
@@ -2246,17 +2259,19 @@ class OrderedSamples:
             Dictionary containing the total, posterior and evidence importance
             as a function of iteration.
         """
-        log_imp_post = np.empty(self.log_q.shape[1])
-        log_imp_z = np.empty(self.log_q.shape[1])
+        log_imp_post = -np.inf * np.ones(self.log_q.shape[1])
+        log_imp_z = -np.inf * np.ones(self.log_q.shape[1])
         for i, it in enumerate(range(-1, self.log_q.shape[-1] - 1)):
             sidx = np.where(self.samples["it"] == it)[0]
             zidx = np.where(self.samples["it"] >= it)[0]
-            log_imp_post[i] = logsumexp(
-                self.samples["logL"][sidx] + self.samples["logW"][sidx]
-            ) - np.log(len(sidx))
-            log_imp_z[i] = logsumexp(
-                self.samples["logL"][zidx] + self.samples["logW"][zidx]
-            ) - np.log(len(zidx))
+            if len(sidx):
+                log_imp_post[i] = logsumexp(
+                    self.samples["logL"][sidx] + self.samples["logW"][sidx]
+                ) - np.log(len(sidx))
+            if len(zidx):
+                log_imp_z[i] = logsumexp(
+                    self.samples["logL"][zidx] + self.samples["logW"][zidx]
+                ) - np.log(len(zidx))
         imp_z = np.exp(log_imp_z - logsumexp(log_imp_z))
         imp_post = np.exp(log_imp_post - logsumexp(log_imp_post))
         imp = (1 - importance_ratio) * imp_z + importance_ratio * imp_post
