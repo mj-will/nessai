@@ -12,10 +12,11 @@ import pytest
 def test_determine_threshold_entropy(
     ins, samples, include_likelihood, use_log_weights
 ):
-    ins.live_points = np.sort(samples, order="logL")
+    samples = np.sort(samples, order="logL")
     ins.plot = False
     n = INS.determine_threshold_entropy(
         ins,
+        samples,
         q=0.5,
         use_log_weights=use_log_weights,
         include_likelihood=include_likelihood,
@@ -24,7 +25,7 @@ def test_determine_threshold_entropy(
 
 
 def test_determine_threshold_entropy_plot(ins, samples, tmp_path):
-    ins.live_points = np.sort(samples, order="logL")
+    samples = np.sort(samples, order="logL")
     ins.plot = True
     ins._plot_level_cdf = True
     ins.output = tmp_path / "test_entropy_plot"
@@ -32,6 +33,7 @@ def test_determine_threshold_entropy_plot(ins, samples, tmp_path):
     ins.iteration = 2
     n = INS.determine_threshold_entropy(
         ins,
+        samples,
         q=0.5,
     )
     assert 0 < n < samples.size
@@ -41,10 +43,11 @@ def test_determine_threshold_entropy_plot(ins, samples, tmp_path):
 
 @pytest.mark.parametrize("include_likelihood", [False, True])
 def test_determine_threshold_quantile(ins, samples, include_likelihood):
-    ins.live_points = np.sort(samples, order="logL")
+    samples = np.sort(samples, order="logL")
     ins.plot = False
     n = INS.determine_threshold_quantile(
         ins,
+        samples,
         q=0.8,
         include_likelihood=include_likelihood,
     )
@@ -71,19 +74,25 @@ def test_determine_threshold(
 ):
     ins.min_samples = min_samples
     ins.min_remove = min_remove
-    ins.live_points = np.empty(n_live, dtype=[("x", "f8"), ("logL", "f8")])
-    ins.live_points["logL"] = np.arange(n_live)
+    samples = np.empty(n_live, dtype=[("x", "f8"), ("logL", "f8")])
+    samples["logL"] = 10 * np.arange(n_live)
+
+    expected = samples["logL"][expected]
 
     ins.determine_threshold_quantile = MagicMock(return_value=n)
     ins.determine_threshold_entropy = MagicMock(return_value=n)
 
-    out = INS.determine_likelihood_threshold(ins, method, q=0.8)
+    out = INS.determine_log_likelihood_threshold(
+        ins, samples, method=method, q=0.8
+    )
 
     if method == "entropy":
-        ins.determine_threshold_entropy.assert_called_once_with(q=0.8)
+        ins.determine_threshold_entropy.assert_called_once_with(samples, q=0.8)
         ins.determine_threshold_quantile.assert_not_called()
     else:
-        ins.determine_threshold_quantile.assert_called_once_with(q=0.8)
+        ins.determine_threshold_quantile.assert_called_once_with(
+            samples, q=0.8
+        )
         ins.determine_threshold_entropy.assert_not_called()
 
     assert out == expected

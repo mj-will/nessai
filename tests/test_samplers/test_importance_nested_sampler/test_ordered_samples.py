@@ -26,10 +26,21 @@ def nested_samples(samples):
     return samples[: samples.size // 2]
 
 
-def test_sort_samples_integration(ordered_samples):
+def test_sort_samples_only(ordered_samples):
     samples = np.array(np.random.randn(10), [("logL", "f8")])
     samples_out = OrderedSamples.sort_samples(ordered_samples, samples)
     assert np.all(np.diff(samples_out["logL"]) > 0)
+
+
+def test_sort_samples_with_log_q(ordered_samples):
+    samples = np.array(np.random.randn(10), [("logL", "f8")])
+    order = np.argsort(samples["logL"])
+    extra = np.arange(samples.size)
+    sorted_samples, sorted_extra = OrderedSamples.sort_samples(
+        ordered_samples, samples, extra
+    )
+    assert_structured_arrays_equal(sorted_samples, samples[order])
+    np.testing.assert_array_equal(sorted_extra, extra[order])
 
 
 def test_add_initial_samples(ordered_samples, samples, log_q):

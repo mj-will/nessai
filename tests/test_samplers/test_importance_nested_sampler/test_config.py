@@ -33,7 +33,7 @@ def test_configure_max_iterations(ins, it, expected):
 
 def test_initialise(ins):
     ins.initialised = False
-    ins.live_points = None
+    ins.live_points_unit = None
     ins.populate_live_points = MagicMock()
     ins.proposal = MagicMock()
 
