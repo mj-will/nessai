@@ -661,9 +661,8 @@ class ImportanceFlowProposal(Proposal):
 
     def draw_from_prior(self, n: int) -> Tuple[np.ndarray, np.ndarray]:
         """Draw from the prior"""
-        cube_samples = np.random.rand(n, self.model.dims)
-        prime_samples, log_j = self.to_prime(cube_samples)
-        samples = self.inverse_rescale(prime_samples)[0]
+        samples = self.model.sample_unit_hypercube(n)
+        prime_samples, log_j = self.rescale(samples)
         log_Q, log_q = self.compute_log_Q(prime_samples, log_j=log_j)
         samples["logQ"] = log_Q
         samples["logW"] = -log_Q
