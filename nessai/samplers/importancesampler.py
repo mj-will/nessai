@@ -1012,7 +1012,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def adjust_final_samples(self, n_batches=5):
         """Adjust the final samples"""
         orig_n_total = len(self.samples_unit)
-        its, counts = np.unique(self.samples["it"], return_counts=True)
+        its, counts = np.unique(self.samples_unit["it"], return_counts=True)
         assert counts.sum() == orig_n_total
         weights = counts / orig_n_total
         original_unnorm_weight = counts.copy()
