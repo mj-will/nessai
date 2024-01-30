@@ -771,8 +771,10 @@ def test_run_ins(flow_sampler, close_pool):
     nested_samples = np.array([1, 2, 3])
     post = np.array([1, 2])
     ns = MagicMock()
-    ns.nested_sampling_loop = MagicMock(return_value=(logZ, nested_samples))
-    ns.state.log_evidence_error = logZ_err
+    ns.nested_sampling_loop = MagicMock()
+    ns.nested_samples = nested_samples
+    ns.log_evidence = logZ
+    ns.log_evidence_error = logZ_err
     ns.draw_posterior_samples = MagicMock(return_value=post)
     ns.close_pool = MagicMock()
     flow_sampler.ns = ns
@@ -790,6 +792,7 @@ def test_run_ins(flow_sampler, close_pool):
     assert flow_sampler.logZ_error is logZ_err
     assert flow_sampler.initial_posterior_samples is post
     assert flow_sampler.posterior_samples is post
+    assert flow_sampler._nested_samples is nested_samples
     if close_pool:
         ns.close_pool.assert_called_once()
 
@@ -807,13 +810,16 @@ def test_run_ins_redraw(flow_sampler):
     post = np.array([1, 2])
     final_post = np.array([4, 5])
     ns = MagicMock()
-    ns.nested_sampling_loop = MagicMock(return_value=(logZ, nested_samples))
-    ns.state.log_evidence_error = logZ_err
+    ns.nested_sampling_loop = MagicMock()
+    ns.nested_samples = nested_samples
+    ns.log_evidence = logZ
+    ns.log_evidence_error = logZ_err
+    ns.final_log_evidence = final_logZ
     ns.final_log_evidence_error = final_logZ_err
     ns.draw_posterior_samples = MagicMock(
         side_effect=[post, final_post],
     )
-    ns.draw_final_samples = MagicMock(return_value=(final_logZ, final_samples))
+    ns.draw_final_samples = MagicMock(return_value=(np.nan, final_samples))
     flow_sampler.ns = ns
 
     FlowSampler.run_importance_nested_sampler(
@@ -839,6 +845,7 @@ def test_run_ins_redraw(flow_sampler):
     assert flow_sampler.initial_logZ is logZ
     assert flow_sampler.initial_logZ_error is logZ_err
     assert flow_sampler.initial_posterior_samples is post
+    assert flow_sampler._nested_samples is nested_samples
 
     assert flow_sampler.logZ is final_logZ
     assert flow_sampler.logZ_error is final_logZ_err
