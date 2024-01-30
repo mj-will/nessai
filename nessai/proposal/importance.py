@@ -587,10 +587,12 @@ class ImportanceFlowProposal(Proposal):
     def compute_meta_proposal_samples(self, samples: np.ndarray) -> np.ndarray:
         """Compute the meta proposal Q for a set of samples.
 
-        Includes the transform to the unit hypercube.
+        Includes any rescaling that has been configured.
 
         Returns
         -------
+        log_meta_proposal : numpy.ndarray
+            Array of meta-proposal log probabilities (log Q)
         log_q : numpy.ndarray
             Array of log q for each flow.
         """
@@ -604,10 +606,7 @@ class ImportanceFlowProposal(Proposal):
                 "existing samples!"
             )
         x, log_j = self.rescale(samples)
-        log_Q, log_q = self.compute_log_Q(x, log_j=log_j)
-        samples["logQ"] = log_Q
-        samples["logW"] = -samples["logQ"]
-        return log_q
+        return self.compute_log_Q(x, log_j=log_j)
 
     def _log_prior(self, x: np.ndarray) -> np.ndarray:
         """Helper function that returns the prior in the unit hyper-cube."""
