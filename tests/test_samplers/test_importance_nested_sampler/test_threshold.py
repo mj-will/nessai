@@ -106,8 +106,9 @@ def test_determine_threshold(
     "min_samples, max_samples, n_live, expected",
     [
         [50, 10, 5, 10, 55, 30, 25],
-        [56, 10, 5, 10, 55, 30, 26],
+        [56, 10, 5, 10, 55, 30, 31],
         [50, 20, 5, 10, 100, 30, 20],
+        [1601, 100, 50, 50, 1600, 200, 201],
     ],
 )
 def test_determine_threshold_max_samples(
