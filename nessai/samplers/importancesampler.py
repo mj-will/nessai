@@ -69,6 +69,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Minimum number of samples that can be removed when creating the next
         level. If less than one, the sampler will stop if the level method
         determines no samples should be removed.
+    max_samples
+        The maximum number of samples at any given iteration. If not specified,
+        then there is no limit to the number of samples.
     plot_likelihood_levels
         Enable or disable plotting the likelihood levels.
     trace_plot_kwargs
@@ -111,6 +114,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         max_iteration: Optional[int] = None,
         min_samples: int = 500,
         min_remove: int = 1,
+        max_samples: Optional[int] = None,
         stopping_criterion: str = "ratio",
         tolerance: float = 0.0,
         n_update: Optional[int] = None,
@@ -171,6 +175,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.n_initial = self.nlive if n_initial is None else n_initial
         self.min_samples = min_samples
         self.min_remove = min_remove
+        self.max_samples = max_samples
         self.n_update = n_update
         self.plot_pool = plot_pool
         self._plot_level_cdf = plot_level_cdf
@@ -790,6 +795,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 f"Cannot remove less than {self.min_remove} samples"
             )
             n = self.min_remove
+
+        if (
+            self.draw_constant
+            and self.max_samples
+            and ((samples.size - n) + self.nlive) > self.max_samples
+        ):
+            n = self.nlive
+            logger.warning(
+                "Next level would have more than max samples, "
+                f"removing {n} samples"
+            )
 
         threshold = samples[n]["logL"].copy()
         return threshold
