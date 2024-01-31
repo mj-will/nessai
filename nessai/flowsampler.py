@@ -477,8 +477,8 @@ class FlowSampler:
 
         self.ns.nested_sampling_loop()
         self._nested_samples = self.ns.samples
-        self.logZ = self.ns.state.log_evidence
-        self.logZ_error = self.ns.state.log_evidence_error
+        self.logZ = self.ns.log_evidence
+        self.logZ_error = self.ns.log_evidence_error
         logger.info(f"Total sampling time: {self.ns.sampling_time}")
         logger.info(
             "Total likelihood evaluations: "
@@ -491,10 +491,11 @@ class FlowSampler:
             logger.info("Redrawing samples")
             self.initial_logZ = self.logZ
             self.initial_logZ_error = self.logZ_error
-            self.logZ, self._final_samples = self.ns.draw_final_samples(
+            _, self._final_samples = self.ns.draw_final_samples(
                 n_post=n_posterior_samples,
                 **kwargs,
             )
+            self.logZ = self.ns.final_log_evidence
             self.logZ_error = self.ns.final_log_evidence_error
 
         logger.info("Computing posterior samples")
