@@ -383,3 +383,21 @@ class _INSIntegralState(_BaseNSIntegralState):
             return float(np.abs(u / Z_hat))
         else:
             return u
+
+
+def log_evidence_from_ins_samples(samples: np.ndarray) -> float:
+    """Compute the log-evidence for a given set of samples from the importance
+    nested sampler.
+
+    Parameters
+    ----------
+    samples : numpy.ndarray
+        Array of samples from the importance nested samples. Must have the logW
+        field.
+
+    Returns
+    -------
+    float
+        The log-evidence
+    """
+    return logsumexp(samples["logL"] + samples["logW"]) - np.log(len(samples))
