@@ -74,10 +74,13 @@ def test_determine_threshold(
 ):
     ins.min_samples = min_samples
     ins.min_remove = min_remove
+    ins.max_samples = None
+    ins.draw_constant = True
+    ins.nlive = n_live
     samples = np.empty(n_live, dtype=[("x", "f8"), ("logL", "f8")])
     samples["logL"] = 10 * np.arange(n_live)
 
-    expected = samples["logL"][expected]
+    expected_log_l = samples["logL"][expected]
 
     ins.determine_threshold_quantile = MagicMock(return_value=n)
     ins.determine_threshold_entropy = MagicMock(return_value=n)
@@ -95,4 +98,49 @@ def test_determine_threshold(
         )
         ins.determine_threshold_entropy.assert_not_called()
 
-    assert out == expected
+    assert out == expected_log_l
+
+
+@pytest.mark.parametrize(
+    "n_samples, n_remove, min_remove, "
+    "min_samples, max_samples, n_live, expected",
+    [
+        [50, 10, 5, 10, 55, 30, 25],
+        [56, 10, 5, 10, 55, 30, 26],
+        [50, 20, 5, 10, 100, 30, 20],
+    ],
+)
+def test_determine_threshold_max_samples(
+    ins,
+    n_samples,
+    n_remove,
+    min_remove,
+    min_samples,
+    max_samples,
+    n_live,
+    expected,
+    caplog,
+):
+    ins.min_samples = min_samples
+    ins.min_remove = min_remove
+    ins.max_samples = max_samples
+    ins.draw_constant = True
+    ins.nlive = n_live
+    samples = np.empty(n_samples, dtype=[("x", "f8"), ("logL", "f8")])
+    samples["logL"] = 10 * np.arange(n_samples)
+
+    expected_log_l = samples["logL"][expected]
+
+    ins.determine_threshold_entropy = MagicMock(return_value=n_remove)
+
+    out = INS.determine_log_likelihood_threshold(
+        ins, samples, method="entropy", q=0.8
+    )
+
+    ins.determine_threshold_entropy.assert_called_once_with(samples, q=0.8)
+    assert out == expected_log_l
+
+    if expected != n_remove:
+        assert "Next level would have more than max samples" in str(
+            caplog.text
+        )
