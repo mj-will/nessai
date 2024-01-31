@@ -772,7 +772,7 @@ def test_run_ins(flow_sampler, close_pool):
     post = np.array([1, 2])
     ns = MagicMock()
     ns.nested_sampling_loop = MagicMock()
-    ns.nested_samples = nested_samples
+    ns.samples = nested_samples
     ns.log_evidence = logZ
     ns.log_evidence_error = logZ_err
     ns.draw_posterior_samples = MagicMock(return_value=post)
@@ -811,7 +811,7 @@ def test_run_ins_redraw(flow_sampler):
     final_post = np.array([4, 5])
     ns = MagicMock()
     ns.nested_sampling_loop = MagicMock()
-    ns.nested_samples = nested_samples
+    ns.samples = nested_samples
     ns.log_evidence = logZ
     ns.log_evidence_error = logZ_err
     ns.final_log_evidence = final_logZ
