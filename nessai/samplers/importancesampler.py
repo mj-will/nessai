@@ -1021,7 +1021,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             and self.max_samples
             and ((samples.size - n) + self.nlive) > self.max_samples
         ):
-            n = self.nlive
+            n = max(self.max_samples, samples.size) - self.nlive
             logger.warning(
                 "Next level would have more than max samples, "
                 f"removing {n} samples"
