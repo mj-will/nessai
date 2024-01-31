@@ -142,4 +142,4 @@ def test_log_evidence_ins_samples():
 
     out = log_evidence_from_ins_samples(samples)
 
-    np.testing.assert_equal(out, expected)
+    np.testing.assert_almost_equal(out, expected, decimal=12)

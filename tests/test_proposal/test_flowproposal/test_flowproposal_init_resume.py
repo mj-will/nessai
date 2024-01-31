@@ -242,7 +242,7 @@ def test_reset_integration(tmpdir, model, latent_prior):
         )
     )
     output = str(tmpdir.mkdir("reset_integration"))
-    poolsize = 2
+    poolsize = 1
     drawsize = 100
     if latent_prior != "truncated_gaussian":
         constant_volume_mode = False
