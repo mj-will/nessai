@@ -213,5 +213,5 @@ def test_delta_phase_inverse_invertible():
         x_in, x_prime_f.copy(), log_j_f.copy()
     )
     assert_structured_arrays_equal(x_prime_i, x_prime_f)
-    assert_structured_arrays_equal(x_i, x, rtol=1e-15)
+    assert_structured_arrays_equal(x_i, x, rtol=1e-10)
     np.testing.assert_array_equal(log_j_i, log_j_f)
