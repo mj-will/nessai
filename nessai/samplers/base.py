@@ -103,7 +103,6 @@ class BaseNestedSampler(ABC):
         self.sampling_time = datetime.timedelta()
         self.sampling_start_time = datetime.datetime.now()
         self.iteration = 0
-        self.checkpoint_iterations = []
         self.finalised = False
         self.resumed = False
 
@@ -112,6 +111,7 @@ class BaseNestedSampler(ABC):
         self.configure_periodic_logging(logging_interval, log_on_iteration)
 
         self.live_points = None
+        self.history = None
 
     @property
     def current_sampling_time(self):
@@ -232,6 +232,27 @@ class BaseNestedSampler(ABC):
                 self._last_log = now
         self.log_state()
 
+    def initialise_history(self) -> None:
+        """Initialise the dictionary to store history"""
+        if self.history is None:
+            logger.debug("Initialising history dictionary")
+            self.history = dict(
+                likelihood_evaluations=[],
+                sampling_time=[],
+                checkpoint_iterations=[],
+            )
+        else:
+            logger.debug("History dictionary already initialised")
+
+    def update_history(self) -> None:
+        """Update the history dictionary"""
+        self.history["likelihood_evaluations"].append(
+            self.total_likelihood_evaluations
+        )
+        self.history["sampling_time"].append(
+            self.current_sampling_time.total_seconds()
+        )
+
     def checkpoint(
         self,
         periodic: bool = False,
@@ -254,7 +275,12 @@ class BaseNestedSampler(ABC):
         """
         now = datetime.datetime.now()
         if not periodic:
-            self.checkpoint_iterations += [self.iteration]
+            if self.history:
+                self.history["checkpoint_iterations"] += [self.iteration]
+            else:
+                logger.warning(
+                    "Could not log checkpoint iteration in the history"
+                )
         elif force:
             pass
         else:
@@ -361,6 +387,7 @@ class BaseNestedSampler(ABC):
         d[
             "likelihood_evaluation_time"
         ] = self.likelihood_evaluation_time.total_seconds()
+        d["history"] = self.history
         if hasattr(self.model, "truth"):
             d["truth"] = self.model.truth
         return d

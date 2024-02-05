@@ -223,7 +223,6 @@ class NestedSampler(BaseNestedSampler):
         self.checkpoint_on_training = checkpoint_on_training
         self.iteration = 0
         self.acceptance_history = deque(maxlen=(nlive // 10))
-        self.mean_acceptance_history = []
         self.block_acceptance = 1.0
         self.mean_block_acceptance = 1.0
         self.block_iteration = 0
@@ -256,18 +255,6 @@ class NestedSampler(BaseNestedSampler):
 
         # Resume flags
         self.completed_training = True
-
-        # History
-        self.likelihood_evaluations = []
-        self.training_iterations = []
-        self.min_likelihood = []
-        self.max_likelihood = []
-        self.logZ_history = []
-        self.dlogZ_history = []
-        self.population_acceptance = []
-        self.population_radii = []
-        self.population_iterations = []
-        self.checkpoint_iterations = []
 
         self.acceptance_threshold = acceptance_threshold
 
@@ -323,8 +310,8 @@ class NestedSampler(BaseNestedSampler):
     @property
     def last_updated(self):
         """Last time the normalising flow was retrained"""
-        if self.training_iterations:
-            return self.training_iterations[-1]
+        if self.history and self.history["training_iterations"]:
+            return self.history["training_iterations"][-1]
         else:
             return 0
 
@@ -559,6 +546,34 @@ class NestedSampler(BaseNestedSampler):
             self.reset_weights = self.reset_flow
             self.reset_permutations = self.reset_flow
 
+    def initialise_history(self):
+        if not self.history:
+            super().initialise_history()
+            self.history.update(
+                dict(
+                    iterations=[],
+                    min_log_likelihood=[],
+                    max_log_likelihood=[],
+                    logZ=[],
+                    dlogZ=[],
+                    mean_acceptance=[],
+                    training_iterations=[],
+                    population_acceptance=[],
+                    population_radii=[],
+                    population_iterations=[],
+                    rolling_p=[],
+                )
+            )
+
+    def update_history(self):
+        super().update_history()
+        self.history["iterations"].append(self.iteration)
+        self.history["min_log_likelihood"].append(self.logLmin)
+        self.history["max_log_likelihood"].append(self.logLmax)
+        self.history["logZ"].append(self.state.logZ)
+        self.history["dlogZ"].append(self.condition)
+        self.history["mean_acceptance"].append(self.mean_acceptance)
+
     def log_state(self):
         """Log the current state of the sampler"""
         logger.info(
@@ -589,7 +604,7 @@ class NestedSampler(BaseNestedSampler):
                     f"it: {self.iteration:5d}: "
                     f"Rolling KS test: D={D:.4}, p-value={p:.4}"
                 )
-                self.rolling_p.append(p)
+                self.history["rolling_p"].append(p)
             else:
                 logger.info(f"Final KS test: D={D:.4}, p-value={p:.4}")
                 self.final_p_value = p
@@ -781,6 +796,8 @@ class NestedSampler(BaseNestedSampler):
         if self.condition > self.tolerance:
             self.finalised = False
 
+        self.initialise_history()
+
         if all(flags):
             self.initialised = True
 
@@ -920,7 +937,7 @@ class NestedSampler(BaseNestedSampler):
             st = datetime.datetime.now()
             self.proposal.train(training_data)
             self.training_time += datetime.datetime.now() - st
-            self.training_iterations.append(self.iteration)
+            self.history["training_iterations"].append(self.iteration)
 
             self.block_iteration = 0
             self.block_acceptance = 0.0
@@ -966,18 +983,17 @@ class NestedSampler(BaseNestedSampler):
 
         fig, ax = plt.subplots(7, 1, sharex=True, figsize=(12, 12))
         ax = ax.ravel()
-        it = (np.arange(len(self.min_likelihood))) * (self.nlive // 10)
-        it[-1] = self.iteration
+        it = np.array(self.history["iterations"])
 
-        for i in self.checkpoint_iterations:
+        for i in self.history["checkpoint_iterations"]:
             for a in ax:
                 a.axvline(i, ls=":", color="#66ccff")
 
         for a in ax:
             a.axvline(self.iteration, c="#ff9900", ls="-.")
 
-        ax[0].plot(it, self.min_likelihood, label="Min log L")
-        ax[0].plot(it, self.max_likelihood, label="Max log L")
+        ax[0].plot(it, self.history["min_log_likelihood"], label="Min log L")
+        ax[0].plot(it, self.history["max_log_likelihood"], label="Max log L")
         ax[0].set_ylabel(r"$\log L$")
         ax[0].legend(frameon=False)
 
@@ -1004,18 +1020,36 @@ class NestedSampler(BaseNestedSampler):
                 handles + handles_tw, labels + labels_tw, frameon=False
             )
 
-        ax[2].plot(it, self.likelihood_evaluations, label="Evaluations")
+        ax[2].plot(
+            it, self.history["likelihood_evaluations"], label="Evaluations"
+        )
         ax[2].set_ylabel("Likelihood\n evaluations")
         ax[2].set_yscale("log")
+        ax[2].legend()
 
-        ax[3].plot(it, self.logZ_history, label="logZ")
+        ax_time = plt.twinx(ax[2])
+        ax_time.plot(
+            it,
+            np.array(self.history["sampling_time"]) / 60,
+            ls=config.plotting.line_styles[1],
+            color="C1",
+            label="Time",
+        )
+        ax_time.set_ylabel("Sampling \ntime [min]")
+        handles, labels = ax[2].get_legend_handles_labels()
+        handles_time, labels_time = ax_time.get_legend_handles_labels()
+        ax[2].legend(
+            handles + handles_time, labels + labels_time, frameon=False
+        )
+
+        ax[3].plot(it, self.history["logZ"], label="logZ")
         ax[3].set_ylabel(r"$\log Z$")
         ax[3].legend(frameon=False)
 
         ax_dz = plt.twinx(ax[3])
         ax_dz.plot(
             it,
-            self.dlogZ_history,
+            self.history["dlogZ"],
             label="dlogZ",
             c="C1",
             ls=config.plotting.line_styles[1],
@@ -1026,10 +1060,10 @@ class NestedSampler(BaseNestedSampler):
         handles_dz, labels_dz = ax_dz.get_legend_handles_labels()
         ax[3].legend(handles + handles_dz, labels + labels_dz, frameon=False)
 
-        ax[4].plot(it, self.mean_acceptance_history, label="Proposal")
+        ax[4].plot(it, self.history["mean_acceptance"], label="Proposal")
         ax[4].plot(
-            self.population_iterations,
-            self.population_acceptance,
+            self.history["population_iterations"],
+            self.history["population_acceptance"],
             label="Population",
         )
         ax[4].set_ylabel("Acceptance")
@@ -1037,8 +1071,8 @@ class NestedSampler(BaseNestedSampler):
 
         ax_r = plt.twinx(ax[4])
         ax_r.plot(
-            self.population_iterations,
-            self.population_radii,
+            self.history["population_iterations"],
+            self.history["population_radii"],
             label="Radius",
             color="C2",
             ls=config.plotting.line_styles[2],
@@ -1048,19 +1082,21 @@ class NestedSampler(BaseNestedSampler):
         ax[4].legend(handles + handles_r, labels + labels_r, frameon=False)
         ax[4].set_yscale("log")
         ax[4].set_ylim(top=1.1)
-        dtrain = np.array(self.training_iterations[1:]) - np.array(
-            self.training_iterations[:-1]
+        dtrain = np.array(self.history["training_iterations"][1:]) - np.array(
+            self.history["training_iterations"][:-1]
         )
-        ax[5].plot(self.training_iterations[1:], dtrain)
-        if self.training_iterations:
+        ax[5].plot(self.history["training_iterations"][1:], dtrain)
+        if self.history["training_iterations"]:
             ax[5].axvline(
-                self.training_iterations[0], ls="-", color="lightgrey"
+                self.history["training_iterations"][0],
+                ls="-",
+                color="lightgrey",
             )
         ax[5].set_ylabel(r"$\Delta$ train")
 
-        if len(self.rolling_p):
-            it = (np.arange(len(self.rolling_p)) + 1) * self.nlive
-            ax[6].plot(it, self.rolling_p, "o", label="p-value")
+        if len(self.history["rolling_p"]):
+            it = (np.arange(len(self.history["rolling_p"])) + 1) * self.nlive
+            ax[6].plot(it, self.history["rolling_p"], "o", label="p-value")
         ax[6].set_ylabel("p-value")
         ax[6].set_ylim([-0.1, 1.1])
 
@@ -1146,22 +1182,15 @@ class NestedSampler(BaseNestedSampler):
         # Check if acceptance is not None, this indicates the proposal
         # was populated
         if not self.proposal._checked_population:
-            self.population_acceptance.append(
+            self.history["population_acceptance"].append(
                 self.proposal.population_acceptance
             )
-            self.population_radii.append(self.proposal.r)
-            self.population_iterations.append(self.iteration)
+            self.history["population_radii"].append(self.proposal.r)
+            self.history["population_iterations"].append(self.iteration)
             self.proposal._checked_population = True
 
         if not (self.iteration % (self.nlive // 10)) or force:
-            self.likelihood_evaluations.append(
-                self.model.likelihood_evaluations
-            )
-            self.min_likelihood.append(self.logLmin)
-            self.max_likelihood.append(self.logLmax)
-            self.logZ_history.append(self.state.logZ)
-            self.dlogZ_history.append(self.condition)
-            self.mean_acceptance_history.append(self.mean_acceptance)
+            self.update_history()
 
         if not (self.iteration % self.nlive) or force:
             if not force:
@@ -1313,23 +1342,6 @@ class NestedSampler(BaseNestedSampler):
     def get_result_dictionary(self):
         """Return a dictionary that contains results"""
         d = super().get_result_dictionary()
-        iterations = np.arange(len(self.min_likelihood)) * (self.nlive // 10)
-        iterations[-1] = self.iteration
-        d["history"] = dict(
-            iterations=iterations,
-            min_likelihood=self.min_likelihood,
-            max_likelihood=self.max_likelihood,
-            likelihood_evaluations=self.likelihood_evaluations,
-            logZ=self.logZ_history,
-            dlogZ=self.dlogZ_history,
-            mean_acceptance=self.mean_acceptance_history,
-            rolling_p=self.rolling_p,
-            population=dict(
-                iterations=self.population_iterations,
-                acceptance=self.population_acceptance,
-            ),
-            training_iterations=self.training_iterations,
-        )
         d["insertion_indices"] = self.insertion_indices
         d["final_p_value"] = self.final_p_value
         d["final_ks_statistic"] = self.final_ks_statistic

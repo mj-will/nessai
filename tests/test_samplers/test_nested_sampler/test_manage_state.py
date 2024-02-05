@@ -14,17 +14,18 @@ from nessai.samplers.nestedsampler import NestedSampler
 def sampler(sampler):
     """A sampler mock configured to work with update state"""
     # Stored stats
-    sampler.population_acceptance = [0.5]
-    sampler.population_radii = [1.0]
-    sampler.population_iterations = [0]
-    sampler.population_acceptance = [0.5]
-
-    sampler.likelihood_evaluations = [10]
-    sampler.min_likelihood = [0.0]
-    sampler.max_likelihood = [100.0]
-    sampler.logZ_history = [-100.0]
-    sampler.dlogZ_history = [100.0]
-    sampler.mean_acceptance_history = [0.5]
+    sampler.history = dict(
+        iterations=[10],
+        population_radii=[1.0],
+        population_iterations=[0],
+        population_acceptance=[0.5],
+        likelihood_evaluations=[10],
+        min_log_likelihood=[0.0],
+        max_log_likelihood=[100.0],
+        logZ=[-100.0],
+        dlogZ=[100.0],
+        mean_acceptance=[0.5],
+    )
     # Attributed used to update stats
     sampler.model = MagicMock()
     sampler.model.likelihood_evaluations = 100
@@ -96,6 +97,28 @@ def test_check_state_train(sampler, force, train):
         sampler.train_proposal.assert_not_called()
 
 
+def test_update_history(sampler):
+    """Test updating the history dictionary"""
+
+    sampler.iteration = 15
+
+    with patch(
+        "nessai.samplers.nestedsampler.BaseNestedSampler.update_history"
+    ) as mock:
+        NestedSampler.update_history(sampler)
+
+    mock.assert_called_once()
+
+    assert sampler.history["population_acceptance"] == [0.5]
+    assert sampler.history["min_log_likelihood"] == [0.0, 0.0]
+    assert sampler.history["max_log_likelihood"] == [100.0, 150.0]
+    assert sampler.history["logZ"] == [-100.0, -50.0]
+    assert sampler.history["dlogZ"] == [100.0, 50.0]
+    assert sampler.history["mean_acceptance"] == [0.5, 0.5]
+    assert sampler.history["iterations"] == [10, 15]
+    sampler.checkpoint.assert_not_called()
+
+
 @patch("nessai.samplers.nestedsampler.NestedSampler.checkpoint")
 def test_update_state_checked_acceptance(mock, sampler):
     """Test the behaviour of update state if `_checked_population` is False.
@@ -106,15 +129,17 @@ def test_update_state_checked_acceptance(mock, sampler):
     sampler.iteration = 11
     sampler.proposal._checked_population = False
     sampler.checkpointing = False
+    sampler.update_history = MagicMock()
 
     NestedSampler.update_state(sampler)
 
-    assert sampler.population_acceptance == [0.5, 0.4]
-    assert sampler.population_radii == [1.0, 2.0]
-    assert sampler.population_iterations == [0, 11]
+    sampler.update_history.assert_not_called()
+
+    assert sampler.history["population_acceptance"] == [0.5, 0.4]
+    assert sampler.history["population_radii"] == [1.0, 2.0]
+    assert sampler.history["population_iterations"] == [0, 11]
     assert sampler.proposal._checked_population is True
-    assert sampler.likelihood_evaluations == [10]
-    assert not mock.called
+    mock.assert_not_called()
 
 
 def test_update_state_history(sampler):
@@ -126,17 +151,14 @@ def test_update_state_history(sampler):
     sampler.iteration = 10
     sampler.proposal._checked_population = True
     sampler.checkpointing = False
+    sampler.update_history = MagicMock()
 
     NestedSampler.update_state(sampler)
 
-    assert sampler.population_acceptance == [0.5]
-    assert sampler.likelihood_evaluations == [10, 100]
-    assert sampler.min_likelihood == [0.0, 0.0]
-    assert sampler.max_likelihood == [100.0, 150.0]
-    assert sampler.logZ_history == [-100.0, -50.0]
-    assert sampler.dlogZ_history == [100.0, 50.0]
-    assert sampler.mean_acceptance_history == [0.5, 0.5]
-    assert not sampler.checkpoint.called
+    sampler.update_history.assert_called_once()
+
+    assert sampler.history["population_acceptance"] == [0.5]
+    sampler.checkpoint.assert_not_called()
 
     assert sampler.proposal.ns_acceptance == 0.5
 
@@ -159,14 +181,15 @@ def test_update_state_every_nlive(mock_plot, plot, sampler):
     sampler.output = os.getcwd()
     sampler.insertion_indices = range(2 * sampler.nlive)
     sampler.checkpointing = False
+    sampler.update_history = MagicMock()
 
     NestedSampler.update_state(sampler)
 
+    sampler.update_history.assert_called()
     sampler.check_insertion_indices.assert_called_once()
     assert sampler.block_iteration == 0
     assert sampler.block_acceptance == 0.0
-    assert sampler.likelihood_evaluations == [10, 100]
-    assert sampler.population_acceptance == [0.5]
+    assert sampler.history["population_acceptance"] == [0.5]
 
     if plot:
         sampler.plot_state.assert_called_once_with(
@@ -182,9 +205,9 @@ def test_update_state_every_nlive(mock_plot, plot, sampler):
             ),
         )
     else:
-        assert not sampler.plot_state.called
-        assert not sampler.plot_trace.called
-        assert not mock_plot.called
+        sampler.plot_state.assert_not_called()
+        sampler.plot_trace.assert_not_called()
+        mock_plot.assert_not_called()
 
 
 @patch("nessai.samplers.nestedsampler.plot_indices")
@@ -202,18 +225,19 @@ def test_update_state_force(mock_plot, sampler):
     sampler.output = os.getcwd()
     sampler.uninformed_sampling = False
     sampler.checkpointing = False
+    sampler.update_history = MagicMock()
 
     NestedSampler.update_state(sampler, force=True)
 
-    assert not mock_plot.called
-    assert not sampler.called
+    sampler.update_history.assert_called_once()
+
+    mock_plot.assert_not_called()
     sampler.plot_trace.assert_called_once()
     sampler.plot_state.assert_called_once_with(
         filename=os.path.join(os.getcwd(), "state.png")
     )
 
-    assert sampler.max_likelihood == [100.0, 150.0]
-    assert sampler.population_acceptance == [0.5]
+    assert sampler.history["population_acceptance"] == [0.5]
     assert sampler.block_acceptance == 0.5
     assert sampler.block_iteration == 5
 
@@ -240,12 +264,17 @@ def test_get_result_dictionary(sampler):
     """Assert the correct dictionary is returned"""
     from datetime import timedelta
 
-    base_result = dict(seed=1234)
-
+    base_result = dict(
+        seed=1234,
+        history=dict(
+            likelihood_evaluations=[10],
+            sampling_time=[2],
+        ),
+    )
     sampler.nlive = 1
     sampler.iteration = 3
-    sampler.min_likelihood = [-3, -2, 1]
-    sampler.max_likelihood = [1, 2, 3]
+    sampler.min_log_likelihood = [-3, -2, 1]
+    sampler.max_log_likelihood = [1, 2, 3]
     sampler.likelihood_evaluations = 3
     sampler.logZ_history = [1, 2, 3]
     sampler.mean_acceptance_history = [1, 2, 3]

@@ -14,24 +14,28 @@ from nessai.samplers.nestedsampler import NestedSampler
 def test_plot_state(sampler, tmpdir, filename, track_gradients):
     """Test making the state plot"""
     x = np.arange(10)
-    sampler.min_likelihood = x
-    sampler.max_likelihood = x
     sampler.iteration = 1003
-    sampler.training_iterations = [256, 711]
     sampler.train_on_empty = False
-    sampler.population_iterations = [256, 500, 711, 800]
-    sampler.population_acceptance = 4 * [0.5]
-    sampler.population_radii = 4 * [1.0]
-    sampler.checkpoint_iterations = [600]
-    sampler.likelihood_evaluations = x
+    sampler.history = dict(
+        iterations=np.arange(10),
+        min_log_likelihood=x,
+        max_log_likelihood=x,
+        logZ=x,
+        dlogZ=x,
+        likelihood_evaluations=x,
+        sampling_time=x,
+        training_iterations=[256, 711],
+        population_iterations=[256, 500, 711, 800],
+        population_acceptance=4 * [0.5],
+        population_radii=4 * [1.0],
+        checkpoint_iterations=[600],
+        mean_acceptance=1 / x,
+        rolling_p=np.arange(4),
+    )
     sampler.state = MagicMock()
     sampler.state.log_vols = np.linspace(0, -10, 1050)
     sampler.state.track_gradients = track_gradients
     sampler.state.gradients = np.arange(1050)
-    sampler.logZ_history = x
-    sampler.dlogZ_history = x
-    sampler.mean_acceptance_history = x
-    sampler.rolling_p = np.arange(4)
 
     if filename is not None:
         sampler.output = tmpdir.mkdir("test_plot_state")
@@ -103,7 +107,7 @@ def test_plot_trace(
 @pytest.mark.parametrize("filename", [None, "trace.png"])
 @patch("nessai.samplers.nestedsampler.plot_indices", return_value="fig")
 def test_plot_insertion_indices(mock_plot, sampler, filename):
-    """Test plotting the insetion indices"""
+    """Test plotting the insertion indices"""
     nlive = 10
     indices = list(range(20))
     sampler.nlive = nlive

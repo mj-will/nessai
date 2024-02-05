@@ -71,13 +71,19 @@ def test_current_sampling_time_finalised(sampler):
 
 def test_last_updated(sampler):
     """Assert last training iteration is returned"""
-    sampler.training_iterations = [10, 20]
+    sampler.history = dict(training_iterations=[10, 20])
     assert NestedSampler.last_updated.__get__(sampler) == 20
 
 
 def test_last_updated_no_training(sampler):
     """Assert None is return if the flow has not been trained"""
-    sampler.training_iterations = []
+    sampler.history = dict(training_iterations=[])
+    assert NestedSampler.last_updated.__get__(sampler) == 0
+
+
+def test_last_updated_no_history(sampler):
+    """Assert None is return if the flow has not been trained"""
+    sampler.history = None
     assert NestedSampler.last_updated.__get__(sampler) == 0
 
 

@@ -14,7 +14,7 @@ def auto_close_figures():
 def test_plot_state(ins, history, n_it):
     ins.iteration = n_it
     ins.history = history
-    ins.checkpoint_iterations = [3, 4]
+    ins.history["checkpoint_iterations"] = [3, 4]
     ins.importance = dict(
         total=np.arange(-1, n_it),
         evidence=np.arange(-1, n_it),

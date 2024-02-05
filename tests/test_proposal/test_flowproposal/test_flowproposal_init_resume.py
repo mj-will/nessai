@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test methods related to initialising and resuming the proposal method"""
+import numpy as np
 import os
 import pytest
 from unittest.mock import patch, MagicMock
@@ -217,7 +218,7 @@ def test_reset(proposal):
     assert proposal.samples is None
     assert proposal.populated is False
     assert proposal.populated_count == 0
-    assert proposal.r is None
+    assert proposal.r is np.nan
     assert proposal.alt_dist is None
     assert proposal._checked_population
 

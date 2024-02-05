@@ -78,6 +78,7 @@ def test_init(sampler, checkpoint_on_iteration):
     assert sampler.live_points is None
     assert sampler.iteration == 0
     assert sampler.finalised is False
+    assert sampler.history is None
 
 
 def test_likelihood_evaluation_time(sampler):
@@ -264,13 +265,17 @@ def test_periodically_log_state_iteration(sampler, interval):
 
 
 @pytest.mark.parametrize("periodic", [False, True])
-def test_checkpoint_iteration(sampler, wait, periodic):
+@pytest.mark.parametrize("no_history", [False, True])
+def test_checkpoint_iteration(sampler, wait, periodic, no_history):
     """Test checkpointing method on iterations.
 
     Make sure a file is produced and that the sampling time is updated.
     Also checks to make sure that the iteration is recorded when periodic=False
     """
-    sampler.checkpoint_iterations = [10]
+    if no_history:
+        sampler.history = None
+    else:
+        sampler.history = dict(checkpoint_iterations=[10])
     sampler.checkpoint_on_iteration = True
     sampler.checkpoint_interval = 10
     sampler.checkpoint_callback = None
@@ -293,10 +298,16 @@ def test_checkpoint_iteration(sampler, wait, periodic):
     assert sampler.sampling_time.total_seconds() > 0.0
 
     if periodic:
-        assert sampler.checkpoint_iterations == [10]
+        if not no_history:
+            assert sampler.history["checkpoint_iterations"] == [10]
+        else:
+            assert sampler.history is None
         assert sampler._last_checkpoint == 20
     else:
-        assert sampler.checkpoint_iterations == [10, 20]
+        if not no_history:
+            assert sampler.history["checkpoint_iterations"] == [10, 20]
+        else:
+            assert sampler.history is None
 
 
 def test_checkpoint_time(sampler, wait):
@@ -374,7 +385,7 @@ def test_checkpoint_callback(sampler):
 
     callback = MagicMock()
 
-    sampler.checkpoint_iterations = [10]
+    sampler.history = dict(checkpoint_iterations=[10])
     sampler.checkpoint_on_iteration = True
     sampler.checkpoint_interval = 10
     sampler.checkpoint_callback = callback
@@ -443,6 +454,7 @@ def test_get_result_dictionary(sampler):
     sampler.likelihood_evaluation_time = datetime.timedelta(seconds=2)
     sampler.model.truth = 1.0
     sampler.model.likelihood_evaluations = 10
+    sampler.history = None
 
     d = BaseNestedSampler.get_result_dictionary(sampler)
 
@@ -451,6 +463,7 @@ def test_get_result_dictionary(sampler):
     assert d["total_likelihood_evaluations"] == 10
     assert d["likelihood_evaluation_time"] == 2
     assert d["truth"] == 1.0
+    assert "history" in d
 
 
 def test_getstate(sampler):
@@ -461,3 +474,27 @@ def test_getstate(sampler):
     assert "model" not in d
     assert d["_previous_likelihood_evaluations"] == 10
     assert d["_previous_likelihood_evaluation_time"] == 4
+
+
+def test_initialise_history(sampler):
+    sampler.history = None
+    BaseNestedSampler.initialise_history(sampler)
+    assert isinstance(sampler.history, dict)
+    assert "sampling_time" in sampler.history
+    assert "likelihood_evaluations" in sampler.history
+
+
+def test_initialise_history_skip(sampler, caplog):
+    caplog.set_level("DEBUG")
+    sampler.history = {}
+    BaseNestedSampler.initialise_history(sampler)
+    assert "already initialised" in str(caplog.text)
+
+
+def test_update_history(sampler):
+    sampler.total_likelihood_evaluations = 20
+    sampler.current_sampling_time = datetime.timedelta(seconds=2)
+    sampler.history = dict(likelihood_evaluations=[10], sampling_time=[1])
+    BaseNestedSampler.update_history(sampler)
+    assert sampler.history["likelihood_evaluations"] == [10, 20]
+    assert sampler.history["sampling_time"] == [1, 2]
