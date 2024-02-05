@@ -31,9 +31,6 @@ def test_get_result_dictionary(ins, history, samples, iid):
     ins.add_and_update_samples_time = datetime.timedelta(seconds=10)
     ins.draw_final_samples_time = datetime.timedelta(seconds=10)
 
-    ins.initial_log_evidence = -1.0
-    ins.initial_log_evidence_error = 0.1
-
     ins.log_evidence = -1.1
     ins.log_evidence_error = 0.3
 
