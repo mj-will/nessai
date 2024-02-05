@@ -1655,7 +1655,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         max_samples = int(max_samples_ratio * self.nested_samples_unit.size)
 
-        max_logL = np.max(self.samples_unit["logL"])
+        max_log_likelihood = np.max(self.samples_unit["logL"])
 
         logger.debug(f"Expected efficiency: {eff:.3f}")
         if not any([n_post, n_draw]):
