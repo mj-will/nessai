@@ -265,13 +265,17 @@ def test_periodically_log_state_iteration(sampler, interval):
 
 
 @pytest.mark.parametrize("periodic", [False, True])
-def test_checkpoint_iteration(sampler, wait, periodic):
+@pytest.mark.parametrize("no_history", [False, True])
+def test_checkpoint_iteration(sampler, wait, periodic, no_history):
     """Test checkpointing method on iterations.
 
     Make sure a file is produced and that the sampling time is updated.
     Also checks to make sure that the iteration is recorded when periodic=False
     """
-    sampler.history = dict(checkpoint_iterations=[10])
+    if no_history:
+        sampler.history = None
+    else:
+        sampler.history = dict(checkpoint_iterations=[10])
     sampler.checkpoint_on_iteration = True
     sampler.checkpoint_interval = 10
     sampler.checkpoint_callback = None
@@ -294,10 +298,16 @@ def test_checkpoint_iteration(sampler, wait, periodic):
     assert sampler.sampling_time.total_seconds() > 0.0
 
     if periodic:
-        assert sampler.history["checkpoint_iterations"] == [10]
+        if not no_history:
+            assert sampler.history["checkpoint_iterations"] == [10]
+        else:
+            assert sampler.history is None
         assert sampler._last_checkpoint == 20
     else:
-        assert sampler.history["checkpoint_iterations"] == [10, 20]
+        if not no_history:
+            assert sampler.history["checkpoint_iterations"] == [10, 20]
+        else:
+            assert sampler.history is None
 
 
 def test_checkpoint_time(sampler, wait):
