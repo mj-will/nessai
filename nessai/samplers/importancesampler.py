@@ -775,7 +775,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Draws live points, initialises the proposal.
         """
         if self.initialised:
-            logger.warning("Nested sampler has already initialised!")
+            logger.warning("Nested sampler has already been initialised!")
         if self.live_points_unit is None:
             self.populate_live_points()
 
