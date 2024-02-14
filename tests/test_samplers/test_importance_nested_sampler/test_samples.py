@@ -102,3 +102,34 @@ def test_adjust_final_samples(ins, proposal, model, samples, log_q):
     ins.model = model
 
     INS.adjust_final_samples(ins)
+
+
+def test_compute_importance(ins, iid):
+    importance = {"evidence": 0.4, "posterior": 0.8}
+    ins.training_samples = MagicMock(spec=OrderedSamples)
+    ins.training_samples.compute_importance = MagicMock(
+        return_value=importance
+    )
+    ins.iid_samples = MagicMock(spec=OrderedSamples)
+    ins.iid_samples.compute_importance = MagicMock(return_value=importance)
+    ins.draw_iid_live = iid
+
+    out = INS.compute_importance(ins)
+    assert out is importance
+    if iid:
+        ins.training_samples.compute_importance.assert_not_called()
+        ins.iid_samples.compute_importance.assert_called_once()
+    else:
+        ins.training_samples.compute_importance.assert_called_once()
+        ins.iid_samples.compute_importance.assert_not_called()
+
+
+def test_update_evidence(ins, iid):
+    ins.draw_iid_live = iid
+    ins.training_samples = MagicMock(spec=OrderedSamples)
+    if iid:
+        ins.iid_samples = MagicMock(spec=OrderedSamples)
+    INS.update_evidence(ins)
+    ins.training_samples.update_evidence.assert_called_once()
+    if iid:
+        ins.iid_samples.update_evidence.assert_called_once()

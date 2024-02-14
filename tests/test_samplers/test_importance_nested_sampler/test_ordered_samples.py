@@ -3,7 +3,7 @@ from nessai.evidence import _INSIntegralState
 from nessai.utils.testing import assert_structured_arrays_equal
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, create_autospec
+from unittest.mock import MagicMock, create_autospec, patch
 
 
 @pytest.fixture()
@@ -24,6 +24,41 @@ def live_points(samples):
 @pytest.fixture()
 def nested_samples(samples):
     return samples[: samples.size // 2]
+
+
+def test_live_points(ordered_samples, samples):
+    indices = [2, 3]
+    ordered_samples.live_points_indices = indices
+    ordered_samples.samples = samples
+    out = OrderedSamples.live_points.__get__(ordered_samples)
+    assert_structured_arrays_equal(out, samples[indices])
+
+
+def test_live_points_none(ordered_samples, samples):
+    ordered_samples.live_points_indices = None
+    ordered_samples.samples = samples
+    assert OrderedSamples.live_points.__get__(ordered_samples) is None
+
+
+def test_nested_samples(ordered_samples, samples):
+    indices = [2, 3]
+    ordered_samples.nested_samples_indices = indices
+    ordered_samples.samples = samples
+    out = OrderedSamples.nested_samples.__get__(ordered_samples)
+    assert_structured_arrays_equal(out, samples[indices])
+
+
+def test_nested_samples_none(ordered_samples, samples):
+    ordered_samples.nested_samples_indices = None
+    ordered_samples.samples = samples
+    assert OrderedSamples.nested_samples.__get__(ordered_samples) is None
+
+
+def test_update_log_likelihood_threshold(ordered_samples):
+    val = 5.0
+    ordered_samples.log_likelihood_threshold = None
+    OrderedSamples.update_log_likelihood_threshold(ordered_samples, val)
+    assert ordered_samples.log_likelihood_threshold == val
 
 
 def test_sort_samples_only(ordered_samples):
@@ -237,3 +272,31 @@ def test_compute_importance(ordered_samples, log_q, samples, ratio):
     )
     assert len(set(out.keys()) - {"total", "posterior", "evidence"}) == 0
     assert np.all(np.isfinite(list(out.values())))
+
+
+@pytest.mark.parametrize("threshold", [None, 0])
+def test_computed_evidence_ratio(ordered_samples, samples, threshold):
+    log_z_total = -10.0
+    log_z = -6.0
+    ordered_samples.samples = samples
+    ordered_samples.log_likelihood_threshold = np.median(samples["logL"])
+    ordered_samples.state = MagicMock(spec=_INSIntegralState)
+    ordered_samples.state.log_evidence = log_z_total
+
+    with patch(
+        "nessai.samplers.importancesampler.log_evidence_from_ins_samples",
+        return_value=log_z,
+    ) as mock_log_evidence:
+        out = OrderedSamples.compute_evidence_ratio(ordered_samples, threshold)
+    actual_threshold = (
+        ordered_samples.log_likelihood_threshold
+        if threshold is None
+        else threshold
+    )
+    above_threshold = samples["logL"] > actual_threshold
+
+    mock_log_evidence.assert_called_once()
+    assert_structured_arrays_equal(
+        mock_log_evidence.call_args_list[0][0][0], samples[above_threshold]
+    )
+    assert out == (log_z - log_z_total)

@@ -2,7 +2,10 @@
 import os
 from unittest.mock import MagicMock
 
-from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
+from nessai.samplers.importancesampler import (
+    ImportanceNestedSampler as INS,
+    OrderedSamples,
+)
 import numpy as np
 import pytest
 
@@ -144,4 +147,20 @@ def test_determine_threshold_max_samples(
     if expected != n_remove:
         assert "Next level would have more than max samples" in str(
             caplog.text
+        )
+
+
+def test_update_log_likelihood_threshold(ins, iid):
+    threshold = 10
+    ins.training_samples = MagicMock(spec=OrderedSamples)
+    if iid:
+        ins.iid_samples = MagicMock(spec=OrderedSamples)
+    INS.update_log_likelihood_threshold(ins, threshold)
+
+    ins.training_samples.update_log_likelihood_threshold.assert_called_once_with(  # noqa
+        threshold
+    )
+    if iid:
+        ins.iid_samples.update_log_likelihood_threshold.assert_called_once_with(  # noqa
+            threshold
         )
