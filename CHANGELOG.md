@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add option to accumulate weights during rejection sampling ([#358](https://github.com/mj-will/nessai/pull/358))
+- Add option to draw i.i.d samples during sampling when using the importance nested sampler ([#362](https://github.com/mj-will/nessai/pull/362))
+- Add the `OrderedSamples` class for handling samples in the importance nested sampler ([#362](https://github.com/mj-will/nessai/pull/362))
+- Add the `in_unit_hypercube` and `sample_unit_hypercube` methods to the model class `Model` ([#362](https://github.com/mj-will/nessai/pull/362))
+
+### Changed
+
+- Standardize how sampling history (run statistics) are stored ([#364](https://github.com/mj-will/nessai/pull/364))
+- The importance nested sampler no longer requires the `to_unit_hypercube` method to run ([#362](https://github.com/mj-will/nessai/pull/362))
+- The `ratio` stopping criterion is now computed using the log-likelihood threshold instead of the live points ([#362](https://github.com/mj-will/nessai/pull/362))
+- Change various defaults related to the importance nested sampler ([#362](https://github.com/mj-will/nessai/pull/362))
+
+### Fixed
+
+- Fix bug in with legend in `nessai.plot.plot_1d_comparison` ([#360](https://github.com/mj-will/nessai/pull/360))
+
+### Removed
+
+- Remove the deprecated `max_threads` argument from `nessai.flowsampler.FlowSampler` and `nessai.utils.threading.configure_threads` ([#363](https://github.com/mj-will/nessai/pull/363))
+
 ## [0.11.0]
 
 ### Added
