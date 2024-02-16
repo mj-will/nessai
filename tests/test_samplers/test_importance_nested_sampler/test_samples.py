@@ -9,6 +9,41 @@ from nessai.samplers.importancesampler import (
 import numpy as np
 
 
+def test_ordered_samples_property(ins):
+    ins.training_samples = object()
+    ins.draw_iid_live = False
+    assert INS._ordered_samples.__get__(ins) is ins.training_samples
+
+
+def test_ordered_samples_property_iid(ins):
+    ins.iid_samples = object()
+    ins.draw_iid_live = True
+    assert INS._ordered_samples.__get__(ins) is ins.iid_samples
+
+
+def test_live_points_unit_property(ins):
+    ins._ordered_samples = MagicMock(spec=OrderedSamples)
+    assert (
+        INS.live_points_unit.__get__(ins) is ins._ordered_samples.live_points
+    )
+
+
+def test_nested_samples_unit_property(ins):
+    ins._ordered_samples = MagicMock(spec=OrderedSamples)
+    assert (
+        INS.nested_samples_unit.__get__(ins)
+        is ins._ordered_samples.nested_samples
+    )
+
+
+def test_nested_samples_property(ins):
+    ins._ordered_samples = MagicMock(spec=OrderedSamples)
+    assert (
+        INS.nested_samples_unit.__get__(ins)
+        is ins._ordered_samples.nested_samples
+    )
+
+
 def test_populate_live_points_no_iid(ins, model):
     n = 100
     ins.n_initial = n

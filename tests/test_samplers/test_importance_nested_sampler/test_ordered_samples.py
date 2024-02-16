@@ -40,6 +40,16 @@ def test_live_points_none(ordered_samples, samples):
     assert OrderedSamples.live_points.__get__(ordered_samples) is None
 
 
+def test_live_points_setter_error(ordered_samples):
+    with pytest.raises(ValueError, match=r"Can only set live points to None"):
+        OrderedSamples.live_points.__set__(ordered_samples, 1.0)
+
+
+def test_live_points_setter(ordered_samples):
+    OrderedSamples.live_points.__set__(ordered_samples, None)
+    assert ordered_samples.live_points_indices is None
+
+
 def test_nested_samples(ordered_samples, samples):
     indices = [2, 3]
     ordered_samples.nested_samples_indices = indices

@@ -48,3 +48,30 @@ def test_initialise_history(ins):
     ins.history = None
     INS.initialise_history(ins)
     assert ins.history is not None
+
+
+def test_check_configuration_min_samples(ins):
+    ins.min_samples = 100
+    ins.nlive = 10
+    ins.min_remove = 1
+    with pytest.raises(
+        ValueError, match="`min_samples` must be less than `nlive`"
+    ):
+        INS.check_configuration(ins)
+
+
+def test_check_configuration_min_remove(ins):
+    ins.min_samples = 50
+    ins.nlive = 100
+    ins.min_remove = 200
+    with pytest.raises(
+        ValueError, match="`min_remove` must be less than `nlive`"
+    ):
+        INS.check_configuration(ins)
+
+
+def check_configuration_okay(ins):
+    ins.min_samples = 50
+    ins.nlive = 100
+    ins.min_remove = 1
+    assert INS.check_configuration(ins) is True
