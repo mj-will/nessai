@@ -26,7 +26,7 @@ from ..utils.rescaling import (
     logit,
     sigmoid,
 )
-from ..utils.structures import get_subset_arrays, isfinite_struct
+from ..utils.structures import get_subset_arrays
 
 
 logger = logging.getLogger(__name__)
@@ -191,7 +191,7 @@ class ImportanceFlowProposal(Proposal):
             The relative tolerance.
         """
         logger.debug("Verifying rescaling")
-        x_in = self.model.new_point(n)
+        x_in = self.model.sample_unit_hypercube(n)
 
         x_prime, log_j = self.rescale(x_in)
         x_re, log_j_inv = self.inverse_rescale(x_prime)
@@ -268,9 +268,8 @@ class ImportanceFlowProposal(Proposal):
 
         Returns an unstructured array.
         """
-        x_hypercube = self.model.to_unit_hypercube(x)
-        x_array = live_points_to_array(x_hypercube, self.model.names)
-        x_prime, log_j = self.to_prime(x_array)
+        x = live_points_to_array(x, self.model.names)
+        x_prime, log_j = self.to_prime(x)
         return x_prime, log_j
 
     def inverse_rescale(self, x_prime: np.ndarray) -> np.ndarray:
@@ -278,11 +277,10 @@ class ImportanceFlowProposal(Proposal):
 
         Returns a structured array.
         """
-        x_array, log_j = self.from_prime(x_prime)
+        x, log_j = self.from_prime(x_prime)
         if self.clip:
-            x_array = np.clip(x_array, 0.0, 1.0)
-        x_hypercube = numpy_array_to_live_points(x_array, self.model.names)
-        x = self.model.from_unit_hypercube(x_hypercube)
+            x = np.clip(x, 0.0, 1.0)
+        x = numpy_array_to_live_points(x, self.model.names)
         return x, log_j
 
     def train(
@@ -510,8 +508,7 @@ class ImportanceFlowProposal(Proposal):
             x_check, log_j = self.rescale(x)
             # Probably don't need all these checks.
             acc = (
-                self.model.in_bounds(x)
-                & isfinite_struct(x, names=self.model.names)
+                self.model.in_unit_hypercube(x)
                 & np.isfinite(x_check).all(axis=1)
                 & np.isfinite(x_prime).all(axis=1)
                 & np.isfinite(log_j)
@@ -528,7 +525,9 @@ class ImportanceFlowProposal(Proposal):
             x["logQ"], log_q_all = self.compute_log_Q(
                 x_prime, log_q_current=None, n=n_weight, log_j=log_j
             )
-            x["logP"] = self.model.batch_evaluate_log_prior(x)
+            x["logP"] = self.model.batch_evaluate_log_prior(
+                x, unit_hypercube=True
+            )
             x["logW"] = -x["logQ"]
             accept = (
                 np.isfinite(x["logP"])
@@ -588,10 +587,12 @@ class ImportanceFlowProposal(Proposal):
     def compute_meta_proposal_samples(self, samples: np.ndarray) -> np.ndarray:
         """Compute the meta proposal Q for a set of samples.
 
-        Includes the transform to the unit hypercube.
+        Includes any rescaling that has been configured.
 
         Returns
         -------
+        log_meta_proposal : numpy.ndarray
+            Array of meta-proposal log probabilities (log Q)
         log_q : numpy.ndarray
             Array of log q for each flow.
         """
@@ -605,10 +606,7 @@ class ImportanceFlowProposal(Proposal):
                 "existing samples!"
             )
         x, log_j = self.rescale(samples)
-        log_Q, log_q = self.compute_log_Q(x, log_j=log_j)
-        samples["logQ"] = log_Q
-        samples["logW"] = -samples["logQ"]
-        return log_q
+        return self.compute_log_Q(x, log_j=log_j)
 
     def _log_prior(self, x: np.ndarray) -> np.ndarray:
         """Helper function that returns the prior in the unit hyper-cube."""
@@ -663,9 +661,8 @@ class ImportanceFlowProposal(Proposal):
 
     def draw_from_prior(self, n: int) -> Tuple[np.ndarray, np.ndarray]:
         """Draw from the prior"""
-        cube_samples = np.random.rand(n, self.model.dims)
-        prime_samples, log_j = self.to_prime(cube_samples)
-        samples = self.inverse_rescale(prime_samples)[0]
+        samples = self.model.sample_unit_hypercube(n)
+        prime_samples, log_j = self.rescale(samples)
         log_Q, log_q = self.compute_log_Q(prime_samples, log_j=log_j)
         samples["logQ"] = log_Q
         samples["logW"] = -log_Q
@@ -737,8 +734,7 @@ class ImportanceFlowProposal(Proposal):
         x_check, log_j = self.rescale(samples)
         # Probably don't need all these checks.
         finite = (
-            self.model.in_bounds(samples)
-            & isfinite_struct(samples, names=self.model.names)
+            self.model.in_unit_hypercube(samples)
             & np.isfinite(x_check).all(axis=1)
             & np.isfinite(prime_samples).all(axis=1)
             & np.isfinite(log_j)
@@ -765,7 +761,9 @@ class ImportanceFlowProposal(Proposal):
         )
         logger.debug(f"Mean log_q for each each flow: {log_q.mean(axis=0)}")
 
-        samples["logP"] = self.model.batch_evaluate_log_prior(samples)
+        samples["logP"] = self.model.batch_evaluate_log_prior(
+            samples, unit_hypercube=True
+        )
         samples, log_q = get_subset_arrays(
             np.isfinite(samples["logP"]), samples, log_q
         )

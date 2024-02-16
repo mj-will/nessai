@@ -176,11 +176,10 @@ def test_compute_meta_proposal_samples(ifp, x, x_prime, log_j):
     ifp.rescale = MagicMock(return_value=(x_prime, log_j))
     ifp.compute_log_Q = MagicMock(return_value=(log_Q, log_q))
 
-    log_q_out = IFP.compute_meta_proposal_samples(ifp, x)
+    log_Q_out, log_q_out = IFP.compute_meta_proposal_samples(ifp, x)
 
     ifp.rescale.assert_called_once_with(x)
     ifp.compute_log_Q.assert_called_once_with(x_prime, log_j=log_j)
 
-    np.testing.assert_array_equal(x["logQ"], log_Q)
-    np.testing.assert_array_equal(x["logW"], -log_Q)
+    np.testing.assert_array_equal(log_Q_out, log_Q)
     np.testing.assert_array_equal(log_q_out, log_q)

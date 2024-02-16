@@ -20,7 +20,7 @@ def test_verify_rescaling_pass(ifp, x_prime):
     log_j_inv = -log_j
     log_j_inv += 1e-10 * np.random.randn(n)
 
-    ifp.model.new_point = MagicMock(return_value=x)
+    ifp.model.sample_unit_hypercube = MagicMock(return_value=x)
     ifp.rescale = MagicMock(return_value=(x_prime, log_j))
     ifp.inverse_rescale = MagicMock(return_value=(x_re, log_j_inv))
 
@@ -42,7 +42,7 @@ def test_verify_rescaling_fail(ifp, x_prime):
     log_j_inv = -log_j
     log_j_inv += 1e-10 * np.random.randn(n)
 
-    ifp.model.new_point = MagicMock(return_value=x)
+    ifp.model.sample_unit_hypercube = MagicMock(return_value=x)
     ifp.rescale = MagicMock(return_value=(x_prime, log_j))
     ifp.inverse_rescale = MagicMock(return_value=(x_re, log_j_inv))
 
@@ -62,7 +62,7 @@ def test_verify_rescaling_fail_jacobian(ifp, x_prime):
     log_j_inv = -log_j
     log_j_inv += 1e-7 * np.random.randn(n)
 
-    ifp.model.new_point = MagicMock(return_value=x)
+    ifp.model.sample_unit_hypercube = MagicMock(return_value=x)
     ifp.rescale = MagicMock(return_value=(x_prime, log_j))
     ifp.inverse_rescale = MagicMock(return_value=(x_re, log_j_inv))
 
@@ -119,22 +119,20 @@ def test_from_prime_none(ifp, x_prime):
 def test_rescale(ifp, x, x_prime, log_j, model):
     """Assert rescale calls the correct functions in the correct order"""
     names = model.names
-    x_hyper_array = np.random.randn(len(x), len(names))
-    x_hypercube = numpy_array_to_live_points(x_hyper_array, names)
+    x_array = np.random.randn(len(x), len(names))
+    x = numpy_array_to_live_points(x_array, names)
 
     ifp.model.names = names
-    ifp.model.to_unit_hypercube = MagicMock(return_value=x_hypercube)
     ifp.to_prime = MagicMock(return_value=(x_prime, log_j))
 
     with patch(
         "nessai.proposal.importance.live_points_to_array",
-        return_value=x_hyper_array,
+        return_value=x_array,
     ) as mock_to_array:
         x_prime_out, log_j_out = IFP.rescale(ifp, x)
 
-    ifp.model.to_unit_hypercube.assert_called_once_with(x)
-    mock_to_array.assert_called_once_with(x_hypercube, names)
-    ifp.to_prime.assert_called_once_with(x_hyper_array)
+    mock_to_array.assert_called_once_with(x, names)
+    ifp.to_prime.assert_called_once_with(x_array)
 
     assert x_prime_out is x_prime
     assert log_j_out is log_j
@@ -147,16 +145,14 @@ def test_inverse_rescale(ifp, x, x_prime, log_j, clip, model):
     """
     names = model.names
     x_array = np.random.randn(len(x), len(names))
-    x_hypercube = numpy_array_to_live_points(x_array, names)
 
     ifp.clip = clip
     ifp.model.names = names
-    ifp.model.from_unit_hypercube = MagicMock(return_value=x)
     ifp.from_prime = MagicMock(return_value=(x_array, log_j))
 
     with patch(
         "nessai.proposal.importance.numpy_array_to_live_points",
-        return_value=x_hypercube,
+        return_value=x,
     ) as mock_to_array, patch("numpy.clip", return_value=x_array) as mock_clip:
         x_out, log_j_out = IFP.inverse_rescale(ifp, x_prime)
 
@@ -166,7 +162,6 @@ def test_inverse_rescale(ifp, x, x_prime, log_j, clip, model):
     else:
         mock_clip.assert_not_called()
     mock_to_array.assert_called_once_with(x_array, names)
-    ifp.model.from_unit_hypercube.assert_called_once_with(x_hypercube)
 
     assert x_out is x
     assert log_j_out is log_j

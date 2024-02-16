@@ -5,7 +5,10 @@ import numpy as np
 import pytest
 from scipy.special import logsumexp
 
-from nessai.evidence import _INSIntegralState as INSState
+from nessai.evidence import (
+    _INSIntegralState as INSState,
+    log_evidence_from_ins_samples,
+)
 
 
 @pytest.fixture
@@ -125,3 +128,18 @@ def test_compute_uncertainty_log(state):
     out = INSState.compute_uncertainty(state, log_evidence=False)
     # Check errors are equivalent
     np.testing.assert_almost_equal(out_ln, out / np.exp(state.logZ))
+
+
+def test_log_evidence_ins_samples():
+    n = 10
+    log_l = np.log(np.random.rand(n))
+    log_w = np.log(np.random.rand(n))
+    samples = np.array(
+        [*zip(log_l, log_w)], dtype=[("logL", "f8"), ("logW", "f8")]
+    )
+
+    expected = np.log(np.mean(np.exp(log_l + log_w)))
+
+    out = log_evidence_from_ins_samples(samples)
+
+    np.testing.assert_almost_equal(out, expected, decimal=12)

@@ -36,22 +36,22 @@ def test_plot_extra_state(ins, history, n_it):
 
 @pytest.mark.parametrize("enable_colours", [False, True])
 def test_plot_trace(ins, samples, enable_colours):
-    ins.samples = samples
+    ins.samples_unit = samples
     fig = INS.plot_trace(ins, enable_colours=enable_colours)
     assert fig is not None
 
 
 def test_plot_likelihood_levels(ins, samples):
-    ins.samples = samples
+    ins.samples_unit = samples
     fig = INS.plot_likelihood_levels(ins)
     assert fig is not None
 
 
 def test_plot_level_cdf(ins, samples):
-    ins.live_points = samples
     cdf = np.cumsum(samples["logW"])
     fig = INS.plot_level_cdf(
         ins,
+        samples["logL"],
         cdf,
         q=0.5,
         threshold=samples[len(samples) // 2]["logL"],

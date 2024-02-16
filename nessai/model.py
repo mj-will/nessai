@@ -433,6 +433,24 @@ class Model(ABC):
             axis=0,
         )
 
+    def in_unit_hypercube(self, x: np.ndarray) -> np.ndarray:
+        """Check if samples are within the unit hypercube
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            Structured array of live points. Must contain all of the parameters
+            in the model.
+
+        Returns
+        -------
+        Array of bool
+            Array with the same length as x where True indicates the point
+            is within the prior bounds.
+        """
+        x = self.unstructured_view(x)
+        return ~np.any((x > 1) | (x < 0), axis=-1)
+
     def sample_parameter(self, name, n=1):
         """Draw samples for a specific parameter from the prior.
 
@@ -467,6 +485,24 @@ class Model(ABC):
             is within the prior bounds.
         """
         return (x >= self.bounds[name][0]) & (x <= self.bounds[name][1])
+
+    def sample_unit_hypercube(self, n: int = 1) -> np.ndarray:
+        """ "Sample from the unit hypercube.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples
+
+        Returns
+        -------
+        numpy.ndarray
+            Structured array of samples
+        """
+        return numpy_array_to_live_points(
+            np.random.rand(n, self.dims),
+            names=self.names,
+        )
 
     def from_unit_hypercube(self, x):
         """Map from the unit hypercube to the priors.
@@ -509,7 +545,9 @@ class Model(ABC):
         self.likelihood_evaluations += x.size
         return self.log_likelihood(x)
 
-    def batch_evaluate_log_likelihood(self, x):
+    def batch_evaluate_log_likelihood(
+        self, x: np.ndarray, unit_hypercube: bool = False
+    ) -> np.ndarray:
         """Evaluate the likelihood for a batch of samples.
 
         Uses the pool if available.
@@ -518,6 +556,8 @@ class Model(ABC):
         ----------
         x : :obj:`numpy.ndarray`
             Array of samples
+        unit_hypercube : bool
+            Indicates if input samples are from the unit hypercube or not.
 
         Returns
         -------
@@ -525,6 +565,8 @@ class Model(ABC):
             Array of log-likelihood values
         """
         st = datetime.datetime.now()
+        if unit_hypercube:
+            x = self.from_unit_hypercube(x)
         log_likelihood = batch_evaluate_function(
             self.log_likelihood,
             x,
@@ -538,7 +580,9 @@ class Model(ABC):
         self.likelihood_evaluation_time += datetime.datetime.now() - st
         return log_likelihood.astype(config.livepoints.logl_dtype)
 
-    def batch_evaluate_log_prior(self, x):
+    def batch_evaluate_log_prior(
+        self, x: np.ndarray, unit_hypercube: bool = False
+    ) -> np.ndarray:
         """Evaluate the log-prior for a batch of samples.
 
         Uses the pool if available.
@@ -547,12 +591,17 @@ class Model(ABC):
         ----------
         x : :obj:`numpy.ndarray`
             Array of samples
+        unit_hypercube : bool
+            Indicates if input samples are from the unit hypercube or not.
+
 
         Returns
         -------
         :obj:`numpy.ndarray`
             Array of log-prior values
         """
+        if unit_hypercube:
+            x = self.from_unit_hypercube(x)
         return batch_evaluate_function(
             self.log_prior,
             x,

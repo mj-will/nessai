@@ -1,10 +1,13 @@
 from unittest.mock import create_autospec
 
 import pytest
+from nessai.evidence import _INSIntegralState
 from nessai.proposal.importance import ImportanceFlowProposal
-from nessai.samplers.importancesampler import ImportanceNestedSampler
+from nessai.samplers.importancesampler import (
+    ImportanceNestedSampler,
+    OrderedSamples,
+)
 from nessai.livepoint import (
-    numpy_array_to_live_points,
     add_extra_parameters_to_live_points,
     reset_extra_live_points_parameters,
 )
@@ -24,10 +27,18 @@ def ins_livepoint_params():
     reset_extra_live_points_parameters()
 
 
+@pytest.fixture(scope="module", params=[False, True])
+def iid(request):
+    return request.param
+
+
 @pytest.fixture
 def ins():
     obj = create_autospec(ImportanceNestedSampler)
     obj.model = create_autospec(Model)
+    obj.training_samples = create_autospec(OrderedSamples)
+    obj.training_samples.state = create_autospec(_INSIntegralState)
+    obj.iid_samples = None
     return obj
 
 
@@ -48,14 +59,14 @@ def n_samples():
 
 @pytest.fixture
 def samples(model, n_samples, n_it, log_q):
-    x = numpy_array_to_live_points(
-        np.random.randn(n_samples, len(model.names)), model.names
-    )
-    x["it"] = np.random.randint(0, n_it, size=len(x))
+    x = model.sample_unit_hypercube(n_samples)
+    x["it"] = np.random.randint(-1, n_it - 1, size=len(x))
     x["logL"] = model.log_likelihood(x)
     x["logP"] = model.log_prior(x)
 
-    alpha = np.unique(x["it"]).astype(float)
+    alpha = np.bincount(
+        x["it"] + np.abs(x["it"].min()), minlength=n_it
+    ).astype(float)
     alpha /= alpha.sum()
     x["logQ"] = logsumexp(log_q, axis=1, b=alpha)
     x["logW"] = -x["logQ"].copy()

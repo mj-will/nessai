@@ -14,7 +14,7 @@ from scipy.special import logsumexp
 
 from .base import BaseNestedSampler
 from .. import config
-from ..evidence import _INSIntegralState
+from ..evidence import _INSIntegralState, log_evidence_from_ins_samples
 from ..model import Model
 from ..posterior import draw_posterior_samples
 from ..proposal.importance import ImportanceFlowProposal
@@ -22,7 +22,6 @@ from ..plot import nessai_style, plot_1d_comparison
 from ..livepoint import (
     add_extra_parameters_to_live_points,
     get_dtype,
-    numpy_array_to_live_points,
 )
 from ..utils.hist import auto_bins
 from ..utils.information import differential_entropy
@@ -34,6 +33,229 @@ from ..utils.stats import (
 from ..utils.structures import get_subset_arrays, get_inverse_indices
 
 logger = logging.getLogger(__name__)
+
+
+class OrderedSamples:
+    """Samples ordered by log-likelihood."""
+
+    def __init__(
+        self,
+        strict_threshold: bool = False,
+        replace_all: bool = False,
+    ) -> None:
+        self.samples = None
+        self.log_q = None
+        self.live_points_indices = None
+        self.nested_samples_indices = np.empty(0, dtype=int)
+        self.strict_threshold = strict_threshold
+        self.replace_all = replace_all
+        self.state = _INSIntegralState()
+        self.log_likelihood_threshold = None
+
+    @property
+    def live_points(self) -> np.ndarray:
+        """The current set of live points"""
+        if self.live_points_indices is None:
+            return None
+        else:
+            return self.samples[self.live_points_indices]
+
+    @live_points.setter
+    def live_points(self, value):
+        if value is not None:
+            raise ValueError("Can only set live points to None!")
+        self.live_points_indices = None
+
+    @property
+    def nested_samples(self) -> np.ndarray:
+        """The current set of discarded points"""
+        if self.nested_samples_indices is None:
+            return None
+        else:
+            return self.samples[self.nested_samples_indices]
+
+    def update_log_likelihood_threshold(self, threshold: float) -> None:
+        """Update the log-likelihood threshold.
+
+        Only relevant if using :code:`strict_threshold=True`.
+
+        Parameters
+        ----------
+        threshold : float
+            New log-likelihood threshold
+        """
+        self.log_likelihood_threshold = threshold
+
+    def sort_samples(self, samples: np.ndarray, *args) -> np.ndarray:
+        """Correctly sort new live points.
+
+        Parameters
+        ----------
+        x
+            Array to sort
+        args
+            Any extra iterables to sort in the same way as x.
+        """
+        idx = np.argsort(samples, order="logL")
+        if len(args):
+            return get_subset_arrays(idx, samples, *args)
+        else:
+            return samples[idx]
+
+    def add_initial_samples(
+        self, samples: np.ndarray, log_q: np.ndarray
+    ) -> None:
+        self.samples, self.log_q = self.sort_samples(samples, log_q)
+        self.live_points_indices = np.arange(self.samples.size, dtype=int)
+
+    def add_samples(self, samples: np.ndarray, log_q: np.ndarray) -> None:
+        """Add samples the existing samples"""
+        # Insert samples into existing samples
+        samples, log_q = self.sort_samples(samples, log_q)
+        indices = np.searchsorted(self.samples["logL"], samples["logL"])
+        self.samples = np.insert(self.samples, indices, samples)
+        self.log_q = np.insert(self.log_q, indices, log_q, axis=0)
+
+        if self.strict_threshold:
+            n = np.argmax(
+                self.samples["logL"] >= self.log_likelihood_threshold
+            )
+            indices = np.arange(len(self.samples))
+            self.nested_samples_indices = indices[:n]
+            self.live_points_indices = indices[n:]
+        else:
+            # Indices after insertion are indices + n before
+            new_indices = indices + np.arange(len(indices))
+
+            # Indices of all previous samples
+            old_indices = get_inverse_indices(self.samples.size, new_indices)
+
+            if len(old_indices) != (self.samples.size - samples.size):
+                raise RuntimeError("Mismatch in updated_indices!")
+
+            # Updated indices of nested samples
+            self.nested_samples_indices = old_indices[
+                self.nested_samples_indices
+            ]
+
+            if self.live_points_indices is None:
+                self.live_points_indices = new_indices
+            else:
+                self.live_points_indices = old_indices[
+                    self.live_points_indices
+                ]
+                insert_indices = np.searchsorted(
+                    self.live_points_indices, new_indices
+                )
+                self.live_points_indices = np.insert(
+                    self.live_points_indices,
+                    insert_indices,
+                    new_indices,
+                )
+
+    def add_to_nested_samples(self, indices: np.ndarray) -> None:
+        """Move a set of samples from the live points to the nested samples"""
+        sort_indices = np.searchsorted(self.nested_samples_indices, indices)
+        self.nested_samples_indices = np.insert(
+            self.nested_samples_indices,
+            sort_indices,
+            indices,
+        )
+
+    def remove_samples(self) -> int:
+        """Remove samples all samples below the current log-likelihood
+        threshold.
+
+        Returns
+        -------
+        n : int
+            The number of samples removed
+        """
+        if self.replace_all:
+            n = len(self.live_points_indices)
+            self.add_to_nested_samples(self.live_points_indices)
+            self.live_points_indices = None
+        else:
+            n = np.argmax(
+                self.live_points["logL"] >= self.log_likelihood_threshold
+            )
+            self.add_to_nested_samples(self.live_points_indices[:n])
+            self.live_points_indices = np.delete(
+                self.live_points_indices, np.s_[:n]
+            )
+        return n
+
+    def update_evidence(self) -> None:
+        """Update the evidence estimate given the current samples"""
+        self.state.update_evidence(
+            nested_samples=self.nested_samples,
+            live_points=self.live_points,
+        )
+
+    def finalise(self) -> None:
+        """Finalise the samples by consuming all of the live points"""
+        self.add_to_nested_samples(self.live_points_indices)
+        self.live_points = None
+        self.state.update_evidence(self.samples)
+
+    def compute_importance(self, importance_ratio: float = 0.5):
+        """Compute the importance
+
+        Parameters
+        ----------
+        importance_factor :
+            Relative importance of the posterior versus the evidence. 1 is
+            only the posterior and 0 is only the evidence.
+
+        Returns
+        -------
+        dict
+            Dictionary containing the total, posterior and evidence importance
+            as a function of iteration.
+        """
+        log_imp_post = -np.inf * np.ones(self.log_q.shape[1])
+        log_imp_z = -np.inf * np.ones(self.log_q.shape[1])
+        for i, it in enumerate(range(-1, self.log_q.shape[-1] - 1)):
+            sidx = np.where(self.samples["it"] == it)[0]
+            zidx = np.where(self.samples["it"] >= it)[0]
+            if len(sidx):
+                log_imp_post[i] = logsumexp(
+                    self.samples["logL"][sidx] + self.samples["logW"][sidx]
+                ) - np.log(len(sidx))
+            if len(zidx):
+                log_imp_z[i] = logsumexp(
+                    self.samples["logL"][zidx] + self.samples["logW"][zidx]
+                ) - np.log(len(zidx))
+        imp_z = np.exp(log_imp_z - logsumexp(log_imp_z))
+        imp_post = np.exp(log_imp_post - logsumexp(log_imp_post))
+        imp = (1 - importance_ratio) * imp_z + importance_ratio * imp_post
+        return {"total": imp, "posterior": imp_post, "evidence": imp_z}
+
+    def compute_evidence_ratio(
+        self, threshold: Optional[float] = None
+    ) -> float:
+        """Compute the evidence ratio given the current log-likelihood
+        threshold.
+
+        Parameters
+        ----------
+        threshold
+            Log-likelihood threshold to use instead of the current value.
+        """
+        if threshold is None:
+            threshold = self.log_likelihood_threshold
+        above_threshold = self.samples["logL"] >= threshold
+        log_z_above = log_evidence_from_ins_samples(
+            self.samples[above_threshold]
+        )
+        return log_z_above - self.state.log_evidence
+
+    def __getstate__(self):
+        d = self.__dict__
+        exclude = {"log_q"}
+        state = {k: d[k] for k in d.keys() - exclude}
+        state["log_q"] = None
+        return state
 
 
 class ImportanceNestedSampler(BaseNestedSampler):
@@ -70,6 +292,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Minimum number of samples that can be removed when creating the next
         level. If less than one, the sampler will stop if the level method
         determines no samples should be removed.
+    max_samples
+        The maximum number of samples at any given iteration. If not specified,
+        then there is no limit to the number of samples.
     plot_likelihood_levels
         Enable or disable plotting the likelihood levels.
     trace_plot_kwargs
@@ -112,6 +337,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         max_iteration: Optional[int] = None,
         min_samples: int = 500,
         min_remove: int = 1,
+        max_samples: Optional[int] = None,
         stopping_criterion: str = "ratio",
         tolerance: float = 0.0,
         n_update: Optional[int] = None,
@@ -134,9 +360,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         bootstrap: bool = False,
         close_pool: bool = False,
         strict_threshold: bool = False,
+        draw_iid_live: bool = True,
         **kwargs: Any,
     ):
-
         self.add_fields()
 
         super().__init__(
@@ -167,9 +393,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._current_proposal_entropy = None
         self.importance = dict(total=None, posterior=None, evidence=None)
 
+        self.draw_iid_live = draw_iid_live
+
         self.n_initial = self.nlive if n_initial is None else n_initial
         self.min_samples = min_samples
         self.min_remove = min_remove
+        self.max_samples = max_samples
         self.n_update = n_update
         self.plot_pool = plot_pool
         self._plot_level_cdf = plot_level_cdf
@@ -188,7 +417,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         self.strict_threshold = strict_threshold
         self.logX = 0.0
-        self.logL_threshold = -np.inf
+        self.log_likelihood_threshold = -np.inf
         self.logL_pre = -np.inf
         self.logL = -np.inf
         self.draw_constant = draw_constant
@@ -205,10 +434,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.ess = 0.0
         self.Z_err = np.inf
 
-        self.state = _INSIntegralState()
-
-        self.final_state = None
-        self.final_samples = None
+        self._final_samples = None
 
         self.proposal = self.get_proposal(**kwargs)
         self.configure_iterations(min_iteration, max_iteration)
@@ -219,10 +445,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
             check_criteria,
         )
 
-        self.samples = np.empty(0, dtype=get_dtype(self.model.names))
-        self.log_q = None
-        self.live_points_indices = None
-        self.nested_samples_indices = np.empty(0, dtype=int)
+        self.training_samples = OrderedSamples(
+            strict_threshold=self.strict_threshold,
+            replace_all=self.replace_all,
+        )
+        if self.draw_iid_live:
+            self.iid_samples = OrderedSamples(
+                strict_threshold=self.strict_threshold,
+                replace_all=self.replace_all,
+            )
+        else:
+            self.iid_samples = None
 
         self.training_time = datetime.timedelta()
         self.draw_samples_time = datetime.timedelta()
@@ -263,6 +496,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
             return None
 
     @property
+    def final_log_posterior_weights(self) -> float:
+        if self.final_state:
+            return self.final_state.log_posterior_weights
+        else:
+            return None
+
+    @property
     def posterior_effective_sample_size(self) -> float:
         """The effective sample size of the posterior distribution.
 
@@ -288,7 +528,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         where :math:`W(x) = \\pi(x)/Q(x)`.
         """
-        return differential_entropy(self.samples["logW"])
+        return differential_entropy(self.samples_unit["logW"])
 
     @property
     def current_proposal_entropy(self) -> float:
@@ -296,26 +536,82 @@ class ImportanceNestedSampler(BaseNestedSampler):
         return self._current_proposal_entropy
 
     @property
-    def live_points(self) -> np.ndarray:
-        """The current set of live points"""
-        if self.live_points_indices is None:
-            return None
+    def _ordered_samples(self) -> OrderedSamples:
+        """The set of ordered samples to treat as the 'main' samples.
+
+        If :code:`draw_iid_live=True` these will be the i.i.d samples. If it
+        is False, then it will be the training samples.
+        """
+        if self.draw_iid_live:
+            return self.iid_samples
         else:
-            return self.samples[self.live_points_indices]
+            return self.training_samples
+
+    @property
+    def samples_unit(self) -> np.ndarray:
+        return self._ordered_samples.samples
+
+    @property
+    def samples(self) -> np.ndarray:
+        return self.model.from_unit_hypercube(self.samples_unit)
+
+    @property
+    def log_q(self) -> np.ndarray:
+        return self._ordered_samples.log_q
+
+    @property
+    def live_points_unit(self) -> np.ndarray:
+        """The current set of live points"""
+        return self._ordered_samples.live_points
+
+    @live_points_unit.setter
+    def live_points_unit(self, samples) -> None:
+        if samples is not None:
+            raise RuntimeError("Cannot set live points")
+
+    @property
+    def live_points(self) -> np.ndarray:
+        return self.model.from_unit_hypercube(self.live_points_unit)
 
     @live_points.setter
-    def live_points(self, value):
-        if value is not None:
-            raise ValueError("Can only set live points to None!")
-        self.live_points_indices = None
+    def live_points(self, samples) -> None:
+        if samples is not None:
+            raise RuntimeError("Cannot set live points")
+
+    @property
+    def nested_samples_unit(self) -> np.ndarray:
+        """The current set of discarded points"""
+        return self._ordered_samples.nested_samples
 
     @property
     def nested_samples(self) -> np.ndarray:
-        """The current set of discarded points"""
-        if self.nested_samples_indices is None:
-            return None
+        return self.model.from_unit_hypercube(self.nested_samples_unit)
+
+    @property
+    def state(self) -> _INSIntegralState:
+        return self._ordered_samples.state
+
+    @property
+    def final_samples_unit(self) -> np.ndarray:
+        if self._final_samples is not None:
+            return self._final_samples.samples
+        elif self.iid_samples is not None:
+            return self.iid_samples.samples
         else:
-            return self.samples[self.nested_samples_indices]
+            return None
+
+    @property
+    def final_samples(self) -> np.ndarray:
+        return self.model.from_unit_hypercube(self.final_samples_unit)
+
+    @property
+    def final_state(self) -> _INSIntegralState:
+        if self._final_samples is not None:
+            return self._final_samples.state
+        elif self.iid_samples is not None:
+            return self.iid_samples.state
+        else:
+            return None
 
     @property
     def reached_tolerance(self) -> bool:
@@ -419,23 +715,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             raise ValueError("`min_samples` must be less than `nlive`")
         if self.min_remove > self.nlive:
             raise ValueError("`min_remove` must be less than `nlive`")
+        logger.debug("Sampler configuration is valid")
         return True
-
-    def sort_points(self, x: np.ndarray, *args) -> np.ndarray:
-        """Correctly sort new live points.
-
-        Parameters
-        ----------
-        x
-            Array to sort
-        args
-            Any extra iterables to sort in the same way as x.
-        """
-        idx = np.argsort(x, order="logL")
-        if len(args):
-            return get_subset_arrays(idx, x, *args)
-        else:
-            return x[idx]
 
     def populate_live_points(self) -> None:
         """Draw the initial live points from the prior.
@@ -443,29 +724,27 @@ class ImportanceNestedSampler(BaseNestedSampler):
         The live points are automatically sorted and assigned the iteration
         number -1.
         """
-        live_points = np.empty(
-            self.n_initial, dtype=get_dtype(self.model.names)
-        )
+        if self.draw_iid_live:
+            target = int(2 * self.n_initial)
+        else:
+            target = self.n_initial
+        live_points = np.empty(target, dtype=get_dtype(self.model.names))
         n = 0
         logger.debug(f"Drawing {self.n_initial} initial points")
-        while n < self.n_initial:
-            points = self.model.from_unit_hypercube(
-                numpy_array_to_live_points(
-                    np.random.rand(self.n_initial, self.model.dims),
-                    self.model.names,
-                )
+        while n < target:
+            points = self.model.sample_unit_hypercube(target)
+            points["logP"] = self.model.batch_evaluate_log_prior(
+                points, unit_hypercube=True
             )
-            points["logP"] = self.model.batch_evaluate_log_prior(points)
             accept = np.isfinite(points["logP"])
             n_it = accept.sum()
-            m = min(n_it, self.n_initial - n)
+            m = min(n_it, target - n)
             live_points[n : (n + m)] = points[accept][:m]
             n += m
 
         live_points["logL"] = self.model.batch_evaluate_log_likelihood(
-            live_points
+            live_points, unit_hypercube=True
         )
-
         if not np.isfinite(live_points["logL"]).all():
             logger.warning("Found infinite values in the log-likelihood")
 
@@ -476,9 +755,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
         # Since log_Q is computed in the unit-cube
         live_points["logQ"] = np.zeros(live_points.size)
         live_points["logW"] = -live_points["logQ"]
-        self.samples = self.sort_points(live_points)
-        self.live_points_indices = np.arange(live_points.size, dtype=int)
-        self.log_q = np.zeros([live_points.size, 1])
+        log_q = np.zeros([live_points.size, 1])
+
+        if self.draw_iid_live:
+            live_points, iid_samples = (
+                live_points[: self.n_initial],
+                live_points[self.n_initial :],
+            )
+            log_q, iid_log_q = (
+                log_q[: self.n_initial, ...],
+                log_q[self.n_initial :, ...],
+            )
+            self.iid_samples.add_initial_samples(iid_samples, iid_log_q)
+
+        self.training_samples.add_initial_samples(live_points, log_q)
 
     def initialise(self) -> None:
         """Initialise the nested sampler.
@@ -486,8 +776,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Draws live points, initialises the proposal.
         """
         if self.initialised:
-            logger.warning("Nested sampler has already initialised!")
-        if self.live_points is None:
+            logger.warning("Nested sampler has already been initialised!")
+        if self.live_points_unit is None:
             self.populate_live_points()
 
         self.initialise_history()
@@ -528,13 +818,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def update_history(self) -> None:
         """Update the history dictionary"""
         self.history["min_log_likelihood"].append(
-            np.min(self.live_points["logL"])
+            np.min(self.live_points_unit["logL"])
         )
         self.history["max_log_likelihood"].append(
-            np.max(self.live_points["logL"])
+            np.max(self.live_points_unit["logL"])
         )
-        self.history["median_logL"].append(np.median(self.live_points["logL"]))
-        self.history["logL_threshold"].append(self.logL_threshold)
+        self.history["median_logL"].append(
+            np.median(self.live_points_unit["logL"])
+        )
+        self.history["logL_threshold"].append(self.log_likelihood_threshold)
         self.history["logX"].append(self.logX)
         self.history["gradients"].append(self.gradient)
         self.history["logZ"].append(self.state.logZ)
@@ -552,7 +844,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             )
 
     def determine_threshold_quantile(
-        self, q: float = 0.8, include_likelihood: bool = False
+        self,
+        samples: np.ndarray,
+        q: float = 0.8,
+        include_likelihood: bool = False,
     ) -> int:
         """Determine where the next likelihood threshold should be located.
 
@@ -560,6 +855,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         Parameters
         ----------
+        samples : np.ndarray
+            An array of samples
         q : float
             Quantile to use. Defaults to 0.8
         include_likelihood : bool
@@ -571,11 +868,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
             The number of live points to discard.
         """
         logger.debug(f"Determining {q:.3f} quantile")
-        a = self.live_points["logL"]
+        a = samples["logL"]
         if include_likelihood:
-            log_weights = self.live_points["logW"] + self.live_points["logL"]
+            log_weights = samples["logW"] + samples["logL"]
         else:
-            log_weights = self.live_points["logW"].copy()
+            log_weights = samples["logW"].copy()
         cutoff = weighted_quantile(
             a, q, log_weights=log_weights, values_sorted=True
         )
@@ -587,6 +884,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def determine_threshold_entropy(
         self,
+        samples: np.ndarray,
         q: float = 0.5,
         include_likelihood: bool = False,
         use_log_weights: bool = True,
@@ -606,9 +904,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             log-weights.
         """
         if include_likelihood:
-            log_weights = self.live_points["logW"] + self.live_points["logL"]
+            log_weights = samples["logW"] + samples["logL"]
         else:
-            log_weights = self.live_points["logW"]
+            log_weights = samples["logW"]
         if use_log_weights:
             p = log_weights
         else:
@@ -624,8 +922,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             )
             os.makedirs(output, exist_ok=True)
             self.plot_level_cdf(
+                samples["logL"],
                 cdf,
-                threshold=self.live_points["logL"][n],
+                threshold=samples["logL"][n],
                 q=q,
                 filename=os.path.join(output, "cdf.png"),
             )
@@ -634,6 +933,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     @nessai_style
     def plot_level_cdf(
         self,
+        log_likelihood_values: np.ndarray,
         cdf: np.ndarray,
         threshold: float,
         q: float,
@@ -643,6 +943,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         Parameters
         ----------
+        log_likelihood_values : np.ndarray
+            The log-likelihood values for the CDF
         cdf : np.ndarray
             The CDF to plot
         filename : Optional[str]
@@ -656,7 +958,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             specified.
         """
         fig = plt.figure()
-        plt.plot(self.live_points["logL"], cdf)
+        plt.plot(log_likelihood_values, cdf)
         plt.xlabel("Log-likelihood")
         plt.title("CDF")
         plt.axhline(q, c="C1")
@@ -668,20 +970,33 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             return fig
 
-    def determine_likelihood_threshold(
-        self, method="entropy", **kwargs
+    def determine_log_likelihood_threshold(
+        self,
+        samples: np.ndarray,
+        method: Literal["entropy", "quantile"] = "entropy",
+        **kwargs,
     ) -> int:
         """Determine the next likelihood threshold
 
+        Parameters
+        ----------
+        samples : numpy.ndarray
+            An array of samples
+        method : Literal["entropy", "quantile"]
+            The method to use
+        kwargs :
+            Keyword arguments passed to the function for the chosen method.
+
+
         Returns
         -------
-        int :
-            The number of samples to remove from the current live points.
+        float
+            The log-likelihood threshold
         """
         if method == "quantile":
-            n = self.determine_threshold_quantile(**kwargs)
+            n = self.determine_threshold_quantile(samples, **kwargs)
         elif method == "entropy":
-            n = self.determine_threshold_entropy(**kwargs)
+            n = self.determine_threshold_entropy(samples, **kwargs)
         else:
             raise ValueError(method)
         logger.debug(f"Next iteration should remove {n} points")
@@ -690,72 +1005,112 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 return 0
             else:
                 n = 1
-        if (self.live_points.size - n) < self.min_samples:
+        if (samples.size - n) < self.min_samples:
             logger.warning(
-                f"Cannot remove {n} from {self.live_points.size}, "
+                f"Cannot remove {n} from {samples.size}, "
                 f"min_samples={self.min_samples}"
             )
-            n = max(0, self.live_points.size - self.min_samples)
+            n = max(0, samples.size - self.min_samples)
         elif n < self.min_remove:
             logger.warning(
                 f"Cannot remove less than {self.min_remove} samples"
             )
             n = self.min_remove
-        logger.info(
-            f"Removing {n}/{self.live_points.size} samples to train next "
-            "proposal"
-        )
 
-        self.logL_threshold = self.live_points[n]["logL"].copy()
-        logger.info(f"Log-likelihood threshold: {self.logL_threshold}")
-        return n
+        if (
+            self.draw_constant
+            and self.max_samples
+            and ((samples.size - n) + self.nlive) > self.max_samples
+        ):
+            n = samples.size - self.max_samples + self.nlive
+            logger.warning(
+                "Next level would have more than max samples, "
+                f"removing {n} samples"
+            )
+
+        threshold = samples[n]["logL"].copy()
+        return threshold
+
+    def update_log_likelihood_threshold(self, threshold: float) -> None:
+        self.log_likelihood_threshold = threshold
+        self.training_samples.update_log_likelihood_threshold(
+            self.log_likelihood_threshold
+        )
+        if self.iid_samples:
+            self.iid_samples.update_log_likelihood_threshold(
+                self.log_likelihood_threshold
+            )
 
     def add_new_proposal(self):
         """Add a new proposal to the meta proposal"""
         st = datetime.datetime.now()
 
         # Implicitly includes all samples
-        n_train = np.argmax(self.samples["logL"] >= self.logL_threshold)
-        self.training_samples = self.samples[n_train:].copy()
-        self.training_log_q = self.log_q[n_train:, :].copy()
+        # Ensure at least min_samples are used for training
+        # This reduces the likelihood threshold but avoids issues with training
+        # with e.g. 1 point.
+        n_train = min(
+            np.argmax(
+                self.training_samples.samples["logL"]
+                >= self.log_likelihood_threshold
+            ),
+            self.training_samples.samples.size - self.min_samples,
+        )
+        self.current_training_samples = self.training_samples.samples[
+            n_train:
+        ].copy()
+        self.current_training_log_q = self.training_samples.log_q[
+            n_train:, :
+        ].copy()
 
         logger.info(
-            f"Training next proposal with {len(self.training_samples)} samples"
+            "Training next proposal with "
+            f"{len(self.current_training_samples)} samples"
         )
 
         logger.debug("Updating the contour")
         logger.debug(
             "Training data ESS: "
-            f"{effective_sample_size(self.training_samples['logW'])}"
+            f"{effective_sample_size(self.current_training_samples['logW'])}"
         )
 
         if self.replace_all:
-            weights = -np.exp(self.training_log_q[:, -1])
+            weights = -np.exp(self.current_training_log_q[:, -1])
         elif self.weighted_kl:
-            log_w = self.training_samples["logW"].copy()
+            log_w = self.current_training_samples["logW"].copy()
             log_w -= logsumexp(log_w)
             weights = np.exp(log_w)
         else:
             weights = None
 
         self.proposal.train(
-            self.training_samples,
+            self.current_training_samples,
             plot=self.plot_training_data,
             weights=weights,
         )
         self.training_time += datetime.datetime.now() - st
 
-    def draw_n_samples(self, n: int):
+    def draw_n_samples(self, n: int, **kwargs):
         """Draw n samples from the current proposal
 
         Includes computing the log-likelihood of the samples
+
+        Parameters
+        ----------
+        n : int
+            Number of samples to draw
+        kwargs :
+            Keyword arguments passed to the :code:`draw` method of the proposal
+            class.
+
         """
         st = datetime.datetime.now()
-        logger.info(f"Drawing {n} samples from the new proposal")
-        new_points, log_q = self.proposal.draw(n)
+        logger.debug(f"Drawing {n} samples from the proposal")
+        new_points, log_q = self.proposal.draw(n, **kwargs)
         logger.debug("Evaluating likelihood for new points")
         new_points["logL"] = self.model.batch_evaluate_log_likelihood(
-            new_points
+            new_points,
+            unit_hypercube=True,
         )
         logger.debug(
             "Min. log-likelihood of new samples: "
@@ -767,9 +1122,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         if np.any(new_points["logL"] == -np.inf):
             logger.warning("New points contain points with zero likelihood")
 
-        self.history["leakage_new_points"].append(
-            self.compute_leakage(new_points)
-        )
         self.draw_samples_time += datetime.datetime.now() - st
         return new_points, log_q
 
@@ -794,87 +1146,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         if weights:
             return (
-                np.sum(samples["logW"][samples["logL"] < self.logL_threshold])
+                np.sum(
+                    samples["logW"][
+                        samples["logL"] < self.log_likelihood_threshold
+                    ]
+                )
                 / samples["logW"].sum()
             )
         else:
-            return (samples["logL"] < self.logL_threshold).sum() / samples.size
-
-    def compute_importance(self, G: float = 0.5):
-        """Compute the importance
-
-        Parameters
-        ----------
-        G :
-            relative importance of the posterior versus the evidence. G=1 is
-            only the posterior and G=0 is only the evidence,
-
-        Returns
-        -------
-        dict
-            Dictionary containing the total, posterior and evidence importance
-            as a function of iteration.
-        """
-        log_imp_post = np.empty(self.log_q.shape[1])
-        log_imp_z = np.empty(self.log_q.shape[1])
-        for i, it in enumerate(range(-1, self.log_q.shape[-1] - 1)):
-            sidx = np.where(self.samples["it"] == it)[0]
-            zidx = np.where(self.samples["it"] >= it)[0]
-            log_imp_post[i] = logsumexp(
-                self.samples["logL"][sidx] + self.samples["logW"][sidx]
-            ) - np.log(len(sidx))
-            log_imp_z[i] = logsumexp(
-                self.samples["logL"][zidx] + self.samples["logW"][zidx]
-            ) - np.log(len(zidx))
-        imp_z = np.exp(log_imp_z - logsumexp(log_imp_z))
-        imp_post = np.exp(log_imp_post - logsumexp(log_imp_post))
-        imp = (1 - G) * imp_z + G * imp_post
-        return {"total": imp, "posterior": imp_post, "evidence": imp_z}
-
-    def add_samples(self, samples: np.ndarray, log_q: np.ndarray) -> None:
-        """Add samples the existing samples
-
-        Samples MUST be sorted by logL.
-        """
-        # Insert samples into existing samples
-        indices = np.searchsorted(self.samples["logL"], samples["logL"])
-        self.samples = np.insert(self.samples, indices, samples)
-        self.log_q = np.insert(self.log_q, indices, log_q, axis=0)
-
-        if self.strict_threshold:
-            n = np.argmax(self.samples["logL"] >= self.logL_threshold)
-            indices = np.arange(len(self.samples))
-            self.nested_samples_indices = indices[:n]
-            self.live_points_indices = indices[n:]
-        else:
-            # Indices after insertion are indices + n before
-            new_indices = indices + np.arange(len(indices))
-
-            # Indices of all previous samples
-            old_indices = get_inverse_indices(self.samples.size, new_indices)
-
-            if len(old_indices) != (self.samples.size - samples.size):
-                raise RuntimeError("Mismatch in updated_indices!")
-
-            # Updated indices of nested samples
-            self.nested_samples_indices = old_indices[
-                self.nested_samples_indices
-            ]
-
-            if self.live_points_indices is None:
-                self.live_points_indices = new_indices
-            else:
-                self.live_points_indices = old_indices[
-                    self.live_points_indices
-                ]
-                insert_indices = np.searchsorted(
-                    self.live_points_indices, new_indices
-                )
-                self.live_points_indices = np.insert(
-                    self.live_points_indices,
-                    insert_indices,
-                    new_indices,
-                )
+            return (
+                samples["logL"] < self.log_likelihood_threshold
+            ).sum() / samples.size
 
     def add_and_update_points(self, n: int):
         """Add new points to the current set of live points.
@@ -885,11 +1167,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
             The number of points to add.
         """
         st = datetime.datetime.now()
-        logger.debug(f"Adding {n} points")
-        new_samples, log_q = self.draw_n_samples(n)
-        new_samples, log_q = self.sort_points(new_samples, log_q)
-        self._current_proposal_entropy = differential_entropy(-log_q[:, -1])
+        logger.info(f"Drawing {n} new samples from the new proposal")
+        new_samples, log_q = self.draw_n_samples(n, update_counts=True)
         new_samples["it"] = self.iteration
+
+        self.history["leakage_new_points"].append(
+            self.compute_leakage(new_samples)
+        )
+
+        self._current_proposal_entropy = differential_entropy(-log_q[:, -1])
 
         logger.debug(
             "New samples ESS: " f"{effective_sample_size(new_samples['logW'])}"
@@ -897,68 +1183,73 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         if self.plot and self.plot_pool:
             plot_1d_comparison(
-                self.training_samples,
+                self.current_training_samples,
                 new_samples,
                 filename=os.path.join(
                     self.output, "levels", f"pool_{self.iteration}.png"
                 ),
             )
 
-        self.log_q = self.proposal.update_log_q(self.samples, self.log_q)
-        self.samples["logQ"] = self.proposal.compute_meta_proposal_from_log_q(
-            self.log_q
+        self.training_samples.log_q = self.proposal.update_log_q(
+            self.training_samples.samples, self.training_samples.log_q
         )
-        self.samples["logW"] = -self.samples["logQ"]
+
+        self.training_samples.samples[
+            "logQ"
+        ] = self.proposal.compute_meta_proposal_from_log_q(
+            self.training_samples.log_q
+        )
+        self.training_samples.samples["logW"] = -self.training_samples.samples[
+            "logQ"
+        ]
+
+        self.training_samples.add_samples(new_samples, log_q)
+
+        if self.draw_iid_live:
+            iid_samples, iid_log_q = self.draw_n_samples(
+                n, update_counts=False
+            )
+            iid_samples["it"] = self.iteration
+
+            self.iid_samples.log_q = self.proposal.update_log_q(
+                self.iid_samples.samples, self.iid_samples.log_q
+            )
+            self.iid_samples.samples[
+                "logQ"
+            ] = self.proposal.compute_meta_proposal_from_log_q(
+                self.iid_samples.log_q
+            )
+            self.iid_samples.samples["logW"] = -self.iid_samples.samples[
+                "logQ"
+            ]
+            self.iid_samples.add_samples(iid_samples, iid_log_q)
 
         self.history["n_added"].append(new_samples.size)
 
-        self.add_samples(new_samples, log_q)
-
-        live_points = self.live_points
-        self.history["n_live"].append(live_points.size)
-        self.live_points_ess = effective_sample_size(live_points["logW"])
-        self.history["leakage_live_points"].append(
-            self.compute_leakage(live_points)
+        self.history["n_live"].append(self.live_points_unit.size)
+        self.live_points_ess = effective_sample_size(
+            self.live_points_unit["logW"]
         )
+        self.history["leakage_live_points"].append(
+            self.compute_leakage(self.live_points_unit)
+        )
+        logger.info(f"Current n samples: {self.live_points_unit.size}")
         logger.debug(f"Current live points ESS: {self.live_points_ess:.2f}")
+
         self.add_and_update_samples_time += datetime.datetime.now() - st
 
-    def add_to_nested_samples(self, indices: np.ndarray) -> None:
-        """Add an array of samples to the nested samples."""
-        sort_indices = np.searchsorted(self.nested_samples_indices, indices)
-        self.nested_samples_indices = np.insert(
-            self.nested_samples_indices,
-            sort_indices,
-            indices,
-        )
-
-    def remove_samples(self, n: int) -> None:
-        """Remove samples from the current set of live points.
-
-        Parameters
-        ----------
-        n : int
-            The number of samples to remove.
-        """
-        if self.replace_all:
-            self.history["n_removed"].append(self.live_points.size)
-        else:
-            self.history["n_removed"].append(n)
-        logger.debug(f"Removing {n} points")
-
-        if self.replace_all:
-            self.add_to_nested_samples(self.live_points_indices)
-            self.live_points_indices = None
-        else:
-            self.add_to_nested_samples(self.live_points_indices[:n])
-            self.live_points_indices = np.delete(
-                self.live_points_indices, np.s_[:n]
-            )
+    def remove_samples(self) -> int:
+        """Remove samples from the current set of live points."""
+        n_removed = self.training_samples.remove_samples()
+        if self.draw_iid_live:
+            n_removed = self.iid_samples.remove_samples()
+        self.history["n_removed"].append(n_removed)
+        return n_removed
 
     def adjust_final_samples(self, n_batches=5):
         """Adjust the final samples"""
-        orig_n_total = self.samples.size
-        its, counts = np.unique(self.samples["it"], return_counts=True)
+        orig_n_total = len(self.samples_unit)
+        its, counts = np.unique(self.samples_unit["it"], return_counts=True)
         assert counts.sum() == orig_n_total
         weights = counts / orig_n_total
         original_unnorm_weight = counts.copy()
@@ -968,10 +1259,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(f"Final weights: {weights}")
         logger.debug(f"Final its: {list(self.proposal.n_requested.keys())}")
 
-        sort_idx = np.argsort(self.samples, order="it")
-        samples = self.samples[sort_idx].copy()
-        log_q = self.log_q[sort_idx].copy()
-        n_total = samples.size
+        sort_idx = np.argsort(self.samples_unit, order="it")
+        samples = self.samples_unit.copy()[sort_idx]
+        log_q = self.log_q[sort_idx]
+        n_total = len(samples)
 
         # This changes the proposal because the number of samples changes
         log_evidences = np.empty(n_batches)
@@ -1002,7 +1293,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     new_samples["it"] = it
                     new_samples[
                         "logL"
-                    ] = self.model.batch_evaluate_log_likelihood(new_samples)
+                    ] = self.model.batch_evaluate_log_likelihood(
+                        new_samples, unit_hypercube=True
+                    )
                     new_loc = np.searchsorted(samples["it"], new_samples["it"])
                     samples = np.insert(samples, new_loc, new_samples)
                     log_q = np.insert(log_q, new_loc, new_log_q, axis=0)
@@ -1055,14 +1348,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
         if self._train_final_flow:
             self.train_final_flow()
 
-        self.add_to_nested_samples(self.live_points_indices)
-        self.live_points = None
-        self.state.update_evidence(self.samples)
+        self.training_samples.finalise()
+        if self.draw_iid_live:
+            self.iid_samples.finalise()
 
         if self.bootstrap:
             self.adjust_final_samples()
 
-        final_kl = self.kl_divergence(self.samples)
+        final_kl = self.kl_divergence(self.samples_unit)
+
         logger.info(
             f"Final log Z: {self.state.logZ:.3f} "
             f"+/- {self.state.compute_uncertainty():.3f}"
@@ -1084,7 +1378,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         log_q = self.update_live_points(new_samples, log_q)
         self.update_nested_samples()
         self.add_to_nested_samples(new_samples)
-        self.state.update_evidence(self.nested_samples)
+        self.state.update_evidence(self.nested_samples_unit)
 
     def compute_stopping_criterion(self) -> List[float]:
         """Compute the stopping criterion.
@@ -1095,9 +1389,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.log_dZ = np.abs(self.log_evidence - self.history["logZ"][-1])
         else:
             self.log_dZ = np.inf
-        self.ratio = self.state.compute_evidence_ratio(ns_only=False)
+        self.ratio = self._ordered_samples.compute_evidence_ratio()
         self.ratio_ns = self.state.compute_evidence_ratio(ns_only=True)
-        self.kl = self.kl_divergence(self.samples)
         self.ess = self.state.effective_n_posterior_samples
         self.Z_err = np.exp(self.log_evidence_error)
         cond = [getattr(self, sc) for sc in self.stopping_criterion]
@@ -1123,10 +1416,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def _compute_gradient(self) -> None:
         self.logX_pre = self.logX
-        self.logX = logsumexp(self.live_points["logW"])
+        self.logX = logsumexp(self.live_points_unit["logW"])
         self.logL_pre = self.logL
         self.logL = logsumexp(
-            self.live_points["logL"] - self.live_points["logQ"]
+            self.live_points_unit["logL"] - self.live_points_unit["logQ"]
         )
         self.dlogX = self.logX - self.logX_pre
         self.dlogL = self.logL - self.logL_pre
@@ -1139,16 +1432,28 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f"log Z: {self.state.logZ:.3f} +/- "
             f"{self.state.compute_uncertainty():.3f} "
             f"ESS: {self.ess:.1f} "
-            f"logL min: {self.live_points['logL'].min():.3f} "
-            f"logL median: {np.nanmedian(self.live_points['logL']):.3f} "
-            f"logL max: {self.live_points['logL'].max():.3f}"
+            f"logL min: {self.live_points_unit['logL'].min():.3f} "
+            f"logL median: {np.nanmedian(self.live_points_unit['logL']):.3f} "
+            f"logL max: {self.live_points_unit['logL'].max():.3f}"
         )
+
+    def update_evidence(self):
+        self.training_samples.update_evidence()
+        if self.draw_iid_live:
+            self.iid_samples.update_evidence()
+
+    def compute_importance(self, **kwargs):
+        if self.draw_iid_live:
+            importance = self.iid_samples.compute_importance(**kwargs)
+        else:
+            importance = self.training_samples.compute_importance(**kwargs)
+        return importance
 
     def nested_sampling_loop(self):
         """Main nested sampling loop."""
         if self.finalised:
             logger.warning("Sampler has already finished sampling! Aborting")
-            return self.log_evidence, self.nested_samples
+            return self.log_evidence, self.nested_samples_unit
         self.initialise()
         logger.info("Starting the nested sampling loop")
 
@@ -1159,28 +1464,31 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self._compute_gradient()
 
             if self.n_update is None:
-                n_remove = self.determine_likelihood_threshold(
-                    method=self.threshold_method, **self.threshold_kwargs
+                threshold = self.determine_log_likelihood_threshold(
+                    self.live_points_unit,
+                    method=self.threshold_method,
+                    **self.threshold_kwargs,
                 )
-                if n_remove == 0:
-                    logger.warning("No points to remove")
-                    logger.warning("Stopping")
-                    break
             else:
-                n_remove = self.n_update
-            self.remove_samples(n_remove)
+                threshold = self.live_points_unit[self.n_update]["logL"].copy()
+
+            logger.info(f"Log-likelihood threshold: {threshold}")
+            self.update_log_likelihood_threshold(threshold)
+
+            n_removed = self.remove_samples()
 
             self.add_new_proposal()
 
             if self.draw_constant or self.replace_all:
                 n_add = self.nlive
             else:
-                n_add = n_remove
+                n_add = n_removed
             self.add_and_update_points(n_add)
 
-            self.importance = self.compute_importance(G=0.5)
+            self.update_evidence()
 
-            self.state.update_evidence(self.nested_samples, self.live_points)
+            self.importance = self.compute_importance(importance_ratio=0.5)
+
             self.criterion = self.compute_stopping_criterion()
 
             self.log_state()
@@ -1205,7 +1513,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             f"Add and update samples time: {self.add_and_update_samples_time}"
         )
         logger.info(f"Log-likelihood time: {self.likelihood_evaluation_time}")
-        return self.log_evidence, self.nested_samples
+        return self.log_evidence, self.samples
 
     def draw_posterior_samples(
         self,
@@ -1215,11 +1523,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
     ) -> np.ndarray:
         """Draw posterior samples from the current nested samples."""
 
-        if use_final_samples and self.final_samples is not None:
+        if use_final_samples and self.final_samples_unit is not None:
             samples = self.final_samples
             log_w = self.final_state.log_posterior_weights
         else:
-            samples = self.nested_samples
+            samples = self.samples
             log_w = self.state.log_posterior_weights
 
         posterior_samples, indices = draw_posterior_samples(
@@ -1258,7 +1566,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def draw_more_nested_samples(self, n: int) -> np.ndarray:
         """Draw more nested samples from g"""
         samples = self.proposal.draw_from_flows(n)
-        samples["logL"] = self.model.batch_evaluate_log_likelihood(samples)
+        samples["logL"] = self.model.batch_evaluate_log_likelihood(
+            samples, unit_hypercube=True
+        )
         state = _INSIntegralState()
         state.update_evidence(samples)
         logger.info(
@@ -1333,21 +1643,24 @@ class ImportanceNestedSampler(BaseNestedSampler):
             raise RuntimeError("Specify either `n_post` or `n_draw`")
         start_time = datetime.datetime.now()
 
-        if self.final_state:
-            logger.warning("Existing final state will be overridden")
+        if self._final_samples:
+            logger.warning("Existing final samples will be overridden")
+        elif self.iid_samples:
+            logger.warning("Already have i.i.d samples")
 
-        self.final_state = _INSIntegralState()
+        final_samples = OrderedSamples()
 
         eff = (
-            self.state.effective_n_posterior_samples / self.nested_samples.size
+            self.state.effective_n_posterior_samples
+            / self.nested_samples_unit.size
         )
-        max_samples = int(max_samples_ratio * self.nested_samples.size)
+        max_samples = int(max_samples_ratio * self.nested_samples_unit.size)
 
-        max_log_likelihood = np.max(self.nested_samples["logL"])
+        max_log_likelihood = np.max(self.samples_unit["logL"])
 
         logger.debug(f"Expected efficiency: {eff:.3f}")
         if not any([n_post, n_draw]):
-            n_draw = self.nested_samples.size
+            n_draw = self.samples_unit.size
 
         if n_post:
             n_draw = int(n_post / eff)
@@ -1381,7 +1694,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 if optimise_kwargs is None:
                     optimise_kwargs = {}
                 weights = optimise_meta_proposal_weights(
-                    self.nested_samples,
+                    self.nested_samples_unit,
                     self._log_q_ns,
                     initial_weights=weights,
                     **optimise_kwargs,
@@ -1440,7 +1753,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             counts += new_counts
 
             it_samples["logL"] = self.model.batch_evaluate_log_likelihood(
-                it_samples
+                it_samples,
+                unit_hypercube=True,
             )
 
             if np.any(it_samples["logL"] > max_log_likelihood):
@@ -1459,8 +1773,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             samples["logQ"] = log_Q
             samples["logW"] = -log_Q
 
-            self.final_state.update_evidence(samples)
-            ess = self.final_state.effective_n_posterior_samples
+            final_samples.state.update_evidence(samples)
+            ess = final_samples.state.effective_n_posterior_samples
             logger.debug(f"Sample count: {samples.size}")
             logger.debug(f"Current ESS: {ess}")
             it += 1
@@ -1471,11 +1785,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         logger.info(f"Drew {samples.size} final samples")
         logger.info(
-            f"Final log-evidence: {self.final_state.logZ:.3f} "
-            f"+/- {self.final_state.compute_uncertainty():.3f}"
+            f"Final log-evidence: {final_samples.state.log_evidence:.3f} "
+            f"+/- {final_samples.state.log_evidence_error:.3f}"
         )
         logger.info(f"Final ESS: {ess:.1f}")
-        self.final_samples = samples
+        final_samples.samples = samples
+        final_samples.log_q = log_q
+        self._final_samples = final_samples
         self.draw_final_samples_time += datetime.datetime.now() - start_time
         return self.final_state.logZ, samples
 
@@ -1486,7 +1802,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         weights = np.exp(self.state.log_posterior_weights)
         weights /= weights.sum()
-        samples, log_j = self.proposal.rescale(self.nested_samples)
+        samples, log_j = self.proposal.rescale(self.nested_samples_unit)
         flow = FlowModel(
             output=os.path.join(self.output, "levels", "final_level", ""),
             config=self.proposal.flow_config,
@@ -1494,11 +1810,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
         flow.initialise()
         flow.train(samples, weights=weights)
 
-        x_p_out, log_prob = flow.sample_and_log_prob(self.nested_samples.size)
+        x_p_out, log_prob = flow.sample_and_log_prob(
+            self.nested_samples_unit.size
+        )
         x_out, log_j_out = self.proposal.inverse_rescale(x_p_out)
         x_out["logQ"] = log_prob - log_j_out
         x_out["logW"] = -x_out["logQ"]
-        x_out["logL"] = self.model.batch_evaluate_log_likelihood(x_out)
+        x_out["logL"] = self.model.batch_evaluate_log_likelihood(
+            x_out, unit_hypercube=True
+        )
 
         state = _INSIntegralState(normalised=False)
         state.log_meta_constant = 0.0
@@ -1668,7 +1988,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Union[matplotlib.figure.Figure, None]
             Returns the figure if a filename name is not given.
         """
-        n_subplots = 5
+        n_subplots = 4
 
         fig, ax = plt.subplots(n_subplots, 1, sharex=True, figsize=(15, 15))
         ax = ax.ravel()
@@ -1720,10 +2040,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
-        ax[m].plot(its, self.history["stopping_criteria"]["kl"])
-        ax[m].set_ylabel("KL(Q||posterior)")
-        m += 1
-
         ax[-1].set_xlabel("Iteration")
 
         fig.suptitle(
@@ -1762,7 +2078,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             specified.
         """
 
-        parameters = list(self.samples.dtype.names)
+        parameters = list(self.samples_unit.dtype.names)
         for p in ["logW"]:
             parameters.remove(p)
         n = len(parameters)
@@ -1771,17 +2087,17 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         if enable_colours:
             colour_kwargs = dict(
-                c=self.samples["it"],
+                c=self.samples_unit["it"],
                 vmin=-1,
-                vmax=self.samples["it"].max(),
+                vmax=self.samples_unit["it"].max(),
             )
         else:
             colour_kwargs = {}
 
         for ax, p in zip(axs, parameters):
             ax.scatter(
-                self.samples["logW"],
-                self.samples[p],
+                self.samples_unit["logW"],
+                self.samples_unit[p],
                 s=1.0,
                 **colour_kwargs,
             )
@@ -1815,16 +2131,16 @@ class ImportanceNestedSampler(BaseNestedSampler):
         max_bins
             The maximum number of bins allowed.
         """
-        its = np.unique(self.samples["it"])
+        its = np.unique(self.samples_unit["it"])
         colours = plt.get_cmap(cmap)(np.linspace(0, 1, len(its)))
-        vmax = np.max(self.samples["logL"])
+        vmax = np.max(self.samples_unit["logL"])
         vmin = np.ma.masked_invalid(
-            self.samples["logL"][self.samples["it"] == its[-1]]
+            self.samples_unit["logL"][self.samples_unit["it"] == its[-1]]
         ).min()
 
         fig, axs = plt.subplots(1, 2)
         for it, c in zip(its, colours):
-            data = self.samples["logL"][self.samples["it"] == it]
+            data = self.samples_unit["logL"][self.samples_unit["it"] == it]
             data = data[np.isfinite(data)]
             if not len(data):
                 continue
@@ -1881,14 +2197,27 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def get_result_dictionary(self):
         """Get a dictionary contain the main results from the sampler."""
         d = super().get_result_dictionary()
-        d["initial_samples"] = self.samples
-        d["initial_log_evidence"] = self.log_evidence
-        d["initial_log_evidence_error"] = self.log_evidence_error
+        d["history"] = self.history
+        d["training_samples"] = self.model.from_unit_hypercube(
+            self.training_samples.samples
+        )
+        d["training_log_evidence"] = self.training_samples.state.log_evidence
+        d[
+            "training_log_evidence_error"
+        ] = self.training_samples.state.log_evidence_error
+        d[
+            "training_log_posterior_weights"
+        ] = self.training_samples.state.log_posterior_weights
         # Will all be None if the final samples haven't been drawn
         d["bootstrap_log_evidence"] = self.bootstrap_log_evidence
         d["bootstrap_log_evidence_error"] = self.bootstrap_log_evidence_error
+        if self.iid_samples:
+            d["iid_log_evidence"] = self.iid_samples.state.log_evidence
+            d[
+                "iid_log_evidence_error"
+            ] = self.iid_samples.state.log_evidence_error
         d["samples"] = self.final_samples
-        d["log_posterior_weights"] = self.state.log_posterior_weights
+        d["log_posterior_weights"] = self.final_log_posterior_weights
         d["log_evidence"] = self.final_log_evidence
         d["log_evidence_error"] = self.final_log_evidence_error
 
@@ -1936,9 +2265,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
             flow_config = {}
         obj.proposal.resume(model, flow_config, weights_path=weights_path)
 
-        if obj.log_q is None:
-            logger.debug("Recomputing log_q")
-            obj.log_q = obj.proposal.compute_meta_proposal_samples(obj.samples)
+        logger.debug("Recomputing log_q")
+        (
+            _,
+            obj.training_samples.log_q,
+        ) = obj.proposal.compute_meta_proposal_samples(
+            obj.training_samples.samples
+        )
+        if obj.iid_samples:
+            (
+                _,
+                obj.iid_samples.log_q,
+            ) = obj.proposal.compute_meta_proposal_samples(
+                obj.iid_samples.samples
+            )
 
         logger.info(f"Resuming sampler at iteration {obj.iteration}")
         logger.info(f"Current number of samples: {len(obj.nested_samples)}")
@@ -1950,7 +2290,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def __getstate__(self):
         d = self.__dict__
-        exclude = {"model", "proposal", "log_q", "checkpoint_callback"}
+        exclude = {
+            "model",
+            "proposal",
+            "checkpoint_callback",
+            "training_samples",
+            "iid_samples",
+        }
         state = {k: d[k] for k in d.keys() - exclude}
         if d.get("model") is not None:
             state["_previous_likelihood_evaluations"] = d[
@@ -1963,8 +2309,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             state["_previous_likelihood_evaluations"] = 0
             state["_previous_likelihood_evaluation_time"] = 0
         state["log_q"] = None
-        return state, self.proposal
+        return state, self.proposal, self.training_samples, self.iid_samples
 
     def __setstate__(self, state):
         self.__dict__.update(state[0])
         self.proposal = state[1]
+        self.training_samples = state[2]
+        self.iid_samples = state[3]

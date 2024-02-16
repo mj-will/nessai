@@ -158,7 +158,7 @@ def test_get_state(proposal, populated, mask):
 @pytest.mark.parametrize("reparameterisation", [False, True])
 @pytest.mark.parametrize("init", [False, True])
 @pytest.mark.parametrize(
-    "latent_prior", ["truncated_gaussian", "uniform", "gaussian"]
+    "latent_prior", ["truncated_gaussian", "uniform_nball", "gaussian"]
 )
 def test_resume_pickle(model, tmpdir, reparameterisation, init, latent_prior):
     """Test pickling and resuming the proposal.
@@ -226,7 +226,7 @@ def test_reset(proposal):
 @pytest.mark.timeout(60)
 @pytest.mark.integration_test
 @pytest.mark.parametrize(
-    "latent_prior", ["truncated_gaussian", "uniform", "gaussian"]
+    "latent_prior", ["truncated_gaussian", "uniform_nball", "gaussian"]
 )
 def test_reset_integration(tmpdir, model, latent_prior):
     """Test reset method iteration with other methods"""

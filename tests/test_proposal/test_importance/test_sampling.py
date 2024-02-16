@@ -13,15 +13,13 @@ import pytest
 @pytest.mark.usefixtures("ins_parameters")
 def test_draw_from_prior(ifp, x, n):
     """Test drawing from the prior"""
-    dims = 2
     n_proposals = 4
     x_prime = np.random.randn(n, 2)
     log_j = np.random.rand(n)
     log_Q = np.random.randn(n)
     log_q = np.random.randn(n_proposals, n)
-    ifp.model.dims = dims
-    ifp.to_prime = MagicMock(return_value=(x_prime, log_j))
-    ifp.inverse_rescale = MagicMock(return_value=(x, None))
+    ifp.model.sample_unit_hypercube = MagicMock(return_value=x)
+    ifp.rescale = MagicMock(return_value=(x_prime, log_j))
     ifp.compute_log_Q = MagicMock(return_value=(log_Q, log_q))
 
     x_out, log_q_out = IFP.draw_from_prior(ifp, n)
@@ -51,10 +49,9 @@ def test_draw_from_flows(ifp, model, n, test_counts):
 
     def inverse_rescale(x):
         x = numpy_array_to_live_points(x, model.names)
-        return model.from_unit_hypercube(x), np.zeros(x.size)
+        return x, np.zeros(x.size)
 
     def rescale(x):
-        x = model.to_unit_hypercube(x)
         x = live_points_to_array(x, model.names)
         return x, np.zeros(x.shape[0])
 
