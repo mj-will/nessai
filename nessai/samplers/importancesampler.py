@@ -715,6 +715,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             raise ValueError("`min_samples` must be less than `nlive`")
         if self.min_remove > self.nlive:
             raise ValueError("`min_remove` must be less than `nlive`")
+        logger.debug("Sampler configuration is valid")
         return True
 
     def populate_live_points(self) -> None:
