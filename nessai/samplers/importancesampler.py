@@ -36,12 +36,26 @@ logger = logging.getLogger(__name__)
 
 
 class OrderedSamples:
-    """Samples ordered by log-likelihood."""
+    """Samples ordered by log-likelihood.
+
+    Parameters
+    ----------
+    strict_threshold
+        If true, when adding new samples, only those above the current
+        log-likelihood threshold will be added to the live points.
+    replace_all
+        If true, all samples will be remove when calling :code:`remove_samples`
+    save_log_q
+        If true, :code:`log_q` will be saved when the instance is pickled. This
+        makes resuming faster but increases the disk usage. If false, the
+        values will not be saved and must be recomputed.
+    """
 
     def __init__(
         self,
         strict_threshold: bool = False,
         replace_all: bool = False,
+        save_log_q: bool = False,
     ) -> None:
         self.samples = None
         self.log_q = None
@@ -51,6 +65,7 @@ class OrderedSamples:
         self.replace_all = replace_all
         self.state = _INSIntegralState()
         self.log_likelihood_threshold = None
+        self.save_log_q = save_log_q
 
     @property
     def live_points(self) -> np.ndarray:
@@ -254,7 +269,10 @@ class OrderedSamples:
         d = self.__dict__
         exclude = {"log_q"}
         state = {k: d[k] for k in d.keys() - exclude}
-        state["log_q"] = None
+        if self.save_log_q:
+            state["log_q"] = self.log_q
+        else:
+            state["log_q"] = None
         return state
 
 
@@ -303,6 +321,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
         If true, when drawing new samples, only those with likelihoods above
         the current threshold will be added to the live points. If false, all
         new samples are added to the live points.
+    save_log_q : bool
+        Boolean that determines if the log_q array is saved when checkpointing.
+        If False, this can help reduce the disk usage.
     """
 
     stopping_criterion_aliases = dict(
@@ -328,6 +349,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         checkpoint_on_iteration: bool = False,
         checkpoint_callback: Optional[Callable] = None,
         save_existing_checkpoint: bool = False,
+        save_log_q: bool = False,
         logging_interval: int = None,
         log_on_iteration: bool = True,
         resume_file: Optional[str] = None,
@@ -427,6 +449,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.bootstrap_log_evidence_error = None
         self.weighted_kl = weighted_kl
         self.save_existing_checkpoint = save_existing_checkpoint
+        self.save_log_q = save_log_q
 
         self.log_dZ = np.inf
         self.ratio = np.inf
@@ -448,11 +471,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.training_samples = OrderedSamples(
             strict_threshold=self.strict_threshold,
             replace_all=self.replace_all,
+            save_log_q=self.save_log_q,
         )
         if self.draw_iid_live:
             self.iid_samples = OrderedSamples(
                 strict_threshold=self.strict_threshold,
                 replace_all=self.replace_all,
+                save_log_q=self.save_log_q,
             )
         else:
             self.iid_samples = None
@@ -2261,31 +2286,33 @@ class ImportanceNestedSampler(BaseNestedSampler):
         obj = super(ImportanceNestedSampler, cls).resume_from_pickled_sampler(
             sampler, model, **kwargs
         )
+        logger.info(f"Resuming sampler at iteration {obj.iteration}")
+        logger.info(f"Current number of samples: {len(obj.nested_samples)}")
+        logger.info(
+            f"Current log-evidence: {obj.log_evidence:3f} "
+            f"+/- {obj.log_evidence_error:.3f}"
+        )
         if flow_config is None:
             flow_config = {}
         obj.proposal.resume(model, flow_config, weights_path=weights_path)
 
-        logger.debug("Recomputing log_q")
-        (
-            _,
-            obj.training_samples.log_q,
-        ) = obj.proposal.compute_meta_proposal_samples(
-            obj.training_samples.samples
-        )
-        if obj.iid_samples:
+        if obj.training_samples.log_q is None:
+            logger.info("Recomputing log_q")
+            (
+                _,
+                obj.training_samples.log_q,
+            ) = obj.proposal.compute_meta_proposal_samples(
+                obj.training_samples.samples
+            )
+        if obj.iid_samples and obj.iid_samples.log_q is None:
+            logger.info("Recomputing log_q for i.i.d samples")
             (
                 _,
                 obj.iid_samples.log_q,
             ) = obj.proposal.compute_meta_proposal_samples(
                 obj.iid_samples.samples
             )
-
-        logger.info(f"Resuming sampler at iteration {obj.iteration}")
-        logger.info(f"Current number of samples: {len(obj.nested_samples)}")
-        logger.info(
-            f"Current logZ: {obj.log_evidence:3f} "
-            f"+/- {obj.log_evidence_error:.3f}"
-        )
+        logger.info("Finished resuming sampler")
         return obj
 
     def __getstate__(self):
@@ -2308,7 +2335,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             state["_previous_likelihood_evaluations"] = 0
             state["_previous_likelihood_evaluation_time"] = 0
-        state["log_q"] = None
         return state, self.proposal, self.training_samples, self.iid_samples
 
     def __setstate__(self, state):
