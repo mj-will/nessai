@@ -310,3 +310,18 @@ def test_computed_evidence_ratio(ordered_samples, samples, threshold):
         mock_log_evidence.call_args_list[0][0][0], samples[above_threshold]
     )
     assert out == (log_z - log_z_total)
+
+
+@pytest.mark.parametrize("save_log_q", [False, True])
+def test_getstate(ordered_samples, save_log_q):
+    samples = np.random.randn(20, 4)
+    log_q = np.random.randn(2, 20)
+    ordered_samples.save_log_q = save_log_q
+    ordered_samples.log_q = log_q
+    ordered_samples.samples = samples
+    state = OrderedSamples.__getstate__(ordered_samples)
+    assert state["samples"] is samples
+    if save_log_q:
+        assert state["log_q"] is log_q
+    else:
+        assert state["log_q"] is None

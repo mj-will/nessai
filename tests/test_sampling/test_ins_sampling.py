@@ -9,7 +9,8 @@ import pytest
 
 @pytest.mark.slow_integration_test
 @pytest.mark.flaky(reruns=3)
-def test_ins_resume(tmp_path, model, flow_config):
+@pytest.mark.parametrize("save_log_q", [False, True])
+def test_ins_resume(tmp_path, model, flow_config, save_log_q):
     """Assert the INS sampler resumes correctly"""
     output = tmp_path / "test_ins_resume"
     fp = FlowSampler(
@@ -22,6 +23,7 @@ def test_ins_resume(tmp_path, model, flow_config):
         flow_config=flow_config,
         importance_nested_sampler=True,
         max_iteration=2,
+        save_log_q=save_log_q,
     )
     fp.run()
 

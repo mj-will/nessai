@@ -7,10 +7,13 @@ import numpy as np
 import pytest
 
 
-def test_init(ins, model):
+@pytest.mark.parametrize("save_log_q", [False, True])
+def test_init(ins, model, save_log_q):
     ins.add_fields = MagicMock()
-    INS.__init__(ins, model)
+    INS.__init__(ins, model, save_log_q=save_log_q, draw_iid_live=True)
     ins.add_fields.assert_called_once()
+    assert ins.training_samples.save_log_q is save_log_q
+    assert ins.iid_samples.save_log_q is save_log_q
 
 
 def test_add_fields():
