@@ -1,4 +1,5 @@
 """Tests for the sorting utilities"""
+
 from dataclasses import dataclass
 from typing import List
 

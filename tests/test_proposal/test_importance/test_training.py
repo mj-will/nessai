@@ -1,4 +1,5 @@
 """Test training functions in ImportanceFlowProposal"""
+
 import os
 
 from nessai.proposal.importance import ImportanceFlowProposal as IFP

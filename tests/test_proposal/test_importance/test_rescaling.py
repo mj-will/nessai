@@ -1,4 +1,5 @@
 """Test the rescaling functions in ImportanceFlowProposal"""
+
 from unittest.mock import MagicMock, patch
 
 from nessai import config

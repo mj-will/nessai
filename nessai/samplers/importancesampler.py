@@ -1219,10 +1219,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.training_samples.samples, self.training_samples.log_q
         )
 
-        self.training_samples.samples[
-            "logQ"
-        ] = self.proposal.compute_meta_proposal_from_log_q(
-            self.training_samples.log_q
+        self.training_samples.samples["logQ"] = (
+            self.proposal.compute_meta_proposal_from_log_q(
+                self.training_samples.log_q
+            )
         )
         self.training_samples.samples["logW"] = -self.training_samples.samples[
             "logQ"
@@ -1239,10 +1239,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.iid_samples.log_q = self.proposal.update_log_q(
                 self.iid_samples.samples, self.iid_samples.log_q
             )
-            self.iid_samples.samples[
-                "logQ"
-            ] = self.proposal.compute_meta_proposal_from_log_q(
-                self.iid_samples.log_q
+            self.iid_samples.samples["logQ"] = (
+                self.proposal.compute_meta_proposal_from_log_q(
+                    self.iid_samples.log_q
+                )
             )
             self.iid_samples.samples["logW"] = -self.iid_samples.samples[
                 "logQ"
@@ -1316,10 +1316,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
                             update_counts=False,
                         )
                     new_samples["it"] = it
-                    new_samples[
-                        "logL"
-                    ] = self.model.batch_evaluate_log_likelihood(
-                        new_samples, unit_hypercube=True
+                    new_samples["logL"] = (
+                        self.model.batch_evaluate_log_likelihood(
+                            new_samples, unit_hypercube=True
+                        )
                     )
                     new_loc = np.searchsorted(samples["it"], new_samples["it"])
                     samples = np.insert(samples, new_loc, new_samples)
@@ -2227,20 +2227,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.training_samples.samples
         )
         d["training_log_evidence"] = self.training_samples.state.log_evidence
-        d[
-            "training_log_evidence_error"
-        ] = self.training_samples.state.log_evidence_error
-        d[
-            "training_log_posterior_weights"
-        ] = self.training_samples.state.log_posterior_weights
+        d["training_log_evidence_error"] = (
+            self.training_samples.state.log_evidence_error
+        )
+        d["training_log_posterior_weights"] = (
+            self.training_samples.state.log_posterior_weights
+        )
         # Will all be None if the final samples haven't been drawn
         d["bootstrap_log_evidence"] = self.bootstrap_log_evidence
         d["bootstrap_log_evidence_error"] = self.bootstrap_log_evidence_error
         if self.iid_samples:
             d["iid_log_evidence"] = self.iid_samples.state.log_evidence
-            d[
-                "iid_log_evidence_error"
-            ] = self.iid_samples.state.log_evidence_error
+            d["iid_log_evidence_error"] = (
+                self.iid_samples.state.log_evidence_error
+            )
         d["samples"] = self.final_samples
         d["log_posterior_weights"] = self.final_log_posterior_weights
         d["log_evidence"] = self.final_log_evidence
@@ -2248,12 +2248,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         d["training_time"] = self.training_time.total_seconds()
         d["draw_samples_time"] = self.draw_samples_time.total_seconds()
-        d[
-            "add_and_update_samples_time"
-        ] = self.add_and_update_samples_time.total_seconds()
-        d[
-            "draw_final_samples_time"
-        ] = self.draw_final_samples_time.total_seconds()
+        d["add_and_update_samples_time"] = (
+            self.add_and_update_samples_time.total_seconds()
+        )
+        d["draw_final_samples_time"] = (
+            self.draw_final_samples_time.total_seconds()
+        )
         d["proposal_importance"] = self.importance
 
         return d

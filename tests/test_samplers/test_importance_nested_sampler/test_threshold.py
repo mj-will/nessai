@@ -1,4 +1,5 @@
 """Tests for level-related methods"""
+
 import os
 from unittest.mock import MagicMock
 

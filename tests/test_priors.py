@@ -1,6 +1,7 @@
 """
 Test the prior functions.
 """
+
 import numpy as np
 import pytest
 

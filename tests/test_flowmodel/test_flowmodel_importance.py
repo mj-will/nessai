@@ -1,6 +1,7 @@
 """
 Test the ImportanceFlowModel.
 """
+
 import os
 import pickle
 from unittest.mock import MagicMock, create_autospec, patch

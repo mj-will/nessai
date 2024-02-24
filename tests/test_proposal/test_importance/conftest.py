@@ -1,4 +1,5 @@
 """Configuration for ImportanceFlowProposal tests"""
+
 import pytest
 from unittest.mock import MagicMock, create_autospec
 

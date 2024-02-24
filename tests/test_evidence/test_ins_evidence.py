@@ -1,4 +1,5 @@
 """Test the INS evidence"""
+
 from unittest.mock import MagicMock, create_autospec
 
 import numpy as np

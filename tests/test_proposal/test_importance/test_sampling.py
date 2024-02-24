@@ -1,4 +1,5 @@
 """Tests related to sampling from ImportanceFlowProposal"""
+
 from unittest.mock import MagicMock, create_autospec
 
 from nessai.flowmodel.importance import ImportanceFlowModel

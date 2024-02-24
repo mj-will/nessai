@@ -1,6 +1,7 @@
 """
 Test the testing utilities
 """
+
 import numpy as np
 import pytest
 

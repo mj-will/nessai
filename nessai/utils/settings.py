@@ -2,6 +2,7 @@
 
 Used for bilby and pycbc-inference.
 """
+
 from inspect import signature
 from typing import List, Callable, Tuple
 
