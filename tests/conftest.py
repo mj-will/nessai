@@ -1,4 +1,5 @@
 """General configuration for the test suite"""
+
 import sys
 
 from numpy.random import seed

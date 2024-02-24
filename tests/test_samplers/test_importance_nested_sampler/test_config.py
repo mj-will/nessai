@@ -1,4 +1,5 @@
 """Test configuration of INS"""
+
 from unittest.mock import MagicMock
 
 from nessai import config as nessai_config

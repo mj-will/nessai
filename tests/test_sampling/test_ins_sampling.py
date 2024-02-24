@@ -1,4 +1,5 @@
 """Test sampling with the importance nested sampler"""
+
 import os
 import pickle
 

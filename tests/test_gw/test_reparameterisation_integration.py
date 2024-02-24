@@ -1,4 +1,5 @@
 """Integration test for the reparameterisation in GWFlowProposal"""
+
 from nessai.gw.proposal import GWFlowProposal
 import numpy as np
 import pytest

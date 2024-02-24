@@ -1,4 +1,5 @@
 """Test the general configuration for ImportanceFlowProposal"""
+
 import pytest
 from unittest.mock import MagicMock, patch
 

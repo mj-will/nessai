@@ -1,4 +1,5 @@
 """Configuration for the GW tests"""
+
 from typing import Callable
 
 from nessai.livepoint import dict_to_live_points

@@ -1,4 +1,5 @@
 """Tests related to how samples are handled"""
+
 from unittest.mock import MagicMock, create_autospec
 
 from nessai.livepoint import numpy_array_to_live_points

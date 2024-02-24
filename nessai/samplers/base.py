@@ -384,9 +384,9 @@ class BaseNestedSampler(ABC):
         d["seed"] = self.seed
         d["sampling_time"] = self.sampling_time.total_seconds()
         d["total_likelihood_evaluations"] = self.model.likelihood_evaluations
-        d[
-            "likelihood_evaluation_time"
-        ] = self.likelihood_evaluation_time.total_seconds()
+        d["likelihood_evaluation_time"] = (
+            self.likelihood_evaluation_time.total_seconds()
+        )
         d["history"] = self.history
         if hasattr(self.model, "truth"):
             d["truth"] = self.model.truth

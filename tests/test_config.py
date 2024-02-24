@@ -1,4 +1,5 @@
 """Tests for the config module"""
+
 from nessai.config import LivepointsConfig
 import numpy as np
 

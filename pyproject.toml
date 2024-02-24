@@ -57,6 +57,7 @@ dev = [
     "pre-commit",
     "ray[default]",
     "corner",
+    "black>=24.0",
 ]
 docs = [
     "sphinx",
@@ -104,4 +105,3 @@ target-version = [
 extend-ignore = [
     "E203",
 ]
-

@@ -1,4 +1,5 @@
 """Configuration for the reparameterisation tests"""
+
 from dataclasses import dataclass
 from typing import List
 

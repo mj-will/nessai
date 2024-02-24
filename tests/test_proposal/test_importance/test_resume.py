@@ -1,4 +1,5 @@
 """Test the properties defined in ImportanceFlowProposal"""
+
 import pickle
 from unittest.mock import MagicMock, patch
 

@@ -1,4 +1,5 @@
 """Tests methods for computing log_prob etc"""
+
 from unittest.mock import MagicMock, create_autospec
 
 from nessai.livepoint import live_points_to_array

@@ -1,4 +1,5 @@
 """Tests for the proposals and meta-proposal"""
+
 import datetime
 from unittest.mock import MagicMock
 

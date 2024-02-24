@@ -1,4 +1,5 @@
 """Tests related to the results returned by the sampler"""
+
 import datetime
 from unittest.mock import MagicMock, create_autospec
 

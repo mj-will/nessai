@@ -1,7 +1,8 @@
-"""Utilities for determing the settings available in nessai.
+"""Utilities for determining the settings available in nessai.
 
 Used for bilby and pycbc-inference.
 """
+
 from inspect import signature
 from typing import List, Callable, Tuple
 
