@@ -1,5 +1,6 @@
 from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 import pytest
+from unittest.mock import MagicMock
 
 
 @pytest.mark.parametrize(
@@ -20,3 +21,13 @@ def test_reached_tolerance(ins, criterion, tolerance, stop_any, reached):
     ins.tolerance = tolerance
     ins._stop_any = stop_any
     assert INS.reached_tolerance.__get__(ins) is reached
+
+
+def test_compute_stopping_criterion_fractional_error(ins):
+    ins.stopping_criterion = ["fractional_error"]
+    ins.iteration = 0
+    ins.tolerance = 0.0
+    ins.state = MagicMock()
+    ins.state.evidence = 1.0
+    ins.state.evidence_error = 0.1
+    assert INS.compute_stopping_criterion(ins) == [0.1]
