@@ -56,4 +56,7 @@ def test_draw_not_populated(proposal, update, wait):
 
     proposal.populate.assert_called_once_with(1.0, N=100)
 
-    assert proposal.update_poolsize_scale.called == update
+    if update:
+        proposal.update_poolsize_scale.assert_called_once()
+    else:
+        proposal.update_poolsize_scale.assert_not_called()

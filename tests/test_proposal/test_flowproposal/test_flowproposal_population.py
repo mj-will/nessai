@@ -128,8 +128,10 @@ def test_rejection_sampling(proposal, z, x, log_q):
 
     z_out, x_out = FlowProposal.rejection_sampling(proposal, z)
 
-    assert proposal.backward_pass.called_once_with(x, True)
-    assert proposal.compute_weights.called_once_with(x)
+    proposal.backward_pass.assert_called_once_with(
+        z, rescale=True, return_z=True, discard_nans=False
+    )
+    proposal.compute_weights.assert_called_once()
     assert x_out.size == 1
     assert z_out.shape == (1, 2)
     assert_structured_arrays_equal(x_out[0], x[0])
@@ -169,8 +171,10 @@ def test_rejection_sampling_truncate(proposal, z, x):
         min_log_q=min_log_q,
     )
 
-    assert proposal.backward_pass.called_once_with(x, True)
-    assert proposal.compute_weights.called_once_with(x)
+    proposal.backward_pass.assert_called_once_with(
+        z, rescale=True, return_z=True, discard_nans=False
+    )
+    proposal.compute_weights.assert_called_once()
     assert x_out.size == 1
     assert z_out.shape == (1, 2)
     assert_structured_arrays_equal(x_out[0], x[1])

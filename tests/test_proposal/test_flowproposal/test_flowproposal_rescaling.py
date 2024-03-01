@@ -45,11 +45,11 @@ def test_default_reparameterisation(proposal):
     FlowProposal.add_default_reparameterisations(proposal)
 
 
-@patch("nessai.reparameterisations.get_reparameterisation")
+@patch("nessai.proposal.flowproposal.get_reparameterisation")
 def test_get_reparamaterisation(mocked_fn, proposal):
     """Make sure the underlying function is called"""
     FlowProposal.get_reparameterisation(proposal, "angle")
-    assert mocked_fn.called_once_with("angle")
+    mocked_fn.assert_called_once_with("angle")
 
 
 @pytest.mark.parametrize("reverse_order", [False, True])
@@ -214,8 +214,7 @@ def test_configure_reparameterisations_dict_missing(mocked_class, proposal):
     assert "No reparameterisation found for x" in str(excinfo.value)
 
 
-@patch("nessai.reparameterisations.CombinedReparameterisation")
-def test_configure_reparameterisations_str(mocked_class, proposal):
+def test_configure_reparameterisations_str(proposal):
     """Test configuration for reparameterisations dictionary from a str"""
     proposal.add_default_reparameterisations = MagicMock()
     proposal.get_reparameterisation = get_reparameterisation
@@ -229,11 +228,9 @@ def test_configure_reparameterisations_str(mocked_class, proposal):
     assert proposal.parameters_to_rescale == ["x"]
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
-    assert mocked_class.called_once
 
 
-@patch("nessai.reparameterisations.CombinedReparameterisation")
-def test_configure_reparameterisations_dict_reparam(mocked_class, proposal):
+def test_configure_reparameterisations_dict_reparam(proposal):
     """Test configuration for reparameterisations dictionary"""
     proposal.add_default_reparameterisations = MagicMock()
     proposal.get_reparameterisation = get_reparameterisation
@@ -249,7 +246,6 @@ def test_configure_reparameterisations_dict_reparam(mocked_class, proposal):
     assert proposal.parameters_to_rescale == ["x"]
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
-    assert mocked_class.called_once
 
 
 @pytest.mark.parametrize(
@@ -262,10 +258,7 @@ def test_configure_reparameterisations_dict_reparam(mocked_class, proposal):
         ("x.*",),
     ],
 )
-@patch("nessai.reparameterisations.CombinedReparameterisation")
-def test_configure_reparameterisations_regex(
-    mocked_class, proposal, parameters
-):
+def test_configure_reparameterisations_regex(proposal, parameters):
     """Test configuration for reparameterisations dictionary"""
     proposal.add_default_reparameterisations = MagicMock()
     proposal.get_reparameterisation = get_reparameterisation
@@ -286,11 +279,9 @@ def test_configure_reparameterisations_regex(
         "x_1_prime",
         "y",
     ]
-    assert mocked_class.called_once
 
 
-@patch("nessai.reparameterisations.CombinedReparameterisation")
-def test_configure_reparameterisations_none(mocked_class, proposal):
+def test_configure_reparameterisations_none(proposal):
     """Test configuration when input is None"""
     proposal.add_default_reparameterisations = MagicMock()
     proposal.get_reparameterisation = get_reparameterisation
@@ -310,11 +301,9 @@ def test_configure_reparameterisations_none(mocked_class, proposal):
             for r in proposal._reparameterisation.reparameterisations.values()
         ]
     )
-    assert mocked_class.called_once
 
 
-@patch("nessai.reparameterisations.CombinedReparameterisation")
-def test_configure_reparameterisations_fallback(mocked_class, proposal):
+def test_configure_reparameterisations_fallback(proposal):
     """Test configuration when input is None"""
     proposal.add_default_reparameterisations = MagicMock()
     proposal.get_reparameterisation = get_reparameterisation
@@ -337,7 +326,6 @@ def test_configure_reparameterisations_fallback(mocked_class, proposal):
             for r in proposal._reparameterisation.reparameterisations.values()
         ]
     )
-    assert mocked_class.called_once
 
 
 def test_configure_reparameterisations_incorrect_type(proposal):
