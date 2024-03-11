@@ -28,9 +28,7 @@ def test_base_flow_abstract_methods():
     """Assert an error is raised if the methods are not implemented."""
     with pytest.raises(TypeError) as excinfo:
         BaseFlow()
-    assert "instantiate abstract class BaseFlow with abstract method" in str(
-        excinfo.value
-    )
+    assert "instantiate abstract class BaseFlow" in str(excinfo.value)
 
 
 @pytest.mark.parametrize(

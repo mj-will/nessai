@@ -55,7 +55,7 @@ gw = [
 ]
 dev = [
     "pre-commit",
-    "ray[default]",
+    "ray[default]; sys_platform != 'win32' and python_version < '3.12'",
     "corner",
     "black>=24.0",
 ]
@@ -99,6 +99,7 @@ target-version = [
     "py39",
     "py310",
     "py311",
+    "py312",
 ]
 
 [tool.flake8]

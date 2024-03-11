@@ -830,7 +830,7 @@ def test_run_ins_redraw(flow_sampler):
         compute_initial_posterior=True,
     )
 
-    assert ns.draw_posterior_samples.has_calls(
+    ns.draw_posterior_samples.assert_has_calls(
         [
             call(
                 sampling_method="importance_sampling", use_final_samples=False
