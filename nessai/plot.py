@@ -636,7 +636,7 @@ def corner_plot(
     if len(labels) != unstruct_array.shape[-1]:
         labels = labels[has_range]
 
-    if truths:
+    if truths is not None:
         if isinstance(truths, dict):
             if include:
                 truths = np.array([truths[n] for n in include])
