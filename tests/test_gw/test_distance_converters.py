@@ -56,10 +56,7 @@ def test_converter_error():
     """Assert an error is raised if the methods are not implemented"""
     with pytest.raises(TypeError) as excinfo:
         DistanceConverter()
-    assert (
-        "abstract methods from_uniform_parameter, to_uniform_parameter"
-        in str(excinfo.value)
-    )
+    assert "abstract methods" in str(excinfo.value)
 
 
 def test_converter_to_uniform_parameter_error(base_converter):

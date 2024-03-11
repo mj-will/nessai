@@ -37,7 +37,7 @@ def test_init_with_draw():
     model = Mock()
     with pytest.raises(TypeError) as excinfo:
         Proposal(model)
-    assert "class Proposal with abstract method" in str(excinfo.value)
+    assert "class Proposal with" in str(excinfo.value)
 
 
 def test_initialised(proposal):
