@@ -503,7 +503,7 @@ def test_corner_plot_w_labels(live_points, labels):
 
 @pytest.mark.parametrize(
     "truths",
-    [[0, 0], [0, 0, None, None, None], {"x": 0, "y": 0}],
+    [[0, 0], [0, 0, None, None, None], {"x": 0, "y": 0}, np.array([0, 0])],
 )
 def test_corner_plot_w_truths(live_points, truths):
     """Test the corner plot with truths"""
