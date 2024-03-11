@@ -55,7 +55,7 @@ gw = [
 ]
 dev = [
     "pre-commit",
-    "ray[default]; sys_platform != 'win32' or (sys_platform == 'win32' and python_version < '3.12')",
+    "ray[default]; sys_platform != 'win32' and python_version < '3.12'",
     "corner",
     "black>=24.0",
 ]
