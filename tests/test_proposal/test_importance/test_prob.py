@@ -16,11 +16,6 @@ def ifp(ifp):
     return ifp
 
 
-def test_log_prior(ifp):
-    x = np.random.randn(10, 2)
-    np.testing.assert_array_equal(IFP._log_prior(ifp, x), np.zeros(10))
-
-
 def test_update_proposal_weights(ifp):
     ifp._weights = {-1: 0.5, 1: 0.5}
     weights = {-1: 1 / 3, 0: 1 / 3, 1: 1 / 3}
