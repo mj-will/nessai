@@ -565,14 +565,10 @@ class ImportanceFlowProposal(Proposal):
         x, log_j = self.rescale(samples)
         return self.compute_log_Q(x, log_j=log_j)
 
-    def _log_prior(self, x: np.ndarray) -> np.ndarray:
-        """Helper function that returns the prior in the unit hyper-cube."""
-        return self.model.batch_evaluate_log_prior_unit_hypercube(x)
-
     def get_proposal_log_prob(self, it: int) -> Callable:
         """Get a pointer to the function for ith proposal."""
         if it == -1:
-            return self._log_prior
+            return self.model.batch_evaluate_log_prior_unit_hypercube
         elif it < len(self.flow.models):
             return lambda x: self.flow.log_prob_ith(x, it)
         else:
