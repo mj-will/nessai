@@ -97,7 +97,7 @@ class ImportanceFlowProposal(Proposal):
     @property
     def weights_array(self) -> np.ndarray:
         """Array of weights for each proposal"""
-        return np.fromiter(self.weights.values(), dtype=float)
+        return np.fromiter(self._weights.values(), dtype=float)
 
     @property
     def n_proposals(self) -> int:
@@ -422,7 +422,7 @@ class ImportanceFlowProposal(Proposal):
         self,
         n: int,
         flow_number: Optional[int] = None,
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Draw n new points.
 
         Parameters
@@ -437,11 +437,11 @@ class ImportanceFlowProposal(Proposal):
         -------
         np.ndarray :
             Array of new points.
+        np.ndarray :
+            Log-proposal probabilities (log_q)
         """
         if flow_number is None:
             flow_number = self.level_count
-        elif flow_number not in self.n_requested:
-            raise RuntimeError("Cannot sample from prior with `draw`")
 
         # Draw a few more samples in case some are not accepted.
         n_draw = int(1.01 * n)
@@ -545,7 +545,9 @@ class ImportanceFlowProposal(Proposal):
             raise RuntimeError(
                 "Cannot update samples unless a level has been constructed!"
             )
-        if np.isnan(self.weights[self.level_count]):
+        if self.level_count not in self.weights or np.isnan(
+            self.weights[self.level_count]
+        ):
             raise RuntimeError(
                 "Must set weights from the new level before updating any "
                 "existing samples!"
