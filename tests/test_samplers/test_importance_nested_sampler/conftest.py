@@ -7,24 +7,15 @@ from nessai.samplers.importancesampler import (
     ImportanceNestedSampler,
     OrderedSamples,
 )
-from nessai.livepoint import (
-    add_extra_parameters_to_live_points,
-    reset_extra_live_points_parameters,
-)
 from nessai.model import Model
 import numpy as np
 from scipy.special import logsumexp
 
 
 @pytest.fixture(scope="module", autouse=True)
-def ins_livepoint_params():
-    reset_extra_live_points_parameters()
-    add_extra_parameters_to_live_points(["logW", "logQ", "logU"])
-    # Test happens here
-    yield
-
-    # Called after every test
-    reset_extra_live_points_parameters()
+@pytest.mark.usefixtures("ins_parameters")
+def ins_parameters():
+    pass
 
 
 @pytest.fixture(scope="module", params=[False, True])
