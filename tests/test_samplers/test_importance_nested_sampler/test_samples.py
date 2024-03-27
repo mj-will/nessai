@@ -49,7 +49,6 @@ def test_populate_live_points_no_iid(ins, model):
     n = 100
     ins.n_initial = n
     ins.model = model
-    ins.sample_counts = {}
     ins.draw_iid_live = False
     ins.sample_counts = {}
 
