@@ -15,9 +15,7 @@ def test_init(ifp, model, tmp_path):
     output = tmp_path / "test"
     initial_draws = 1000
     IFP.__init__(ifp, model, output, initial_draws)
-
-    assert ifp.n_draws["initial"] == initial_draws
-    assert ifp.n_requested["initial"] == initial_draws
+    assert ifp._weights[-1] == 1
 
 
 @pytest.mark.usefixtures("ins_parameters")
