@@ -265,6 +265,39 @@ class OrderedSamples:
         )
         return log_z_above - self.state.log_evidence
 
+    def reduce_samples(self, weights: np.ndarray, factor: float) -> None:
+        n = int(factor * len(self.samples))
+        pvals = weights / weights.sum()
+        n_counts = np.bincount(self.samples["it"] + 1, minlength=len(weights))
+        logger.info(
+            f"log Z={self.state.log_evidence} +/- "
+            f"{self.state.log_evidence_error}"
+        )
+        logger.info(f"Counts before reduction: {n_counts}")
+        n_remove = np.random.multinomial(n, pvals=pvals)
+        for i, nr in enumerate(n_remove):
+            it_idx = np.where(self.samples["it"] == int(i - 1))[0]
+            if not len(it_idx):
+                continue
+            elif nr > len(it_idx):
+                remove_idx = it_idx
+            else:
+                remove_idx = np.random.choice(it_idx, size=nr, replace=False)
+            self.samples = np.delete(self.samples, remove_idx)
+            self.log_q = np.delete(self.log_q, remove_idx, axis=0)
+
+        new_indices = np.arange(self.samples.size)
+        n = np.argmax(self.samples["logL"] >= self.log_likelihood_threshold)
+        self.nested_samples_indices = new_indices[:n]
+        self.live_points_indices = new_indices[n:]
+        n_counts = np.bincount(self.samples["it"] + 1, minlength=len(weights))
+        self.update_evidence()
+        logger.info(
+            f"log Z={self.state.log_evidence} +/- "
+            f"{self.state.log_evidence_error}"
+        )
+        logger.info(f"Counts after reduction: {n_counts}")
+
     def __getstate__(self):
         d = self.__dict__
         exclude = {"log_q"}
@@ -384,6 +417,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         close_pool: bool = False,
         strict_threshold: bool = False,
         draw_iid_live: bool = True,
+        rebalance_interval: Optional[int] = None,
         **kwargs: Any,
     ):
         self.add_fields()
@@ -451,6 +485,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.weighted_kl = weighted_kl
         self.save_existing_checkpoint = save_existing_checkpoint
         self.save_log_q = save_log_q
+        self.rebalance_interval = rebalance_interval
 
         self.log_dZ = np.inf
         self.ratio = np.inf
@@ -1483,6 +1518,43 @@ class ImportanceNestedSampler(BaseNestedSampler):
             importance = self.training_samples.compute_importance(**kwargs)
         return importance
 
+    def rebalance_samples(self):
+
+        factor = 0.5
+        logger.info(f"Rebalancing samples with factor={factor}")
+        # Compute weights
+        importance = self.compute_importance()
+        weights = {i - 1: w for i, w in enumerate(importance["total"])}
+        # Update meta-proposal weights
+        self.proposal.update_proposal_weights(weights)
+
+        reduce_weights = 1 - importance["total"]
+
+        # Discard samples
+        self.training_samples.reduce_samples(reduce_weights, factor)
+        self.training_samples.samples["logQ"] = (
+            self.proposal.compute_meta_proposal_from_log_q(
+                self.training_samples.log_q
+            )
+        )
+        self.training_samples.samples["logW"] = -self.training_samples.samples[
+            "logQ"
+        ]
+
+        if self.iid_samples:
+            self.iid_samples.reduce_samples(reduce_weights, factor)
+            self.iid_samples.samples["logQ"] = (
+                self.proposal.compute_meta_proposal_from_log_q(
+                    self.training_samples.log_q
+                )
+            )
+            self.iid_samples.samples["logW"] = -self.iid_samples.samples[
+                "logQ"
+            ]
+
+        self.update_sample_counts()
+        self.update_proposal_weights()
+
     def update_proposal_weights(self):
         """Update the proposal weights based on the current sample counts.
 
@@ -1538,6 +1610,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 break
 
             self._compute_gradient()
+
+            if (
+                self.rebalance_interval
+                and (self.iteration % self.rebalance_interval == 0)
+                and self.iteration > 0
+            ):
+                self.rebalance_samples()
 
             if self.n_update is None:
                 threshold = self.determine_log_likelihood_threshold(
