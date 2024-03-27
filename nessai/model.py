@@ -526,7 +526,7 @@ class Model(ABC):
         )
 
     def log_prior_unit_hypercube(self, x) -> np.ndarray:
-        """Compute the log-prior in the unit-hyper cube.
+        """Compute the log-prior in the unit hypercube.
 
         By default this returns log(1) and checks if the values are in unit
         hypercube.
