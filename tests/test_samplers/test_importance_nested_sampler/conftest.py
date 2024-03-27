@@ -19,7 +19,7 @@ from scipy.special import logsumexp
 @pytest.fixture(scope="module", autouse=True)
 def ins_livepoint_params():
     reset_extra_live_points_parameters()
-    add_extra_parameters_to_live_points(["logW", "logQ"])
+    add_extra_parameters_to_live_points(["logW", "logQ", "logU"])
     # Test happens here
     yield
 
