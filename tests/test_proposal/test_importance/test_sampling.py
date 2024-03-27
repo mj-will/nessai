@@ -91,9 +91,8 @@ def test_draw(ifp, model):
     ifp.level_count = n_proposals - 1
     ifp.model = model
     ifp.dtype = model.new_point().dtype
-    ifp.n_requested = {-1: 100, 0: 100, 2: 100, 3: 200, 4: 0}
-    ifp.n_draws = ifp.n_requested.copy()
-    ifp.draw_count = n_proposals - 1
+    ifp._weights = {-1: 0.2, 0: 0.2, 2: 0.2, 3: 0.4, 4: np.nan}
+    ifp.weights_array = np.fromiter(ifp._weights.values(), float)
 
     def inverse_rescale(x):
         x = numpy_array_to_live_points(x, model.names)
@@ -108,16 +107,11 @@ def test_draw(ifp, model):
         assert i == (n_proposals - 1)
         return np.random.rand(N, model.dims)
 
-    def compute_log_Q(x_prime, log_q_current=None, log_j=None, n=None):
-        assert log_q_current is None
+    def compute_log_Q(x_prime, log_j=None, n=None):
         log_q = (
             np.log(np.random.rand(len(x_prime), n_proposals)) + log_j[:, None]
         )
-        weights = list(ifp.n_requested.values())
-        weights[-1] = n
-        assert n == n_draw
-        weights /= np.sum(weights)
-        log_Q = logsumexp(log_q, b=weights, axis=1)
+        log_Q = logsumexp(log_q, b=ifp.weights_array, axis=1)
         return log_Q, log_q
 
     ifp.rescale = rescale
@@ -130,5 +124,3 @@ def test_draw(ifp, model):
 
     assert len(samples_out) == n_draw
     assert log_q_out.shape == (n_draw, n_proposals)
-    assert ifp.n_requested[4] == n_draw
-    assert ifp.draw_count == n_proposals

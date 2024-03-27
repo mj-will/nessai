@@ -36,14 +36,16 @@ def test_getstate_integration(tmp_path, model):
 
     ifp = IFP(
         model,
-        tmp_path / "test_resume",
-        100,
+        output=tmp_path / "test_resume",
         weighted_kl=False,
     )
     ifp.initialise()
+    weights = {-1: 1.0}
 
-    for _ in range(4):
+    for i in range(4):
         ifp.train(model.new_point(10), max_epochs=2)
+        weights = {j - 1: 1 / (i + 2) for j in range(i + 2)}
+        ifp.update_proposal_weights(weights)
         ifp.draw(10)
 
     out = pickle.dumps(ifp)
