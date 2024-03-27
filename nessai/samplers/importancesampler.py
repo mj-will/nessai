@@ -334,6 +334,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         ess=[
             "ess",
         ],
+        fractional_error=["fractional_error"],
     )
     """Dictionary of available stopping criteria and their aliases."""
 
@@ -1418,6 +1419,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.ratio_ns = self.state.compute_evidence_ratio(ns_only=True)
         self.ess = self.state.effective_n_posterior_samples
         self.Z_err = np.exp(self.log_evidence_error)
+        self.fractional_error = self.state.evidence_error / self.state.evidence
         cond = [getattr(self, sc) for sc in self.stopping_criterion]
 
         logger.info(

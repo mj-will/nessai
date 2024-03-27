@@ -289,6 +289,16 @@ class _INSIntegralState(_BaseNSIntegralState):
         return self.compute_uncertainty(log_evidence=True)
 
     @property
+    def evidence(self) -> float:
+        """The current evidence"""
+        return np.exp(self.log_evidence)
+
+    @property
+    def evidence_error(self) -> float:
+        """The evidence error"""
+        return self.compute_uncertainty(log_evidence=False)
+
+    @property
     def log_evidence_live_points(self) -> float:
         """Log-evidence in the live points."""
         if self._weights_lp is None:

@@ -57,6 +57,18 @@ def test_log_evidence_error(state):
     state.compute_uncertainty.assert_called_once_with(log_evidence=True)
 
 
+def test_evidence(state):
+    state.log_evidence = 0.0
+    assert INSState.evidence.__get__(state) == 1.0
+
+
+def test_evidence_error(state):
+    out = 0.1
+    state.compute_uncertainty = MagicMock(return_value=out)
+    assert INSState.evidence_error.__get__(state) == out
+    state.compute_uncertainty.assert_called_once_with(log_evidence=False)
+
+
 def test_log_evidence_live_points(state):
     """Check the correct value is returned"""
     state._weights_lp = np.log(np.array([1, 2, 3]))
