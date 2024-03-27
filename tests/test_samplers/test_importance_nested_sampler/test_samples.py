@@ -8,6 +8,7 @@ from nessai.samplers.importancesampler import (
     OrderedSamples,
 )
 import numpy as np
+import pytest
 
 
 def test_ordered_samples_property(ins):
@@ -45,6 +46,7 @@ def test_nested_samples_property(ins):
     )
 
 
+@pytest.mark.usefixtures("ins_parameters")
 def test_populate_live_points_no_iid(ins, model):
     n = 100
     ins.n_initial = n
@@ -61,6 +63,7 @@ def test_populate_live_points_no_iid(ins, model):
     ].shape == (n, 1)
 
 
+@pytest.mark.usefixtures("ins_parameters")
 def test_populate_live_points_iid(ins, model):
     n = 100
     ins.n_initial = n
