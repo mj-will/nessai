@@ -109,6 +109,26 @@ def log_prior_wrapper(x):
     return _model.log_prior(x)
 
 
+def log_prior_unit_hypercube_wrapper(x):
+    """Wrapper for the log-prior in the unit-hypercube for use with
+    multiprocessing.
+
+    Should be used alongside
+    :py:func:`nessai.utils.multiprocessing.initialise_pool_variables`
+
+    Parameters
+    ----------
+    x : :obj:`numpy.ndarray`
+        Array of samples.
+
+    Returns
+    -------
+    :obj:`numpy.ndarray`
+        Array of log-prior values in the unit-hypercube.
+    """
+    return _model.log_prior_unit_hypercube(x)
+
+
 def batch_evaluate_function(
     func,
     x,
