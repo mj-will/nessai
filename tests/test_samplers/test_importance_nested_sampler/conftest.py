@@ -7,24 +7,9 @@ from nessai.samplers.importancesampler import (
     ImportanceNestedSampler,
     OrderedSamples,
 )
-from nessai.livepoint import (
-    add_extra_parameters_to_live_points,
-    reset_extra_live_points_parameters,
-)
 from nessai.model import Model
 import numpy as np
 from scipy.special import logsumexp
-
-
-@pytest.fixture(scope="module", autouse=True)
-def ins_livepoint_params():
-    reset_extra_live_points_parameters()
-    add_extra_parameters_to_live_points(["logW", "logQ"])
-    # Test happens here
-    yield
-
-    # Called after every test
-    reset_extra_live_points_parameters()
 
 
 @pytest.fixture(scope="module", params=[False, True])
@@ -58,7 +43,7 @@ def n_samples():
 
 
 @pytest.fixture
-def samples(model, n_samples, n_it, log_q):
+def samples(model, n_samples, n_it, log_q, ins_parameters):
     x = model.sample_unit_hypercube(n_samples)
     x["it"] = np.random.randint(-1, n_it - 1, size=len(x))
     x["logL"] = model.log_likelihood(x)

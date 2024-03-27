@@ -459,6 +459,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.Z_err = np.inf
 
         self._final_samples = None
+        self.sample_counts = {}
 
         self.proposal = self.get_proposal(**kwargs)
         self.configure_iterations(min_iteration, max_iteration)
@@ -657,8 +658,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     @staticmethod
     def add_fields():
-        """Add extra fields logW and logQ"""
-        add_extra_parameters_to_live_points(["logW", "logQ"])
+        """Add extra fields logW, logQ, logU"""
+        add_extra_parameters_to_live_points(["logW", "logQ", "logU"])
 
     def configure_stopping_criterion(
         self,
@@ -709,9 +710,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def get_proposal(self, subdir: str = "levels", **kwargs):
         """Configure the proposal."""
         output = os.path.join(self.output, subdir, "")
-        proposal = ImportanceFlowProposal(
-            self.model, output, self.n_initial, **kwargs
-        )
+        proposal = ImportanceFlowProposal(self.model, output, **kwargs)
         return proposal
 
     def configure_iterations(
@@ -780,7 +779,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         live_points["it"] = -np.ones(live_points.size)
         # Since log_Q is computed in the unit-cube
         live_points["logQ"] = np.zeros(live_points.size)
-        live_points["logW"] = -live_points["logQ"]
+        live_points["logU"] = (
+            self.model.batch_evaluate_log_prior_unit_hypercube(live_points)
+        )
+        live_points["logW"] = live_points["logU"] - live_points["logQ"]
         log_q = np.zeros([live_points.size, 1])
 
         if self.draw_iid_live:
@@ -795,6 +797,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.iid_samples.add_initial_samples(iid_samples, iid_log_q)
 
         self.training_samples.add_initial_samples(live_points, log_q)
+        self.sample_counts[-1] = self.n_initial
 
     def initialise(self) -> None:
         """Initialise the nested sampler.
@@ -1194,7 +1197,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         st = datetime.datetime.now()
         logger.info(f"Drawing {n} new samples from the new proposal")
-        new_samples, log_q = self.draw_n_samples(n, update_counts=True)
+        new_samples, log_q = self.draw_n_samples(n)
         new_samples["it"] = self.iteration
 
         self.history["leakage_new_points"].append(
@@ -1225,16 +1228,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 self.training_samples.log_q
             )
         )
-        self.training_samples.samples["logW"] = -self.training_samples.samples[
-            "logQ"
-        ]
+        self.training_samples.samples["logW"] = (
+            self.training_samples.samples["logU"]
+            - self.training_samples.samples["logQ"]
+        )
 
         self.training_samples.add_samples(new_samples, log_q)
 
         if self.draw_iid_live:
-            iid_samples, iid_log_q = self.draw_n_samples(
-                n, update_counts=False
-            )
+            iid_samples, iid_log_q = self.draw_n_samples(n)
             iid_samples["it"] = self.iteration
 
             self.iid_samples.log_q = self.proposal.update_log_q(
@@ -1245,9 +1247,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     self.iid_samples.log_q
                 )
             )
-            self.iid_samples.samples["logW"] = -self.iid_samples.samples[
-                "logQ"
-            ]
+            self.iid_samples.samples["logW"] = (
+                self.iid_samples.samples["logU"]
+                - self.iid_samples.samples["logQ"]
+            )
             self.iid_samples.add_samples(iid_samples, iid_log_q)
 
         self.history["n_added"].append(new_samples.size)
@@ -1348,7 +1351,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             # Weights are normalised because the total number of samples is the
             # same.
             batch_samples["logQ"] = log_Q
-            batch_samples["logW"] = -log_Q
+            batch_samples["logW"] = batch_samples["logU"] - log_Q
             state = _INSIntegralState()
             state.log_meta_constant = 0.0
             state.update_evidence(batch_samples)
@@ -1476,6 +1479,30 @@ class ImportanceNestedSampler(BaseNestedSampler):
             importance = self.training_samples.compute_importance(**kwargs)
         return importance
 
+    def update_proposal_weights(self):
+        n_total = len(self.samples_unit)
+        new_weights = {k: v / n_total for k, v in self.sample_counts.items()}
+        self.proposal.update_proposal_weights(new_weights)
+
+    def update_sample_counts(self) -> None:
+        counts = np.bincount(
+            self.samples_unit["it"] + 1,
+            minlength=(self.proposal.n_proposals),
+        )
+        self.sample_counts = {it - 1: c for it, c in enumerate(counts)}
+
+    def add_new_proposal_weight(self, iteration: int, n_new: int) -> None:
+        """Update the meta-proposal weights"""
+        n_total = len(self.samples_unit) + n_new
+        if (
+            iteration in self.sample_counts
+            and self.sample_counts[iteration] != 0
+        ):
+            raise RuntimeError
+        self.sample_counts[iteration] = n_new
+        new_weights = {k: v / n_total for k, v in self.sample_counts.items()}
+        self.proposal.update_proposal_weights(new_weights)
+
     def nested_sampling_loop(self):
         """Main nested sampling loop."""
         if self.finalised:
@@ -1510,6 +1537,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 n_add = self.nlive
             else:
                 n_add = n_removed
+
+            self.add_new_proposal_weight(self.iteration, n_add)
+
             self.add_and_update_points(n_add)
 
             self.update_evidence()
@@ -1798,7 +1828,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 logger.warning("Log meta proposal contains +inf")
 
             samples["logQ"] = log_Q
-            samples["logW"] = -log_Q
+            samples["logW"] = samples["logU"] - log_Q
 
             final_samples.state.update_evidence(samples)
             ess = final_samples.state.effective_n_posterior_samples
@@ -1842,7 +1872,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
         x_out, log_j_out = self.proposal.inverse_rescale(x_p_out)
         x_out["logQ"] = log_prob - log_j_out
-        x_out["logW"] = -x_out["logQ"]
+        x_out["logW"] = x_out["logU"] - x_out["logQ"]
         x_out["logL"] = self.model.batch_evaluate_log_likelihood(
             x_out, unit_hypercube=True
         )

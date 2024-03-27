@@ -103,7 +103,7 @@ def mp_context(request):
 def ins_parameters():
     """Add (and remove) the standard INS parameters for the tests."""
     # Before every test
-    add_extra_parameters_to_live_points(["logQ", "logW"])
+    add_extra_parameters_to_live_points(["logQ", "logW", "logU"])
     yield
     reset_extra_live_points_parameters()
 
