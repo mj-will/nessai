@@ -528,11 +528,11 @@ class Model(ABC):
     def log_prior_unit_hypercube(self, x) -> np.ndarray:
         """Compute the log-prior in the unit hypercube.
 
-        By default this returns log(1) and checks if the values are in unit
+        By default this returns log(1) and checks if the values are in the unit
         hypercube.
         """
         x = self.unstructured_view(x)
-        return np.log(np.any((x >= 0) & (x <= 1), axis=-1))
+        return np.log(~np.any((x < 0) | (x >= 1), axis=-1))
 
     def from_unit_hypercube(self, x):
         """Map from the unit hypercube to the priors.
