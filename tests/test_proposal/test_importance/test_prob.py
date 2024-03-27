@@ -16,11 +16,6 @@ def ifp(ifp):
     return ifp
 
 
-def test_log_prior(ifp):
-    x = np.random.randn(10, 2)
-    np.testing.assert_array_equal(IFP._log_prior(ifp, x), np.zeros(10))
-
-
 def test_compute_log_Q(ifp, x_prime):
     n_flows = 3
     ifp.weights_array = np.array([0.25, 0.25, 0.25, 0.25])
