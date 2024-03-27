@@ -100,7 +100,7 @@ class ImportanceFlowModel(FlowModel):
         log_prob = log_prob.cpu().numpy().astype(np.float64)
         return log_prob
 
-    def log_prob_all(self, x, exclude_last=False):
+    def log_prob_all(self, x):
         """Compute the log probability using all of the stored models."""
         x = (
             torch.from_numpy(x)
@@ -110,12 +110,6 @@ class ImportanceFlowModel(FlowModel):
         if self.models.training:
             self.models.eval()
         n = self.n_models
-        if exclude_last:
-            n -= 1
-        if n <= 0:
-            raise RuntimeError(
-                "Cannot exclude last when flow there is only one flow"
-            )
         log_prob = torch.empty(x.shape[0], n)
         with torch.no_grad():
             for i, m in enumerate(self.models[:n]):

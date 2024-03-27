@@ -360,7 +360,6 @@ class ImportanceFlowProposal(Proposal):
     def compute_log_Q(
         self,
         x_prime: np.ndarray,
-        log_q_current: Optional[np.ndarray] = None,
         log_j: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute the log meta proposal (log Q) for an array of points.
@@ -369,9 +368,6 @@ class ImportanceFlowProposal(Proposal):
         ----------
         x_prime : numpy.ndarray
             Array of samples in the unit hypercube.
-        log_q_current : Optional[numpy.ndarray]
-            Log q value of the current flow for the prime samples. Used when
-            prime samples have just been drawn and log q is computed.
         log_j : Optional[numpy.ndarray]
             Log-Jacobian determinant of the prime samples. Must be supplied if
             proposal includes flows.
@@ -395,7 +391,6 @@ class ImportanceFlowProposal(Proposal):
             raise RuntimeError("Some weights are not set!")
 
         log_q_all = np.zeros([x_prime.shape[0], self.n_proposals])
-        exclude_last = log_q_current is not None
         n_flows = self.flow.n_models
 
         if self.n_proposals > 1 and log_j is None:
@@ -403,17 +398,12 @@ class ImportanceFlowProposal(Proposal):
                 "Must specify log_j! Meta-proposal includes flows"
             )
 
-        if exclude_last:
-            log_q_all[:, -1] = log_q_current + log_j
-            n_flows -= 1
-
         for flow in self.flow.models:
             assert flow.training is False
 
         if n_flows >= 1:
             log_q_all[:, 1 : (n_flows + 1)] = (
-                self.flow.log_prob_all(x_prime, exclude_last=exclude_last)
-                + log_j[:, np.newaxis]
+                self.flow.log_prob_all(x_prime) + log_j[:, np.newaxis]
             )
         assert log_q_all.shape[0] == x_prime.shape[0]
 
@@ -484,9 +474,7 @@ class ImportanceFlowProposal(Proposal):
                 acc, x, x_prime, log_j, log_q
             )
 
-            x["logQ"], log_q_all = self.compute_log_Q(
-                x_prime, log_q_current=None, log_j=log_j
-            )
+            x["logQ"], log_q_all = self.compute_log_Q(x_prime, log_j=log_j)
             x["logP"] = self.model.batch_evaluate_log_prior(
                 x, unit_hypercube=True
             )
