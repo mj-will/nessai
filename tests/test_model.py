@@ -5,6 +5,7 @@ Tests for `nessai.model`
 import datetime
 import logging
 import numpy as np
+import numpy.lib.recfunctions as rfn
 import pytest
 from scipy.stats import norm
 from unittest.mock import MagicMock, call, create_autospec, patch
@@ -457,6 +458,17 @@ def test_from_unit_hypercube(model):
     """Assert an error is raised by default"""
     with pytest.raises(NotImplementedError):
         Model.from_unit_hypercube(model, 1)
+
+
+def test_log_prior_unit_hypercube(model):
+    model.names = ["x", "y"]
+    x = np.array(
+        [(0.5, 0.5), (-0.1, 0.5)], dtype=[(n, "f8") for n in model.names]
+    )
+    model.unstructured_view = rfn.structured_to_unstructured
+    out = Model.log_prior_unit_hypercube(model, x)
+    assert out[0] == 0
+    assert out[1] == -np.inf
 
 
 def test_missing_log_prior():
