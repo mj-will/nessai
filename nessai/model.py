@@ -532,7 +532,7 @@ class Model(ABC):
         hypercube.
         """
         x = self.unstructured_view(x)
-        return np.log(np.any((x >= 0) & (x <= 1), axis=1))
+        return np.log(np.any((x >= 0) & (x <= 1), axis=-1))
 
     def from_unit_hypercube(self, x):
         """Map from the unit hypercube to the priors.
