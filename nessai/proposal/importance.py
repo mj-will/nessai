@@ -43,9 +43,9 @@ class ImportanceFlowProposal(Proposal):
         Output directory.
     flow_config : dict
         Configuration for the flow.
-    reparameterization : str
-        Reparameterization to use. If None, only the unit-hypercube
-        reparameterization is used.
+    reparameterisation : str
+        Reparameterisation to use. If None, only the unit-hypercube
+        reparameterisation is used.
     weighted_kl : bool
         If true, use the weights (prior / meta-proposal) when training the
         next flow.
@@ -91,10 +91,12 @@ class ImportanceFlowProposal(Proposal):
 
     @property
     def weights(self) -> dict:
+        """Dictionary containing the weights for each proposal"""
         return self._weights
 
     @property
-    def weights_array(self) -> dict:
+    def weights_array(self) -> np.ndarray:
+        """Array of weights for each proposal"""
         return np.fromiter(self.weights.values(), dtype=float)
 
     @property
@@ -261,7 +263,8 @@ class ImportanceFlowProposal(Proposal):
         x = numpy_array_to_live_points(x, self.model.names)
         return x, log_j
 
-    def update_proposal_weights(self, weights: dict):
+    def update_proposal_weights(self, weights: dict) -> None:
+        """Method to update the proposal weights dictionary."""
         self._weights.update(weights)
 
     def train(
