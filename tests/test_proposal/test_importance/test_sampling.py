@@ -12,14 +12,18 @@ import pytest
 
 @pytest.mark.parametrize("n", [1, 10])
 @pytest.mark.usefixtures("ins_parameters")
-def test_draw_from_prior(ifp, x, n):
+def test_draw_from_prior(ifp, n, model):
     """Test drawing from the prior"""
     n_proposals = 4
     x_prime = np.random.randn(n, 2)
+    x = numpy_array_to_live_points(np.random.rand(n, 2), names=model.names)
     log_j = np.random.rand(n)
     log_Q = np.random.randn(n)
     log_q = np.random.randn(n_proposals, n)
     ifp.model.sample_unit_hypercube = MagicMock(return_value=x)
+    ifp.model.batch_evaluate_log_prior_unit_hypercube = MagicMock(
+        return_value=np.zeros(n)
+    )
     ifp.rescale = MagicMock(return_value=(x_prime, log_j))
     ifp.compute_log_Q = MagicMock(return_value=(log_Q, log_q))
 
