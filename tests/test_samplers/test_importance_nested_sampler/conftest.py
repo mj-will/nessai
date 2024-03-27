@@ -12,12 +12,6 @@ import numpy as np
 from scipy.special import logsumexp
 
 
-@pytest.fixture(scope="module", autouse=True)
-@pytest.mark.usefixtures("ins_parameters")
-def ins_parameters():
-    pass
-
-
 @pytest.fixture(scope="module", params=[False, True])
 def iid(request):
     return request.param
@@ -49,7 +43,7 @@ def n_samples():
 
 
 @pytest.fixture
-def samples(model, n_samples, n_it, log_q):
+def samples(model, n_samples, n_it, log_q, ins_parameters):
     x = model.sample_unit_hypercube(n_samples)
     x["it"] = np.random.randint(-1, n_it - 1, size=len(x))
     x["logL"] = model.log_likelihood(x)
