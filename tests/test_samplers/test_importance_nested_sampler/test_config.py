@@ -21,6 +21,7 @@ def test_add_fields():
     INS.add_fields()
     assert "logW" in nessai_config.livepoints.non_sampling_parameters
     assert "logQ" in nessai_config.livepoints.non_sampling_parameters
+    assert "logU" in nessai_config.livepoints.non_sampling_parameters
 
 
 @pytest.mark.parametrize("it, expected", [(None, -1), (100, 100)])

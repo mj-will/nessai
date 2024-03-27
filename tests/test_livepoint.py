@@ -46,7 +46,7 @@ def non_sampling_parameters(request):
     return request.param
 
 
-@pytest.fixture(autouse=True, params=[[], ["logQ", "logW"]])
+@pytest.fixture(autouse=True, params=[[], ["logQ", "logW", "logU"]])
 def extra_parameters(request):
     """Add (and remove) extra parameters for the tests."""
     # Before every test
