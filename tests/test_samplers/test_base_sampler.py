@@ -149,6 +149,15 @@ def test_no_random_seed(mock_int, mock1, mock2, sampler):
     assert sampler.seed == 10
 
 
+@patch("numpy.random.seed")
+@patch("torch.manual_seed")
+def test_no_random_seed_numpy(mock1, mock2, sampler):
+    """Assert a random seed is set if seed=None"""
+    BaseNestedSampler.configure_random_seed(sampler, None)
+    mock1.assert_called_once()
+    mock2.assert_called_once()
+
+
 def test_configure_output(sampler, tmpdir):
     """Test setting up the output directories"""
     p = tmpdir.mkdir("outputs")
