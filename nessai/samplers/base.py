@@ -173,13 +173,15 @@ class BaseNestedSampler(ABC):
         Parameters
         ----------
         seed : Optional[int]
-            The random seed. If not specified, no seed is set.
+            The random seed. If not specified, a random seed is generated.
         """
+        if seed is None:
+            logger.debug("Seed not specified, generating random seed")
+            seed = np.random.randint(0, 1e10)
+        logger.debug(f"Setting random seed to {seed}")
         self.seed = seed
-        if self.seed is not None:
-            logger.debug(f"Setting random seed to {seed}")
-            np.random.seed(seed=self.seed)
-            torch.manual_seed(self.seed)
+        np.random.seed(seed=self.seed)
+        torch.manual_seed(self.seed)
 
     def configure_periodic_logging(self, logging_interval, log_on_iteration):
         """Configure the periodic logging.
