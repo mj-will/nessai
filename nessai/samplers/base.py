@@ -177,7 +177,7 @@ class BaseNestedSampler(ABC):
         """
         if seed is None:
             logger.debug("Seed not specified, generating random seed")
-            seed = np.random.randint(0, np.iinfo(np.uint32).max)
+            seed = np.random.randint(0, np.iinfo(np.uintc).max)
         logger.debug(f"Setting random seed to {seed}")
         self.seed = seed
         np.random.seed(seed=self.seed)
