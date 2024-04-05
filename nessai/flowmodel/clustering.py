@@ -42,7 +42,7 @@ class ClusteringFlowModel(FlowModel):
             )
             kmeans.train(samples)
             score = np.mean(silhouette_score(samples, kmeans))
-            logger.info(f"k={n_clusters}, score={score}")
+            logger.debug(f"k={n_clusters}, score={score}")
             if score > best_score:
                 best_score = score
                 best_clusterer = kmeans
@@ -51,11 +51,11 @@ class ClusteringFlowModel(FlowModel):
         labels = self.get_cluster_labels(samples)
         unique_labels = np.unique(labels)
         self.n_clusters = len(unique_labels)
-        logger.info(f"n_clusters={self.n_clusters}")
+        logger.debug(f"n_clusters={self.n_clusters}")
         self.cluster_weights = np.bincount(
             labels.flatten(), minlength=self.max_n_clusters
         ) / len(samples)
-        logger.info(f"cluster_weights={self.cluster_weights}")
+        logger.debug(f"cluster_weights={self.cluster_weights}")
         return labels
 
     def get_cluster_labels(
