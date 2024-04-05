@@ -465,6 +465,10 @@ class NestedSampler(BaseNestedSampler):
                     from ..proposal import AugmentedFlowProposal
 
                     flow_class = AugmentedFlowProposal
+                elif flow_class == "clusteringflowproposal":
+                    from ..proposal import ClusteringFlowProposal
+
+                    flow_class = ClusteringFlowProposal
                 else:
                     raise ValueError(f"Unknown flow class: {flow_class}")
             elif not issubclass(flow_class, FlowProposal):
