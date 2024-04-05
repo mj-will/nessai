@@ -44,7 +44,7 @@ Documentation is available at: [nessai.readthedocs.io](https://nessai.readthedoc
 
 ## Help
 
-For questions and other support, please either use our [gitter.io room](https://matrix.to/#/#nessai:gitter.im) or [open an issue](https://github.com/mj-will/nessai/issues/new/choose).
+For questions and other support, please either use our [gitter room](https://matrix.to/#/#nessai:gitter.im) or [open an issue](https://github.com/mj-will/nessai/issues/new/choose).
 
 ## Contributing
 
