@@ -118,3 +118,13 @@ def weighted_quantile(
     q_p = np.sum(w_star * values, axis=0)
 
     return q_p
+
+
+def silhouette_score(samples: np.ndarray, clusterer) -> np.ndarray:
+    """Compute the silhouette score.
+
+    Based on: https://github.com/facebookresearch/faiss/issues/1875
+    """
+    distance, _ = clusterer.index.search(samples, 2)
+    score = (distance[:, 1] - distance[:, 0]) / np.max(distance, 1)
+    return score
