@@ -4,8 +4,11 @@ Specific proposal methods for sampling gravitational-wave models.
 """
 import logging
 
-from ..proposal import FlowProposal
-from ..proposal.augmented import AugmentedFlowProposal
+from ..proposal import (
+    AugmentedFlowProposal,
+    ClusteringFlowProposal,
+    FlowProposal,
+)
 
 from .reparameterisations import get_gw_reparameterisation
 
@@ -96,6 +99,16 @@ class AugmentedGWFlowProposal(AugmentedFlowProposal, GWFlowProposal):
     """Augmented version of GWFlowProposal.
 
     See :obj:`~nessai.proposal.augmented.AugmentedFlowProposal` and
+    :obj:`~nessai.gw.proposal.GWFlowPropsosal`
+    """
+
+    pass
+
+
+class ClusteringGWFlowProposal(ClusteringFlowProposal, GWFlowProposal):
+    """Augmented version of GWFlowProposal.
+
+    See :obj:`~nessai.proposal.augmented.ClusteringFlowProposal` and
     :obj:`~nessai.gw.proposal.GWFlowPropsosal`
     """
 
