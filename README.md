@@ -6,6 +6,7 @@
 ![tests](https://github.com/mj-will/nessai/actions/workflows/tests.yml/badge.svg)
 ![int-tests](https://github.com/mj-will/nessai/actions/workflows/integration-tests.yml/badge.svg)
 [![codecov](https://codecov.io/gh/mj-will/nessai/branch/main/graph/badge.svg?token=O7SN167SK6)](https://codecov.io/gh/mj-will/nessai)
+[![gitter](https://img.shields.io/gitter/room/nessai/nessai)](https://matrix.to/#/#nessai:gitter.im)
 
 # nessai: Nested Sampling with Artificial Intelligence
 
@@ -41,6 +42,9 @@ See the examples included with ``nessai`` for how to run ``nessai`` via ``bilby`
 
 Documentation is available at: [nessai.readthedocs.io](https://nessai.readthedocs.io/)
 
+## Help
+
+For questions and other support, please either use our [gitter.io room](https://matrix.to/#/#nessai:gitter.im) or [open an issue](https://github.com/mj-will/nessai/issues/new/choose).
 
 ## Contributing
 
