@@ -370,6 +370,8 @@ class FlowModel:
         weighted : bool
             If True the weighted KL will be used to compute the loss. Requires
             data to include weights.
+        is_conditional : bool
+            If True, the conditional argument will be passed to the flow.
 
         Returns
         -------
@@ -450,6 +452,8 @@ class FlowModel:
         weighted : bool
             If True the weighted KL will be used to compute the loss. Requires
             data to include weights.
+        is_conditional : bool
+            If True, the conditional argument will be passed to the flow.
 
         Returns
         -------
