@@ -260,6 +260,45 @@ def test_training_with_weights(flow_model, data_dim):
     assert flow_model.weights_file is not None
 
 
+def test_training_with_conditional(data_dim, tmp_path):
+    """Test training with conditional inputs"""
+    output = tmp_path / "test_train_conditional"
+    fm = create_autospec(FlowModel)
+    fm.batch_size = 100
+    fm.initialised = True
+    fm.noise_scale = None
+    fm.device = "cpu"
+    fm.inference_device = None
+    fm.use_dataloader = False
+    fm.annealing = False
+    fm.patience = 20
+    fm.prep_data = MagicMock(return_value=("train", "val", None))
+    fm._train = MagicMock(return_value=1.0)
+    fm._validate = MagicMock(return_value=1.0)
+    x = np.random.randn(50, data_dim)
+    conditional = np.random.randint(0, 2, size=(50, 1))
+    FlowModel.train(
+        fm,
+        x,
+        conditional=conditional,
+        max_epochs=1,
+        val_size=0.1,
+        output=output,
+    )
+    fm.prep_data.assert_called_once_with(
+        x,
+        val_size=0.1,
+        batch_size=100,
+        weights=None,
+        conditional=conditional,
+        use_dataloader=True,
+    )
+    fm._train.assert_called_once()
+    assert fm._train.call_args_list[0][1]["is_conditional"] is True
+    fm._validate.assert_called_once()
+    assert fm._validate.call_args_list[0][1]["is_conditional"] is True
+
+
 @pytest.mark.parametrize(
     "x", [np.array([np.inf]), np.array([-np.inf]), np.array([np.nan])]
 )
@@ -627,7 +666,7 @@ def test_train_without_validation(tmp_path):
 
 
 @pytest.mark.integration_test
-def test_train_conditional(tmp_path):
+def test_train_conditional_integration(tmp_path):
     """Assert training with conditional data works"""
     output = tmp_path / "test_train_conditional"
     output.mkdir()
