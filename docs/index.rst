@@ -16,6 +16,8 @@ Nessai
 
 The code is available at: https://github.com/mj-will/nessai.
 
+For questions or other support, please either use our `gitter.io room <https://matrix.to/#/#nessai:gitter.im>`_ or `open an issue <https://github.com/mj-will/nessai/issues/new/choose>`_.
+
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
