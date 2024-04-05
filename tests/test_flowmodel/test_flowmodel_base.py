@@ -8,7 +8,9 @@ import os
 import pickle
 import pytest
 import torch
-from unittest.mock import create_autospec, MagicMock, patch
+from unittest.mock import create_autospec, MagicMock, Mock, patch
+
+import torch.utils
 
 from nessai.flowmodel import FlowModel
 from nessai.flowmodel import config
@@ -211,6 +213,29 @@ def test_prep_data_dataloader(flow_model, data_dim, val_size, batch_size):
     assert len(train) * train_batch.shape[0] + val_batch.shape[0] == n
 
 
+def test_prep_data_conditional(data_dim):
+    n = 200
+    batch_size = 100
+    x = np.random.randn(n, data_dim)
+    c = np.random.randn(n, 1)
+    fm = create_autospec(FlowModel)
+    fm.initialised = True
+    fm.check_batch_size = MagicMock(return_value=batch_size)
+    train_loader, val_loader, bs = FlowModel.prep_data(
+        fm, x, 0.1, batch_size, conditional=c
+    )
+    assert bs == batch_size
+    assert fm._batch_size == batch_size
+    batch = next(iter(train_loader))
+    assert len(batch) == 2
+    assert batch[0].shape == (batch_size, data_dim)
+    assert batch[1].shape == (batch_size, 1)
+    batch = next(iter(val_loader))
+    assert len(batch) == 2
+    assert batch[0].shape == (20, data_dim)
+    assert batch[1].shape == (20, 1)
+
+
 @pytest.mark.parametrize("batch_size", ["10", True, False])
 def test_incorrect_batch_size_type(flow_model, data_dim, batch_size):
     """Ensure the non-interger batch sizes do not work"""
@@ -342,6 +367,70 @@ def test_training_additional_config_args(
     flow_model.train(x)
 
 
+def test_train_func_conditional(data_dim):
+    n = 100
+
+    model = Mock(spec=["train"])
+
+    def log_prob(x, cond):
+        assert len(x) == len(cond)
+        return torch.randn(x.shape[0], requires_grad=True)
+
+    model.log_prob = MagicMock(side_effect=log_prob)
+    model.parameters = MagicMock(return_value=[MagicMock(), MagicMock()])
+
+    fm = create_autospec(FlowModel)
+    fm.model = model
+    fm._optimiser = MagicMock(spec=torch.optim.Adam)
+    fm.device = "cpu"
+    fm.clip_grad_norm = 10.0
+    fm.annealing = False
+
+    data = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(
+            torch.randn(n, data_dim),
+            torch.randn(n, 1),
+        ),
+        batch_size=n,
+    )
+
+    FlowModel._train(fm, data, is_dataloader=True, is_conditional=True)
+
+    model.log_prob.assert_called_once()
+
+
+def test_validate_func_conditional(data_dim):
+    n = 100
+
+    model = Mock(spec=["eval"])
+
+    def log_prob(x, cond):
+        assert len(x) == len(cond)
+        return torch.randn(x.shape[0], requires_grad=True)
+
+    model.log_prob = MagicMock(side_effect=log_prob)
+    model.parameters = MagicMock(return_value=[MagicMock(), MagicMock()])
+
+    fm = create_autospec(FlowModel)
+    fm.model = model
+    fm._optimiser = MagicMock(spec=torch.optim.Adam)
+    fm.device = "cpu"
+    fm.clip_grad_norm = 10.0
+    fm.annealing = False
+
+    data = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(
+            torch.randn(n, data_dim),
+            torch.randn(n, 1),
+        ),
+        batch_size=n,
+    )
+
+    FlowModel._validate(fm, data, is_dataloader=True, is_conditional=True)
+
+    model.log_prob.assert_called_once()
+
+
 def test_early_optimiser_init(flow_model):
     """Ensure calling the opitmiser before the model raises an error"""
     with pytest.raises(RuntimeError) as excinfo:
@@ -371,6 +460,20 @@ def test_reset_model(model, weights, perms):
         model.get_optimiser.assert_called_once_with(model.optimiser, lr=0.01)
     else:
         model.get_optimiser.assert_not_called()
+
+
+def test_sample_and_log_prob(flow_model, n_samples, conditional):
+    """Assert the outputs have the correct shape"""
+    if conditional is not None:
+        flow_model.model_config["kwargs"]["context_features"] = (
+            conditional.shape[-1]
+        )
+    flow_model.initialise()
+    samples, log_prob = flow_model.sample_and_log_prob(
+        n_samples, conditional=conditional
+    )
+    assert len(samples) == n_samples
+    assert len(log_prob) == n_samples
 
 
 def test_sample_and_log_prob_not_initialised(flow_model, data_dim):
