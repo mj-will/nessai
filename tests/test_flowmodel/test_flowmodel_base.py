@@ -268,6 +268,22 @@ def test_prep_data_non_finite_weights(model, w):
         FlowModel.prep_data(model, np.random.rand(100), 0.1, 50, weights=w)
 
 
+def test_prep_data_weights_and_conditional(model):
+    """Assert an error is raised if weights and conditional are specified"""
+    model.initialised = True
+    with pytest.raises(
+        RuntimeError, match=r"weights and conditional inputs not supported"
+    ):
+        FlowModel.prep_data(
+            model,
+            np.random.rand(100),
+            0.1,
+            50,
+            weights=np.random.rand(100),
+            conditional=np.random.rand(100),
+        )
+
+
 @pytest.mark.parametrize("dataloader", [False, True])
 def test_training(flow_model, data_dim, dataloader):
     """Test class until training"""
