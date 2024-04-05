@@ -6,7 +6,7 @@
 ![tests](https://github.com/mj-will/nessai/actions/workflows/tests.yml/badge.svg)
 ![int-tests](https://github.com/mj-will/nessai/actions/workflows/integration-tests.yml/badge.svg)
 [![codecov](https://codecov.io/gh/mj-will/nessai/branch/main/graph/badge.svg?token=O7SN167SK6)](https://codecov.io/gh/mj-will/nessai)
-[![gitter](https://img.shields.io/gitter/room/nessai/nessai)](https://matrix.to/#/#nessai:gitter.im)
+[![gitter](https://img.shields.io/gitter/room/nessai/nessai)](https://app.gitter.im/#/room/#nessai:gitter.im)
 
 # nessai: Nested Sampling with Artificial Intelligence
 
