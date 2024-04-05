@@ -160,6 +160,7 @@ class FlowProposal(RejectionProposal):
     class. Child classes can change this value a force the default
     behaviour to change without changing the keyword arguments.
     """
+    _FlowModelClass = FlowModel
 
     def __init__(
         self,
@@ -538,7 +539,9 @@ class FlowProposal(RejectionProposal):
 
         self.configure_constant_volume()
         self.update_flow_config()
-        self.flow = FlowModel(config=self.flow_config, output=self.output)
+        self.flow = self._FlowModelClass(
+            config=self.flow_config, output=self.output
+        )
         self.flow.initialise()
         self.populated = False
         self.initialised = True
