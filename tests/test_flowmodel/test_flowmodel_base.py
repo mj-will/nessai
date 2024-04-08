@@ -8,7 +8,9 @@ import os
 import pickle
 import pytest
 import torch
-from unittest.mock import create_autospec, MagicMock, patch
+from unittest.mock import create_autospec, MagicMock, Mock, patch
+
+import torch.utils
 
 from nessai.flowmodel import FlowModel
 from nessai.flowmodel import config
@@ -21,8 +23,24 @@ def data_dim():
 
 
 @pytest.fixture()
+def n_samples():
+    return 10
+
+
+@pytest.fixture(params=[False, True])
+def conditional(request, n_samples):
+    if request.param:
+        return np.random.randn(n_samples, 2)
+    else:
+        return None
+
+
+@pytest.fixture()
 def model():
-    return create_autospec(FlowModel)
+    m = create_autospec(FlowModel)
+    m.numpy_array_to_tensor = torch.tensor
+    m.model = MagicMock()
+    return m
 
 
 @pytest.fixture(scope="function")
@@ -195,6 +213,29 @@ def test_prep_data_dataloader(flow_model, data_dim, val_size, batch_size):
     assert len(train) * train_batch.shape[0] + val_batch.shape[0] == n
 
 
+def test_prep_data_conditional(data_dim):
+    n = 200
+    batch_size = 100
+    x = np.random.randn(n, data_dim)
+    c = np.random.randn(n, 1)
+    fm = create_autospec(FlowModel)
+    fm.initialised = True
+    fm.check_batch_size = MagicMock(return_value=batch_size)
+    train_loader, val_loader, bs = FlowModel.prep_data(
+        fm, x, 0.1, batch_size, conditional=c
+    )
+    assert bs == batch_size
+    assert fm._batch_size == batch_size
+    batch = next(iter(train_loader))
+    assert len(batch) == 2
+    assert batch[0].shape == (batch_size, data_dim)
+    assert batch[1].shape == (batch_size, 1)
+    batch = next(iter(val_loader))
+    assert len(batch) == 2
+    assert batch[0].shape == (20, data_dim)
+    assert batch[1].shape == (20, 1)
+
+
 @pytest.mark.parametrize("batch_size", ["10", True, False])
 def test_incorrect_batch_size_type(flow_model, data_dim, batch_size):
     """Ensure the non-interger batch sizes do not work"""
@@ -227,6 +268,22 @@ def test_prep_data_non_finite_weights(model, w):
         FlowModel.prep_data(model, np.random.rand(100), 0.1, 50, weights=w)
 
 
+def test_prep_data_weights_and_conditional(model):
+    """Assert an error is raised if weights and conditional are specified"""
+    model.initialised = True
+    with pytest.raises(
+        RuntimeError, match=r"weights and conditional inputs not supported"
+    ):
+        FlowModel.prep_data(
+            model,
+            np.random.rand(100),
+            0.1,
+            50,
+            weights=np.random.rand(100),
+            conditional=np.random.rand(100),
+        )
+
+
 @pytest.mark.parametrize("dataloader", [False, True])
 def test_training(flow_model, data_dim, dataloader):
     """Test class until training"""
@@ -242,6 +299,45 @@ def test_training_with_weights(flow_model, data_dim):
     weights = np.random.rand(200)
     flow_model.train(x, weights=weights)
     assert flow_model.weights_file is not None
+
+
+def test_training_with_conditional(data_dim, tmp_path):
+    """Test training with conditional inputs"""
+    output = tmp_path / "test_train_conditional"
+    fm = create_autospec(FlowModel)
+    fm.batch_size = 100
+    fm.initialised = True
+    fm.noise_scale = None
+    fm.device = "cpu"
+    fm.inference_device = None
+    fm.use_dataloader = False
+    fm.annealing = False
+    fm.patience = 20
+    fm.prep_data = MagicMock(return_value=("train", "val", None))
+    fm._train = MagicMock(return_value=1.0)
+    fm._validate = MagicMock(return_value=1.0)
+    x = np.random.randn(50, data_dim)
+    conditional = np.random.randint(0, 2, size=(50, 1))
+    FlowModel.train(
+        fm,
+        x,
+        conditional=conditional,
+        max_epochs=1,
+        val_size=0.1,
+        output=output,
+    )
+    fm.prep_data.assert_called_once_with(
+        x,
+        val_size=0.1,
+        batch_size=100,
+        weights=None,
+        conditional=conditional,
+        use_dataloader=True,
+    )
+    fm._train.assert_called_once()
+    assert fm._train.call_args_list[0][1]["is_conditional"] is True
+    fm._validate.assert_called_once()
+    assert fm._validate.call_args_list[0][1]["is_conditional"] is True
 
 
 @pytest.mark.parametrize(
@@ -287,6 +383,70 @@ def test_training_additional_config_args(
     flow_model.train(x)
 
 
+def test_train_func_conditional(data_dim):
+    n = 100
+
+    model = Mock(spec=["train"])
+
+    def log_prob(x, cond):
+        assert len(x) == len(cond)
+        return torch.randn(x.shape[0], requires_grad=True)
+
+    model.log_prob = MagicMock(side_effect=log_prob)
+    model.parameters = MagicMock(return_value=[MagicMock(), MagicMock()])
+
+    fm = create_autospec(FlowModel)
+    fm.model = model
+    fm._optimiser = MagicMock(spec=torch.optim.Adam)
+    fm.device = "cpu"
+    fm.clip_grad_norm = 10.0
+    fm.annealing = False
+
+    data = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(
+            torch.randn(n, data_dim),
+            torch.randn(n, 1),
+        ),
+        batch_size=n,
+    )
+
+    FlowModel._train(fm, data, is_dataloader=True, is_conditional=True)
+
+    model.log_prob.assert_called_once()
+
+
+def test_validate_func_conditional(data_dim):
+    n = 100
+
+    model = Mock(spec=["eval"])
+
+    def log_prob(x, cond):
+        assert len(x) == len(cond)
+        return torch.randn(x.shape[0], requires_grad=True)
+
+    model.log_prob = MagicMock(side_effect=log_prob)
+    model.parameters = MagicMock(return_value=[MagicMock(), MagicMock()])
+
+    fm = create_autospec(FlowModel)
+    fm.model = model
+    fm._optimiser = MagicMock(spec=torch.optim.Adam)
+    fm.device = "cpu"
+    fm.clip_grad_norm = 10.0
+    fm.annealing = False
+
+    data = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(
+            torch.randn(n, data_dim),
+            torch.randn(n, 1),
+        ),
+        batch_size=n,
+    )
+
+    FlowModel._validate(fm, data, is_dataloader=True, is_conditional=True)
+
+    model.log_prob.assert_called_once()
+
+
 def test_early_optimiser_init(flow_model):
     """Ensure calling the opitmiser before the model raises an error"""
     with pytest.raises(RuntimeError) as excinfo:
@@ -316,6 +476,20 @@ def test_reset_model(model, weights, perms):
         model.get_optimiser.assert_called_once_with(model.optimiser, lr=0.01)
     else:
         model.get_optimiser.assert_not_called()
+
+
+def test_sample_and_log_prob(flow_model, n_samples, conditional):
+    """Assert the outputs have the correct shape"""
+    if conditional is not None:
+        flow_model.model_config["kwargs"]["context_features"] = (
+            conditional.shape[-1]
+        )
+    flow_model.initialise()
+    samples, log_prob = flow_model.sample_and_log_prob(
+        n_samples, conditional=conditional
+    )
+    assert len(samples) == n_samples
+    assert len(log_prob) == n_samples
 
 
 def test_sample_and_log_prob_not_initialised(flow_model, data_dim):
@@ -352,6 +526,15 @@ def test_sample_and_log_prob_with_latent(flow_model, data_dim, N):
     assert log_prob.size == N
 
 
+def test_numpy_array_to_tensor(model, n_samples):
+    x = np.random.randn(n_samples, 2).astype("float32")
+    model.model.device = "cpu"
+    out = FlowModel.numpy_array_to_tensor(model, x)
+    assert isinstance(out, torch.Tensor)
+    assert out.dtype == torch.get_default_dtype()
+    np.testing.assert_equal(x, out.numpy())
+
+
 def test_sample_log_prob_alt_dist(model):
     """Assert the alternate distribution is used."""
     z = torch.randn(5, 2)
@@ -378,48 +561,64 @@ def test_sample_log_prob_alt_dist(model):
     np.testing.assert_equal(log_prob_out, log_prob_expected)
 
 
-def test_forward_and_log_prob(model):
+def test_forward_and_log_prob(model, n_samples, conditional):
     """Assert the method from the flow is called"""
-    x = np.random.randn(5, 2)
-    log_prob = torch.randn(5)
-    z = torch.randn(5, 2)
+    x = np.random.randn(n_samples, 2)
+    log_prob = torch.randn(n_samples)
+    z = torch.randn(n_samples, 2)
     model.model = MagicMock()
     model.model.device = "cpu"
     model.model.eval = MagicMock()
     model.model.forward_and_log_prob = MagicMock(return_value=(z, log_prob))
 
-    out_z, out_log_prob = FlowModel.forward_and_log_prob(model, x)
+    out_z, out_log_prob = FlowModel.forward_and_log_prob(
+        model, x, conditional=conditional
+    )
 
     model.model.eval.assert_called_once()
+    model.model.forward_and_log_prob.assert_called_once()
+    if conditional is not None:
+        assert np.array_equal(
+            model.model.forward_and_log_prob.call_args_list[0][1]["context"],
+            conditional,
+        )
     np.testing.assert_equal(out_z, z.numpy())
     np.testing.assert_equal(out_log_prob, log_prob.numpy())
 
 
-def test_log_prob(model):
+def test_log_prob(model, n_samples, conditional):
     """Assert the correct method from the flow is called"""
-    x = np.random.randn(5, 2)
-    log_prob = torch.randn(5)
+    x = np.random.randn(n_samples, 2)
+    log_prob = torch.randn(n_samples)
     model.model = MagicMock()
     model.model.device = "cpu"
     model.model.eval = MagicMock()
     model.model.log_prob = MagicMock(return_value=log_prob)
 
-    out = FlowModel.log_prob(model, x)
+    out = FlowModel.log_prob(model, x, conditional=conditional)
 
     model.model.eval.assert_called_once()
+    if conditional is not None:
+        assert np.array_equal(
+            model.model.log_prob.call_args_list[0][1]["context"], conditional
+        )
     np.testing.assert_equal(out, log_prob.numpy())
 
 
-def test_sample(model):
+def test_sample(model, n_samples, conditional):
     """Assert the correct method from the flow is called."""
-    n = 10
-    x = torch.randn(n, 2)
+    x = torch.randn(n_samples, 2)
     model.model = MagicMock()
     model.model.sample = MagicMock(return_value=x)
 
-    out = FlowModel.sample(model, n)
+    out = FlowModel.sample(model, n_samples, conditional=conditional)
 
-    model.model.sample.assert_called_once_with(n)
+    model.model.sample.assert_called_once()
+    assert model.model.sample.call_args_list[0][0][0] == n_samples
+    if conditional is not None:
+        assert np.array_equal(
+            model.model.sample.call_args_list[0][1]["context"], conditional
+        )
     np.testing.assert_array_equal(out, x.numpy())
 
 
@@ -502,12 +701,18 @@ def test_get_state(flow_model):
 
 
 @pytest.mark.parametrize("N", [1, 100])
+@pytest.mark.parametrize("conditional", [None, True])
 @pytest.mark.integration_test
-def test_forward_and_log_prob_integration(flow_model, data_dim, N):
+def test_forward_and_log_prob_integration(
+    flow_model, data_dim, N, conditional
+):
     """Test the basic use of forward and log prob"""
+    if conditional:
+        conditional = np.random.randn(N, 1)
+        flow_model.model_config["kwargs"]["context_features"] = 1
     flow_model.initialise()
     x = np.random.randn(N, data_dim)
-    z, log_prob = flow_model.forward_and_log_prob(x)
+    z, log_prob = flow_model.forward_and_log_prob(x, conditional=conditional)
     assert z.shape == (N, data_dim)
     assert log_prob.size == N
 
@@ -577,3 +782,28 @@ def test_train_without_validation(tmp_path):
     history = flow.train(data)
 
     assert np.isnan(history["val_loss"]).all()
+
+
+@pytest.mark.integration_test
+def test_train_conditional_integration(tmp_path):
+    """Assert training with conditional data works"""
+    output = tmp_path / "test_train_conditional"
+    output.mkdir()
+
+    config = dict(
+        max_epochs=10,
+        model_config=dict(
+            n_inputs=2,
+            n_blocks=2,
+            kwargs=dict(
+                linear_transform="lu",
+                context_features=1,
+            ),
+        ),
+    )
+
+    flow = FlowModel(config=config, output=output)
+    data = np.random.randn(100, 2)
+    conditional = np.random.randint(2, size=(100, 1))
+
+    _ = flow.train(data, conditional=conditional)

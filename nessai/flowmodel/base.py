@@ -9,6 +9,7 @@ import os
 import shutil
 import torch
 from torch.nn.utils import clip_grad_norm_
+from typing import Optional, Tuple
 
 from .utils import update_config
 
@@ -220,7 +221,13 @@ class FlowModel:
         return batch_size
 
     def prep_data(
-        self, samples, val_size, batch_size, weights=None, use_dataloader=False
+        self,
+        samples,
+        val_size,
+        batch_size,
+        weights=None,
+        use_dataloader=False,
+        conditional=None,
     ):
         """
         Prep data and return dataloaders for training
@@ -251,12 +258,18 @@ class FlowModel:
         if not np.isfinite(samples).all():
             raise ValueError("Cannot train with non-finite samples!")
 
+        if weights is not None and conditional is not None:
+            raise RuntimeError("weights and conditional inputs not supported")
+
         idx = np.random.permutation(samples.shape[0])
         samples = samples[idx]
         if weights is not None:
             if not np.isfinite(weights).all():
                 raise ValueError("Weights contain non-finite values!")
             weights = weights[idx]
+            use_dataloader = True
+        if conditional is not None:
+            conditional = conditional[idx]
             use_dataloader = True
 
         logger.debug("N input samples: {}".format(len(samples)))
@@ -269,6 +282,9 @@ class FlowModel:
         if weights is not None:
             weights_train = weights[:n]
             weights_val = weights[n:]
+        if conditional is not None:
+            conditional_train = conditional[:n]
+            conditional_val = conditional[n:]
         logger.debug(f"{x_train.shape} training samples")
         logger.debug(f"{x_val.shape} validation samples")
 
@@ -295,6 +311,14 @@ class FlowModel:
                     torch.from_numpy(weights_train).type(dtype)
                 )
                 val_tensors.append(torch.from_numpy(weights_val).type(dtype))
+
+            if conditional is not None:
+                train_tensors.append(
+                    torch.from_numpy(conditional_train).type(dtype)
+                )
+                val_tensors.append(
+                    torch.from_numpy(conditional_val).type(dtype)
+                )
 
             train_dataset = torch.utils.data.TensorDataset(*train_tensors)
             train_data = torch.utils.data.DataLoader(
@@ -329,6 +353,7 @@ class FlowModel:
         noise_scale=0.0,
         is_dataloader=False,
         weighted=False,
+        is_conditional=False,
     ):
         """
         Loop over the data and update the weights
@@ -345,6 +370,8 @@ class FlowModel:
         weighted : bool
             If True the weighted KL will be used to compute the loss. Requires
             data to include weights.
+        is_conditional : bool
+            If True, the conditional argument will be passed to the flow.
 
         Returns
         -------
@@ -366,8 +393,8 @@ class FlowModel:
 
         else:
 
-            def loss_fn(data):
-                return -model.log_prob(data).mean()
+            def loss_fn(data, conditional):
+                return -model.log_prob(data, conditional).mean()
 
         if not is_dataloader:
             p = torch.randperm(train_data.shape[0])
@@ -387,7 +414,11 @@ class FlowModel:
                 weights = data[1].to(self.device)
                 loss = loss_fn(x, weights)
             else:
-                loss = loss_fn(x)
+                if is_conditional:
+                    conditional = data[1].to(self.device)
+                else:
+                    conditional = None
+                loss = loss_fn(x, conditional)
             train_loss += loss.item()
             loss.backward()
             if self.clip_grad_norm:
@@ -402,7 +433,13 @@ class FlowModel:
 
         return train_loss / n
 
-    def _validate(self, val_data, is_dataloader=False, weighted=False):
+    def _validate(
+        self,
+        val_data,
+        is_dataloader=False,
+        weighted=False,
+        is_conditional=False,
+    ):
         """
         Loop over the data and get validation loss
 
@@ -415,6 +452,8 @@ class FlowModel:
         weighted : bool
             If True the weighted KL will be used to compute the loss. Requires
             data to include weights.
+        is_conditional : bool
+            If True, the conditional argument will be passed to the flow.
 
         Returns
         -------
@@ -438,8 +477,8 @@ class FlowModel:
 
         else:
 
-            def loss_fn(data):
-                return -model.log_prob(data).mean()
+            def loss_fn(data, conditional):
+                return -model.log_prob(data, conditional).mean()
 
         if is_dataloader:
             n = 0
@@ -451,14 +490,18 @@ class FlowModel:
                     with torch.inference_mode():
                         val_loss += loss_fn(x, weights).item()
                 else:
+                    if is_conditional:
+                        conditional = data[1].to(self.device)
+                    else:
+                        conditional = None
                     with torch.inference_mode():
-                        val_loss += loss_fn(x).item()
+                        val_loss += loss_fn(x, conditional).item()
                 n += 1
 
             return val_loss / n
         else:
             with torch.inference_mode():
-                val_loss += loss_fn(val_data).item()
+                val_loss += loss_fn(val_data, None).item()
             return val_loss
 
     def finalise(self):
@@ -470,6 +513,7 @@ class FlowModel:
         self,
         samples,
         weights=None,
+        conditional=None,
         max_epochs=None,
         patience=None,
         output=None,
@@ -545,13 +589,15 @@ class FlowModel:
         self.move_to(self.device)
 
         weighted = True if weights is not None else False
-        use_dataloader = self.use_dataloader or weighted
+        is_conditional = True if conditional is not None else False
+        use_dataloader = self.use_dataloader or weighted or is_conditional
 
         train_data, val_data, _ = self.prep_data(
             samples,
             val_size=val_size,
             batch_size=self.batch_size,
             weights=weights,
+            conditional=conditional,
             use_dataloader=use_dataloader,
         )
 
@@ -583,11 +629,13 @@ class FlowModel:
                 noise_scale=noise_scale,
                 is_dataloader=use_dataloader,
                 weighted=weighted,
+                is_conditional=is_conditional,
             )
             val_loss = self._validate(
                 val_data,
                 is_dataloader=use_dataloader,
                 weighted=weighted,
+                is_conditional=is_conditional,
             )
             history["loss"].append(loss)
             history["val_loss"].append(val_loss)
@@ -704,7 +752,17 @@ class FlowModel:
         )
         logger.debug("Resetting optimiser")
 
-    def forward_and_log_prob(self, x):
+    def numpy_array_to_tensor(self, array: np.ndarray, /) -> torch.Tensor:
+        """Convert a numpy array to a tensor and move it to the device"""
+        return (
+            torch.from_numpy(array)
+            .type(torch.get_default_dtype())
+            .to(self.model.device)
+        )
+
+    def forward_and_log_prob(
+        self, x: np.ndarray, conditional: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Forward pass through the model and return the samples in the latent
         space with their log probabilities
@@ -721,20 +779,21 @@ class FlowModel:
         log_prob : ndarray
             Log probabilities for each samples
         """
-        x = (
-            torch.from_numpy(x)
-            .type(torch.get_default_dtype())
-            .to(self.model.device)
-        )
+        x = self.numpy_array_to_tensor(x)
+        if conditional is not None:
+            conditional = self.numpy_array_to_tensor(conditional)
         self.model.eval()
         with torch.inference_mode():
-            z, log_prob = self.model.forward_and_log_prob(x)
-
+            z, log_prob = self.model.forward_and_log_prob(
+                x, context=conditional
+            )
         z = z.detach().cpu().numpy().astype(np.float64)
         log_prob = log_prob.detach().cpu().numpy().astype(np.float64)
         return z, log_prob
 
-    def log_prob(self, x: np.ndarray) -> np.ndarray:
+    def log_prob(
+        self, x: np.ndarray, conditional: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """Compute the log-probability of a sample.
 
         Parameters
@@ -747,32 +806,36 @@ class FlowModel:
         ndarray
             Array of log-probabilities.
         """
-        x = (
-            torch.from_numpy(x)
-            .type(torch.get_default_dtype())
-            .to(self.model.device)
-        )
+        x = self.numpy_array_to_tensor(x)
+        if conditional is not None:
+            conditional = self.numpy_array_to_tensor(conditional)
         self.model.eval()
         with torch.inference_mode():
-            log_prob = self.model.log_prob(x)
+            log_prob = self.model.log_prob(x, context=conditional)
         log_prob = log_prob.cpu().numpy().astype(np.float64)
         return log_prob
 
-    def sample(self, n: int = 1) -> np.ndarray:
+    def sample(
+        self, n: int = 1, conditional: Optional[np.ndarray] = None
+    ) -> np.ndarray:
         """Sample from the flow.
 
         Parameters
         ----------
         n : int
             Number of samples to draw
+        conditional : numpy.ndarray
+            Array of conditional inputs
 
         Returns
         -------
         numpy.ndarray
             Array of samples
         """
+        if conditional is not None:
+            conditional = self.numpy_array_to_tensor(conditional)
         with torch.inference_mode():
-            x = self.model.sample(int(n))
+            x = self.model.sample(int(n), context=conditional)
         return x.cpu().numpy().astype(np.float64)
 
     def sample_latent_distribution(self, n: int = 1) -> np.ndarray:
@@ -792,7 +855,9 @@ class FlowModel:
             z = self.model.sample_latent_distribution(n)
         return z.cpu().numpy().astype(np.float64)
 
-    def sample_and_log_prob(self, N=1, z=None, alt_dist=None):
+    def sample_and_log_prob(
+        self, N=1, z=None, alt_dist=None, conditional=None
+    ):
         """
         Generate samples from samples drawn from the base distribution or
         and alternative distribution from provided latent samples
@@ -822,9 +887,13 @@ class FlowModel:
             raise RuntimeError("Model is not initialised yet!")
         if self.model.training:
             self.model.eval()
+        if conditional is not None:
+            conditional = self.numpy_array_to_tensor(conditional)
         if z is None:
             with torch.inference_mode():
-                x, log_prob = self.model.sample_and_log_prob(int(N))
+                x, log_prob = self.model.sample_and_log_prob(
+                    int(N), context=conditional
+                )
         else:
             if alt_dist is not None:
                 log_prob_fn = alt_dist.log_prob
@@ -833,13 +902,9 @@ class FlowModel:
 
             with torch.inference_mode():
                 if isinstance(z, np.ndarray):
-                    z = (
-                        torch.from_numpy(z)
-                        .type(torch.get_default_dtype())
-                        .to(self.model.device)
-                    )
+                    z = self.numpy_array_to_tensor(z)
                 log_prob = log_prob_fn(z)
-                x, log_J = self.model.inverse(z, context=None)
+                x, log_J = self.model.inverse(z, context=conditional)
                 log_prob -= log_J
 
         x = x.detach().cpu().numpy().astype(np.float64)
