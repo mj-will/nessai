@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+from scipy.special import logsumexp
 from typing import Any, Tuple
 
 from .base import FlowModel
@@ -16,8 +17,10 @@ class ClusteringFlowModel(FlowModel):
     cluster_weights: np.ndarray = None
 
     def setup_from_input_dict(self, config: dict) -> None:
-        super().setup_from_input_dict(config)
+        if config is None:
+            config = {}
         max_n_clusters = config.pop("max_n_clusters", None)
+        super().setup_from_input_dict(config)
         if max_n_clusters is not None:
             self.max_n_clusters = max_n_clusters
         self.model_config["kwargs"]["context_features"] = 1
@@ -53,7 +56,7 @@ class ClusteringFlowModel(FlowModel):
         self.n_clusters = len(unique_labels)
         logger.debug(f"n_clusters={self.n_clusters}")
         self.cluster_weights = np.bincount(
-            labels.flatten(), minlength=self.max_n_clusters
+            labels.flatten(), minlength=self.n_clusters
         ) / len(samples)
         logger.debug(f"cluster_weights={self.cluster_weights}")
         return labels
@@ -70,7 +73,7 @@ class ClusteringFlowModel(FlowModel):
     def sample_cluster_labels(self, n: int) -> np.ndarray:
         """Sample n random cluster labels"""
         return np.random.choice(
-            self.max_n_clusters, size=(n, 1), p=self.cluster_weights
+            self.n_clusters, size=(n, 1), p=self.cluster_weights
         )
 
     def train(self, samples: np.ndarray, **kwargs) -> dict:
@@ -82,7 +85,22 @@ class ClusteringFlowModel(FlowModel):
         self, x: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray]:
         cluster_labels = self.get_cluster_labels(x)
-        return super().forward_and_log_prob(x, conditional=cluster_labels)
+        x, _ = super().forward_and_log_prob(x, conditional=cluster_labels)
+        log_prob = self.log_prob(x)
+        return x, log_prob
+
+    def log_prob(self, x: np.ndarray) -> np.ndarray:
+        # Must compute log-prob for every conditional value
+        cluster_labels = np.tile(np.arange(self.n_clusters), len(x))[
+            :, np.newaxis
+        ]
+        x = np.repeat(x, self.n_clusters, axis=0)
+        log_prob = (
+            super()
+            .log_prob(x, conditional=cluster_labels)
+            .reshape(-1, self.n_clusters)
+        )
+        return logsumexp(log_prob, b=self.cluster_weights, axis=1)
 
     def sample(self, n: int = 1, return_labels: bool = False) -> np.ndarray:
         cluster_labels = self.sample_cluster_labels(n)
@@ -95,9 +113,11 @@ class ClusteringFlowModel(FlowModel):
     def sample_and_log_prob(
         self, N: int = 1, z: np.ndarray = None, alt_dist: Any = None
     ) -> Tuple[np.ndarray, np.ndarray]:
+        if alt_dist is not None:
+            raise RuntimeError
         if z is not None:
             N = len(z)
-        cluster_labels = self.sample_cluster_labels(N)
-        return super().sample_and_log_prob(
-            N=N, z=z, alt_dist=alt_dist, conditional=cluster_labels
-        )
+        # This could be optimised to not repeat calculations
+        samples = self.sample(N)
+        log_prob = self.log_prob(samples)
+        return samples, log_prob
