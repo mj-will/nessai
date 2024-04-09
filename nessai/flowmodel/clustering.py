@@ -16,6 +16,19 @@ class ClusteringFlowModel(FlowModel):
     n_clusters: int = None
     cluster_weights: np.ndarray = None
 
+    def __init__(self, config=None, output=None):
+        try:
+            import faiss
+
+            logger.debug(f"Running with faiss version {faiss.__version__}")
+
+        except ImportError:
+            raise RuntimeError(
+                "faiss is not installed! Install faiss-cpu/-gpu in order to "
+                "use the clustering flow model."
+            )
+        super().__init__(config=config, output=output)
+
     def setup_from_input_dict(self, config: dict) -> None:
         if config is None:
             config = {}
@@ -38,6 +51,7 @@ class ClusteringFlowModel(FlowModel):
         import faiss
 
         best_score = -np.inf
+        best_clusterer = None
         dims = samples.shape[-1]
         for n_clusters in range(2, self.max_n_clusters + 1):
             kmeans = faiss.Kmeans(
@@ -50,6 +64,8 @@ class ClusteringFlowModel(FlowModel):
                 best_score = score
                 best_clusterer = kmeans
 
+        if best_clusterer is None:
+            raise RuntimeError("Clustering failed")
         self.clusterer = best_clusterer
         labels = self.get_cluster_labels(samples)
         unique_labels = np.unique(labels)
