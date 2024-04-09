@@ -53,11 +53,15 @@ gw = [
     "bilby",
     "astropy",
 ]
+clustering = [
+    "faiss-cpu",
+]
 dev = [
     "pre-commit",
     "ray[default]; sys_platform != 'win32' and python_version < '3.12'",
     "corner",
     "black>=24.0",
+    "faiss-cpu",
 ]
 docs = [
     "sphinx",
