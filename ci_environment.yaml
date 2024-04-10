@@ -18,6 +18,7 @@ dependencies:
   - corner
   - bilby
   - astropy
+  - faiss-cpu
   - pytest
   - pytest-cov
   - pytest-timeout
