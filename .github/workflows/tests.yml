@@ -32,9 +32,7 @@ jobs:
         create-args: >-
           python=${{ matrix.python-version }}
           lalsuite
-        init-shell: >-
-          bash
-          powershell
+        init-shell: bash
         cache-environment: true
         post-cleanup: 'all'
     - name: Configure environment with Python ${{ matrix.python-version}} (Windows)
@@ -45,9 +43,7 @@ jobs:
         environment-file: ci_environment.yaml
         create-args: >-
           python=${{ matrix.python-version }}
-        init-shell: >-
-          bash
-          powershell
+        init-shell: powershell
         cache-environment: true
         post-cleanup: 'all'
     - name: Install nessai
