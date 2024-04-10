@@ -23,18 +23,15 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Configure mamba with Python ${{ matrix.python-version}}
+    - name: Configure mamba environment with Python ${{ matrix.python-version}}
       uses: mamba-org/setup-micromamba@v1
       with:
         micromamba-version: '1.5.8-0'
-        environment-name: base
+        environment-file: environment.yaml
         create-args: >-
           python=${{ matrix.python-version }}
         cache-environment: true
         post-cleanup: 'all'
-    - name: Install dependencies
-      run: |
-        conda env update -f base_environment.yaml
     - name: Install nessai
       run: |
         pip install . --no-deps
