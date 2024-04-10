@@ -46,6 +46,8 @@ jobs:
         init-shell: powershell
         cache-environment: true
         post-cleanup: 'all'
+    - name: Activate environment
+      run: micromamba activate nessai-ci
     - name: Install nessai
       run: |
         pip install . --no-deps
