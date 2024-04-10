@@ -54,7 +54,7 @@ gw = [
     "astropy",
 ]
 clustering = [
-    "faiss-cpu",
+    "faiss-cpu>=1.7.3",
 ]
 dev = [
     "pre-commit",
