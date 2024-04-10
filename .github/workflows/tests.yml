@@ -46,11 +46,10 @@ jobs:
         init-shell: powershell
         cache-environment: true
         post-cleanup: 'all'
-    - name: Activate environment
-      run: micromamba activate nessai-ci
     - name: Install nessai
       run: |
         pip install . --no-deps
+      shell: bash -el {0}
     - name: Set MPL backend on Windows
       if: runner.os == 'Windows'
       run: |
@@ -61,8 +60,10 @@ jobs:
     - name: Test with pytest
       run: |
         python -m pytest --cov-report=xml --without-integration --without-slow-integration
+      shell: bash -el {0}
     - name: Upload coverage
       uses: codecov/codecov-action@v3
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
+      shell: bash -el {0}
