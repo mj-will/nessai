@@ -1,3 +1,4 @@
+import copy
 import logging
 import numpy as np
 from scipy.special import logsumexp
@@ -30,6 +31,7 @@ class ClusteringFlowModel(FlowModel):
         super().__init__(config=config, output=output)
 
     def setup_from_input_dict(self, config: dict) -> None:
+        config = copy.deepcopy(config)
         if config is None:
             config = {}
         max_n_clusters = config.pop("max_n_clusters", None)
