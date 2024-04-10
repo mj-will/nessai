@@ -1,4 +1,4 @@
-name: nessai
+name: nessai-ci
 channels:
   - default
   - pytorch
@@ -24,5 +24,6 @@ dependencies:
   - pytest-timeout
   - pytest-rerunfailures
   - pytest-integration
+  - ray-default
   - pip:
     - nflows
