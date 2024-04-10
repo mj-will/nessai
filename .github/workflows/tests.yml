@@ -43,7 +43,7 @@ jobs:
         environment-file: ci_environment.yaml
         create-args: >-
           python=${{ matrix.python-version }}
-        init-shell: powershell
+        init-shell: bash
         cache-environment: true
         post-cleanup: 'all'
     - name: Install nessai
