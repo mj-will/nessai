@@ -1,0 +1,28 @@
+name: nessai
+channels:
+  - default
+  - pytorch
+  - conda-forge
+dependencies:
+  - numpy
+  - pandas
+  - scipy>=0.16
+  - matplotlib>=2.0
+  - seaborn
+  - tqdm
+  - pytorch>=1.11.0
+  - cpuonly
+  - glasflow
+  - h5py
+  - tqdm
+  - corner
+  - bilby
+  - lalsuite
+  - astropy
+  - pytest
+  - pytest-cov
+  - pytest-timeout
+  - pytest-rerunfailures
+  - pytest-integration
+  - pip:
+    - nflows

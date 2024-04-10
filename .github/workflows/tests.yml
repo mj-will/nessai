@@ -23,17 +23,20 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+    - name: Configure mamba with Python ${{ matrix.python-version}}
+      uses: mamba-org/setup-micromamba@v1
       with:
-        python-version: ${{ matrix.python-version }}
-        cache: 'pip'
+        micromamba-version: '1.5.8-0'
+        create-args: >-
+          python=${{ matrix.python-version }}
+        cache-environment: true
+        post-cleanup: 'all'
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        pip install .[test]
-        pip install .[dev,nflows]
-        pip install .[gw]
+        conda env update -f base_environment.yaml
+    - name: Install nessai
+      run: |
+        pip install . --no-deps
     - name: Check dependencies
       if: success() || failure()
       run: |
