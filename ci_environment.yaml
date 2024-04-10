@@ -24,6 +24,7 @@ dependencies:
   - pytest-timeout
   - pytest-rerunfailures
   - pytest-integration
-  - ray-default
+  - ray-default # [py<312]
+  - pip
   - pip:
     - nflows
