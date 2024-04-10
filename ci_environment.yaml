@@ -17,7 +17,6 @@ dependencies:
   - tqdm
   - corner
   - bilby
-  - lalsuite
   - astropy
   - pytest
   - pytest-cov

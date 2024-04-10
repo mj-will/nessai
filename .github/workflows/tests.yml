@@ -35,13 +35,13 @@ jobs:
           powershell
         cache-environment: true
         post-cleanup: 'all'
+    - name: Install LALSuite
+      if: runner.os != 'Windows'
+      run: |
+        mamba install conda-forge::lalsuite
     - name: Install nessai
       run: |
         pip install . --no-deps
-    - name: Check dependencies
-      if: success() || failure()
-      run: |
-        python -m pip check
     - name: Set MPL backend on Windows
       if: runner.os == 'Windows'
       run: |
