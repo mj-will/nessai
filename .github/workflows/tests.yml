@@ -38,7 +38,7 @@ jobs:
     - name: Install LALSuite
       if: runner.os != 'Windows'
       run: |
-        mamba install conda-forge::lalsuite
+        micromamba install conda-forge::lalsuite
     - name: Install nessai
       run: |
         pip install . --no-deps
