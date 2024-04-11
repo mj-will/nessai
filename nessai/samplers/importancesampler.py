@@ -582,6 +582,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         return self.model.from_unit_hypercube(self.samples_unit)
 
     @property
+    def log_posterior_weights(self) -> np.ndarray:
+        return self._ordered_samples.state.log_posterior_weights
+
+    @property
     def log_q(self) -> np.ndarray:
         return self._ordered_samples.log_q
 
