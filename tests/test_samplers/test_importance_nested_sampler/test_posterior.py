@@ -6,7 +6,7 @@ from nessai.evidence import _INSIntegralState
 from unittest.mock import MagicMock
 
 
-def test_log_posterior_weights_propetry(ins):
+def test_log_posterior_weights_property(ins):
     ins._ordered_samples = MagicMock(spec=OrderedSamples)
     ins._ordered_samples.state = MagicMock(spec=_INSIntegralState)
     assert (
