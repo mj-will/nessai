@@ -7,12 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0]
+
+This release reworks large parts of the importance nested sampler to enable
+drawing i.i.d samples during sampling.
+
+The high-level API remains unchanged but the APIs for the
+`ImportanceNestedSampler` and `ImportanceFlowProposal` classes have changed.
+Existing runs of the importance nested sampler cannot be resumed with this
+version.
+
 ### Added
 
 - Add option to accumulate weights during rejection sampling ([#358](https://github.com/mj-will/nessai/pull/358))
 - Add option to draw i.i.d samples during sampling when using the importance nested sampler ([#362](https://github.com/mj-will/nessai/pull/362))
 - Add the `OrderedSamples` class for handling samples in the importance nested sampler ([#362](https://github.com/mj-will/nessai/pull/362))
 - Add the `in_unit_hypercube` and `sample_unit_hypercube` methods to the model class `Model` ([#362](https://github.com/mj-will/nessai/pull/362))
+- Add `log-posterior-weights` to `nessai.samplers.importance.ImportanceNestedSampler` (https://github.com/mj-will/nessai/pull/382)
+- Add explicit support for Python 3.12 (https://github.com/mj-will/nessai/pull/374)
+- Add fractional evidence stopping criterion to the importance nested sampler (https://github.com/mj-will/nessai/pull/371)
+- Add option to recompute `log_q` when resuming the importance nested sampler instead of saving it (https://github.com/mj-will/nessai/pull/368)
 
 ### Changed
 
@@ -20,10 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The importance nested sampler no longer requires the `to_unit_hypercube` method to run ([#362](https://github.com/mj-will/nessai/pull/362))
 - The `ratio` stopping criterion is now computed using the log-likelihood threshold instead of the live points ([#362](https://github.com/mj-will/nessai/pull/362))
 - Change various defaults related to the importance nested sampler ([#362](https://github.com/mj-will/nessai/pull/362))
+- Random seed is now randomly set if not specified and saved in the result file (https://github.com/mj-will/nessai/pull/378)
+- Rework how weights are handled in the importance nested sampler (https://github.com/mj-will/nessai/pull/376)
 
 ### Fixed
 
 - Fix bug in with legend in `nessai.plot.plot_1d_comparison` ([#360](https://github.com/mj-will/nessai/pull/360))
+- Fix bug with `truths` argument in `nessai.plot.corner_plot` (https://github.com/mj-will/nessai/pull/375)
 
 ### Removed
 
@@ -588,7 +605,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/mj-will/nessai/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/mj-will/nessai/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/mj-will/nessai/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/mj-will/nessai/compare/v0.9.1...v0.10.0
