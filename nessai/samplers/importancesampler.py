@@ -1479,11 +1479,24 @@ class ImportanceNestedSampler(BaseNestedSampler):
         return importance
 
     def update_proposal_weights(self):
+        """Update the proposal weights based on the current sample counts.
+
+        Uses the values from :code:`sample_counts`.
+
+        See also: code:`update_sample_counts`.
+        """
         n_total = len(self.samples_unit)
         new_weights = {k: v / n_total for k, v in self.sample_counts.items()}
         self.proposal.update_proposal_weights(new_weights)
 
     def update_sample_counts(self) -> None:
+        """Update the sample counts for each proposal based on the current
+        samples.
+
+        Uses the samples from :code:`samples_unit`
+
+        See also: :code:`update_proposal_weights`.
+        """
         counts = np.bincount(
             self.samples_unit["it"] + 1,
             minlength=(self.proposal.n_proposals),
@@ -1491,13 +1504,18 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.sample_counts = {it - 1: c for it, c in enumerate(counts)}
 
     def add_new_proposal_weight(self, iteration: int, n_new: int) -> None:
-        """Update the meta-proposal weights"""
-        n_total = len(self.samples_unit) + n_new
+        """Set the weights for a new proposal.
+
+        Samples cannot have been drawn from the proposal already.
+        """
         if (
             iteration in self.sample_counts
             and self.sample_counts[iteration] != 0
         ):
-            raise RuntimeError
+            raise RuntimeError(
+                f"Samples already drawn from proposal {iteration}"
+            )
+        n_total = len(self.samples_unit) + n_new
         self.sample_counts[iteration] = n_new
         new_weights = {k: v / n_total for k, v in self.sample_counts.items()}
         self.proposal.update_proposal_weights(new_weights)
