@@ -21,6 +21,20 @@ def test_log_prior(ifp):
     np.testing.assert_array_equal(IFP._log_prior(ifp, x), np.zeros(10))
 
 
+def test_update_proposal_weights(ifp):
+    ifp._weights = {-1: 0.5, 1: 0.5}
+    weights = {-1: 1 / 3, 0: 1 / 3, 1: 1 / 3}
+    IFP.update_proposal_weights(ifp, weights)
+    assert ifp._weights == weights
+
+
+def test_update_proposal_weights_vaild(ifp):
+    ifp._weights = {-1: 0.5, 1: 0.5}
+    weights = {-1: 0.33, 0: 0.33, 1: 0.33}
+    with pytest.raises(RuntimeError, match="Weights must sum to 1!"):
+        IFP.update_proposal_weights(ifp, weights)
+
+
 def test_compute_log_Q(ifp, x_prime):
     n_flows = 3
     ifp.weights_array = np.array([0.25, 0.25, 0.25, 0.25])
@@ -42,6 +56,36 @@ def test_compute_log_Q(ifp, x_prime):
 
     expected_log_Q = logsumexp(log_q, b=ifp.weights_array, axis=1)
     np.testing.assert_array_equal(log_Q, expected_log_Q)
+
+
+def test_compute_log_Q_weights_not_set(ifp, x_prime):
+    """Assert an error is raised if a flow is in training mode"""
+    n_flows = 3
+    ifp.weights = {i - 1: v for i, v in enumerate([0.25, 0.25, 0.25, np.nan])}
+    ifp.flow.n_models = n_flows
+    ifp.n_proposals = n_flows + 1
+    log_j = np.log(np.random.rand(len(x_prime)))
+    with pytest.raises(RuntimeError, match="Some weights are not set!"):
+        IFP.compute_log_Q(ifp, x_prime, log_j=log_j)
+
+
+def test_compute_log_Q_flow_training(ifp, x_prime):
+    """Assert an error is raised if a flow is in training mode"""
+    n_flows = 3
+    ifp.weights_array = np.array([0.25, 0.25, 0.25, 0.25])
+    ifp.flow.n_models = n_flows
+    ifp.flow.models = []
+    for _ in range(n_flows):
+        mock_model = MagicMock()
+        mock_model.training = False
+        ifp.flow.models.append(mock_model)
+    ifp.flow.models[-1].training = True
+    ifp.n_proposals = n_flows + 1
+    log_j = np.log(np.random.rand(len(x_prime)))
+    with pytest.raises(
+        RuntimeError, match="One or more flows are in training mode"
+    ):
+        IFP.compute_log_Q(ifp, x_prime, log_j=log_j)
 
 
 @pytest.mark.parametrize("p_it, q_it", [(None, None), (-1, 0), (3, 4)])
@@ -147,3 +191,14 @@ def test_compute_meta_proposal_samples(ifp, x, x_prime, log_j):
 
     np.testing.assert_array_equal(log_Q_out, log_Q)
     np.testing.assert_array_equal(log_q_out, log_q)
+
+
+@pytest.mark.parametrize(
+    "weights", [{-1: 0.5, 0: 0.5}, {-1: 0.5, 0: 0.5, 1: np.nan}]
+)
+@pytest.mark.usefixtures("ins_parameters")
+def test_compute_meta_proposal_samples_weights_error(ifp, x, weights):
+    ifp.level_count = 1
+    ifp.weights = weights
+    with pytest.raises(RuntimeError, match=r"Weight\(s\) missing or not set."):
+        IFP.compute_meta_proposal_samples(ifp, x)
