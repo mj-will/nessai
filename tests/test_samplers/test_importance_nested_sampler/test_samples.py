@@ -171,3 +171,11 @@ def test_update_evidence(ins, iid):
     ins.training_samples.update_evidence.assert_called_once()
     if iid:
         ins.iid_samples.update_evidence.assert_called_once()
+
+
+def test_update_sample_counts(ins):
+    ins.samples_unit = {"it": np.array([-1, 0, 2, 2, 2])}
+    ins.proposal = MagicMock()
+    ins.proposal.n_proposals = 5
+    INS.update_sample_counts(ins)
+    assert ins.sample_counts == {-1: 1, 0: 1, 1: 0, 2: 3, 3: 0}
