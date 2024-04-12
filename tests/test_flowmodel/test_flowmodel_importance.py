@@ -226,9 +226,7 @@ def test_log_prob_th(ifm, i):
     np.testing.assert_array_equal(out, log_prob.numpy())
 
 
-@pytest.mark.parametrize("exclude_last", [False, True])
-def test_log_prob_all(ifm, exclude_last):
-    """Test with and without exclude last"""
+def test_log_prob_all(ifm):
     x = np.random.randn(10, 2)
     log_prob = [
         torch.ones(len(x), dtype=torch.float32),
@@ -242,15 +240,13 @@ def test_log_prob_all(ifm, exclude_last):
     ]
 
     n_expected = len(models)
-    if exclude_last:
-        n_expected -= 1
 
     ifm.models = torch.nn.ModuleList(models)
     ifm.models.training = True
     ifm.model.device = torch.device("cpu")
     ifm.n_models = len(models)
 
-    out = IFM.log_prob_all(ifm, x, exclude_last=exclude_last)
+    out = IFM.log_prob_all(ifm, x)
 
     assert ifm.models.training is False
     assert out.dtype == np.float64
@@ -258,22 +254,6 @@ def test_log_prob_all(ifm, exclude_last):
 
     for model in models[:n_expected]:
         model.log_prob.assert_called_once()
-
-    if exclude_last:
-        models[-1].log_prob.assert_not_called()
-
-
-def test_log_prob_all_exclude_last_error(ifm):
-    """Assert an error is raised if there is only one flow"""
-    x = np.random.randn(10, 2)
-
-    ifm.models = torch.nn.ModuleList([DummyFlow()])
-    ifm.models.training = True
-    ifm.model.device = torch.device("cpu")
-    ifm.n_models = 1
-
-    with pytest.raises(RuntimeError, match=r"Cannot exclude last .*"):
-        IFM.log_prob_all(ifm, x, exclude_last=True)
 
 
 @pytest.mark.parametrize("i", [0, 1, 2, -1])

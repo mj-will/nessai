@@ -14,10 +14,9 @@ import pytest
 def ifp(ifp, tmp_path):
     ifp.output = tmp_path / "test_train"
     ifp.level_count = 2
-    ifp.n_draws = {"-1": 10, "0": 10, "1": 30, "2": 40}
-    ifp.n_requested = {"-1": 10, "0": 10, "1": 30, "2": 40}
     ifp.weighted_kl = False
     ifp._reset_flow = False
+    ifp._weights = {-1: 0.25, 0: 0.25, 1: 0.25, 2: 0.25}
     return ifp
 
 
@@ -54,6 +53,8 @@ def test_train_basic(ifp, x, x_prime, reset):
     )
 
     ifp.flow.add_new_flow.assert_called_once_with(reset=reset)
+    assert len(ifp._weights) == (ifp.level_count + 2)
+    assert ifp._weights[ifp.level_count] is np.nan
 
 
 @patch("nessai.proposal.importance.plot_live_points")
@@ -157,3 +158,24 @@ def test_train_weights_nan(ifp, x, x_prime):
     weights[0] = np.nan
     with pytest.raises(ValueError, match=r"Weights contain NaN\(s\)"):
         IFP.train(ifp, samples=x, weights=weights, plot=False)
+
+
+@pytest.mark.integration_test
+@pytest.mark.usefixtures("ins_parameters")
+def test_training_and_prob(model, tmp_path):
+    ifp = IFP(
+        model,
+        output=tmp_path / "test_training_and_prob",
+        weighted_kl=False,
+    )
+    ifp.initialise()
+    weights = {-1: 1.0}
+    for i in range(4):
+        ifp.train(model.new_point(10), max_epochs=2)
+        weights = {j - 1: 1 / (i + 2) for j in range(i + 2)}
+        ifp.update_proposal_weights(weights)
+        x, _ = ifp.draw(10)
+    log_Q, log_q = ifp.compute_meta_proposal_samples(x)
+
+    assert len(log_Q) == 10
+    assert log_q.shape == (10, 5)

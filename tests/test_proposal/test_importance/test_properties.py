@@ -2,31 +2,29 @@
 
 from unittest.mock import patch
 from nessai.proposal.importance import ImportanceFlowProposal as IFP
+import numpy as np
 import pytest
 
 
 @pytest.fixture
-def n_draws():
-    return {"-1": 10, "0": 20, "1": 30}
+def weights():
+    return {"-1": 0.2, "0": 0.3, "1": 0.5}
 
 
 @pytest.fixture
-def ifp(ifp, n_draws):
-    ifp.n_draws = n_draws
+def ifp(ifp, weights):
+    ifp._weights = weights
     return ifp
 
 
-def test_total_samples_drawn(ifp):
-    assert IFP.total_samples_drawn.__get__(ifp) == 60
+def test_weights(ifp, weights):
+    assert IFP.weights.__get__(ifp) == weights
 
 
-def test_unnormalised_weights(ifp, n_draws):
-    assert IFP.unnormalised_weights.__get__(ifp) == n_draws
-
-
-def test_poolsize(ifp, n_draws):
-    ifp.unnormalised_weights = n_draws
-    IFP.poolsize.__get__(ifp) == [10, 20, 30]
+def test_weights_array(ifp, weights):
+    np.testing.assert_array_equal(
+        IFP.weights_array.__get__(ifp), np.array(list(weights.values()))
+    )
 
 
 def test_n_proposals(ifp):

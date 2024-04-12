@@ -49,6 +49,7 @@ def test_populate_live_points_no_iid(ins, model):
     n = 100
     ins.n_initial = n
     ins.model = model
+    ins.sample_counts = {}
     ins.draw_iid_live = False
 
     INS.populate_live_points(ins)
@@ -65,6 +66,7 @@ def test_populate_live_points_iid(ins, model):
     ins.n_initial = n
     ins.model = model
     ins.draw_iid_live = True
+    ins.sample_counts = {}
     ins.iid_samples = create_autospec(OrderedSamples)
 
     INS.populate_live_points(ins)
@@ -169,3 +171,11 @@ def test_update_evidence(ins, iid):
     ins.training_samples.update_evidence.assert_called_once()
     if iid:
         ins.iid_samples.update_evidence.assert_called_once()
+
+
+def test_update_sample_counts(ins):
+    ins.samples_unit = {"it": np.array([-1, 0, 2, 2, 2])}
+    ins.proposal = MagicMock()
+    ins.proposal.n_proposals = 5
+    INS.update_sample_counts(ins)
+    assert ins.sample_counts == {-1: 1, 0: 1, 1: 0, 2: 3, 3: 0}

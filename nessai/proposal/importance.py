@@ -41,14 +41,11 @@ class ImportanceFlowProposal(Proposal):
         User-defined model.
     output : str
         Output directory.
-    initial_draws : int
-        Number of initial draws from the prior. Used when computing the meta-
-        proposal
     flow_config : dict
         Configuration for the flow.
-    reparameterization : str
-        Reparameterization to use. If None, only the unit-hypercube
-        reparameterization is used.
+    reparameterisation : str
+        Reparameterisation to use. If None, only the unit-hypercube
+        reparameterisation is used.
     weighted_kl : bool
         If true, use the weights (prior / meta-proposal) when training the
         next flow.
@@ -70,7 +67,6 @@ class ImportanceFlowProposal(Proposal):
         self,
         model: Model,
         output: str,
-        initial_draws: int,
         flow_config: dict = None,
         reparameterisation: str = "logit",
         weighted_kl: bool = True,
@@ -79,7 +75,6 @@ class ImportanceFlowProposal(Proposal):
         plot_training: bool = False,
     ) -> None:
         self.level_count = -1
-        self.draw_count = 0
         self._initialised = False
 
         self.model = model
@@ -90,39 +85,24 @@ class ImportanceFlowProposal(Proposal):
         self.reparameterisation = reparameterisation
         self.weighted_kl = weighted_kl
         self.clip = clip
-
-        self.initial_draws = initial_draws
-        self.initial_log_q = np.log(self.initial_draws)
-        self.n_draws = {"initial": initial_draws}
-        self.n_requested = {"initial": initial_draws}
-        self.levels = {"initial": None}
-
-        logger.debug(f"Initial q: {np.exp(self.initial_log_q)}")
+        self._weights = {-1: 1.0}
 
         self.dtype = get_dtype(self.model.names)
 
     @property
-    def total_samples_drawn(self) -> float:
-        """Return the total number of samples requested"""
-        return np.sum(np.fromiter(self.n_draws.values(), int))
-
-    normalisation_constant = total_samples_drawn
-    """Normalisation constant for the meta proposal."""
+    def weights(self) -> dict:
+        """Dictionary containing the weights for each proposal"""
+        return self._weights
 
     @property
-    def unnormalised_weights(self) -> dict:
-        """Unnormalised weights."""
-        return self.n_draws
-
-    @property
-    def poolsize(self) -> np.ndarray:
-        """Returns an array of the pool size for each flow."""
-        return np.fromiter(self.unnormalised_weights.values(), int)
+    def weights_array(self) -> np.ndarray:
+        """Array of weights for each proposal"""
+        return np.fromiter(self._weights.values(), dtype=float)
 
     @property
     def n_proposals(self) -> int:
         """Current number of proposals in the meta proposal"""
-        return len(self.n_draws)
+        return len(self.weights)
 
     @property
     def flow_config(self) -> dict:
@@ -283,6 +263,19 @@ class ImportanceFlowProposal(Proposal):
         x = numpy_array_to_live_points(x, self.model.names)
         return x, log_j
 
+    def update_proposal_weights(self, weights: dict) -> None:
+        """Method to update the proposal weights dictionary.
+
+        Raises
+        ------
+        RuntimeError
+            If the weights do not sum to 1 are the update.
+        """
+        self._weights.update(weights)
+        w_sum = np.sum(np.fromiter(self._weights.values(), float))
+        if not np.isclose(w_sum, 1.0):
+            raise RuntimeError(f"Weights must sum to 1! Actual value: {w_sum}")
+
     def train(
         self,
         samples: np.ndarray,
@@ -307,8 +300,7 @@ class ImportanceFlowProposal(Proposal):
                 :py:meth:`nessai.flowmodel.FlowModel.train`.
         """
         self.level_count += 1
-        self.n_draws[self.level_count] = 0
-        self.n_requested[self.level_count] = 0
+        self._weights[self.level_count] = np.nan
         output = self.output if output is None else output
         level_output = os.path.join(output, f"level_{self.level_count}", "")
 
@@ -377,8 +369,6 @@ class ImportanceFlowProposal(Proposal):
     def compute_log_Q(
         self,
         x_prime: np.ndarray,
-        log_q_current: Optional[np.ndarray] = None,
-        n: Optional[int] = None,
         log_j: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute the log meta proposal (log Q) for an array of points.
@@ -387,13 +377,6 @@ class ImportanceFlowProposal(Proposal):
         ----------
         x_prime : numpy.ndarray
             Array of samples in the unit hypercube.
-        log_q_current : Optional[numpy.ndarray]
-            Log q value of the current flow for the prime samples. Used when
-            prime samples have just been drawn and log q is computed.
-        n : Optional[int]
-            Number of samples that have been drawn from the current flow.
-            Should be specified when new samples are being drawn and the number
-            of samples is not final.
         log_j : Optional[numpy.ndarray]
             Log-Jacobian determinant of the prime samples. Must be supplied if
             proposal includes flows.
@@ -413,10 +396,10 @@ class ImportanceFlowProposal(Proposal):
                 "Infinite values in the samples when computing log_Q"
             )
 
+        if any(np.isnan(w) for w in self.weights.values()):
+            raise RuntimeError("Some weights are not set!")
+
         log_q_all = np.zeros([x_prime.shape[0], self.n_proposals])
-        # Values are used for log Q, so make sure they're floats
-        n_samples = self.poolsize.astype(float)
-        exclude_last = log_q_current is not None
         n_flows = self.flow.n_models
 
         if self.n_proposals > 1 and log_j is None:
@@ -424,20 +407,12 @@ class ImportanceFlowProposal(Proposal):
                 "Must specify log_j! Meta-proposal includes flows"
             )
 
-        if exclude_last:
-            log_q_all[:, -1] = log_q_current + log_j
-            n_samples[-1] = float(n)
-            n_flows -= 1
-        elif n is not None:
-            n_samples[-1] = float(n)
-
-        for flow in self.flow.models:
-            assert flow.training is False
+        if any([flow.training for flow in self.flow.models]):
+            raise RuntimeError("One or more flows are in training mode!")
 
         if n_flows >= 1:
             log_q_all[:, 1 : (n_flows + 1)] = (
-                self.flow.log_prob_all(x_prime, exclude_last=exclude_last)
-                + log_j[:, np.newaxis]
+                self.flow.log_prob_all(x_prime) + log_j[:, np.newaxis]
             )
         assert log_q_all.shape[0] == x_prime.shape[0]
 
@@ -445,9 +420,7 @@ class ImportanceFlowProposal(Proposal):
         logger.debug(
             f"Mean log q for each each flow: {log_q_all.mean(axis=0)}"
         )
-        weights = n_samples / np.sum(n_samples)
-
-        log_Q = logsumexp(log_q_all, b=weights, axis=1)
+        log_Q = logsumexp(log_q_all, b=self.weights_array, axis=1)
 
         if np.isnan(log_Q).any():
             raise ValueError("There is a NaN in log g!")
@@ -458,8 +431,7 @@ class ImportanceFlowProposal(Proposal):
         self,
         n: int,
         flow_number: Optional[int] = None,
-        update_counts: bool = True,
-    ) -> np.ndarray:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Draw n new points.
 
         Parameters
@@ -469,33 +441,22 @@ class ImportanceFlowProposal(Proposal):
         flow_number : Optional[int]
             Specifies which flow to use. If not specified the last flow will
             be used.
-        update_counts : bool
-            If True then counts (weight) for the specified flow will be
-            increased by n.
 
         Returns
         -------
         np.ndarray :
             Array of new points.
+        np.ndarray :
+            Log-proposal probabilities (log_q)
         """
         if flow_number is None:
             flow_number = self.level_count
-        elif flow_number not in self.n_requested:
-            raise RuntimeError("Cannot sample from prior with `draw`")
 
         # Draw a few more samples in case some are not accepted.
         n_draw = int(1.01 * n)
         logger.debug(f"Drawing {n} points")
         samples = np.zeros(0, dtype=self.dtype)
         log_q_samples = np.empty([0, self.n_proposals])
-
-        if update_counts:
-            self.n_requested[flow_number] += n
-
-        # Make sure correct weight is used for computing log Q
-        n_weight = self.n_draws[flow_number]
-        if update_counts:
-            n_weight += n
 
         n_accepted = 0
         while n_accepted < n and n_draw > 0:
@@ -522,9 +483,7 @@ class ImportanceFlowProposal(Proposal):
                 acc, x, x_prime, log_j, log_q
             )
 
-            x["logQ"], log_q_all = self.compute_log_Q(
-                x_prime, log_q_current=None, n=n_weight, log_j=log_j
-            )
+            x["logQ"], log_q_all = self.compute_log_Q(x_prime, log_j=log_j)
             x["logP"] = self.model.batch_evaluate_log_prior(
                 x, unit_hypercube=True
             )
@@ -548,10 +507,6 @@ class ImportanceFlowProposal(Proposal):
 
         samples = samples[:n]
         log_q_samples = log_q_samples[:n]
-
-        if update_counts:
-            self.n_draws[flow_number] += samples.size
-            self.draw_count += 1
 
         logger.debug(f"Returning {samples.size} samples")
         return samples, log_q_samples
@@ -577,10 +532,9 @@ class ImportanceFlowProposal(Proposal):
         """Compute the meta-proposal from an array of proposal \
         log-probabilities
         """
-        weights = self.poolsize / np.sum(self.poolsize)
         return logsumexp(
             log_q,
-            b=weights,
+            b=self.weights_array,
             axis=1,
         )
 
@@ -596,14 +550,12 @@ class ImportanceFlowProposal(Proposal):
         log_q : numpy.ndarray
             Array of log q for each flow.
         """
-        if self.level_count < 0:
+        if self.level_count not in self.weights or np.isnan(
+            self.weights[self.level_count]
+        ):
             raise RuntimeError(
-                "Cannot update samples unless a level has been constructed!"
-            )
-        if self.level_count not in self.n_draws:
-            raise RuntimeError(
-                "Must draw samples from the new level before updating any "
-                "existing samples!"
+                "Weight(s) missing or not set. "
+                f"Current weights: {self.weights}."
             )
         x, log_j = self.rescale(samples)
         return self.compute_log_Q(x, log_j=log_j)
@@ -690,9 +642,7 @@ class ImportanceFlowProposal(Proposal):
         )
         if counts is None:
             if weights is None:
-                weights = np.fromiter(
-                    self.unnormalised_weights.values(), float
-                )
+                weights = self.weights
             if not np.sum(weights) == 1:
                 weights = weights / np.sum(weights)
             if not len(weights) == self.n_proposals:
