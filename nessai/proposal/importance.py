@@ -264,8 +264,17 @@ class ImportanceFlowProposal(Proposal):
         return x, log_j
 
     def update_proposal_weights(self, weights: dict) -> None:
-        """Method to update the proposal weights dictionary."""
+        """Method to update the proposal weights dictionary.
+
+        Raises
+        ------
+        RuntimeError
+            If the weights do not sum to 1 are the update.
+        """
         self._weights.update(weights)
+        w_sum = np.sum(np.fromiter(self._weights.values(), float))
+        if not np.isclose(w_sum, 1.0):
+            raise RuntimeError(f"Weights must sum to 1! Actual value: {w_sum}")
 
     def train(
         self,
@@ -398,8 +407,8 @@ class ImportanceFlowProposal(Proposal):
                 "Must specify log_j! Meta-proposal includes flows"
             )
 
-        for flow in self.flow.models:
-            assert flow.training is False
+        if any([flow.training for flow in self.flow.models]):
+            raise RuntimeError("One or more flows are in training mode!")
 
         if n_flows >= 1:
             log_q_all[:, 1 : (n_flows + 1)] = (
@@ -541,16 +550,12 @@ class ImportanceFlowProposal(Proposal):
         log_q : numpy.ndarray
             Array of log q for each flow.
         """
-        if self.level_count < 0:
-            raise RuntimeError(
-                "Cannot update samples unless a level has been constructed!"
-            )
         if self.level_count not in self.weights or np.isnan(
             self.weights[self.level_count]
         ):
             raise RuntimeError(
-                "Must set weights from the new level before updating any "
-                "existing samples!"
+                "Weight(s) missing or not set. "
+                f"Current weights: {self.weights}."
             )
         x, log_j = self.rescale(samples)
         return self.compute_log_Q(x, log_j=log_j)
