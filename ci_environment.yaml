@@ -18,6 +18,7 @@ dependencies:
   - corner
   - bilby
   - astropy
+  - faiss-cpu>=1.7.3,!=1.7.4    # conda release for 1.7.4 is broken
   - pytest
   - pytest-cov
   - pytest-timeout
@@ -26,5 +27,4 @@ dependencies:
   - pip
   - pip:
     - nflows
-    - faiss-cpu>=1.7.3,!=1.7.4    # conda release for 1.7.4 is broken
     - ray[default] ; (sys_platform != 'win32' and python_version < '3.12') or (sys_platform == 'win32' and python_version < '3.12')
