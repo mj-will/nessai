@@ -242,9 +242,9 @@ class Model(ABC):
         if self._vectorised_prior_unit_hypercube is None:
             if self.allow_vectorised_prior:
                 # Avoids calling prior on multiple points
-                x = np.concatenate([self.new_point() for _ in range(10)])
+                x = self.sample_unit_hypercube(n=10)
                 self._vectorised_prior = check_vectorised_function(
-                    self.log_prior,
+                    self.log_prior_unit_hypercube,
                     x,
                     dtype=config.livepoints.default_float_dtype,
                 )
