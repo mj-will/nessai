@@ -35,7 +35,7 @@ class ClusteringFlowProposal(FlowProposal):
     def __init__(
         self, model: Model, max_n_clusters: int = None, **kwargs
     ) -> None:
-        flow_config = kwargs.pop("flow_config", {})
+        flow_config = kwargs.pop("flow_config", {}) or {}
         if max_n_clusters is not None:
             flow_config["max_n_clusters"] = max_n_clusters
         super().__init__(model, flow_config=flow_config, **kwargs)
