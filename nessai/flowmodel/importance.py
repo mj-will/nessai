@@ -28,8 +28,9 @@ class ImportanceFlowModel(FlowModel):
 
     def __init__(self, config=None, output=None):
         super().__init__(config=config, output=output)
-        self.weights_files = []
-        self.models = torch.nn.ModuleList()
+        self.weights_files = {}
+        self.models = torch.nn.ModuleDict()
+        self._current_model = -1
 
     @property
     def model(self):
@@ -37,8 +38,8 @@ class ImportanceFlowModel(FlowModel):
 
         Returns None if the no models have been added.
         """
-        if self.models:
-            return self.models[-1]
+        if self._current_model >= 0:
+            return self.models[self.current_model_key]
         else:
             logger.warning("Model not defined yet!")
             return None
@@ -46,7 +47,15 @@ class ImportanceFlowModel(FlowModel):
     @model.setter
     def model(self, model):
         if model is not None:
-            self.models.append(model)
+            raise RuntimeError
+
+    def add_model(self, model):
+        self._current_model += 1
+        self.models[self.current_model_key] = model
+
+    @property
+    def current_model_key(self):
+        return str(self._current_model)
 
     @property
     def n_models(self) -> int:
@@ -83,10 +92,16 @@ class ImportanceFlowModel(FlowModel):
         )
         logger.debug(f"Inference device: {self.inference_device}")
         self.models.eval()
-        self.models.append(new_flow)
+        self.add_model(new_flow)
         self.reset_optimiser()
 
-    def log_prob_ith(self, x, i):
+    def remove_flow(self, i: str) -> None:
+        """Remove the i'th flow"""
+        raise Exception
+        logger.debug("Removing {i}'th flow")
+        self.models.pop(i)
+
+    def log_prob_ith(self, x, i: str):
         """Compute the log-prob for the ith flow"""
         x = (
             torch.from_numpy(x)
@@ -117,7 +132,7 @@ class ImportanceFlowModel(FlowModel):
         log_prob = log_prob.cpu().numpy().astype(np.float64)
         return log_prob
 
-    def sample_ith(self, i, N=1):
+    def sample_ith(self, i: str, N: int = 1):
         """Draw samples from the ith flow"""
         if self.models is None:
             raise RuntimeError("Models are not initialised yet!")
@@ -133,7 +148,7 @@ class ImportanceFlowModel(FlowModel):
     def save_weights(self, weights_file) -> None:
         """Save the weights file."""
         super().save_weights(weights_file)
-        self.weights_files.append(self.weights_file)
+        self.weights_files[self._current_model] = self.weights_file
 
     def load_all_weights(self) -> None:
         """Load all of the weights files for each flow.
@@ -142,10 +157,11 @@ class ImportanceFlowModel(FlowModel):
         """
         self.models = torch.nn.ModuleList()
         logger.debug(f"Loading weights from {self.weights_files}")
-        for wf in self.weights_files:
+        self._current_model = -1
+        for wf in self.weights_files.values():
             new_flow, self.device = configure_model(self.model_config)
             new_flow.load_state_dict(torch.load(wf))
-            self.models.append(new_flow)
+            self.add_model(new_flow)
         self.models.eval()
 
     def update_weights_path(
@@ -186,10 +202,10 @@ class ImportanceFlowModel(FlowModel):
             logger.warning(
                 "More weights files than expected. Some files will be skipped."
             )
-        self.weights_files = [
-            os.path.join(weights_path, f"level_{i}", "model.pt")
+        self.weights_files = {
+            i: os.path.join(weights_path, f"level_{i}", "model.pt")
             for i in range(n)
-        ]
+        }
 
     def resume(
         self, model_config: dict, weights_path: Optional[str] = None

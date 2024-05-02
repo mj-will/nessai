@@ -71,10 +71,14 @@ def assert_structured_arrays_equal(x, y, atol=0.0, rtol=0.0):
         )
 
     valid = {f: False for f in x.dtype.names}
-    for field in valid.keys():
-        valid[field] = np.allclose(
-            x[field], y[field], equal_nan=True, atol=atol, rtol=rtol
-        )
+    for field in x.dtype.names:
+        print(x.dtype[field])
+        if x.dtype[field].char == "U":
+            valid[field] = (x[field] == y[field]).all()
+        else:
+            valid[field] = np.allclose(
+                x[field], y[field], equal_nan=True, atol=atol, rtol=rtol
+            )
 
     if not all(valid.values()):
         mismatched = [k for k, v in valid.items() if v is False]

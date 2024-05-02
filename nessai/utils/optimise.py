@@ -67,7 +67,7 @@ def optimise_meta_proposal_weights(
     logger.info(
         f"Starting optimisation, initial loss={loss_fn(initial_weights)}"
     )
-    logger.info(f"Initial weights: {initial_weights}")
+    logger.info(f"Initial weights:\n {initial_weights}")
     result = minimize(
         loss_fn,
         initial_weights,
@@ -77,6 +77,6 @@ def optimise_meta_proposal_weights(
         options=options,
     )
     logger.info(f"Finished optimisation, final loss={result.fun}")
-    logger.info(f"Final weights: {result.x}")
+    logger.info(f"Final weights:\n {result.x}")
 
     return np.array(result.x)
