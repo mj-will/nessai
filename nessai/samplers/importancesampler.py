@@ -265,6 +265,31 @@ class OrderedSamples:
         )
         return log_z_above - self.state.log_evidence
 
+    def filter_samples(self, filterfunc: Callable) -> None:
+        """
+        Filter the samples to remove those where filterfunc(samples) = True
+        Returns number of samples removed
+        """
+        remove_idx = filterfunc(self.samples)
+        Nremove = sum(remove_idx)
+        logger.debug(f"removing {Nremove} samples")
+        self.samples = np.delete(self.samples, remove_idx)
+        self.log_q = np.delete(self.log_q, remove_idx, axis=0)
+        return Nremove
+
+    def prune_flow(self, proposal_num):
+        """
+        Prune all samples drawn from proposal_num, and also remove
+        the column from log_q that corresponds to that proposal num.
+        After this operation, the indices of the samples and log_qs will
+        have changed.
+        """
+        # Delete the samples drawn from the flow
+        self.filter_samples(lambda s: flow_num == s["it"])
+        # Delete the columns for the removed flow
+        # Flow number 0 is "it" 1
+        np.delete(self.log_q, flow_num + 1, axis=1)
+
     def reduce_samples(self, weights: np.ndarray, factor: float) -> None:
         n = int(factor * len(self.samples))
         pvals = weights / weights.sum()
@@ -1517,6 +1542,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             importance = self.training_samples.compute_importance(**kwargs)
         return importance
+
+    def delete_flow(self, flow_num):
+        self.training_samples.prune_flow(flow_num)
+        if self.iid_samples:
+            self.iid_samples.prune_flow(flow_num)
+
+        # Remove the flow from proposal class
 
     def rebalance_samples(self):
 
