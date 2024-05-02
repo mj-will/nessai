@@ -19,6 +19,7 @@ from .utils.multiprocessing import (
     get_n_pool,
     log_likelihood_wrapper,
     log_prior_wrapper,
+    log_prior_unit_hypercube_wrapper,
     batch_evaluate_function,
     check_vectorised_function,
 )
@@ -663,7 +664,7 @@ class Model(ABC):
             x,
             self.allow_vectorised_prior
             and self.vectorised_prior_unit_hypercube,
-            func_wrapper=log_prior_wrapper,
+            func_wrapper=log_prior_unit_hypercube_wrapper,
             pool=self.pool if self.parallelise_prior else None,
             n_pool=self.n_pool,
         )
