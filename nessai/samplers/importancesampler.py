@@ -291,11 +291,11 @@ class OrderedSamples:
         self.nested_samples_indices = new_indices[:n]
         self.live_points_indices = new_indices[n:]
         n_counts = np.bincount(self.samples["it"] + 1, minlength=len(weights))
-        self.update_evidence()
-        logger.info(
-            f"log Z={self.state.log_evidence} +/- "
-            f"{self.state.log_evidence_error}"
-        )
+        # self.update_evidence()
+        # logger.info(
+        #     f"log Z={self.state.log_evidence} +/- "
+        #     f"{self.state.log_evidence_error}"
+        # )
         logger.info(f"Counts after reduction: {n_counts}")
 
     def __getstate__(self):
@@ -1520,40 +1520,61 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     def rebalance_samples(self):
 
-        factor = 0.5
-        logger.info(f"Rebalancing samples with factor={factor}")
-        # Compute weights
+        weights = optimise_meta_proposal_weights(self._ordered_samples)
         importance = self.compute_importance()
-        weights = {i - 1: w for i, w in enumerate(importance["total"])}
-        # Update meta-proposal weights
-        self.proposal.update_proposal_weights(weights)
+        fig = plt.figure()
+        plt.plot(weights, label="Optimised")
+        plt.plot(importance["posterior"], label="Posterior")
+        plt.legend()
+        fig.savefig(f"weights_{self.iteration}.png")
+        logger.info(f"Importance weights: {importance['posterior']}")
+        # ess = effective_sample_size(self.iid_samples.log_posterior_weights)
+        # eff = ess / len(self.iid_samples.samples)
+        # print(len(self.iid_samples.samples), ess, eff)
+        # factor = 1 - eff
+        # logger.info(f"Rebalancing samples with factor={factor}")
+        # # Compute weights
+        # importance = self.compute_importance()
+        # weights = {i - 1: w for i, w in enumerate(importance["total"])}
+        # # Update meta-proposal weights
+        # self.proposal.update_proposal_weights(weights)
 
-        reduce_weights = 1 - importance["total"]
+        # reduce_weights = 1 - importance["total"]
 
-        # Discard samples
-        self.training_samples.reduce_samples(reduce_weights, factor)
-        self.training_samples.samples["logQ"] = (
-            self.proposal.compute_meta_proposal_from_log_q(
-                self.training_samples.log_q
-            )
-        )
-        self.training_samples.samples["logW"] = -self.training_samples.samples[
-            "logQ"
-        ]
+        # # Discard samples
+        # self.training_samples.reduce_samples(reduce_weights, factor)
+        # self.training_samples.samples["logQ"] = (
+        #     self.proposal.compute_meta_proposal_from_log_q(
+        #         self.training_samples.log_q
+        #     )
+        # )
+        # self.training_samples.samples["logW"] = -self.training_samples.samples[
+        #     "logQ"
+        # ]
+        # self.training_samples.update_evidence()
+        # logger.info(
+        #     f"log Z={self.training_samples.state.log_evidence} +/- "
+        #     f"{self.training_samples.state.log_evidence_error}"
+        # )
 
-        if self.iid_samples:
-            self.iid_samples.reduce_samples(reduce_weights, factor)
-            self.iid_samples.samples["logQ"] = (
-                self.proposal.compute_meta_proposal_from_log_q(
-                    self.training_samples.log_q
-                )
-            )
-            self.iid_samples.samples["logW"] = -self.iid_samples.samples[
-                "logQ"
-            ]
+        # if self.iid_samples:
+        #     self.iid_samples.reduce_samples(reduce_weights, factor)
+        #     self.iid_samples.samples["logQ"] = (
+        #         self.proposal.compute_meta_proposal_from_log_q(
+        #             self.iid_samples.log_q
+        #         )
+        #     )
+        #     self.iid_samples.samples["logW"] = -self.iid_samples.samples[
+        #         "logQ"
+        #     ]
+        #     self.iid_samples.update_evidence()
+        #     logger.info(
+        #         f"log Z={self.iid_samples.state.log_evidence} +/- "
+        #         f"{self.iid_samples.state.log_evidence_error}"
+        #     )
 
-        self.update_sample_counts()
-        self.update_proposal_weights()
+        # self.update_sample_counts()
+        # self.update_proposal_weights()
 
     def update_proposal_weights(self):
         """Update the proposal weights based on the current sample counts.
@@ -1845,15 +1866,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
         logger.debug(f"Batch size: {batch_size}")
 
         if optimise_weights:
-            weights = self.imp_post
+            weights = self.compute_importance()["total"]
             if optimisation_method == "evidence":
                 pass
             elif optimisation_method == "kl":
                 if optimise_kwargs is None:
                     optimise_kwargs = {}
                 weights = optimise_meta_proposal_weights(
-                    self.nested_samples_unit,
-                    self._log_q_ns,
+                    self._ordered_samples,
                     initial_weights=weights,
                     **optimise_kwargs,
                 )
@@ -1938,8 +1958,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
             it += 1
             logger.info(f"Drawn {samples.size} - ESS: {ess:2f}")
 
-        logger.debug(f"Original weights: {self.proposal.unnormalised_weights}")
-        logger.debug(f"New weights: {counts}")
+        logger.debug(f"Original weights: {self.proposal.weights}")
+        logger.debug(f"New weights: {counts / counts.sum()}")
 
         logger.info(f"Drew {samples.size} final samples")
         logger.info(

@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def optimise_meta_proposal_weights(
-    samples: np.ndarray,
-    log_q: np.ndarray,
+    samples,
     method: str = "SLSQP",
     options: Optional[dict] = None,
     initial_weights: Optional[np.ndarray] = None,
@@ -38,37 +37,46 @@ def optimise_meta_proposal_weights(
     if options is None and method == "SLSQP":
         options = dict(ftol=1e-10)
 
-    n_prop = log_q.shape[-1]
-    counts = np.unique(samples["it"], return_counts=True)[1]
+    n_prop = samples.log_q.shape[-1]
+
+    counts = np.unique(samples.samples["it"], return_counts=True)[1]
     if initial_weights is None:
         initial_weights = counts / counts.sum()
     else:
         initial_weights = initial_weights / initial_weights.sum()
 
-    log_Z = logsumexp(samples["logL"] - samples["logQ"]) - np.log(len(samples))
+    log_p_hat = (
+        samples.samples["logL"]
+        + samples.samples["logW"]
+        - samples.state.log_evidence
+    )
+    p_hat = np.exp(log_p_hat)
 
-    log_pr = samples["logL"] - log_Z
-    log_pr -= logsumexp(log_pr)
-    pr = np.exp(log_pr)
-
-    def loss(weights):
+    def loss_fn(weights):
         """Computes the KL"""
-        log_Q = logsumexp(log_q, b=weights, axis=1)
-        return -np.mean(pr * log_Q)
+        weights /= weights.sum()
+        log_Q = logsumexp(samples.log_q, b=weights, axis=1)
+        p_log_p = np.mean(p_hat * log_p_hat)
+        p_log_q = np.mean(p_hat * log_Q)
+        # print(p_log_p, p_log_q)
+        return p_log_p - p_log_q
 
     # Weights must sum to one
     constraint = {"type": "eq", "fun": lambda x: 1 - x.sum()}
 
-    logger.info("Starting optimisation")
+    logger.info(
+        f"Starting optimisation, initial loss={loss_fn(initial_weights)}"
+    )
+    logger.info(f"Initial weights: {initial_weights}")
     result = minimize(
-        loss,
+        loss_fn,
         initial_weights,
         constraints=constraint,
         bounds=n_prop * [(0, 1)],
         method=method,
         options=options,
     )
-    logger.info("Finished optimisation")
-    logger.debug(f"Final weights: {result.x}")
+    logger.info(f"Finished optimisation, final loss={result.fun}")
+    logger.info(f"Final weights: {result.x}")
 
     return np.array(result.x)
