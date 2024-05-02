@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 def add_extra_parameters_to_live_points(
     parameters,
+    dtypes,
     default_values=None,
 ):
     """Add extra parameters to the live points dtype.
@@ -37,15 +38,13 @@ def add_extra_parameters_to_live_points(
         )
     else:
         default_values = tuple(default_values)
-    for p, dv in zip(parameters, default_values):
+    for p, dtype, dv in zip(parameters, dtypes, default_values):
         if p not in config.livepoints.extra_parameters:
             config.livepoints.extra_parameters.append(p)
             config.livepoints.extra_parameters_defaults = (
                 config.livepoints.extra_parameters_defaults + (dv,)
             )
-            config.livepoints.extra_parameters_dtype.append(
-                config.livepoints.default_float_dtype
-            )
+            config.livepoints.extra_parameters_dtype.append(dtype)
         else:
             logger.warning(
                 f"Extra parameter `{p}` has already been added. Skipping."
