@@ -115,7 +115,6 @@ def test_update_evidence_both(state, nested_samples, live_points):
     """Test updating the evidence"""
     x = np.concatenate([nested_samples, live_points])
     expected = logsumexp(x["logL"] + x["logW"])
-    print(x)
     assert np.isfinite(expected)
     INSState.update_evidence(state, nested_samples, live_points=live_points)
     np.testing.assert_equal(state._logZ, expected)

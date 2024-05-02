@@ -6,6 +6,8 @@ import logging
 from typing import Optional
 
 import numpy as np
+import numpy.lib.recfunctions as rfn
+from functools import partial
 from scipy.optimize import minimize
 from scipy.special import logsumexp
 
@@ -37,9 +39,10 @@ def optimise_meta_proposal_weights(
     if options is None and method == "SLSQP":
         options = dict(ftol=1e-10)
 
-    n_prop = samples.log_q.shape[-1]
+    n_prop = samples.log_q.ndim
+    qIDs = samples.log_q.dtype.names
 
-    counts = np.unique(samples.samples["it"], return_counts=True)[1]
+    counts = np.unique(samples.samples["qID"], return_counts=True)[1]
     if initial_weights is None:
         initial_weights = counts / counts.sum()
     else:
@@ -55,7 +58,7 @@ def optimise_meta_proposal_weights(
     def loss_fn(weights):
         """Computes the KL"""
         weights /= weights.sum()
-        log_Q = logsumexp(samples.log_q, b=weights, axis=1)
+        log_Q = rfn.apply_along_fields(partial(logsumexp, b=weights), samples.log_q)
         p_log_p = np.mean(p_hat * log_p_hat)
         p_log_q = np.mean(p_hat * log_Q)
         # print(p_log_p, p_log_q)
@@ -78,5 +81,5 @@ def optimise_meta_proposal_weights(
     )
     logger.info(f"Finished optimisation, final loss={result.fun}")
     logger.info(f"Final weights:\n {result.x}")
-
-    return np.array(result.x)
+    weights = dict(zip(qIDs, result.x))
+    return weights

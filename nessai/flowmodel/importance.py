@@ -97,7 +97,6 @@ class ImportanceFlowModel(FlowModel):
 
     def remove_flow(self, i: str) -> None:
         """Remove the i'th flow"""
-        raise Exception
         logger.debug("Removing {i}'th flow")
         self.models.pop(i)
 

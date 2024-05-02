@@ -509,8 +509,6 @@ class ImportanceFlowProposal(Proposal):
         samples = samples[:n]
         log_q_samples = log_q_samples[:n]
         samples["qID"] = self.qid
-        print(log_q_samples)
-        # breakpoint()
         logger.debug(
             f"Mean log_q for each each flow: {rfn.apply_along_fields(np.mean, log_q_samples)}"
         )
@@ -735,11 +733,11 @@ class ImportanceFlowProposal(Proposal):
 
         return samples, log_q, counts
 
-    def remove_proposal(self, i: int) -> None:
+    def remove_proposal(self, i: str) -> None:
         """Remove a proposal from the meta-proposal and update the weights"""
         self.flow.remove_flow(i)
-        self.weights.pop(i)
-        self.weights = self.renormalise_weights(self.weights)
+        self._weights.pop(i)
+        #self.weights = self.renormalise_weights(self.weights)
 
     @staticmethod
     def renormalise_weights(weights: dict) -> dict:

@@ -41,7 +41,6 @@ def test_draw_from_flows(ifp, model, n, test_counts):
     weights = np.random.rand(n_flows + 1)
     if test_counts:
         counts = np.random.multinomial(n, weights / weights.sum())
-        print(counts)
     else:
         counts = None
     ifp.n_proposals = n_flows + 1

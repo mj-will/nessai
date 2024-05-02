@@ -8,9 +8,10 @@ import os
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.utils import setup_logger
+import nessai_models
 
 output = os.path.join("outdir", "rebalance")
-logger = setup_logger(output=output, log_level="INFO")
+logger = setup_logger(output=output, log_level="DEBUG")
 
 # Define the model. For the importance nested sampler we must define mappings
 # to and from the unit hyper-cube.
@@ -68,16 +69,19 @@ flow_config = dict(
 )
 
 fs = FlowSampler(
-    RosenbrockModel(4),
+    nessai_models.SlabSpike(dims=5,
+                            spike_scale = 1e-3,
+                            ),
     nlive=5000,
     output=output,
     resume=False,
     seed=1234,
     importance_nested_sampler=True,  # Use the importance nested sampler
     draw_constant=True,  # Draw a constant number of samples (2000)
-    rebalance_interval=1,
+    rebalance_interval=2,
     flow_config=flow_config,
     reset_flow=1,
+    plot=False
 )
 
 # And go!

@@ -72,7 +72,6 @@ def assert_structured_arrays_equal(x, y, atol=0.0, rtol=0.0):
 
     valid = {f: False for f in x.dtype.names}
     for field in x.dtype.names:
-        print(x.dtype[field])
         if x.dtype[field].char == "U":
             valid[field] = (x[field] == y[field]).all()
         else:

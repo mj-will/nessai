@@ -10,6 +10,7 @@ from typing import Any, Callable, List, Literal, Optional, Union
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.lib.recfunctions as rfn
 from scipy.special import logsumexp
 
 from .base import BaseNestedSampler
@@ -33,7 +34,7 @@ from ..utils.stats import (
 from ..utils.structures import get_subset_arrays, get_inverse_indices
 
 logger = logging.getLogger(__name__)
-
+import copy
 
 class OrderedSamples:
     """Samples ordered by log-likelihood.
@@ -266,19 +267,7 @@ class OrderedSamples:
         )
         return log_z_above - self.state.log_evidence
 
-    def filter_samples(self, filterfunc: Callable) -> None:
-        """
-        Filter the samples to remove those where filterfunc(samples) = True
-        Returns number of samples removed
-        """
-        remove_idx = filterfunc(self.samples)
-        Nremove = sum(remove_idx)
-        logger.debug(f"removing {Nremove} samples")
-        self.samples = np.delete(self.samples, remove_idx)
-        self.log_q = np.delete(self.log_q, remove_idx, axis=0)
-        return Nremove
-
-    def prune_flow(self, proposal_num):
+    def prune_flow(self, qID):
         """
         Prune all samples drawn from proposal_num, and also remove
         the column from log_q that corresponds to that proposal num.
@@ -286,10 +275,18 @@ class OrderedSamples:
         have changed.
         """
         # Delete the samples drawn from the flow
-        self.filter_samples(lambda s: flow_num == s["it"])
+        remove_idx = self.samples["qID"] == qID
+        self.log_q = np.delete(self.log_q, remove_idx)
+        self.samples = np.delete(self.samples, remove_idx)
+        
+        new_indices = np.arange(self.samples.size)
+        n = np.argmax(self.samples["logL"] >= self.log_likelihood_threshold)
+        self.nested_samples_indices = new_indices[:n]
+        self.live_points_indices = new_indices[n:]
+        
         # Delete the columns for the removed flow
         # Flow number 0 is "it" 1
-        np.delete(self.log_q, flow_num + 1, axis=1)
+        self.log_q = rfn.drop_fields(self.log_q, qID, usemask=False)
 
     def reduce_samples(self, weights: np.ndarray, factor: float) -> None:
         n = int(factor * len(self.samples))
@@ -726,7 +723,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """Add extra fields logW, logQ, logU"""
         add_extra_parameters_to_live_points(
             ["logW", "logQ", "logU", "qID"],
-            ["f8", "f8", "f8", "U"],
+            ["f8", "f8", "f8", "U8"],
             default_values=[np.nan, np.nan, np.nan, "INVALID"],
         )
 
@@ -1553,19 +1550,30 @@ class ImportanceNestedSampler(BaseNestedSampler):
             importance = self.training_samples.compute_importance(**kwargs)
         return importance
 
-    def delete_flow(self, flow_num):
-        self.training_samples.prune_flow(flow_num)
+    def delete_flow(self, qID):
+        logger.debug("Removing flow %s", (qID))
+        self.training_samples.prune_flow(qID)
         if self.iid_samples:
-            self.iid_samples.prune_flow(flow_num)
+            self.iid_samples.prune_flow(qID)
 
         # Remove the flow from proposal class
+        self.proposal.remove_proposal(qID)
+        
+        # Update the weights
+        self.update_sample_counts()
+        self.update_proposal_weights()        
 
     def rebalance_samples(self):
 
         weights = optimise_meta_proposal_weights(self._ordered_samples)
         importance = self.compute_importance()
+        flow_weights = copy.copy(weights)
+        del flow_weights["-1"]
+        minQid = min(flow_weights, key=weights.get)
+        if flow_weights[minQid] < 1e-3:
+            self.delete_flow(minQid)
         fig = plt.figure()
-        plt.plot(weights, label="Optimised")
+        plt.plot(weights.values(), label="Optimised")
         plt.plot(importance["posterior"], label="Posterior")
         plt.legend()
         fig.savefig(f"weights_{self.iteration}.png")
@@ -1639,7 +1647,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         sample_counts = {}
         for qid in self.proposal.weights.keys():
-            sample_counts[qid] = np.sum(self.samples_units["qID"] == qid)
+            sample_counts[qid] = np.sum(self.samples_unit["qID"] == qid)
         self.sample_counts = sample_counts
 
     def add_new_proposal_weight(self, qid: str, n_new: int) -> None:
