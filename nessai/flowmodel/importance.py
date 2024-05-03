@@ -31,6 +31,7 @@ class ImportanceFlowModel(FlowModel):
         self.weights_files = {}
         self.models = torch.nn.ModuleDict()
         self._current_model = -1
+        self._model = None
 
     @property
     def model(self):
@@ -38,11 +39,7 @@ class ImportanceFlowModel(FlowModel):
 
         Returns None if the no models have been added.
         """
-        if self._current_model >= 0:
-            return self.models[self.current_model_key]
-        else:
-            logger.warning("Model not defined yet!")
-            return None
+        return self._model
 
     @model.setter
     def model(self, model):
@@ -52,6 +49,7 @@ class ImportanceFlowModel(FlowModel):
     def add_model(self, model):
         self._current_model += 1
         self.models[self.current_model_key] = model
+        self._model = model
 
     @property
     def current_model_key(self):
@@ -81,7 +79,7 @@ class ImportanceFlowModel(FlowModel):
     def add_new_flow(self, reset=False):
         """Add a new flow"""
         logger.debug("Add a new flow")
-        if reset or not self.models:
+        if reset or self.model is None:
             new_flow, self.device = configure_model(self.model_config)
         else:
             new_flow = copy.deepcopy(self.model)
@@ -98,7 +96,9 @@ class ImportanceFlowModel(FlowModel):
     def remove_flow(self, i: str) -> None:
         """Remove the i'th flow"""
         logger.debug(f"Removing {i}'th flow")
-        self.models.pop(i)
+        model = self.models.pop(i)
+        if self.model is model:
+            self.model = None
 
     def log_prob_ith(self, x, i: str):
         """Compute the log-prob for the ith flow"""
@@ -210,6 +210,7 @@ class ImportanceFlowModel(FlowModel):
         self, model_config: dict, weights_path: Optional[str] = None
     ) -> None:
         """Resume the model"""
+        # TODO: set _model when resuming
         self.model_config = update_model_config(model_config)
         if weights_path is None:
             logger.debug(
@@ -224,7 +225,7 @@ class ImportanceFlowModel(FlowModel):
         d = self.__dict__
         # Avoid making a copy because models can be large and this doubles the
         # memory usage.
-        exclude = {"models", "_optimiser", "model_config"}
+        exclude = {"models", "_optimiser", "model_config", "_model"}
         state = {k: d[k] for k in d.keys() - exclude}
         state["initialised"] = False
         state["models"] = None

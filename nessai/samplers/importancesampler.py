@@ -231,24 +231,34 @@ class OrderedSamples:
             as a function of iteration.
         """
         # TODO: this may not make sense anymore now we have qID.
-        n_proposals = len(self.log_q.dtype.names)
-        log_imp_post = -np.inf * np.ones(n_proposals)
-        log_imp_z = -np.inf * np.ones(n_proposals)
-        for i, it in enumerate(range(-1, n_proposals - 1)):
-            sidx = np.where(self.samples["it"] == it)[0]
-            zidx = np.where(self.samples["it"] >= it)[0]
-            if len(sidx):
-                log_imp_post[i] = logsumexp(
-                    self.samples["logL"][sidx] + self.samples["logW"][sidx]
-                ) - np.log(len(sidx))
-            if len(zidx):
-                log_imp_z[i] = logsumexp(
-                    self.samples["logL"][zidx] + self.samples["logW"][zidx]
-                ) - np.log(len(zidx))
-        imp_z = np.exp(log_imp_z - logsumexp(log_imp_z))
-        imp_post = np.exp(log_imp_post - logsumexp(log_imp_post))
-        imp = (1 - importance_ratio) * imp_z + importance_ratio * imp_post
-        return {"total": imp, "posterior": imp_post, "evidence": imp_z}
+        qIDs = self.log_q.dtype.names
+        log_imp_post = {}
+        log_imp_post_indv = {}
+        for qID in qIDs:
+            idx = self.samples["qID"] == qID
+            log_imp_post[qID] = log_evidence_from_ins_samples(
+                self.samples[idx]
+            )
+            log_imp_post_indv[qID] = logsumexp(
+                self.samples["logL"] + self.samples["logU"] - self.log_q[qID]
+            ) - np.log(self.samples.size)
+
+        imp_post = {
+            k: np.exp(v - logsumexp(np.fromiter(log_imp_post.values(), float)))
+            for k, v in log_imp_post
+        }
+        imp_post_indv = {
+            k: np.exp(
+                v - logsumexp(np.fromiter(log_imp_post_indv.values(), float))
+            )
+            for k, v in log_imp_post_indv
+        }
+        return {
+            "total": np.nan,
+            "posterior": imp_post,
+            "posterior_indv": imp_post_indv,
+            "evidence": np.nan,
+        }
 
     def compute_evidence_ratio(
         self, threshold: Optional[float] = None
@@ -1570,20 +1580,20 @@ class ImportanceNestedSampler(BaseNestedSampler):
     def rebalance_samples(self):
 
         weights = optimise_meta_proposal_weights(self._ordered_samples)
-        importance = self.compute_importance()
+        # importance = self.compute_importance()
         for Qid, weight in weights.items():
             print(Qid, weight)
-            if Qid!="-1" and weight < 1e-3:
+            if Qid != "-1" and weight < 1e-3:
                 self.delete_flow(Qid)
         # minQid = min(flow_weights, key=weights.get)
         # if flow_weights[minQid] < 1e-3:
         #     self.delete_flow(minQid)
-        fig = plt.figure()
-        plt.plot(weights.values(), label="Optimised")
-        plt.plot(importance["posterior"], label="Posterior")
-        plt.legend()
-        fig.savefig(f"weights_{self.iteration}.png")
-        logger.info(f"Importance weights: {importance['posterior']}")
+        # fig = plt.figure()
+        # plt.plot(weights.values(), label="Optimised")
+        # plt.plot(importance["posterior"], label="Posterior")
+        # plt.legend()
+        # fig.savefig(f"weights_{self.iteration}.png")
+        # logger.info(f"Importance weights: {importance['posterior']}")
         # ess = effective_sample_size(self.iid_samples.log_posterior_weights)
         # eff = ess / len(self.iid_samples.samples)
         # print(len(self.iid_samples.samples), ess, eff)
@@ -1721,7 +1731,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             ):
                 self.rebalance_samples()
 
-            self.importance = self.compute_importance(importance_ratio=0.5)
+            # self.importance = self.compute_importance(importance_ratio=0.5)
 
             self.criterion = self.compute_stopping_criterion()
 
@@ -2474,7 +2484,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         d["draw_final_samples_time"] = (
             self.draw_final_samples_time.total_seconds()
         )
-        d["proposal_importance"] = self.importance
+        # d["proposal_importance"] = self.importance
 
         return d
 
