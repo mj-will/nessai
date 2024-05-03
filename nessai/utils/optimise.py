@@ -39,8 +39,8 @@ def optimise_meta_proposal_weights(
     if options is None and method == "SLSQP":
         options = dict(ftol=1e-10)
 
-    n_prop = samples.log_q.ndim
     qIDs = samples.log_q.dtype.names
+    n_prop = len(qIDs)
 
     counts = np.unique(samples.samples["qID"], return_counts=True)[1]
     if initial_weights is None:
@@ -58,7 +58,9 @@ def optimise_meta_proposal_weights(
     def loss_fn(weights):
         """Computes the KL"""
         weights /= weights.sum()
-        log_Q = rfn.apply_along_fields(partial(logsumexp, b=weights), samples.log_q)
+        log_Q = rfn.apply_along_fields(
+            partial(logsumexp, b=weights), samples.log_q
+        )
         p_log_p = np.mean(p_hat * log_p_hat)
         p_log_q = np.mean(p_hat * log_Q)
         # print(p_log_p, p_log_q)
