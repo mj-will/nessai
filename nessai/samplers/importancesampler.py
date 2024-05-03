@@ -1571,11 +1571,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         weights = optimise_meta_proposal_weights(self._ordered_samples)
         importance = self.compute_importance()
-        flow_weights = copy.copy(weights)
-        del flow_weights["-1"]
-        minQid = min(flow_weights, key=weights.get)
-        if flow_weights[minQid] < 1e-3:
-            self.delete_flow(minQid)
+        for Qid, weight in weights.items():
+            print(Qid, weight)
+            if Qid!="-1" and weight < 1e-3:
+                self.delete_flow(Qid)
+        # minQid = min(flow_weights, key=weights.get)
+        # if flow_weights[minQid] < 1e-3:
+        #     self.delete_flow(minQid)
         fig = plt.figure()
         plt.plot(weights.values(), label="Optimised")
         plt.plot(importance["posterior"], label="Posterior")
