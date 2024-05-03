@@ -179,7 +179,7 @@ def add_dict_to_hdf5_file(hdf5_file, path, d):
     """
     for key, value in d.items():
         encoded_value = encode_for_hdf5(value)
-        if isinstance(value, dict):
+        if isinstance(encoded_value, dict):
             add_dict_to_hdf5_file(hdf5_file, path + key + "/", encoded_value)
         else:
             hdf5_file[path + key] = encoded_value
