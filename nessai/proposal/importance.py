@@ -651,14 +651,16 @@ class ImportanceFlowProposal(Proposal):
         if counts is None:
             if weights is None:
                 weights = self.weights
-            if not np.sum(weights) == 1:
-                weights = weights / np.sum(weights)
+            wnorm = np.sum(list(weights.values()))
+            if wnorm != 1:
+                for k in weights:
+                    weights[k]/=wnorm
             if not len(weights) == self.n_proposals:
                 ValueError(
                     "Size of weights does not match the number of levels"
                 )
             logger.debug(f"Proposal weights: {weights}")
-            counts = np.random.multinomial(n, weights)
+            counts = np.random.multinomial(n, list(weights.values()))
         else:
             counts = np.array(counts, dtype=int)
             weights = counts / counts.sum()
@@ -667,16 +669,16 @@ class ImportanceFlowProposal(Proposal):
             raise ValueError("Cannot have negative counts")
         if np.sum(counts) == 0:
             raise ValueError("Total counts is zero")
-        proposal_id = np.arange(weights.size) - 1
+        proposal_id = list(weights.keys())
         prime_samples = np.empty([n, self.model.dims])
-        sample_its = np.empty(n, dtype=config.livepoints.it_dtype)
+        sample_ids = np.empty(n, dtype='U8')
         count = 0
         # Draw from prior
         for id, m in zip(proposal_id, counts):
             if m == 0:
                 continue
             logger.debug(f"Drawing {m} samples from the {id}th proposal.")
-            if id == -1:
+            if id == "-1":
                 prime_samples[count : (count + m)] = self.to_prime(
                     np.random.rand(m, self.model.dims)
                 )[0]
@@ -684,11 +686,11 @@ class ImportanceFlowProposal(Proposal):
                 prime_samples[count : (count + m)] = self.flow.sample_ith(
                     id, N=m
                 )
-            sample_its[count : (count + m)] = id
+            sample_ids[count : (count + m)] = id
             count += m
 
         samples, log_j_inv = self.inverse_rescale(prime_samples)
-        samples["it"] = sample_its
+        samples["qID"] = sample_ids
         x_check, log_j = self.rescale(samples)
         # Probably don't need all these checks.
         finite = (
@@ -703,21 +705,11 @@ class ImportanceFlowProposal(Proposal):
             finite, samples, prime_samples, log_j
         )
 
-        log_q = np.zeros((samples.size, self.n_proposals))
-        logger.debug("Computing log_q")
-        if self.n_proposals > 1:
-            log_q[:, 1:] = (
-                self.flow.log_prob_all(prime_samples) + log_j[:, np.newaxis]
-            )
+        samples['logQ'], log_q = self.compute_meta_proposal_samples(samples)
 
         # -inf is okay since this is just zero, so only remove +inf or NaN
-        finite = ~np.isnan(log_q).all(axis=1) & ~np.isposinf(log_q).all(axis=1)
+        finite = ~np.isnan(samples['logQ']) & ~np.isposinf(samples['logQ'])
         samples, log_q = get_subset_arrays(finite, samples, log_q)
-
-        logger.debug(
-            f"Mean g for each each flow: {np.exp(log_q).mean(axis=0)}"
-        )
-        logger.debug(f"Mean log_q for each each flow: {log_q.mean(axis=0)}")
 
         samples["logP"] = self.model.batch_evaluate_log_prior(
             samples, unit_hypercube=True
@@ -726,7 +718,7 @@ class ImportanceFlowProposal(Proposal):
             np.isfinite(samples["logP"]), samples, log_q
         )
         counts = np.bincount(
-            samples["it"] + 1,
+            samples["qID"].astype(int)+1,
             minlength=self.n_proposals,
         ).astype(int)
         logger.debug(f"Actual counts: {counts}")
