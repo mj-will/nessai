@@ -36,6 +36,7 @@ from ..utils.structures import get_subset_arrays, get_inverse_indices
 logger = logging.getLogger(__name__)
 import copy
 
+
 class OrderedSamples:
     """Samples ordered by log-likelihood.
 
@@ -229,6 +230,7 @@ class OrderedSamples:
             Dictionary containing the total, posterior and evidence importance
             as a function of iteration.
         """
+        # TODO: this may not make sense anymore now we have qID.
         n_proposals = len(self.log_q.dtype.names)
         log_imp_post = -np.inf * np.ones(n_proposals)
         log_imp_z = -np.inf * np.ones(n_proposals)
@@ -278,12 +280,12 @@ class OrderedSamples:
         remove_idx = self.samples["qID"] == qID
         self.log_q = np.delete(self.log_q, remove_idx)
         self.samples = np.delete(self.samples, remove_idx)
-        
+
         new_indices = np.arange(self.samples.size)
         n = np.argmax(self.samples["logL"] >= self.log_likelihood_threshold)
         self.nested_samples_indices = new_indices[:n]
         self.live_points_indices = new_indices[n:]
-        
+
         # Delete the columns for the removed flow
         # Flow number 0 is "it" 1
         self.log_q = rfn.drop_fields(self.log_q, qID, usemask=False)
@@ -895,6 +897,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     leakage_live_points=[],
                     leakage_new_points=[],
                     logZ=[],
+                    n_proposals=[],
                     n_live=[],
                     n_added=[],
                     n_removed=[],
@@ -933,6 +936,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history["likelihood_evaluations"].append(
             self.model.likelihood_evaluations
         )
+        self.history["n_proposals"].append(self.proposal.n_proposals)
 
         for k in self.stopping_criterion_aliases.keys():
             self.history["stopping_criteria"][k].append(
@@ -1558,10 +1562,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         # Remove the flow from proposal class
         self.proposal.remove_proposal(qID)
-        
+
         # Update the weights
         self.update_sample_counts()
-        self.update_proposal_weights()        
+        self.update_proposal_weights()
 
     def rebalance_samples(self):
 
@@ -2148,11 +2152,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
-        ax[m].plot(its, self.importance["total"][1:], label="Total")
-        ax[m].plot(its, self.importance["posterior"][1:], label="Posterior")
-        ax[m].plot(its, self.importance["evidence"][1:], label="Evidence")
-        ax[m].legend()
-        ax[m].set_ylabel("Level importance")
+        ax[m].plot(its, self.history["n_proposals"])
+        ax[m].set_ylabel("# proposals")
 
         m += 1
 
@@ -2385,6 +2386,21 @@ class ImportanceNestedSampler(BaseNestedSampler):
         axs[0].set_ylabel("Density")
         axs[1].set_xlim(vmin, vmax)
         plt.tight_layout()
+
+        if filename is not None:
+            fig.savefig(filename)
+            plt.close(fig)
+        else:
+            return fig
+
+    @nessai_style
+    def plot_weights(
+        self, filename: str
+    ) -> Optional[matplotlib.figure.Figure]:
+
+        fig, axs = plt.subplots(1, 1)
+
+        # TODO: figure out what to plot here
 
         if filename is not None:
             fig.savefig(filename)
