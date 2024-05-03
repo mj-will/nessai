@@ -97,7 +97,7 @@ class ImportanceFlowModel(FlowModel):
 
     def remove_flow(self, i: str) -> None:
         """Remove the i'th flow"""
-        logger.debug("Removing {i}'th flow")
+        logger.debug(f"Removing {i}'th flow")
         self.models.pop(i)
 
     def log_prob_ith(self, x, i: str):
