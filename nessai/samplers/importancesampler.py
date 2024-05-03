@@ -1682,13 +1682,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
             self._compute_gradient()
 
-            if (
-                self.rebalance_interval
-                and (self.iteration % self.rebalance_interval == 0)
-                and self.iteration > 0
-            ):
-                self.rebalance_samples()
-
             if self.n_update is None:
                 threshold = self.determine_log_likelihood_threshold(
                     self.live_points_unit,
@@ -1720,6 +1713,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
             print(sample_counts)
 
             self.update_evidence()
+
+            if (
+                self.rebalance_interval
+                and (self.iteration % self.rebalance_interval == 0)
+                and self.iteration > 0
+            ):
+                self.rebalance_samples()
 
             self.importance = self.compute_importance(importance_ratio=0.5)
 
