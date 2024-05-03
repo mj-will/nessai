@@ -111,7 +111,8 @@ def plot_live_points(
 
     df = pd.DataFrame(live_points)
     df = df.dropna(axis="columns", how="all")
-    df = df[np.isfinite(df).all(1)]
+    goodmask = df.select_dtypes(include=[np.number]).apply(lambda x:np.isfinite(x)).any(axis=1)
+    df = df[goodmask]
 
     if c is not None:
         hue = df[c]
