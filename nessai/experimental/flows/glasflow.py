@@ -73,6 +73,6 @@ def get_glasflow_class(name):
         raise ValueError("'glasflow' missing from name")
     short_name = name.replace("glasflow-", "")
     if short_name not in known_flows:
-        raise ValueError(f"{name} is not a know glasflow flow")
+        raise ValueError(f"{name} is not a known glasflow flow")
     FlowClass = known_flows.get(short_name)
     return partial(GlasflowWrapper, FlowClass)
