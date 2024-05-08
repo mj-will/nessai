@@ -165,16 +165,13 @@ def get_n_neurons(
     return n
 
 
-def configure_model(config):
-    """
-    Setup the flow form a configuration dictionary.
-    """
+def get_native_flow_class(name):
+    """Get a natively implemented flow class."""
+    name = name.lower()
     from .realnvp import RealNVP
     from .maf import MaskedAutoregressiveFlow
     from .nsf import NeuralSplineFlow
-    from ..flowmodel import config as fmconfig
 
-    kwargs = {}
     flows = {
         "realnvp": RealNVP,
         "maf": MaskedAutoregressiveFlow,
@@ -182,6 +179,30 @@ def configure_model(config):
         "spline": NeuralSplineFlow,
         "nsf": NeuralSplineFlow,
     }
+    if name not in flows:
+        raise ValueError(f"Unknown flow: {name}")
+    return flows.get(name)
+
+
+def get_flow_class(name):
+    """Get the class to use for the normalizing flow from a string."""
+    name = name.lower()
+    if "glasflow" in name:
+        from ..experimental.flows.glasflow import get_glasflow_class
+
+        FlowClass = get_glasflow_class(name)
+    else:
+        FlowClass = get_native_flow_class(name)
+    return FlowClass
+
+
+def configure_model(config):
+    """
+    Setup the flow form a configuration dictionary.
+    """
+    from ..flowmodel import config as fmconfig
+
+    kwargs = {}
     activations = {"relu": F.relu, "tanh": F.tanh, "swish": silu, "silu": silu}
 
     config = config.copy()
@@ -229,19 +250,8 @@ def configure_model(config):
             **kwargs,
         )
     elif ftype is not None:
-        if ftype.lower() not in flows:
-            raise RuntimeError(
-                f"Unknown flow type: {ftype}. Choose from:" f"{flows.keys()}"
-            )
-        if (
-            ("mask" in kwargs and kwargs["mask"] is not None)
-            or ("net" in kwargs and kwargs["net"] is not None)
-        ) and ftype.lower() not in ["realnvp", "frealnvp"]:
-            raise RuntimeError(
-                "Custom masks and networks are only " "supported for RealNVP"
-            )
-
-        model = flows[ftype.lower()](
+        FlowClass = get_flow_class(ftype)
+        model = FlowClass(
             config["n_inputs"],
             config["n_neurons"],
             config["n_blocks"],
