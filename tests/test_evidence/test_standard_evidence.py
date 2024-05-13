@@ -205,7 +205,7 @@ def test_plot_w_filename(nlive, tmpdir):
 def test_log_posterior_weights(ns_state):
     """Test the log-posterior weights property"""
     log_vols = [0.0, -0.1, -0.2, -0.3]
-    logL = [np.NINF, -10.0, -5.0, -0.0]
+    logL = [-np.inf, -10.0, -5.0, -0.0]
     ns_state.log_vols = log_vols
     ns_state.logLs = logL
     log_z = -1.0
@@ -216,7 +216,7 @@ def test_log_posterior_weights(ns_state):
 
     trap_inputs = mock_int.call_args[0]
     np.testing.assert_array_equal(trap_inputs[0], logL + [-0.0])
-    np.testing.assert_array_equal(trap_inputs[1], log_vols + [np.NINF])
+    np.testing.assert_array_equal(trap_inputs[1], log_vols + [-np.inf])
     # Output should one shorted than logL since the initial point is not a
     # nested sample.
     assert len(out) == (len(logL) - 1)
