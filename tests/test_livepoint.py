@@ -1,5 +1,6 @@
 """Tests for livepoint functions"""
 
+import platform
 import sys
 
 import numpy as np
@@ -83,8 +84,8 @@ def change_dtype(request):
         pytest.skip("Skipping test with float128 on Windows.")
     if (
         dtype == "f16"
-        and sys.platform.startswith("mac")
-        and "arm" in sys.platform
+        and platform.platform().startswith("mac")
+        and "arm" in platform.platform()
     ):
         pytest.xfail("Expect test with float128 to fail of macOS (ARM")
     current_dtype = config.livepoints.default_float_dtype
