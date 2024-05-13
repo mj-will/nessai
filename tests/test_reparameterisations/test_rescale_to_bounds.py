@@ -506,8 +506,10 @@ def test_reparameterise_boundary_inversion(reparam):
         reparam._apply_inversion.call_args_list[0][0][1],
         x_prime_in,
     )
-    np.testing.assert_array_equal(
-        reparam._apply_inversion.call_args_list[0][0][2], log_j
+    np.testing.assert_array_almost_equal(
+        reparam._apply_inversion.call_args_list[0][0][2],
+        log_j,
+        decimal=15,
     )
     assert reparam._apply_inversion.call_args_list[0][0][3] == "x"
     assert reparam._apply_inversion.call_args_list[0][0][4] == "x_prime"

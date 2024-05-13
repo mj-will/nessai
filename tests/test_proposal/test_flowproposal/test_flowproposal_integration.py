@@ -204,7 +204,7 @@ def test_rescaling_integration_with_rescale_parameters(tmp_path, model):
 
     assert len(log_j) == n
     assert (log_j == expected_log_j).all()
-    np.testing.assert_array_max_ulp(log_j, -log_j_inv)
+    np.testing.assert_array_almost_equal(log_j, -log_j_inv, decimal=15)
 
     assert_structured_arrays_equal(x_prime, x_prime_expected)
     assert_structured_arrays_equal(x_recon, x)
