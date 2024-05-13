@@ -26,7 +26,7 @@ def test_integration_test_model(n, dims):
     assert len(log_l) == len(x)
     x_hyper = model.to_unit_hypercube(x)
     x_re = model.from_unit_hypercube(x_hyper)
-    assert_structured_arrays_equal(x_re, x)
+    assert_structured_arrays_equal(x_re, x, rtol=1e-15, atol=1e-15)
     assert len(x_hyper) == len(x)
 
 

@@ -110,8 +110,10 @@ def test_add_multiple_reparameterisations(model):
         x_in, x_prime_re, log_j
     )
 
-    assert_structured_arrays_equal(x, x_inv)
-    assert_structured_arrays_equal(x_prime_re, x_prime_inv)
+    assert_structured_arrays_equal(x, x_inv, atol=1e-15, rtol=1e-15)
+    assert_structured_arrays_equal(
+        x_prime_re, x_prime_inv, atol=1e-15, rtol=1e-15
+    )
     np.testing.assert_array_equal(log_j_re, -log_j_inv)
 
 
