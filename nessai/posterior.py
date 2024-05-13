@@ -56,12 +56,12 @@ def compute_weights(samples, nlive, expectation="logt"):
     n_vols = len(samples) + 2
     log_vols = np.zeros(n_vols)
     log_vols[1:-1] = np.cumsum(logt)
-    log_vols[-1] = np.NINF
+    log_vols[-1] = -np.inf
 
     # First point represents the entire prior
     # Last point represents X=0 and assume max(L) = L[-1]
     log_likelihoods = np.concatenate(
-        [np.array([np.NINF]), samples, np.array([samples[-1]])]
+        [np.array([-np.inf]), samples, np.array([samples[-1]])]
     )
 
     log_evidence = log_integrate_log_trap(log_likelihoods, log_vols)
