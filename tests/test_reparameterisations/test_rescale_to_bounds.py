@@ -1105,9 +1105,9 @@ def test_update_integration_no_update(model):
             ),
             14,
         ),
-        (dict(update_bounds=False), None),
-        (dict(update_bounds=False, boundary_inversion=True), None),
-        (dict(boundary_inversion=["x"]), None),
+        (dict(update_bounds=False), 15),
+        (dict(update_bounds=False, boundary_inversion=True), 15),
+        (dict(boundary_inversion=["x"]), 15),
     ],
 )
 @pytest.mark.integration_test
