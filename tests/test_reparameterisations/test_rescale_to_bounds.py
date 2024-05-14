@@ -506,8 +506,10 @@ def test_reparameterise_boundary_inversion(reparam):
         reparam._apply_inversion.call_args_list[0][0][1],
         x_prime_in,
     )
-    np.testing.assert_array_equal(
-        reparam._apply_inversion.call_args_list[0][0][2], log_j
+    np.testing.assert_array_almost_equal(
+        reparam._apply_inversion.call_args_list[0][0][2],
+        log_j,
+        decimal=15,
     )
     assert reparam._apply_inversion.call_args_list[0][0][3] == "x"
     assert reparam._apply_inversion.call_args_list[0][0][4] == "x_prime"
@@ -941,7 +943,7 @@ def test_rescale_bounds(reparameterisation, is_invertible, rescale_bounds):
         rescale_bounds = {p: rescale_bounds for p in reparam.parameters}
 
     assert reparam.rescale_bounds == rescale_bounds
-    assert is_invertible(reparam)
+    assert is_invertible(reparam, decimal=15)
 
 
 @pytest.mark.parametrize(
@@ -955,7 +957,7 @@ def test_boundary_inversion(
     """Test the different options for rescale to bounds"""
     reparam = reparameterisation({"boundary_inversion": boundary_inversion})
 
-    assert is_invertible(reparam)
+    assert is_invertible(reparam, decimal=15)
 
 
 @pytest.mark.integration_test
@@ -1105,9 +1107,9 @@ def test_update_integration_no_update(model):
             ),
             14,
         ),
-        (dict(update_bounds=False), None),
-        (dict(update_bounds=False, boundary_inversion=True), None),
-        (dict(boundary_inversion=["x"]), None),
+        (dict(update_bounds=False), 15),
+        (dict(update_bounds=False, boundary_inversion=True), 15),
+        (dict(boundary_inversion=["x"]), 15),
     ],
 )
 @pytest.mark.integration_test

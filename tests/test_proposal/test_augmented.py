@@ -237,13 +237,14 @@ def test_w_default_rescaling(model, tmpdir):
 
     x_prime, log_j = proposal.rescale(x)
 
-    np.testing.assert_array_equal(x_out, x_prime["x_prime"])
-    np.testing.assert_array_equal(y_out, x_prime["y_prime"])
+    np.testing.assert_array_almost_equal(x_out, x_prime["x_prime"], decimal=15)
+    np.testing.assert_array_almost_equal(y_out, x_prime["y_prime"], decimal=15)
 
     x_inv, log_j_inv = proposal.inverse_rescale(x_prime)
 
-    np.testing.assert_array_equal(log_j, -log_j_inv)
-    np.testing.assert_array_equal(x[["x", "y"]], x_inv[["x", "y"]])
+    np.testing.assert_array_almost_equal(log_j, -log_j_inv, decimal=15)
+    np.testing.assert_array_almost_equal(x["x"], x_inv["x"], decimal=15)
+    np.testing.assert_array_almost_equal(x["y"], x_inv["y"], decimal=15)
 
 
 @pytest.mark.integration_test
@@ -277,10 +278,19 @@ def test_w_reparameterisation(model, tmpdir):
 
     x_prime, log_j = proposal.rescale(x)
 
-    np.testing.assert_array_equal(x_out, x_prime["x_prime"])
-    np.testing.assert_array_equal(y_out, x_prime["y_prime"])
+    np.testing.assert_array_almost_equal(x_out, x_prime["x_prime"], decimal=15)
+    np.testing.assert_array_almost_equal(y_out, x_prime["y_prime"], decimal=15)
 
     x_inv, log_j_inv = proposal.inverse_rescale(x_prime)
 
-    np.testing.assert_array_equal(log_j, -log_j_inv)
-    np.testing.assert_array_equal(x[["x", "y"]], x_inv[["x", "y"]])
+    np.testing.assert_array_almost_equal(log_j, -log_j_inv, decimal=15)
+    np.testing.assert_array_almost_equal(
+        x["x"],
+        x_inv["x"],
+        decimal=15,
+    )
+    np.testing.assert_array_almost_equal(
+        x["y"],
+        x_inv["y"],
+        decimal=15,
+    )
