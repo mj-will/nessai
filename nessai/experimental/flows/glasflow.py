@@ -10,6 +10,7 @@ known_flows = {
 
 
 class GlasflowWrapper(BaseFlow):
+    """Wrapper for glasflow flow classes"""
 
     def __init__(
         self,
@@ -68,6 +69,10 @@ class GlasflowWrapper(BaseFlow):
 
 
 def get_glasflow_class(name):
+    """Get the class for a glasflow flow.
+
+    Note: the name must start with :code:`glasflow.`
+    """
     name = name.lower()
     if "glasflow" not in name:
         raise ValueError("'glasflow' missing from name")
