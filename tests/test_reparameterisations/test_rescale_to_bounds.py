@@ -943,7 +943,7 @@ def test_rescale_bounds(reparameterisation, is_invertible, rescale_bounds):
         rescale_bounds = {p: rescale_bounds for p in reparam.parameters}
 
     assert reparam.rescale_bounds == rescale_bounds
-    assert is_invertible(reparam)
+    assert is_invertible(reparam, decimal=15)
 
 
 @pytest.mark.parametrize(
@@ -957,7 +957,7 @@ def test_boundary_inversion(
     """Test the different options for rescale to bounds"""
     reparam = reparameterisation({"boundary_inversion": boundary_inversion})
 
-    assert is_invertible(reparam)
+    assert is_invertible(reparam, decimal=15)
 
 
 @pytest.mark.integration_test
