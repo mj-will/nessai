@@ -184,12 +184,13 @@ def get_native_flow_class(name):
     return flows.get(name)
 
 
-def get_flow_class(name):
+def get_flow_class(name: str):
     """Get the class to use for the normalizing flow from a string."""
     name = name.lower()
     if "glasflow" in name:
         from ..experimental.flows.glasflow import get_glasflow_class
 
+        logger.warning("Using experimental glasflow flow!")
         FlowClass = get_glasflow_class(name)
     else:
         FlowClass = get_native_flow_class(name)
@@ -239,27 +240,20 @@ def configure_model(config):
     if distribution:
         kwargs["distribution"] = distribution
 
-    fc = config.get("flow", None)
-    ftype = config.get("ftype", None)
-    if fc is not None:
-        model = fc(
-            config["n_inputs"],
-            config["n_neurons"],
-            config["n_blocks"],
-            config["n_layers"],
-            **kwargs,
-        )
-    elif ftype is not None:
-        FlowClass = get_flow_class(ftype)
-        model = FlowClass(
-            config["n_inputs"],
-            config["n_neurons"],
-            config["n_blocks"],
-            config["n_layers"],
-            **kwargs,
-        )
-    else:
+    FlowClass = config.get("flow")
+    ftype = config.get("ftype")
+    if FlowClass is None and ftype is None:
         raise RuntimeError("Must specify either 'flow' or 'ftype'.")
+
+    if FlowClass is None:
+        FlowClass = get_flow_class(ftype)
+    model = FlowClass(
+        config["n_inputs"],
+        config["n_neurons"],
+        config["n_blocks"],
+        config["n_layers"],
+        **kwargs,
+    )
 
     device = torch.device(config.get("device_tag", "cpu"))
     if device != "cpu":
