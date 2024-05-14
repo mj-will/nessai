@@ -60,5 +60,5 @@ def test_weighted_quantile_value_error_neff():
         ValueError, match=r"Effective sample size is not finite.*"
     ):
         weighted_quantile(
-            [1, 2], 0.5, log_weights=np.array([np.NINF, np.NINF])
+            [1, 2], 0.5, log_weights=np.array([-np.inf, -np.inf])
         )

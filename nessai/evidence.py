@@ -218,7 +218,7 @@ class _NSIntegralState(_BaseNSIntegralState):
         # Extra point represents X=0 and assume max(L) = L[-1]
         self.logZ = log_integrate_log_trap(
             np.array(self.logLs + [self.logLs[-1]]),
-            np.array(self.log_vols + [np.NINF]),
+            np.array(self.log_vols + [-np.inf]),
         )
         return self.logZ
 
@@ -255,7 +255,7 @@ class _NSIntegralState(_BaseNSIntegralState):
     def log_posterior_weights(self):
         """Compute the log-posterior weights."""
         log_L = np.array(self.logLs + [self.logLs[-1]])
-        log_vols = np.array(self.log_vols + [np.NINF])
+        log_vols = np.array(self.log_vols + [-np.inf])
         log_Z = log_integrate_log_trap(log_L, log_vols)
         log_w = logsubexp(log_vols[:-1], log_vols[1:])
         log_post_w = log_L[1:-1] + log_w[:-1] - log_Z

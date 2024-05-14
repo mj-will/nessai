@@ -40,7 +40,7 @@ def nested_samples(model, ins_parameters):
 def test_init(state):
     """Test the init method"""
     INSState.__init__(state)
-    assert state._logZ == np.NINF
+    assert state._logZ == -np.inf
 
 
 def test_log_Z(state):
