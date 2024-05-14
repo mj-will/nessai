@@ -12,10 +12,17 @@ from nessai.flows.utils import (
     create_linear_transform,
     create_pre_transform,
     get_base_distribution,
+    get_flow_class,
     get_n_neurons,
+    get_native_flow_class,
     silu,
     reset_weights,
     reset_permutations,
+)
+from nessai.flows import (
+    RealNVP,
+    NeuralSplineFlow,
+    MaskedAutoregressiveFlow,
 )
 
 
@@ -196,6 +203,42 @@ def test_reset_permutation_lu():
     lu._initialize.assert_called_once_with(identity_init=True)
 
 
+@pytest.mark.parametrize(
+    "name, expected_class",
+    [
+        ("realnvp", RealNVP),
+        ("frealnvp", RealNVP),
+        ("spline", NeuralSplineFlow),
+        ("nsf", NeuralSplineFlow),
+        ("maf", MaskedAutoregressiveFlow),
+    ],
+)
+def test_get_native_flow_class(name, expected_class):
+    assert get_native_flow_class(name) is expected_class
+
+
+def test_get_flow_class_glasflow():
+    expected = object()
+    with patch(
+        "nessai.experimental.flows.glasflow.get_glasflow_class",
+        return_value=expected,
+    ) as mock_get:
+        out = get_flow_class("glasflow.realnvp")
+    mock_get.assert_called_once_with("glasflow.realnvp")
+    assert out is expected
+
+
+def test_get_flow_class_native():
+    expected = object()
+    with patch(
+        "nessai.flows.utils.get_native_flow_class",
+        return_value=expected,
+    ) as mock_get:
+        out = get_flow_class("realnvp")
+    mock_get.assert_called_once_with("realnvp")
+    assert out is expected
+
+
 def test_configure_model_basic(config):
     """Test configure model with the most basic config."""
     config["kwargs"] = dict(num_bins=2)
@@ -211,27 +254,12 @@ def test_configure_model_basic(config):
     )
 
 
-@pytest.mark.parametrize(
-    "flow_inputs",
-    [
-        {"ftype": "realnvp", "expected": "realnvp.RealNVP"},
-        {"ftype": "frealnvp", "expected": "realnvp.RealNVP"},
-        {"ftype": "spline", "expected": "nsf.NeuralSplineFlow"},
-        {"ftype": "nsf", "expected": "nsf.NeuralSplineFlow"},
-        {"ftype": "maf", "expected": "maf.MaskedAutoregressiveFlow"},
-    ],
-)
-def test_configure_model_flows(config, flow_inputs):
+def test_configure_model_ftype(config):
     """Test the different flows."""
-    config["ftype"] = flow_inputs["ftype"]
-    with patch(f"nessai.flows.{flow_inputs['expected']}") as mock_flow:
+    config["ftype"] = "realnvp"
+    with patch("nessai.flows.utils.get_native_flow_class") as mock_get:
         model, _ = configure_model(config)
-    mock_flow.assert_called_with(
-        config["n_inputs"],
-        config["n_neurons"],
-        config["n_blocks"],
-        config["n_layers"],
-    )
+    mock_get.assert_called_with("realnvp")
 
 
 def test_configure_model_flow_class(config):
