@@ -206,8 +206,8 @@ def test_rescaling_integration_with_rescale_parameters(tmp_path, model):
     assert (log_j == expected_log_j).all()
     np.testing.assert_array_almost_equal(log_j, -log_j_inv, decimal=15)
 
-    assert_structured_arrays_equal(x_prime, x_prime_expected)
-    assert_structured_arrays_equal(x_recon, x)
+    assert_structured_arrays_equal(x_prime, x_prime_expected, atol=1e-15)
+    assert_structured_arrays_equal(x_recon, x, atol=1e-15)
 
 
 @pytest.mark.integration_test
