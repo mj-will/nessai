@@ -14,7 +14,7 @@ def test_init(cfm, tmp_path, caplog):
     config = {}
     output = tmp_path
     with patch(
-        "nessai.flowmodel.clustering.FlowModel.__init__"
+        "nessai.experimental.flowmodel.clustering.FlowModel.__init__"
     ) as mock_parent_init:
         CFM.__init__(cfm, config=config, output=output)
 
