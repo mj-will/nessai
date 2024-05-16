@@ -466,11 +466,15 @@ class NestedSampler(BaseNestedSampler):
 
                     flow_class = AugmentedFlowProposal
                 elif flow_class == "clusteringflowproposal":
-                    from ..proposal import ClusteringFlowProposal
+                    from ..experimental.proposal.clustering import (
+                        ClusteringFlowProposal,
+                    )
 
                     flow_class = ClusteringFlowProposal
                 elif flow_class == "clusteringgwflowproposal":
-                    from ..gw.proposal import ClusteringGWFlowProposal
+                    from ..experimental.gw.proposal import (
+                        ClusteringGWFlowProposal,
+                    )
 
                     flow_class = ClusteringGWFlowProposal
                 else:
