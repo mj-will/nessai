@@ -4,13 +4,13 @@ import os
 import seaborn as sns
 
 from ..flowmodel.clustering import ClusteringFlowModel
-from ..livepoint import live_points_to_array
-from ..model import Model
-from ..plot import (
+from ...livepoint import live_points_to_array
+from ...model import Model
+from ...plot import (
     nessai_style,
     plot_1d_comparison,
 )
-from .flowproposal import FlowProposal
+from ...proposal.flowproposal import FlowProposal
 
 
 class ClusteringFlowProposal(FlowProposal):
@@ -124,3 +124,13 @@ class ClusteringFlowProposal(FlowProposal):
                 labels=["live points", "generated"],
                 filename=os.path.join(output, "x_prime_comparison.png"),
             )
+
+
+def silhouette_score(samples: np.ndarray, clusterer) -> np.ndarray:
+    """Compute the silhouette score.
+
+    Based on: https://github.com/facebookresearch/faiss/issues/1875
+    """
+    distance, _ = clusterer.index.search(samples, 2)
+    score = (distance[:, 1] - distance[:, 0]) / np.max(distance, 1)
+    return score

@@ -4,14 +4,12 @@ Proposal methods for used in the nested sampler.
 """
 from .analytic import AnalyticProposal
 from .augmented import AugmentedFlowProposal
-from .clustering import ClusteringFlowProposal
 from .flowproposal import FlowProposal
 from .rejection import RejectionProposal
 
 __all__ = [
     "AnalyticProposal",
     "AugmentedFlowProposal",
-    "ClusteringFlowProposal",
     "FlowProposal",
     "RejectionProposal",
 ]
