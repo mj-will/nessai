@@ -4,8 +4,7 @@ import numpy as np
 from scipy.special import logsumexp
 from typing import Any, Tuple
 
-from .base import FlowModel
-from ..utils.stats import silhouette_score
+from ...flowmodel.base import FlowModel
 
 logger = logging.getLogger(__name__)
 
@@ -139,3 +138,13 @@ class ClusteringFlowModel(FlowModel):
         samples = self.sample(N)
         log_prob = self.log_prob(samples)
         return samples, log_prob
+
+
+def silhouette_score(samples: np.ndarray, clusterer) -> np.ndarray:
+    """Compute the silhouette score.
+
+    Based on: https://github.com/facebookresearch/faiss/issues/1875
+    """
+    distance, _ = clusterer.index.search(samples, 2)
+    score = (distance[:, 1] - distance[:, 0]) / np.max(distance, 1)
+    return score

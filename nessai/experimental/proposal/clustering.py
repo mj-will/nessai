@@ -124,13 +124,3 @@ class ClusteringFlowProposal(FlowProposal):
                 labels=["live points", "generated"],
                 filename=os.path.join(output, "x_prime_comparison.png"),
             )
-
-
-def silhouette_score(samples: np.ndarray, clusterer) -> np.ndarray:
-    """Compute the silhouette score.
-
-    Based on: https://github.com/facebookresearch/faiss/issues/1875
-    """
-    distance, _ = clusterer.index.search(samples, 2)
-    score = (distance[:, 1] - distance[:, 0]) / np.max(distance, 1)
-    return score
