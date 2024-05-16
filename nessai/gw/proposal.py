@@ -6,7 +6,6 @@ import logging
 
 from ..proposal import (
     AugmentedFlowProposal,
-    ClusteringFlowProposal,
     FlowProposal,
 )
 
@@ -99,16 +98,6 @@ class AugmentedGWFlowProposal(AugmentedFlowProposal, GWFlowProposal):
     """Augmented version of GWFlowProposal.
 
     See :obj:`~nessai.proposal.augmented.AugmentedFlowProposal` and
-    :obj:`~nessai.gw.proposal.GWFlowPropsosal`
-    """
-
-    pass
-
-
-class ClusteringGWFlowProposal(ClusteringFlowProposal, GWFlowProposal):
-    """Augmented version of GWFlowProposal.
-
-    See :obj:`~nessai.proposal.augmented.ClusteringFlowProposal` and
     :obj:`~nessai.gw.proposal.GWFlowPropsosal`
     """
 
