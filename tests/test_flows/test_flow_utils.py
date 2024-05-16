@@ -217,6 +217,11 @@ def test_get_native_flow_class(name, expected_class):
     assert get_native_flow_class(name) is expected_class
 
 
+def test_get_native_flow_class_error():
+    with pytest.raises(ValueError, match=r"Unknown flow: invalid"):
+        get_native_flow_class("invalid")
+
+
 def test_get_flow_class_glasflow():
     expected = object()
     with patch(
