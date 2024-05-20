@@ -326,15 +326,31 @@ class ImportanceNestedSampler(BaseNestedSampler):
         If False, this can help reduce the disk usage.
     """
 
-    stopping_criterion_aliases = dict(
-        ratio=["ratio", "ratio_all"],
-        ratio_ns=["ratio_ns"],
-        Z_err=["Z_err", "evidence_error"],
-        log_dZ=["log_dZ", "log_evidence"],
-        ess=[
-            "ess",
-        ],
-        fractional_error=["fractional_error"],
+    stopping_criterion_config = dict(
+        ratio=dict(
+            type="min",
+            aliases=["ratio", "ratio_all"],
+        ),
+        ratio_ns=dict(
+            type="min",
+            aliases=["ratio_ns"],
+        ),
+        Z_err=dict(
+            type="min",
+            aliases=["Z_err", "evidence_error"],
+        ),
+        log_dZ=dict(
+            type="min",
+            aliases=["log_dZ", "log_evidence"],
+        ),
+        ess=dict(
+            type="max",
+            aliases=["ess"],
+        ),
+        fractional_error=dict(
+            type="min",
+            aliases=["fractional_error"],
+        ),
     )
     """Dictionary of available stopping criteria and their aliases."""
 
@@ -455,7 +471,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.log_dZ = np.inf
         self.ratio = np.inf
         self.ratio_ns = np.inf
-        self.ess = 0.0
+        self.ess = 0
         self.Z_err = np.inf
 
         self._final_samples = None
@@ -651,14 +667,16 @@ class ImportanceNestedSampler(BaseNestedSampler):
         Checks if any or all of the criteria have been met, this depends on the
         value of :code:`check_criteria`.
         """
+        flags = {}
+        for sc, value in self.criterion.items():
+            if self.stopping_criterion_config[sc]["type"] == "min":
+                flags[sc] = value <= self.tolerance[sc]
+            else:
+                flags[sc] = value > self.tolerance[sc]
         if self._stop_any:
-            return any(
-                [c <= t for c, t in zip(self.criterion, self.tolerance)]
-            )
+            return any(flags.values())
         else:
-            return all(
-                [c <= t for c, t in zip(self.criterion, self.tolerance)]
-            )
+            return all(flags.values())
 
     @staticmethod
     def add_fields():
@@ -676,16 +694,16 @@ class ImportanceNestedSampler(BaseNestedSampler):
             stopping_criterion = [stopping_criterion]
 
         if isinstance(tolerance, list):
-            self.tolerance = [float(t) for t in tolerance]
+            tolerance = [float(t) for t in tolerance]
         else:
-            self.tolerance = [float(tolerance)]
+            tolerance = [float(tolerance)]
 
         self.stopping_criterion = []
         for c in stopping_criterion:
-            for criterion, aliases in self.stopping_criterion_aliases.items():
-                if c in aliases:
+            for criterion, cfg in self.stopping_criterion_config.items():
+                if c in cfg["aliases"]:
                     self.stopping_criterion.append(criterion)
-        if not self.stopping_criterion:
+        if len(self.stopping_criterion) != len(stopping_criterion):
             raise ValueError(
                 f"Unknown stopping criterion: {stopping_criterion}"
             )
@@ -695,11 +713,22 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     f"Stopping criterion specified ({c}) is "
                     f"an alias for {c_use}. Using {c_use}."
                 )
+
+        self.tolerance = {
+            sc: t for sc, t in zip(stopping_criterion, tolerance)
+        }
         if len(self.stopping_criterion) != len(self.tolerance):
             raise ValueError(
                 "Number of stopping criteria must match tolerances"
             )
-        self.criterion = len(self.tolerance) * [np.inf]
+
+        types = {
+            sc: self.stopping_criterion_config[sc]["type"]
+            for sc in stopping_criterion
+        }
+        self.criterion = {
+            sc: np.inf if t == "min" else -np.inf for sc, t in types.items()
+        }
 
         logger.info(f"Stopping criteria: {self.stopping_criterion}")
         logger.info(f"Tolerance: {self.tolerance}")
@@ -841,7 +870,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     samples_entropy=[],
                     proposal_entropy=[],
                     stopping_criteria={
-                        k: [] for k in self.stopping_criterion_aliases.keys()
+                        k: [] for k in self.stopping_criterion_config.keys()
                     },
                 )
             )
@@ -871,7 +900,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.model.likelihood_evaluations
         )
 
-        for k in self.stopping_criterion_aliases.keys():
+        for k in self.stopping_criterion_config.keys():
             self.history["stopping_criteria"][k].append(
                 getattr(self, k, np.nan)
             )
@@ -1427,11 +1456,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.ess = self.state.effective_n_posterior_samples
         self.Z_err = np.exp(self.log_evidence_error)
         self.fractional_error = self.state.evidence_error / self.state.evidence
-        cond = [getattr(self, sc) for sc in self.stopping_criterion]
+        cond = {sc: getattr(self, sc) for sc in self.stopping_criterion}
 
         logger.info(
-            f"Stopping criteria ({self.stopping_criterion}): {cond} "
-            f"- Tolerance: {self.tolerance}"
+            f"Stopping criteria: {cond} " f"- Tolerance: {self.tolerance}"
         )
         return cond
 
@@ -1583,7 +1611,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         logger.info(
             f"Finished nested sampling loop after {self.iteration} iterations "
-            f"with {self.stopping_criterion} = {self.criterion}"
+            f"with {self.criterion}"
         )
         self.finalise()
         logger.info(f"Training time: {self.training_time}")
