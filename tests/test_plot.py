@@ -312,6 +312,13 @@ def test_plot_indices_breakdown(plot_breakdown):
     plt.close()
 
 
+def test_plot_indices_no_nlive():
+    """Test plotting insertion indices without nlive specified."""
+    indices = np.random.randint(0, 100, 1000)
+    plot.plot_indices(indices)
+    plt.close()
+
+
 @pytest.mark.parametrize("save", [False, True])
 def test_plot_indices_save(save, tmpdir):
     """Test plotting insertion indices with and without saving"""
