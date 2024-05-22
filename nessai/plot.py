@@ -304,6 +304,7 @@ def plot_indices(
     ks_test_mode="D+",
     confidence_intervals=(0.68, 0.95, 0.997),
     plot_breakdown=True,
+    n_breakdown=8,
     cmap="viridis",
 ):
     """
@@ -327,7 +328,10 @@ def plot_indices(
     confidence_intervals : tuple
         Confidence intervals to plot as shaded regions on the cmf plot.
     plot_breakdown : bool
-        If true, plots the cmf for every nlive samples.
+        If true, plots the cmf for batches of samples over the course of the
+        run. The number of batches in controlled by :code:`n_breakdown`.
+    n_breakdown : int
+        The number of batches to plot. Also see :code:`plot_breakdown`.
     cmap : str
         Colourmap to use when :code:`plot_breakdown=True`.
     """
@@ -421,24 +425,22 @@ def plot_indices(
 
     if plot_breakdown:
         lw = 0.5 * plt.rcParams["lines.linewidth"]
-        n_batches = len(indices) // nlive
-        colours = sns.color_palette(n_colors=n_batches, palette=cmap)
-        for i in range(len(indices) // nlive):
-            counts = np.bincount(
-                indices[i * nlive : (i + 1) * nlive], minlength=nlive
-            )
-            batch_estimated_cmf = np.cumsum(counts) / nlive
+        batches = np.array_split(indices, n_breakdown)
+        colours = sns.color_palette(n_colors=n_breakdown, palette=cmap)
+        for batch, colour in zip(batches, colours):
+            counts = np.bincount(batch, minlength=nlive)
+            batch_estimated_cmf = np.cumsum(counts) / len(batch)
             ax[2].plot(
                 x - 1,
                 analytic_cmf - batch_estimated_cmf,
                 lw=lw,
-                c=colours[i],
+                c=colour,
             )
         for ci in confidence_intervals:
             bound = (1 - ci) / 2
-            bound_values = (
-                stats.binom.ppf(1 - bound, nlive, analytic_cmf) / nlive
-            )
+            bound_values = stats.binom.ppf(
+                1 - bound, len(batch), analytic_cmf
+            ) / len(batch)
             lower = bound_values - analytic_cmf
             upper = analytic_cmf - bound_values
             ax[2].fill_between(x - 1, lower, upper, color="grey", alpha=0.2)
