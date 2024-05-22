@@ -413,11 +413,11 @@ def plot_indices(
 
     ax[0].legend(loc="lower right")
     ax[0].set_xlim([0, nlive - 1])
-    ax[0].set_xlabel("Insertion indices")
+    ax[0].set_xlabel("Insertion index")
 
     ax[1].legend(loc="lower right")
     ax[1].set_xlim([0, nlive - 1])
-    ax[1].set_xlabel("Insertion indices")
+    ax[1].set_xlabel("Insertion index")
 
     if plot_breakdown:
         lw = 0.5 * plt.rcParams["lines.linewidth"]
@@ -443,7 +443,7 @@ def plot_indices(
             upper = analytic_cmf - bound_values
             ax[2].fill_between(x - 1, lower, upper, color="grey", alpha=0.2)
         ax[2].set_xlim([0, nlive - 1])
-        ax[2].set_xlabel("Insertion indices")
+        ax[2].set_xlabel("Insertion index")
 
     fig.suptitle(f"p-value={p_value:.4f} (nlive={nlive})")
 
