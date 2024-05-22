@@ -345,6 +345,26 @@ def test_multiple_new_points_reject(model):
     assert ((x["y"] >= -2) & (x["y"] <= 2)).all()
 
 
+def test_multiple_new_points_reject_batch(model):
+    """Assert rejecting an entire batch does not raise an error"""
+    n = 3
+    model.names = ["x", "y"]
+    model.bounds = {"x": [-1, 1], "y": [-2, 2]}
+    model.lower_bounds = np.array([-1, -2])
+    model.upper_bounds = np.array([1, 2])
+    model.log_prior = MagicMock(
+        side_effect=[
+            -np.inf * np.ones(3),
+            np.zeros(3),
+        ]
+    )
+    model.dims = 2
+    x = Model._multiple_new_points(model, N=n)
+    assert x.size == n
+    assert ((x["x"] >= -1) & (x["x"] <= 1)).all()
+    assert ((x["y"] >= -2) & (x["y"] <= 2)).all()
+
+
 def test_new_point_log_prob(model):
     """Test the log prob for new points.
 
