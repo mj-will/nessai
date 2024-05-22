@@ -297,104 +297,155 @@ def plot_1d_comparison(
 
 
 @nessai_style(line_styles=False)
-def plot_indices(indices, nlive=None, filename=None, plot_breakdown=True):
+def plot_indices(
+    indices,
+    nlive=None,
+    filename=None,
+    ks_test_mode="D+",
+    confidence_intervals=(0.68, 0.95, 0.997),
+    plot_breakdown=True,
+    cmap="viridis",
+):
     """
-    Histogram indices for index insertion tests, also includes the CDF.
+    Histogram indices for index insertion tests, also includes the cmf.
 
     Parameters
     ----------
     indices : array_like
         List of insertion indices to plot
     nlive : int
-        Number of live points used in the nested sampling run
+        Number of live points used in the nested sampling run. If nlive is not
+        specified, it is set to the maximum value in indices.
     filename : str
         Filename used to save the figure.
     plot_breakdown : bool, optional
        If true, then the CDF for every nlive points is also plotted as grey
        lines.
+    ks_test_mode : Literal["D+", "D-"]
+        Mode for computing the KS test. See
+        :py:func:`nessai.utils.indices.compute_indices_ks_test` for details.
+    confidence_intervals : tuple
+        Confidence intervals to plot as shaded regions on the cmf plot.
+    plot_breakdown : bool
+        If true, plots the cmf for every nlive samples.
+    cmap : str
+        Colourmap to use when :code:`plot_breakdown=True`.
     """
+    from scipy import stats
+    from .utils.indices import compute_indices_ks_test
+
     indices = np.asarray(indices)
     if not indices.size or not nlive:
         logger.warning("Not producing indices plot.")
         return
 
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    nbins = min(len(np.histogram_bin_edges(indices, "auto")) - 1, 1000)
+    if nlive is None:
+        nlive = np.max(indices)
+
+    _, p_value = compute_indices_ks_test(indices, nlive, mode=ks_test_mode)
+
+    # First bin should have non-zero probability since this is a p.m.f
+    x = np.arange(1.0, nlive + 1, 1)
+    analytic_cmf = x / x[-1]
+    counts = np.bincount(indices, minlength=nlive)
+    estimated_cmf = np.cumsum(counts) / len(indices)
+
     if plot_breakdown:
-        for i in range(len(indices) // nlive):
-            ax[1].hist(
-                indices[i * nlive : (i + 1) * nlive],
-                bins=nlive,
-                histtype="step",
-                density=True,
-                alpha=0.1,
-                color="black",
-                lw=0.5,
-                cumulative=True,
-                range=(0, nlive - 1),
-            )
+        n_cols = 3
+        figsize = (15, 5)
+    else:
+        n_cols = 2
+        figsize = (10, 5)
+
+    fig, ax = plt.subplots(1, ncols=n_cols, figsize=figsize)
+    nbins = min(len(np.histogram_bin_edges(indices, "auto")) - 1, 1000)
+
+    # Plot the analytic p.m.f first
+    ax[0].axhline(
+        1 / nlive,
+        color="black",
+        linestyle="-",
+        label="pmf",
+        alpha=0.5,
+    )
+    # 1-sigma regions
+    ax[0].axhline(
+        (1 + (nbins / len(indices)) ** 0.5) / nlive,
+        color="black",
+        linestyle=":",
+        alpha=0.5,
+        label="1-sigma",
+    )
+    ax[0].axhline(
+        (1 - (nbins / len(indices)) ** 0.5) / nlive,
+        color="black",
+        linestyle=":",
+        alpha=0.5,
+    )
 
     ax[0].hist(
         indices,
         density=True,
-        color="tab:blue",
-        linewidth=1.25,
+        color="C0",
         histtype="step",
         bins=nbins,
-        label="produced",
-        range=(0, nlive - 1),
-    )
-    ax[1].hist(
-        indices,
-        density=True,
-        color="tab:blue",
-        linewidth=1.25,
-        histtype="step",
-        bins=nlive,
-        label="produced",
-        cumulative=True,
+        label="Estimated",
         range=(0, nlive - 1),
     )
 
-    if nlive is not None:
-        ax[0].axhline(
-            1 / nlive,
-            color="black",
-            linewidth=1.25,
-            linestyle="-",
-            label="pmf",
-            alpha=0.5,
+    # Subtract 1 since we count indices from 0
+    ax[1].plot(
+        x - 1,
+        analytic_cmf - estimated_cmf,
+        c="C0",
+        label="Analytic cmf - Estimated cmf",
+    )
+    n_indices = len(indices)
+    for ci in confidence_intervals:
+        bound = (1 - ci) / 2
+        bound_values = (
+            stats.binom.ppf(1 - bound, n_indices, analytic_cmf) / n_indices
         )
-        ax[0].axhline(
-            (1 + (nbins / len(indices)) ** 0.5) / nlive,
-            color="black",
-            linewidth=1.25,
-            linestyle=":",
-            alpha=0.5,
-            label="1-sigma",
-        )
-        ax[0].axhline(
-            (1 - (nbins / len(indices)) ** 0.5) / nlive,
-            color="black",
-            linewidth=1.25,
-            linestyle=":",
-            alpha=0.5,
-        )
-        ax[1].plot(
-            [0, nlive],
-            [0, 1],
-            color="black",
-            linewidth=1.25,
-            linestyle=":",
-            label="cmf",
-        )
+        lower = bound_values - analytic_cmf
+        upper = analytic_cmf - bound_values
+
+        ax[1].fill_between(x - 1, lower, upper, color="grey", alpha=0.2)
 
     ax[0].legend(loc="lower right")
-    ax[1].legend(loc="lower right")
     ax[0].set_xlim([0, nlive - 1])
-    ax[1].set_xlim([0, nlive - 1])
     ax[0].set_xlabel("Insertion indices")
+
+    ax[1].legend(loc="lower right")
+    ax[1].set_xlim([0, nlive - 1])
     ax[1].set_xlabel("Insertion indices")
+
+    if plot_breakdown:
+        lw = 0.5 * plt.rcParams["lines.linewidth"]
+        n_batches = len(indices) // nlive
+        colours = sns.color_palette(n_colors=n_batches, palette=cmap)
+        for i in range(len(indices) // nlive):
+            counts = np.bincount(
+                indices[i * nlive : (i + 1) * nlive], minlength=nlive
+            )
+            batch_estimated_cmf = np.cumsum(counts) / nlive
+            ax[2].plot(
+                x - 1,
+                analytic_cmf - batch_estimated_cmf,
+                lw=lw,
+                c=colours[i],
+            )
+        for ci in confidence_intervals:
+            bound = (1 - ci) / 2
+            bound_values = (
+                stats.binom.ppf(1 - bound, nlive, analytic_cmf) / nlive
+            )
+            lower = bound_values - analytic_cmf
+            upper = analytic_cmf - bound_values
+            ax[2].fill_between(x - 1, lower, upper, color="grey", alpha=0.2)
+        ax[2].set_xlim([0, nlive - 1])
+        ax[2].set_xlabel("Insertion indices")
+
+    fig.suptitle(f"p-value={p_value:.4f} (nlive={nlive})")
 
     if filename is not None:
         plt.savefig(filename, bbox_inches="tight")
