@@ -17,6 +17,10 @@ def compute_indices_ks_test(indices, nlive, mode="D+"):
         Indices of newly inserted live points
     nlive : int
         Number of live points
+    mode : str
+        Method for computing the KS statistic. If D+, the statistic is the
+        maximum positive difference between the empirical and assumed CDF.
+        If D-, the statistic is the maximum negative difference.
 
     Returns
     -------
