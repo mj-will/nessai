@@ -1130,9 +1130,6 @@ class FlowProposal(RejectionProposal):
         except AssertionError:
             return np.array([]), np.array([])
 
-        if discard_nans:
-            valid = np.isfinite(log_prob)
-            x, log_prob = x[valid], log_prob[valid]
         x = numpy_array_to_live_points(
             x.astype(config.livepoints.default_float_dtype),
             self.rescaled_names,
@@ -1143,6 +1140,13 @@ class FlowProposal(RejectionProposal):
             # Include Jacobian for the rescaling
             log_prob -= log_J
             x, z, log_prob = self.check_prior_bounds(x, z, log_prob)
+
+        # Discard NaNs after the rescaling in case any of the points have
+        # NaN log Jacobian determinant.
+        if discard_nans:
+            valid = np.isfinite(log_prob)
+            x, z, log_prob = x[valid], z[valid], log_prob[valid]
+
         if return_z:
             return x, log_prob, z
         else:
@@ -1433,6 +1437,8 @@ class FlowProposal(RejectionProposal):
             z = self.draw_latent_prior(self.drawsize)
             n_proposed += z.shape[0]
 
+            # All values returned by backward pass will be within the prior
+            # bounds and have finite log_q.
             x, log_q = self.backward_pass(
                 z, rescale=not self.use_x_prime_prior
             )
