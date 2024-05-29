@@ -244,10 +244,12 @@ class Model(ABC):
             if self.allow_vectorised_prior:
                 # Avoids calling prior on multiple points
                 x = self.sample_unit_hypercube(n=10)
-                self._vectorised_prior = check_vectorised_function(
-                    self.log_prior_unit_hypercube,
-                    x,
-                    dtype=config.livepoints.default_float_dtype,
+                self._vectorised_prior_unit_hypercube = (
+                    check_vectorised_function(
+                        self.log_prior_unit_hypercube,
+                        x,
+                        dtype=config.livepoints.default_float_dtype,
+                    )
                 )
             else:
                 self._vectorised_prior_unit_hypercube = False
@@ -256,7 +258,7 @@ class Model(ABC):
     @vectorised_prior_unit_hypercube.setter
     def vectorised_prior_unit_hypercube(self, value):
         """Manually set the value for vectorised prior."""
-        self._vectorised_prior = value
+        self._vectorised_prior_unit_hypercube = value
 
     @property
     def _view_dtype(self):
