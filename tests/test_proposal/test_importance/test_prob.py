@@ -30,6 +30,11 @@ def test_update_proposal_weights_vaild(ifp):
         IFP.update_proposal_weights(ifp, weights)
 
 
+def test_initial_log_prob(ifp):
+    x = np.random.randn(10, 2)
+    np.testing.assert_array_equal(IFP._log_prob_initial(ifp, x), np.zeros(10))
+
+
 def test_compute_log_Q(ifp, x_prime):
     n_flows = 3
     ifp.weights_array = np.array([0.25, 0.25, 0.25, 0.25])
