@@ -102,7 +102,7 @@ class FlowModel:
         config : dict
             Dictionary with parameters that are used to update the defaults.
         """
-        config = update_config(config)
+        config = update_config(copy.deepcopy(config))
         logger.debug(f"Flow configuration: {config}")
         for key, value in config.items():
             setattr(self, key, value)

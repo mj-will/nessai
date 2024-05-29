@@ -4,8 +4,10 @@ Specific proposal methods for sampling gravitational-wave models.
 """
 import logging
 
-from ..proposal import FlowProposal
-from ..proposal.augmented import AugmentedFlowProposal
+from ..proposal import (
+    AugmentedFlowProposal,
+    FlowProposal,
+)
 
 from .reparameterisations import get_gw_reparameterisation
 

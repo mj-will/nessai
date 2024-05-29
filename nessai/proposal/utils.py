@@ -80,3 +80,57 @@ def check_proposal_kwargs(ProposalClass, kwargs, strict=False):
         for key in extra_keys:
             kwargs_out.pop(key)
     return kwargs_out
+
+
+def get_region_sampler_proposal_class(proposal_class):
+    """Get the proposal class for the standard region sampler.
+
+    Parameters
+    ----------
+    proposal_class : Union[str, Proposal, None]
+        The name of the proposal class or the class itself. If not specified,
+        defaults to :py:obj:`nessai.proposal.flowpropsoal.FlowProposal`.
+
+    Returns
+    -------
+    Proposal class
+    """
+    from .flowproposal import FlowProposal
+
+    if proposal_class is not None:
+        if isinstance(proposal_class, str):
+            proposal_class = proposal_class.lower()
+            if proposal_class == "gwflowproposal":
+                from ..gw.proposal import GWFlowProposal as proposal_class
+            elif proposal_class == "augmentedgwflowproposal":
+                from ..gw.proposal import (
+                    AugmentedGWFlowProposal as proposal_class,
+                )
+            elif proposal_class == "flowproposal":
+                proposal_class = FlowProposal
+            elif proposal_class == "augmentedflowproposal":
+                from ..proposal import AugmentedFlowProposal
+
+                proposal_class = AugmentedFlowProposal
+            elif proposal_class == "clusteringflowproposal":
+                from ..experimental.proposal.clustering import (
+                    ClusteringFlowProposal,
+                )
+
+                proposal_class = ClusteringFlowProposal
+            elif proposal_class == "clusteringgwflowproposal":
+                from ..experimental.gw.proposal import (
+                    ClusteringGWFlowProposal,
+                )
+
+                proposal_class = ClusteringGWFlowProposal
+            else:
+                raise ValueError(f"Unknown flow class: {proposal_class}")
+        elif not issubclass(proposal_class, FlowProposal):
+            raise RuntimeError(
+                "Flow class must be string or class that "
+                "inherits from FlowProposal"
+            )
+    else:
+        proposal_class = FlowProposal
+    return proposal_class

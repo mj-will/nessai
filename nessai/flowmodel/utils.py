@@ -2,6 +2,8 @@
 """
 Utilities for configuring FlowModel.
 """
+import copy
+
 from .config import DEFAULT_MODEL_CONFIG, DEFAULT_FLOW_CONFIG
 from ..flows.utils import get_n_neurons
 
@@ -25,7 +27,7 @@ def update_model_config(d):
     TypeError
         Raised if the input is not a dictionary or None.
     """
-    default = DEFAULT_MODEL_CONFIG.copy()
+    default = copy.deepcopy(DEFAULT_MODEL_CONFIG)
     if d is None:
         return default
     elif not isinstance(d, dict):
@@ -63,7 +65,7 @@ def update_config(d):
     dict
         Dictionary with updated default configuration
     """
-    default = DEFAULT_FLOW_CONFIG.copy()
+    default = copy.deepcopy(DEFAULT_FLOW_CONFIG)
 
     if d is None:
         default["model_config"] = update_model_config(None)

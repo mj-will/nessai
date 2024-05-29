@@ -41,15 +41,15 @@ def test_initialise(tmpdir, proposal, ef, fuzz):
     proposal.configure_constant_volume = MagicMock()
     fm = MagicMock()
     fm.initialise = MagicMock()
+    proposal._FlowModelClass = MagicMock(new=fm)
 
-    with patch("nessai.proposal.flowproposal.FlowModel", new=fm) as mock_fm:
-        FlowProposal.initialise(proposal)
+    FlowProposal.initialise(proposal)
 
     proposal.set_rescaling.assert_called_once()
     proposal.verify_rescaling.assert_called_once()
     proposal.update_flow_config.assert_called_once()
     proposal.configure_constant_volume.assert_called_once()
-    mock_fm.assert_called_once_with(
+    proposal._FlowModelClass.assert_called_once_with(
         config=proposal.flow_config, output=proposal.output
     )
     proposal.flow.initialise.assert_called_once()

@@ -19,8 +19,10 @@ from .. import config
 from ..livepoint import empty_structured_array
 from ..plot import plot_indices, plot_trace, nessai_style
 from ..evidence import _NSIntegralState
-from ..proposal import FlowProposal
-from ..proposal.utils import check_proposal_kwargs
+from ..proposal.utils import (
+    check_proposal_kwargs,
+    get_region_sampler_proposal_class,
+)
 from ..utils import (
     compute_indices_ks_test,
     rolling_mean,
@@ -436,7 +438,7 @@ class NestedSampler(BaseNestedSampler):
 
         Parameters
         ----------
-        flow_class : None or obj or str
+        flow_class : None or Callable or str
             Class to use for proposal. If None FlowProposal is used.
         flow_config : dict
             Configuration dictionary passed to the class.
@@ -450,40 +452,17 @@ class NestedSampler(BaseNestedSampler):
         if not self.plot:
             proposal_plots = False
 
-        if flow_class is not None:
-            if isinstance(flow_class, str):
-                flow_class = flow_class.lower()
-                if flow_class == "gwflowproposal":
-                    from ..gw.proposal import GWFlowProposal as flow_class
-                elif flow_class == "augmentedgwflowproposal":
-                    from ..gw.proposal import (
-                        AugmentedGWFlowProposal as flow_class,
-                    )
-                elif flow_class == "flowproposal":
-                    flow_class = FlowProposal
-                elif flow_class == "augmentedflowproposal":
-                    from ..proposal import AugmentedFlowProposal
-
-                    flow_class = AugmentedFlowProposal
-                else:
-                    raise ValueError(f"Unknown flow class: {flow_class}")
-            elif not issubclass(flow_class, FlowProposal):
-                raise RuntimeError(
-                    "Flow class must be string or class that "
-                    "inherits from FlowProposal"
-                )
-        else:
-            flow_class = FlowProposal
+        ProposalClass = get_region_sampler_proposal_class(flow_class)
 
         if kwargs.get("poolsize", None) is None:
             kwargs["poolsize"] = self.nlive
 
-        logger.debug(f"Using flow class: {flow_class}")
+        logger.debug(f"Using flow class: {ProposalClass}")
 
-        kwargs = check_proposal_kwargs(flow_class, kwargs)
+        kwargs = check_proposal_kwargs(ProposalClass, kwargs)
 
-        logger.info(f"Passing kwargs to {flow_class.__name__}: {kwargs}")
-        self._flow_proposal = flow_class(
+        logger.info(f"Passing kwargs to {ProposalClass.__name__}: {kwargs}")
+        self._flow_proposal = ProposalClass(
             self.model,
             flow_config=flow_config,
             output=proposal_output,

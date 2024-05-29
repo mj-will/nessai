@@ -1,8 +1,19 @@
 # -*- coding: utf-8 -*-
 """Test the proposal utilities"""
-from nessai.gw.proposal import GWFlowProposal
-from nessai.proposal.flowproposal import FlowProposal
-from nessai.proposal.utils import check_proposal_kwargs
+from nessai.proposal.utils import (
+    check_proposal_kwargs,
+    get_region_sampler_proposal_class,
+)
+from nessai.proposal import (
+    AugmentedFlowProposal,
+    FlowProposal,
+)
+from nessai.gw.proposal import (
+    AugmentedGWFlowProposal,
+    GWFlowProposal,
+)
+from nessai.experimental.proposal.clustering import ClusteringFlowProposal
+from nessai.experimental.gw.proposal import ClusteringGWFlowProposal
 import pytest
 
 
@@ -62,3 +73,47 @@ def test_check_kwargs_error():
         RuntimeError, match=r"Unknown kwargs for FlowProposal: {'not_a_kwarg'}"
     ):
         check_proposal_kwargs(FlowProposal, dict(not_a_kwarg=None))
+
+
+def test_get_region_sampler_class_none():
+    """Test the default flow class"""
+    assert get_region_sampler_proposal_class(None) is FlowProposal
+
+
+@pytest.mark.parametrize(
+    "proposal_str, ProposalClass",
+    [
+        ["FlowProposal", FlowProposal],
+        ["AugmentedFlowProposal", AugmentedFlowProposal],
+        ["GWFlowProposal", GWFlowProposal],
+        ["AugmentedGWFlowProposal", AugmentedGWFlowProposal],
+        ["flowproposal", FlowProposal],
+        ["augmentedflowproposal", AugmentedFlowProposal],
+        ["gwflowproposal", GWFlowProposal],
+        ["augmentedgwflowproposal", AugmentedGWFlowProposal],
+        ["clusteringflowproposal", ClusteringFlowProposal],
+        ["clusteringgwflowproposal", ClusteringGWFlowProposal],
+    ],
+)
+def test_get_region_sampler_class_str(proposal_str, ProposalClass):
+    """Test the correct class is returned"""
+    assert get_region_sampler_proposal_class(proposal_str) is ProposalClass
+
+
+def test_get_region_sampler_class_invalid_str():
+    """Test to check the error raised if an unknown class is used"""
+    with pytest.raises(ValueError, match=r"Unknown flow class"):
+        get_region_sampler_proposal_class("not_a_valid_class")
+
+
+def test_get_region_sampler_class_not_a_subclass():
+    """
+    Test to check an error is raised in the class does not inherit from
+    FlowProposal
+    """
+
+    class FakeProposal:
+        pass
+
+    with pytest.raises(RuntimeError, match=r"inherits"):
+        get_region_sampler_proposal_class(FakeProposal)
