@@ -19,6 +19,7 @@ from .utils.multiprocessing import (
     get_n_pool,
     log_likelihood_wrapper,
     log_prior_wrapper,
+    log_prior_unit_hypercube_wrapper,
     batch_evaluate_function,
     check_vectorised_function,
 )
@@ -107,6 +108,7 @@ class Model(ABC):
     """
     _vectorised_likelihood = None
     _vectorised_prior = None
+    _vectorised_prior_unit_hypercube = None
     _pool_configured = False
     n_pool = None
 
@@ -235,6 +237,28 @@ class Model(ABC):
     def vectorised_prior(self, value):
         """Manually set the value for vectorised prior."""
         self._vectorised_prior = value
+
+    @property
+    def vectorised_prior_unit_hypercube(self):
+        if self._vectorised_prior_unit_hypercube is None:
+            if self.allow_vectorised_prior:
+                # Avoids calling prior on multiple points
+                x = self.sample_unit_hypercube(n=10)
+                self._vectorised_prior_unit_hypercube = (
+                    check_vectorised_function(
+                        self.log_prior_unit_hypercube,
+                        x,
+                        dtype=config.livepoints.default_float_dtype,
+                    )
+                )
+            else:
+                self._vectorised_prior_unit_hypercube = False
+        return self._vectorised_prior_unit_hypercube
+
+    @vectorised_prior_unit_hypercube.setter
+    def vectorised_prior_unit_hypercube(self, value):
+        """Manually set the value for vectorised prior."""
+        self._vectorised_prior_unit_hypercube = value
 
     @property
     def _view_dtype(self):
@@ -504,6 +528,15 @@ class Model(ABC):
             names=self.names,
         )
 
+    def log_prior_unit_hypercube(self, x) -> np.ndarray:
+        """Compute the log-prior in the unit hypercube.
+
+        By default this returns log(1) and checks if the values are in the unit
+        hypercube.
+        """
+        x = self.unstructured_view(x)
+        return np.log(~np.any((x < 0) | (x >= 1), axis=-1))
+
     def from_unit_hypercube(self, x):
         """Map from the unit hypercube to the priors.
 
@@ -607,6 +640,33 @@ class Model(ABC):
             x,
             self.allow_vectorised_prior and self.vectorised_prior,
             func_wrapper=log_prior_wrapper,
+            pool=self.pool if self.parallelise_prior else None,
+            n_pool=self.n_pool,
+        )
+
+    def batch_evaluate_log_prior_unit_hypercube(
+        self, x: np.ndarray
+    ) -> np.ndarray:
+        """Evaluate the log-prior in the unit hypercube for a batch of samples.
+
+        Uses the pool if available.
+
+        Parameters
+        ----------
+        x : :obj:`numpy.ndarray`
+            Array of samples
+
+        Returns
+        -------
+        :obj:`numpy.ndarray`
+            Array of log-prior values
+        """
+        return batch_evaluate_function(
+            self.log_prior_unit_hypercube,
+            x,
+            self.allow_vectorised_prior
+            and self.vectorised_prior_unit_hypercube,
+            func_wrapper=log_prior_unit_hypercube_wrapper,
             pool=self.pool if self.parallelise_prior else None,
             n_pool=self.n_pool,
         )

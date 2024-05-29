@@ -16,19 +16,28 @@ from nessai.utils.multiprocessing import (
     initialise_pool_variables,
     get_n_pool,
     log_likelihood_wrapper,
+    log_prior_wrapper,
+    log_prior_unit_hypercube_wrapper,
 )
 
 
 def test_pool_variables():
     """Assert initialising the variables and calling the likelihood work"""
     model = MagicMock()
-    model.log_likelihood = lambda x: x
+    model.log_likelihood = lambda x: x * 100
+    model.log_prior = lambda x: x * 10
+    model.log_prior_unit_hypercube = lambda x: x / 10
     initialise_pool_variables(model)
     pool = Pool(1)
-    out = pool.map(log_likelihood_wrapper, [1, 2, 3])
+    out_ll = pool.map(log_likelihood_wrapper, [1, 2, 3])
+    out_lp = pool.map(log_prior_wrapper, [1, 2, 3])
+    out_lpu = pool.map(log_prior_unit_hypercube_wrapper, [1, 2, 3])
     pool.close()
     pool.terminate()
-    assert out == [1, 2, 3]
+
+    assert out_ll == [100, 200, 300]
+    assert out_lp == [10, 20, 30]
+    assert out_lpu == [0.1, 0.2, 0.3]
 
     # Reset to the default value
     initialise_pool_variables(None)

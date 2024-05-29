@@ -16,11 +16,6 @@ def ifp(ifp):
     return ifp
 
 
-def test_log_prior(ifp):
-    x = np.random.randn(10, 2)
-    np.testing.assert_array_equal(IFP._log_prior(ifp, x), np.zeros(10))
-
-
 def test_update_proposal_weights(ifp):
     ifp._weights = {-1: 0.5, 1: 0.5}
     weights = {-1: 1 / 3, 0: 1 / 3, 1: 1 / 3}
@@ -33,6 +28,17 @@ def test_update_proposal_weights_vaild(ifp):
     weights = {-1: 0.33, 0: 0.33, 1: 0.33}
     with pytest.raises(RuntimeError, match="Weights must sum to 1!"):
         IFP.update_proposal_weights(ifp, weights)
+
+
+def test_initial_log_prob(ifp):
+    x = np.random.randn(10, 2)
+    np.testing.assert_array_equal(IFP._log_prob_initial(ifp, x), np.zeros(10))
+
+
+def test_get_proposal_log_prob_initial(ifp):
+    ifp._log_prob_initial = object()
+    func = IFP.get_proposal_log_prob(ifp, -1)
+    assert func is ifp._log_prob_initial
 
 
 def test_compute_log_Q(ifp, x_prime):

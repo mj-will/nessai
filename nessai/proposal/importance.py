@@ -138,6 +138,10 @@ class ImportanceFlowProposal(Proposal):
             raise RuntimeError(
                 "logW field missing in non-sampling parameters."
             )
+        if "logU" not in config.livepoints.non_sampling_parameters:
+            raise RuntimeError(
+                "logU field missing in non-sampling parameters."
+            )
 
     def initialise(self):
         """Initialise the proposal"""
@@ -487,7 +491,8 @@ class ImportanceFlowProposal(Proposal):
             x["logP"] = self.model.batch_evaluate_log_prior(
                 x, unit_hypercube=True
             )
-            x["logW"] = -x["logQ"]
+            x["logU"] = self.model.batch_evaluate_log_prior_unit_hypercube(x)
+            x["logW"] = x["logU"] - x["logQ"]
             accept = (
                 np.isfinite(x["logP"])
                 & ~np.isposinf(x["logW"])
@@ -560,14 +565,16 @@ class ImportanceFlowProposal(Proposal):
         x, log_j = self.rescale(samples)
         return self.compute_log_Q(x, log_j=log_j)
 
-    def _log_prior(self, x: np.ndarray) -> np.ndarray:
-        """Helper function that returns the prior in the unit hyper-cube."""
+    def _log_prob_initial(self, x: np.ndarray) -> np.ndarray:
+        """Helper function that returns the log-probability for the initial
+        points.
+        """
         return np.zeros(x.shape[0])
 
     def get_proposal_log_prob(self, it: int) -> Callable:
         """Get a pointer to the function for ith proposal."""
         if it == -1:
-            return self._log_prior
+            return self._log_prob_initial
         elif it < len(self.flow.models):
             return lambda x: self.flow.log_prob_ith(x, it)
         else:
@@ -614,10 +621,13 @@ class ImportanceFlowProposal(Proposal):
     def draw_from_prior(self, n: int) -> Tuple[np.ndarray, np.ndarray]:
         """Draw from the prior"""
         samples = self.model.sample_unit_hypercube(n)
+        samples["logU"] = self.model.batch_evaluate_log_prior_unit_hypercube(
+            samples
+        )
         prime_samples, log_j = self.rescale(samples)
         log_Q, log_q = self.compute_log_Q(prime_samples, log_j=log_j)
         samples["logQ"] = log_Q
-        samples["logW"] = -log_Q
+        samples["logW"] = samples["logU"] - log_Q
         return samples, log_q
 
     def draw_from_flows(

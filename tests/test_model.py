@@ -5,6 +5,7 @@ Tests for `nessai.model`
 import datetime
 import logging
 import numpy as np
+import numpy.lib.recfunctions as rfn
 import pytest
 from scipy.stats import norm
 from unittest.mock import MagicMock, call, create_autospec, patch
@@ -256,6 +257,32 @@ def test_vectorised_prior_setter(model):
     assert model._vectorised_prior == "test"
 
 
+@pytest.mark.parametrize("check_value", [True, False])
+@pytest.mark.parametrize("allow_vectorised", [True, False])
+def test_vectorised_log_prior_unit_hypercube(
+    model, check_value, allow_vectorised
+):
+
+    model._vectorised_prior_unit_hypercube = None
+    model.allow_vectorised_prior = allow_vectorised
+
+    with patch(
+        "nessai.model.check_vectorised_function", return_value=check_value
+    ):
+        out = Model.vectorised_prior_unit_hypercube.__get__(model)
+
+    assert out is (check_value and allow_vectorised)
+    assert model._vectorised_prior_unit_hypercube is (
+        check_value and allow_vectorised
+    )
+
+
+def test_vectorised_prior_unit_setter(model):
+    """Assert the setter sets the correct value"""
+    Model.vectorised_prior_unit_hypercube.__set__(model, "test")
+    assert model._vectorised_prior_unit_hypercube == "test"
+
+
 def test_in_bounds(model):
     """Test the `in_bounds` method.
 
@@ -457,6 +484,17 @@ def test_from_unit_hypercube(model):
     """Assert an error is raised by default"""
     with pytest.raises(NotImplementedError):
         Model.from_unit_hypercube(model, 1)
+
+
+def test_log_prior_unit_hypercube(model):
+    model.names = ["x", "y"]
+    x = np.array(
+        [(0.5, 0.5), (-0.1, 0.5)], dtype=[(n, "f8") for n in model.names]
+    )
+    model.unstructured_view = rfn.structured_to_unstructured
+    out = Model.log_prior_unit_hypercube(model, x)
+    assert out[0] == 0
+    assert out[1] == -np.inf
 
 
 def test_missing_log_prior():
