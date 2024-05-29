@@ -565,10 +565,16 @@ class ImportanceFlowProposal(Proposal):
         x, log_j = self.rescale(samples)
         return self.compute_log_Q(x, log_j=log_j)
 
+    def _log_prob_initial(self, x: np.ndarray) -> np.ndarray:
+        """Helper function that returns the log-probability for the initial
+        points.
+        """
+        return np.zeros(x.shape[0])
+
     def get_proposal_log_prob(self, it: int) -> Callable:
         """Get a pointer to the function for ith proposal."""
         if it == -1:
-            return self.model.batch_evaluate_log_prior_unit_hypercube
+            return self._log_prob_initial
         elif it < len(self.flow.models):
             return lambda x: self.flow.log_prob_ith(x, it)
         else:
