@@ -42,6 +42,16 @@ def test_check_fields_logW():
     reset_extra_live_points_parameters()
 
 
+def test_check_fields_logU():
+    """Assert an error is raised if logW is missing"""
+    add_extra_parameters_to_live_points(["logQ", "logW"])
+    with pytest.raises(
+        RuntimeError, match=r"logU field missing in non-sampling parameters."
+    ):
+        IFP._check_fields()
+    reset_extra_live_points_parameters()
+
+
 def test_initialise(ifp):
     output = "test_init"
     flow_config = {"a": 1}

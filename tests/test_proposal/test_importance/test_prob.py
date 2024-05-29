@@ -35,6 +35,12 @@ def test_initial_log_prob(ifp):
     np.testing.assert_array_equal(IFP._log_prob_initial(ifp, x), np.zeros(10))
 
 
+def test_get_proposal_log_prob_initial(ifp):
+    ifp._log_prob_initial = object()
+    func = IFP.get_proposal_log_prob(ifp, -1)
+    assert func is ifp._log_prob_initial
+
+
 def test_compute_log_Q(ifp, x_prime):
     n_flows = 3
     ifp.weights_array = np.array([0.25, 0.25, 0.25, 0.25])
