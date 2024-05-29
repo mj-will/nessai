@@ -3,19 +3,14 @@
 Test the functions related to configuring proposal methods
 """
 import numpy as np
+import os
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from nessai.samplers.nestedsampler import NestedSampler
 from nessai.proposal import (
     AnalyticProposal,
-    AugmentedFlowProposal,
     RejectionProposal,
-    FlowProposal,
-)
-from nessai.gw.proposal import (
-    AugmentedGWFlowProposal,
-    GWFlowProposal,
 )
 
 
@@ -116,50 +111,38 @@ def test_uninformed_proposal_class(sampler):
     assert isinstance(sampler._uninformed_proposal, TestProposal)
 
 
-def test_no_flow_proposal_class(sampler):
-    """Test the default flow class"""
-    NestedSampler.configure_flow_proposal(sampler, None, {}, False)
-    assert isinstance(sampler._flow_proposal, FlowProposal)
+def test_configure_flow_proposal(sampler):
+    fake_class = MagicMock()
+    fake_class.__name__ = "fake_class"
+    flow_config = dict(patience=10)
+    kwargs = dict(test=True, invalid=True)
+    expected_kwargs = dict(test=True, poolsize=sampler.nlive)
 
+    with patch(
+        "nessai.samplers.nestedsampler.get_region_sampler_proposal_class",
+        return_value=fake_class,
+    ) as mock_get, patch(
+        "nessai.samplers.nestedsampler.check_proposal_kwargs",
+        return_value=expected_kwargs,
+    ) as mock_check:
 
-@pytest.mark.parametrize(
-    "flow_class, result_class",
-    [
-        ["FlowProposal", FlowProposal],
-        ["AugmentedFlowProposal", AugmentedFlowProposal],
-        ["GWFlowProposal", GWFlowProposal],
-        ["AugmentedGWFlowProposal", AugmentedGWFlowProposal],
-        ["flowproposal", FlowProposal],
-        ["augmentedflowproposal", AugmentedFlowProposal],
-        ["gwflowproposal", GWFlowProposal],
-        ["augmentedgwflowproposal", AugmentedGWFlowProposal],
-    ],
-)
-def test_flow__class(flow_class, result_class, sampler):
-    """Test the correct class is imported and used"""
-    NestedSampler.configure_flow_proposal(sampler, flow_class, {}, False)
-    assert isinstance(sampler._flow_proposal, result_class)
+        NestedSampler.configure_flow_proposal(
+            sampler, None, flow_config, False, **kwargs
+        )
 
+    mock_get.assert_called_once_with(None)
+    mock_check.assert_called_once_with(
+        fake_class,
+        {**kwargs, "poolsize": sampler.nlive},
+    )
 
-def test_unknown_flow_class(sampler):
-    """Test to check the error raised if an unknown class is used"""
-    with pytest.raises(ValueError) as excinfo:
-        NestedSampler.configure_flow_proposal(sampler, "GWProposal", {}, False)
-    assert "Unknown flow class" in str(excinfo.value)
-
-
-def test_flow_class_not_subclass(sampler):
-    """
-    Test to check an error is raised in the class does not inherit from
-    FlowProposal
-    """
-
-    class FakeProposal:
-        pass
-
-    with pytest.raises(RuntimeError) as excinfo:
-        NestedSampler.configure_flow_proposal(sampler, FakeProposal, {}, False)
-    assert "inherits" in str(excinfo.value)
+    fake_class.assert_called_once_with(
+        sampler.model,
+        flow_config=flow_config,
+        output=os.path.join(sampler.output, "proposal", ""),
+        plot=False,
+        **expected_kwargs,
+    )
 
 
 @pytest.mark.parametrize("val", [(0.1, 10), (0.8, 200)])
