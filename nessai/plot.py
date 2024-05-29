@@ -339,12 +339,16 @@ def plot_indices(
     from .utils.indices import compute_indices_ks_test
 
     indices = np.asarray(indices)
-    if not indices.size or not nlive:
+    if not indices.size:
         logger.warning("Not producing indices plot.")
         return
 
     if nlive is None:
-        nlive = np.max(indices)
+        logger.warning(
+            "Estimating nlive from insertion indices. "
+            "The reported p-value may be incorrect."
+        )
+        nlive = np.max(indices) + 1
 
     _, p_value = compute_indices_ks_test(indices, nlive, mode=ks_test_mode)
 
