@@ -312,6 +312,13 @@ def test_plot_indices_breakdown(plot_breakdown):
     plt.close()
 
 
+def test_plot_indices_no_nlive(caplog):
+    """Test plotting insertion indices without nlive specified."""
+    indices = np.random.randint(0, 100, 1000)
+    plot.plot_indices(indices, nlive=None)
+    assert "Estimating nlive from" in str(caplog.text)
+
+
 @pytest.mark.parametrize("save", [False, True])
 def test_plot_indices_save(save, tmpdir):
     """Test plotting insertion indices with and without saving"""
@@ -325,10 +332,10 @@ def test_plot_indices_save(save, tmpdir):
     plt.close()
 
 
-def test_plot_indices_no_indices():
+def test_plot_indices_no_indices(caplog):
     """Test to ensure plotting does not fail if indices are empty"""
     plot.plot_indices([], nlive=100)
-    plt.close()
+    assert "Not producing indices plot" in str(caplog.text)
 
 
 @pytest.mark.parametrize("sym", [False, True])
