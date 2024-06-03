@@ -119,7 +119,7 @@ class FlowProposalMCMC(FlowProposal):
             )
             x_new, log_j_new = self.backward_pass(z_new, rescale=True)
             x_new["logP"] = self.model.batch_evaluate_log_prior(x_new)
-            x_new["logL"] = self.model.log_likelihood(x_new)
+            x_new["logL"] = self.model.batch_evaluate_log_likelihood(x_new)
 
             log_factor = (
                 x_new["logP"] + log_j_new - x_current["logP"] - log_j_current
