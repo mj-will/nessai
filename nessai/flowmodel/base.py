@@ -911,6 +911,34 @@ class FlowModel:
         log_prob = log_prob.detach().cpu().numpy().astype(np.float64)
         return x, log_prob
 
+    def inverse(
+        self, z: np.ndarray, conditional: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Inverse pass through the flow.
+
+        Parameters
+        ----------
+        z : ndarray
+            Array of samples in the latent space
+
+        Returns
+        -------
+        z : ndarray
+            Samples in the data space
+        log_j : ndarray
+            Log Jacobian determinant
+        """
+        z = self.numpy_array_to_tensor(z)
+        if conditional is not None:
+            conditional = self.numpy_array_to_tensor(conditional)
+        self.model.eval()
+        with torch.inference_mode():
+            x, log_j = self.model.inverse(z, context=conditional)
+        x = x.detach().cpu().numpy().astype(np.float64)
+        log_j = log_j.detach().cpu().numpy().astype(np.float64)
+        return x, log_j
+
     def __getstate__(self):
         state = self.__dict__.copy()
         state["initialised"] = False
