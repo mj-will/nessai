@@ -518,10 +518,12 @@ def test_sampling_resume_finalised(integration_model, tmp_path):
     fs = FlowSampler(
         integration_model,
         output=output,
-        nlive=100,
+        nlive=10,
         plot=False,
+        stopping=10,
     )
     fs.run(save=False, plot=False)
+    assert fs.ns.live_points is None
     assert os.path.exists(fs.ns.resume_file)
 
     fs = FlowSampler(
@@ -529,9 +531,11 @@ def test_sampling_resume_finalised(integration_model, tmp_path):
         output=output,
         nlive=100,
         plot=False,
+        stopping=10,
     )
 
     fs.run(save=False, plot=False)
+    assert fs.ns.live_points is None
 
 
 @pytest.mark.slow_integration_test
