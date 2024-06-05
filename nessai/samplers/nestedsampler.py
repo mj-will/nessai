@@ -768,7 +768,7 @@ class NestedSampler(BaseNestedSampler):
         else:
             self.proposal = self._flow_proposal
 
-        if live_points and self.live_points is None:
+        if live_points and self.live_points is None and not self.finalised:
             self.populate_live_points()
             flags[2] = True
 
