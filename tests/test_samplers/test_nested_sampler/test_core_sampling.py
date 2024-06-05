@@ -60,6 +60,7 @@ def test_initialise(sampler):
     sampler.tolerance = 0.1
     sampler.initialised = False
     sampler.uninformed_sampling = True
+    sampler.finalised = False
 
     NestedSampler.initialise(sampler)
 
