@@ -1,11 +1,15 @@
 from functools import partial
 from glasflow.flows import CouplingNSF, RealNVP
+from glasflow.flows.autoregressive import (
+    MaskedAffineAutoregressiveFlow,
+)
 
 from ...flows.base import BaseFlow
 
 known_flows = {
     "nsf": CouplingNSF,
     "realnvp": RealNVP,
+    "maf": MaskedAffineAutoregressiveFlow,
 }
 
 
@@ -54,7 +58,7 @@ class GlasflowWrapper(BaseFlow):
     def sample_latent_distribution(self, n, context=None):
         if context is not None:
             raise ValueError
-        return self._flow.distribution.sample(n)
+        return self._flow._distribution.sample(n)
 
     def base_distribution_log_prob(self, z, context=None):
         if context is not None:
@@ -78,6 +82,9 @@ def get_glasflow_class(name):
         raise ValueError("'glasflow' missing from name")
     short_name = name.replace("glasflow-", "")
     if short_name not in known_flows:
-        raise ValueError(f"{name} is not a known glasflow flow")
+        raise ValueError(
+            f"{name} is not a known glasflow flow. "
+            f"Known flows: {list(known_flows.keys())}"
+        )
     FlowClass = known_flows.get(short_name)
     return partial(GlasflowWrapper, FlowClass)
