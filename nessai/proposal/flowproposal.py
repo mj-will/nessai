@@ -165,6 +165,7 @@ class FlowProposal(RejectionProposal):
         fallback_reparameterisation="zscore",
         use_default_reparameterisations=None,
         reverse_reparameterisations=False,
+        check_likelihood=False,
     ):
 
         super(FlowProposal, self).__init__(model)
@@ -195,6 +196,7 @@ class FlowProposal(RejectionProposal):
         self.use_x_prime_prior = False
         self.should_update_reparameterisations = False
         self.accumulate_weights = accumulate_weights
+        self.check_likelihood = check_likelihood
 
         self.reparameterisations = reparameterisations
         if use_default_reparameterisations is not None:
@@ -1390,6 +1392,8 @@ class FlowProposal(RejectionProposal):
         else:
             min_log_q = None
 
+        logl_threshold = worst_point["logL"]
+
         logger.debug(f"Populating proposal with latent radius: {r:.5}")
         self.r = r
 
@@ -1431,9 +1435,19 @@ class FlowProposal(RejectionProposal):
                     self.drawsize - above_min_log_q.sum(),
                 )
                 x, log_q = get_subset_arrays(above_min_log_q, x, log_q)
+
+            if self.check_likelihood:
+                x["logL"] = self.model.batch_evaluate_log_likelihood(x)
+                print(f"Before: {x.size}")
+                x, log_q = get_subset_arrays(
+                    x["logL"] > logl_threshold, x, log_q
+                )
+                print(f"After: {x.size}")
+
             # Handle case where all samples are below min_log_q
             if not len(x):
                 continue
+
             log_w = self.compute_weights(x, log_q)
 
             if self.accumulate_weights:
@@ -1487,10 +1501,11 @@ class FlowProposal(RejectionProposal):
             self.plot_pool(self.samples)
 
         self.population_time += datetime.datetime.now() - st
-        logger.debug("Evaluating log-likelihoods")
-        self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
-            self.samples
-        )
+        if not self.check_likelihood:
+            logger.debug("Evaluating log-likelihoods")
+            self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
+                self.samples
+            )
         if self.check_acceptance:
             self.acceptance.append(
                 self.compute_acceptance(worst_point["logL"])

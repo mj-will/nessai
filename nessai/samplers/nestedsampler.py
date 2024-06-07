@@ -901,6 +901,10 @@ class NestedSampler(BaseNestedSampler):
             ),
         )
 
+    @property
+    def _samples(self):
+        return np.concatenate([self.nested_samples, self.live_points])
+
     def train_proposal(self, force=False):
         """
         Try to train the proposal. Proposal will not train if cooldown is not
@@ -925,6 +929,8 @@ class NestedSampler(BaseNestedSampler):
 
             st = datetime.datetime.now()
             self.proposal.train(training_data)
+            if self.proposal.approximator is not None:
+                self.proposal.train_approximator(self._samples, self.logLmin)
             self.training_time += datetime.datetime.now() - st
             self.history["training_iterations"].append(self.iteration)
 

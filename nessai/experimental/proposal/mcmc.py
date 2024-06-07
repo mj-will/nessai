@@ -1,7 +1,9 @@
 import datetime
 from functools import lru_cache
 import logging
+import matplotlib.pyplot as plt
 import numpy as np
+import os
 
 from ...proposal.flowproposal import FlowProposal
 from ...livepoint import (
@@ -89,27 +91,46 @@ def integrated_time(x, c=5):
     return tau_est
 
 
-def differential_evolution_proposal(x, ensemble, sigma=1e-5):
+def differential_evolution_proposal(x, ensemble, sigma=1e-4, mix_fraction=0.5):
     pairs = _get_nondiagonal_pairs(ensemble.shape[0])
     indices = np.random.choice(pairs.shape[0], size=x.shape[0], replace=True)
     diffs = np.diff(ensemble[pairs[indices]], axis=1).squeeze(axis=1)
-    n = x.shape[0]
+    # n = x.shape[0]
+    mix = np.random.rand(x.shape[0]) < mix_fraction
     g0 = 2.38 / np.sqrt(2 * x.shape[1])
-    gamma = g0 * (1 + sigma * np.random.randn(n, 1))
-    x_new = x + gamma * diffs
+    scale = np.ones((x.shape[0], 1))
+    scale[mix, :] = g0
+    error = sigma * np.random.randn(*scale.shape)
+    x_new = x + scale + diffs + error
     return x_new
 
 
-def gaussian_proposal(x, ensemble, sigma=1e-1):
+def gaussian_proposal(x, ensemble, sigma=1e-2):
     return x + sigma * np.random.randn(*x.shape)
 
 
 class FlowProposalMCMC(FlowProposal):
     """Version of FlowProposal that uses MCMC instead of rejection sampling"""
 
-    def __init__(self, *args, n_steps=50, proposal: str = "diff", **kwargs):
+    def __init__(
+        self,
+        *args,
+        n_steps=50,
+        proposal: str = "diff",
+        use_approximate_likelihood=False,
+        approximator_threshold: float = 0.5,
+        **kwargs,
+    ):
         self.n_steps = n_steps
         self.proposal = proposal
+        self.use_approximate_likelihood = use_approximate_likelihood
+        self.approximator_threshold = approximator_threshold
+
+        if self.use_approximate_likelihood:
+            from ..approximator import Approximator
+
+            self.approximator = Approximator()
+
         super().__init__(*args, **kwargs)
 
     def backward_pass(self, z: np.ndarray, rescale: bool = True):
@@ -142,11 +163,35 @@ class FlowProposalMCMC(FlowProposal):
             log_j += log_j_rescale
         return x, log_j
 
+    def plot_chain(self, chains):
+
+        nsteps, nchains, ndims = chains.shape
+
+        fig, axs = plt.subplots(ndims, 1, figsize=(4, 10))
+        for i in range(nchains):
+            for j in range(ndims):
+                axs[j].plot(chains[:, i, j])
+        fig.savefig(
+            os.path.join(self.output, f"chain_{self.populated_count}.png")
+        )
+        plt.close(fig)
+
+    def train_approximator(self, samples, threshold):
+        x_prime, _ = self.rescale(samples)
+        x_prime_array = live_points_to_array(
+            x_prime,
+            self.rescaled_names,
+            copy=True,
+        )
+        z_train, _ = self.flow.forward_and_log_prob(x_prime_array)
+        self.approximator.train(z_train, samples["logL"], threshold)
+
     def populate(
         self,
         worst_point,
         N=1000,
         plot=True,
+        all_samples=None,
     ):
         st = datetime.datetime.now()
         if not self.initialised:
@@ -176,35 +221,50 @@ class FlowProposalMCMC(FlowProposal):
         z_chain = np.empty((self.n_steps, n_walkers, z_current.shape[-1]))
         z_chain[0] = z_current
 
+        z_new_history = []
+
         if self.proposal == "diff":
             proposal_fn = differential_evolution_proposal
         elif self.proposal == "gaussian":
             proposal_fn = gaussian_proposal
 
         for i in range(self.n_steps):
+
+            # a = np.random.rand()
+            # if a < 0.5:
+            #     proposal_fn = gaussian_proposal
+            # else:
+            proposal_fn = differential_evolution_proposal
+
             z_new = proposal_fn(
                 z_current,
                 z_ensemble,
             )
+            z_new_history.append(z_new)
 
             x_new, log_j_new = self.backward_pass(z_new, rescale=True)
             x_new["logP"] = self.model.batch_evaluate_log_prior(x_new)
             finite_prior = np.isfinite(x_new["logP"])
-            # Only evaluate function where log-prior is finite
-            # Default is NaN, so will not pass threshold.
-            x_new["logL"][finite_prior] = (
-                self.model.batch_evaluate_log_likelihood(x_new[finite_prior])
-            )
 
+            if self.use_approximate_likelihood:
+                prob_above = self.approximator.predict_prob_class(z_new, 1)
+                logl_accept = prob_above > self.approximator_threshold
+            else:
+                # Only evaluate function where log-prior is finite
+                # Default is NaN, so will not pass threshold.
+                x_new["logL"][finite_prior] = (
+                    self.model.batch_evaluate_log_likelihood(
+                        x_new[finite_prior]
+                    )
+                )
+                logl_accept = x_new["logL"] > log_l_threshold
             log_factor = (
                 x_new["logP"] + log_j_new - x_current["logP"] - log_j_current
             )
             log_u = np.log(np.random.rand(n_walkers))
-            accept = (
-                (log_factor > log_u)
-                & finite_prior
-                & (x_new["logL"] > log_l_threshold)
-            )
+            # print(log_factor[214], log_u[214], finite_prior[214], logl_accept[214])
+
+            accept = (log_factor > log_u) & finite_prior & logl_accept
 
             x_current[accept] = x_new[accept]
             z_current[accept] = z_new[accept]
@@ -212,12 +272,28 @@ class FlowProposalMCMC(FlowProposal):
 
             z_chain[i] = z_current
 
+        z_new_history = np.array(z_new_history)
+
+        # for i in range(n_walkers):
+        #     if np.all(z_chain[0, i] == z_chain[:, i]):
+        #         print(i)
+        #         # print(z_chain[:, i])
+        #         print(log_j_current[i])
+        #         # print(z_new_history[:, i])
+        # exit()
+
         act = integrated_time(z_chain)
         logger.info(f"ACT: {act}")
 
         self.samples = self.convert_to_samples(x_current)
 
+        if self.use_approximate_likelihood:
+            self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
+                self.samples
+            )
+
         self.population_time += datetime.datetime.now() - st
+        self.plot_chain(z_chain)
         if self._plot_pool and plot:
             self.plot_pool(self.samples)
         self.population_time += datetime.datetime.now() - st
