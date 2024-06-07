@@ -167,7 +167,12 @@ def add_dict_to_hdf5_file(hdf5_file, path, d):
         if isinstance(value, dict):
             add_dict_to_hdf5_file(hdf5_file, path + key + "/", value)
         else:
-            hdf5_file[path + key] = encode_for_hdf5(value)
+            try:
+                hdf5_file[path + key] = encode_for_hdf5(value)
+            except TypeError as e:
+                raise RuntimeError(
+                    f"Could not save {path + key} with error: {e}"
+                )
 
 
 def save_dict_to_hdf5(d, filename):

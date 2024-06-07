@@ -20,6 +20,8 @@ class Proposal(ABC):
         User-defined model
     """
 
+    approximator = None
+
     def __init__(self, model):
         self.model = model
         self.populated = True
