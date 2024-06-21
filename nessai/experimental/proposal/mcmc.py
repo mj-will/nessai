@@ -91,7 +91,7 @@ def integrated_time(x, c=5):
     return tau_est
 
 
-def differential_evolution_proposal(x, ensemble, sigma=1e-4, mix_fraction=0.5):
+def differential_evolution_proposal(x, ensemble, sigma=1e-4, mix_fraction=0.8):
     pairs = _get_nondiagonal_pairs(ensemble.shape[0])
     indices = np.random.choice(pairs.shape[0], size=x.shape[0], replace=True)
     diffs = np.diff(ensemble[pairs[indices]], axis=1).squeeze(axis=1)
@@ -101,11 +101,11 @@ def differential_evolution_proposal(x, ensemble, sigma=1e-4, mix_fraction=0.5):
     scale = np.ones((x.shape[0], 1))
     scale[mix, :] = g0
     error = sigma * np.random.randn(*scale.shape)
-    x_new = x + scale + diffs + error
+    x_new = x + scale * diffs + error
     return x_new
 
 
-def gaussian_proposal(x, ensemble, sigma=1e-2):
+def gaussian_proposal(x, ensemble, sigma=0.2):
     return x + sigma * np.random.randn(*x.shape)
 
 
@@ -115,7 +115,7 @@ class FlowProposalMCMC(FlowProposal):
     def __init__(
         self,
         *args,
-        n_steps=50,
+        n_steps=10,
         proposal: str = "diff",
         use_approximate_likelihood=False,
         approximator_threshold: float = 0.5,
@@ -191,7 +191,6 @@ class FlowProposalMCMC(FlowProposal):
         worst_point,
         N=1000,
         plot=True,
-        all_samples=None,
     ):
         st = datetime.datetime.now()
         if not self.initialised:
@@ -208,6 +207,7 @@ class FlowProposalMCMC(FlowProposal):
             self.rescaled_names,
             copy=True,
         )
+        np.random.shuffle(x_prime_array)
         z_ensemble, _ = self.flow.forward_and_log_prob(x_prime_array)
 
         n_walkers = min(self.poolsize, self.training_data.size)
@@ -223,18 +223,18 @@ class FlowProposalMCMC(FlowProposal):
 
         z_new_history = []
 
-        if self.proposal == "diff":
-            proposal_fn = differential_evolution_proposal
-        elif self.proposal == "gaussian":
-            proposal_fn = gaussian_proposal
+        # if self.proposal == "diff":
+        #     proposal_fn = differential_evolution_proposal
+        # elif self.proposal == "gaussian":
+        #     proposal_fn = gaussian_proposal
 
         for i in range(self.n_steps):
 
-            # a = np.random.rand()
-            # if a < 0.5:
-            #     proposal_fn = gaussian_proposal
-            # else:
-            proposal_fn = differential_evolution_proposal
+            a = np.random.rand()
+            if a < 0.5:
+                proposal_fn = gaussian_proposal
+            else:
+                proposal_fn = differential_evolution_proposal
 
             z_new = proposal_fn(
                 z_current,
@@ -264,7 +264,9 @@ class FlowProposalMCMC(FlowProposal):
             log_u = np.log(np.random.rand(n_walkers))
             # print(log_factor[214], log_u[214], finite_prior[214], logl_accept[214])
 
+            # print(sum(log_factor > log_u), finite_prior.sum(), logl_accept.sum())
             accept = (log_factor > log_u) & finite_prior & logl_accept
+            # print(accept.sum())
 
             x_current[accept] = x_new[accept]
             z_current[accept] = z_new[accept]
@@ -282,8 +284,8 @@ class FlowProposalMCMC(FlowProposal):
         #         # print(z_new_history[:, i])
         # exit()
 
-        act = integrated_time(z_chain)
-        logger.info(f"ACT: {act}")
+        # act = integrated_time(z_chain)
+        # logger.info(f"ACT: {act}")
 
         self.samples = self.convert_to_samples(x_current)
 
