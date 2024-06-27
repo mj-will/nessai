@@ -21,7 +21,7 @@ from ..plot import plot_indices, plot_trace, nessai_style
 from ..evidence import _NSIntegralState
 from ..proposal.utils import (
     check_proposal_kwargs,
-    get_region_sampler_proposal_class,
+    get_sampler_proposal_class,
 )
 from ..utils import (
     compute_indices_ks_test,
@@ -452,7 +452,7 @@ class NestedSampler(BaseNestedSampler):
         if not self.plot:
             proposal_plots = False
 
-        ProposalClass = get_region_sampler_proposal_class(flow_class)
+        ProposalClass = get_sampler_proposal_class(flow_class)
 
         if kwargs.get("poolsize", None) is None:
             kwargs["poolsize"] = self.nlive

@@ -82,8 +82,8 @@ def check_proposal_kwargs(ProposalClass, kwargs, strict=False):
     return kwargs_out
 
 
-def get_region_sampler_proposal_class(proposal_class):
-    """Get the proposal class for the standard region sampler.
+def get_sampler_proposal_class(proposal_class):
+    """Get the proposal class for the standard sampler.
 
     Parameters
     ----------
@@ -124,6 +124,10 @@ def get_region_sampler_proposal_class(proposal_class):
                 )
 
                 proposal_class = ClusteringGWFlowProposal
+            if proposal_class == "mcmcflowproposal":
+                from ..experimental.proposal.mcmc import MCMCFlowProposal
+
+                proposal_class = MCMCFlowProposal
             else:
                 raise ValueError(f"Unknown flow class: {proposal_class}")
         elif not issubclass(proposal_class, FlowProposal):
