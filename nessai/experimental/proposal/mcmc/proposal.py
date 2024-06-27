@@ -26,10 +26,12 @@ class FlowProposalMCMC(FlowProposal):
         *args,
         n_steps=10,
         step_type: str = "diff",
+        plot_chain: bool = False,
         **kwargs,
     ):
         self.n_steps = n_steps
         self.step_type = step_type
+        self._plot_chain = plot_chain
 
         StepClass = KNOWN_STEPS.get(self.step_type)
         self.step = StepClass()
@@ -141,7 +143,6 @@ class FlowProposalMCMC(FlowProposal):
             log_u = np.log(np.random.rand(n_walkers))
 
             accept = (log_factor > log_u) & finite_prior & logl_accept
-            # print(accept.sum())
 
             x_current[accept] = x_new[accept]
             z_current[accept] = z_new[accept]
@@ -154,10 +155,10 @@ class FlowProposalMCMC(FlowProposal):
         self.samples = self.convert_to_samples(x_current)
 
         self.population_time += datetime.datetime.now() - st
-        self.plot_chain(z_chain)
+        if self._plot_chain:
+            self.plot_chain(z_chain)
         if self._plot_pool and plot:
             self.plot_pool(self.samples)
-        self.population_time += datetime.datetime.now() - st
         self.population_acceptance = np.nan
         n_above = np.sum(self.samples["logL"] > log_l_threshold)
         logger.info(f"n above threshold: {n_above} / {n_walkers}")
