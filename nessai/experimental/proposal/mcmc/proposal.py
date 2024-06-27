@@ -164,12 +164,12 @@ class MCMCFlowProposal(FlowProposal):
         self.samples = self.convert_to_samples(x_current)
 
         self.population_time += datetime.datetime.now() - st
-        if self._plot_chain:
+        if self._plot_chain and plot:
             self.plot_chain(z_chain)
         if self._plot_pool and plot:
             self.plot_pool(self.samples)
         self.population_acceptance = n_accept / (n_accept + n_reject)
-        logger.info(f"MCMC acceptance: {self.population_acceptance}")
+        logger.debug(f"MCMC acceptance: {self.population_acceptance}")
         self.indices = np.random.permutation(self.samples.size).tolist()
         self.populated_count += 1
         self.populated = True
