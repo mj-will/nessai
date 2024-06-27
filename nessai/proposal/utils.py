@@ -106,6 +106,7 @@ def get_flow_proposal_class(
     from .augmented import AugmentedFlowProposal
     from ..gw.proposal import GWFlowProposal, AugmentedGWFlowProposal
     from ..experimental.proposal.clustering import ClusteringFlowProposal
+    from ..experimental.proposal.mcmc import MCMCFlowProposal
     from ..experimental.gw.proposal import ClusteringGWFlowProposal
     from ..utils.entry_points import get_entry_points
 
@@ -116,6 +117,7 @@ def get_flow_proposal_class(
         "augmentedgwflowproposal": AugmentedGWFlowProposal,
         "clusteringflowproposal": ClusteringFlowProposal,
         "clusteringgwflowproposal": ClusteringGWFlowProposal,
+        "mcmcflowproposal": MCMCFlowProposal,
     }
 
     external_proposals = get_entry_points("nessai.proposals")
