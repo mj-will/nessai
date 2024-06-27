@@ -13,6 +13,9 @@ class Step:
     def update_ensemble(self, ensemble):
         self.ensemble = ensemble
 
+    def __call__(self, *args, **kwargs):
+        return self.step(*args, **kwargs)
+
 
 class GaussianStep(Step):
 

@@ -120,7 +120,7 @@ class FlowProposalMCMC(FlowProposal):
 
         for i in range(self.n_steps):
 
-            z_new, log_j_step = self.step.step(z_current)
+            z_new, log_j_step = self.step(z_current)
             z_new_history.append(z_new)
 
             x_new, log_j_flow = self.backward_pass(z_new, rescale=True)
