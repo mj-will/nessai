@@ -262,9 +262,7 @@ class FlowProposalMCMC(FlowProposal):
                 x_new["logP"] + log_j_new - x_current["logP"] - log_j_current
             )
             log_u = np.log(np.random.rand(n_walkers))
-            # print(log_factor[214], log_u[214], finite_prior[214], logl_accept[214])
 
-            # print(sum(log_factor > log_u), finite_prior.sum(), logl_accept.sum())
             accept = (log_factor > log_u) & finite_prior & logl_accept
             # print(accept.sum())
 
