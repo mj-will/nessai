@@ -18,7 +18,7 @@ from .steps import (
 logger = logging.getLogger(__name__)
 
 
-class FlowProposalMCMC(FlowProposal):
+class MCMCFlowProposal(FlowProposal):
     """Version of FlowProposal that uses MCMC instead of rejection sampling"""
 
     def __init__(

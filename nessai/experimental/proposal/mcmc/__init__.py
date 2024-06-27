@@ -1,5 +1,5 @@
-from .proposal import FlowProposalMCMC
+from .proposal import MCMCFlowProposal
 
 __all__ = [
-    "FlowProposalMCMC",
+    "MCMCFlowProposal",
 ]
