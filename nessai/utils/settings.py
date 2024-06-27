@@ -13,12 +13,12 @@ def _get_standard_methods() -> Tuple[List[Callable], List[Callable]]:
     """
     from ..flowsampler import FlowSampler
     from ..proposal import AugmentedFlowProposal, FlowProposal
-    from ..experimental.proposal.mcmc import FlowProposalMCMC
+    from ..experimental.proposal.mcmc import MCMCFlowProposal
     from ..samplers import NestedSampler
 
     methods = [
         AugmentedFlowProposal,
-        FlowProposalMCMC,
+        MCMCFlowProposal,
         FlowProposal,
         NestedSampler,
         FlowSampler,
