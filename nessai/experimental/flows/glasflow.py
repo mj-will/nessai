@@ -1,15 +1,11 @@
 from functools import partial
 from glasflow.flows import CouplingNSF, RealNVP
-from glasflow.flows.autoregressive import (
-    MaskedAffineAutoregressiveFlow,
-)
 
 from ...flows.base import BaseFlow
 
 known_flows = {
     "nsf": CouplingNSF,
     "realnvp": RealNVP,
-    "maf": MaskedAffineAutoregressiveFlow,
 }
 
 
