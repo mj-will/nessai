@@ -32,11 +32,12 @@ class MCMCFlowProposal(FlowProposal):
         self.n_steps = n_steps
         self.step_type = step_type
         self._plot_chain = plot_chain
-
-        StepClass = KNOWN_STEPS.get(self.step_type)
-        self.step = StepClass()
-
         super().__init__(*args, **kwargs)
+
+    def initialise(self):
+        super().initialise()
+        StepClass = KNOWN_STEPS.get(self.step_type)
+        self.step = StepClass(dims=self.rescaled_dims)
 
     def backward_pass(self, z: np.ndarray, rescale: bool = True):
         """
@@ -119,6 +120,8 @@ class MCMCFlowProposal(FlowProposal):
         z_chain[0] = z_current
 
         z_new_history = []
+        n_accept = 0
+        n_reject = 0
 
         for i in range(self.n_steps):
 
@@ -147,10 +150,16 @@ class MCMCFlowProposal(FlowProposal):
             x_current[accept] = x_new[accept]
             z_current[accept] = z_new[accept]
             log_j_current[accept] = log_j_new[accept]
-
+            na = sum(accept)
+            n_accept += na
+            n_reject += n_walkers - na
             z_chain[i] = z_current
 
         z_new_history = np.array(z_new_history)
+        self.step.update_stats(
+            n_accept=n_accept,
+            n_reject=n_reject,
+        )
 
         self.samples = self.convert_to_samples(x_current)
 
@@ -159,9 +168,8 @@ class MCMCFlowProposal(FlowProposal):
             self.plot_chain(z_chain)
         if self._plot_pool and plot:
             self.plot_pool(self.samples)
-        self.population_acceptance = np.nan
-        n_above = np.sum(self.samples["logL"] > log_l_threshold)
-        logger.info(f"n above threshold: {n_above} / {n_walkers}")
+        self.population_acceptance = n_accept / (n_accept + n_reject)
+        logger.info(f"MCMC acceptance: {self.population_acceptance}")
         self.indices = np.random.permutation(self.samples.size).tolist()
         self.populated_count += 1
         self.populated = True
