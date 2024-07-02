@@ -78,9 +78,7 @@ class AugmentedFlowProposal(FlowProposal):
         super().update_flow_config()
         m = np.ones(self.rescaled_dims)
         m[-self.augment_dims :] = -1
-        if "kwargs" not in self.flow_config["model_config"].keys():
-            self.flow_config["model_config"]["kwargs"] = {}
-        self.flow_config["model_config"]["kwargs"]["mask"] = m
+        self.flow_config["mask"] = m
 
     def _augmented_rescale(
         self, x, generate_augment=None, compute_radius=False, **kwargs
