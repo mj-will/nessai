@@ -2,21 +2,20 @@
 """
 Default configuration of FlowModel.
 """
-DEFAULT_MODEL_CONFIG = dict(
+DEFAULT_FLOW_CONFIG = dict(
     n_inputs=None,
     n_neurons=None,
     n_blocks=4,
     n_layers=2,
     ftype="RealNVP",
-    device_tag="cpu",
     flow=None,
-    inference_device_tag=None,
     distribution=None,
     distribution_kwargs=None,
-    kwargs=dict(batch_norm_between_layers=True, linear_transform="lu"),
 )
 
-DEFAULT_FLOW_CONFIG = dict(
+DEFAULT_TRAINING_CONFIG = dict(
+    device_tag="cpu",
+    inference_device_tag=None,
     lr=0.001,
     annealing=False,
     clip_grad_norm=5,
@@ -28,5 +27,5 @@ DEFAULT_FLOW_CONFIG = dict(
     noise_scale=None,
     use_dataloader=False,
     optimiser="adamw",
-    optimiser_kwargs={},
+    optimiser_kwargs=None,
 )
