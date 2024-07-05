@@ -44,9 +44,9 @@ def update_flow_config(cfg):
 
 
 def update_model_config(cfg):
-    msg = """
-    `update_model_config` is deprecated, use `update_flow_config` instead
-    """
+    msg = (
+        "`update_model_config` is deprecated, use `update_flow_config` instead"
+    )
     warn(msg, FutureWarning)
     return update_flow_config(cfg)
 
@@ -116,7 +116,10 @@ def update_config(flow_config, training_config=None):
         for key in default_config.training.asdict():
             if key in flow_config:
                 warn(
-                    f"Key {key} should now be specified in `training_config`",
+                    (
+                        f"Key `{key}` should now be specified in "
+                        "`training_config`",
+                    ),
                     FutureWarning,
                 )
                 training_config[key] = flow_config.pop(key)
