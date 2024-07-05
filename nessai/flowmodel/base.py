@@ -156,7 +156,9 @@ class FlowModel:
         self.model = configure_model(self.flow_config)
         logger.debug("Flow model:")
         logger.debug(self.model)
-        self.device = torch.device(self.training_config.get("device", "cpu"))
+        self.device = torch.device(
+            self.training_config.get("device_tag", "cpu")
+        )
         # Set the default location for the model
         self.model.device = self.device
         logger.debug(f"Training device: {self.device}")
