@@ -791,6 +791,11 @@ class FlowProposal(RejectionProposal):
             raise RuntimeError(
                 "Rescaling must be set before it can be verified"
             )
+        if not self._reparameterisation.one_to_one:
+            logger.warning(
+                "Could not check if reparameterisation is invertible"
+            )
+            return
         logger.info("Verifying rescaling functions")
         x = self.model.new_point(N=1000)
         for inversion in ["lower", "upper", False, None]:
