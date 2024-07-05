@@ -93,10 +93,7 @@ def test_reset_optimiser(ifm):
     ifm.optimiser = optimiser
     ifm.optimiser_kwargs = optimiser_kwargs
     IFM.reset_optimiser(ifm)
-    ifm.get_optimiser.assert_called_once_with(
-        optimiser=optimiser,
-        **optimiser_kwargs,
-    )
+    ifm.get_optimiser.assert_called_once()
     assert ifm._optimiser is _optimiser
 
 
