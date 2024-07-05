@@ -65,6 +65,7 @@ class FlowModel:
         )
         self.weights_file = None
         self._batch_size = None
+        self._optimiser = None
 
     def setup_from_input_dict(self, flow_config, training_config):
         """
@@ -86,7 +87,8 @@ class FlowModel:
             self.flow_config, os.path.join(self.output, "flow_config.json")
         )
         save_to_json(
-            self.training_config, os.path.join(self.output, "flow_config.json")
+            self.training_config,
+            os.path.join(self.output, "training_config.json"),
         )
 
     def update_mask(self):
@@ -96,9 +98,14 @@ class FlowModel:
         """
         pass
 
-    def get_optimiser(self, optimiser="adam", **kwargs):
+    def get_optimiser(self, optimiser=None, **kwargs):
         """
         Get the optimiser and ensure it is always correctly initialised.
+
+        By default kwargs will include any optimiser specific values,
+        the learning rate and any values included in :code:`optimiser_kwargs`.
+        These will then be updated with any additional keyword arguments that
+        are passed.
 
         Returns
         -------
@@ -112,11 +119,14 @@ class FlowModel:
         }
         if self.model is None:
             raise RuntimeError("Cannot initialise optimiser before model")
+        if optimiser is None:
+            optimiser = self.optimiser
         optim, default_kwargs = optimisers.get(optimiser.lower())
+        default_kwargs["lr"] = self.training_config["lr"]
+        default_kwargs.update(self.optimiser_kwargs)
         default_kwargs.update(kwargs)
         return optim(
             self.model.parameters(),
-            lr=self.training_config["lr"],
             **default_kwargs,
         )
 
@@ -156,10 +166,7 @@ class FlowModel:
         )
         logger.debug(f"Inference device: {self.inference_device}")
 
-        self._optimiser = self.get_optimiser(
-            self.optimiser,
-            **self.optimiser_kwargs,
-        )
+        self._optimiser = self.get_optimiser()
         self.initialised = True
 
     def move_to(self, device, update_default=False):
@@ -756,9 +763,7 @@ class FlowModel:
         elif permutations:
             self.model.apply(reset_permutations)
             logger.debug("Reset linear transforms")
-        self._optimiser = self.get_optimiser(
-            self.optimiser, **self.optimiser_kwargs
-        )
+        self._optimiser = self.get_optimiser()
         logger.debug("Resetting optimiser")
 
     def numpy_array_to_tensor(self, array: np.ndarray, /) -> torch.Tensor:
@@ -923,7 +928,8 @@ class FlowModel:
     def __getstate__(self):
         state = self.__dict__.copy()
         state["initialised"] = False
-        del state["optimiser"]
+        del state["_optimiser"]
         del state["model"]
-        del state["model_config"]
+        # This may have classes etc
+        del state["flow_config"]
         return state

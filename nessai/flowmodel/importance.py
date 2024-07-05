@@ -65,9 +65,7 @@ class ImportanceFlowModel(FlowModel):
 
         Uses the original optimiser and kwargs.
         """
-        self._optimiser = self.get_optimiser(
-            optimiser=self.optimiser, **self.optimiser_kwargs
-        )
+        self._optimiser = self.get_optimiser()
 
     def add_new_flow(self, reset=False):
         """Add a new flow"""
@@ -209,7 +207,7 @@ class ImportanceFlowModel(FlowModel):
         d = self.__dict__
         # Avoid making a copy because models can be large and this doubles the
         # memory usage.
-        exclude = {"models", "_optimiser", "model_config"}
+        exclude = {"models", "_optimiser", "flow_config"}
         state = {k: d[k] for k in d.keys() - exclude}
         state["initialised"] = False
         state["models"] = None
