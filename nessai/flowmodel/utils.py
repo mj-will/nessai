@@ -5,7 +5,7 @@ Utilities for configuring FlowModel.
 import copy
 from warnings import warn
 
-from .config import DEFAULT_FLOW_CONFIG, DEFAULT_TRAINING_CONFIG
+from . import config as default_config
 from ..flows.utils import get_n_neurons
 
 
@@ -28,7 +28,7 @@ def update_flow_config(cfg):
     TypeError
         Raised if the input is not a dictionary or None.
     """
-    default = copy.deepcopy(DEFAULT_FLOW_CONFIG)
+    default = default_config.flow.asdict()
     if cfg is None:
         return default
     elif not isinstance(cfg, dict):
@@ -52,7 +52,7 @@ def update_model_config(cfg):
 
 
 def update_training_config(cfg):
-    default = copy.deepcopy(DEFAULT_TRAINING_CONFIG)
+    default = default_config.training.asdict()
     if cfg is None:
         return default
     elif not isinstance(cfg, dict):
@@ -113,7 +113,7 @@ def update_config(flow_config, training_config=None):
         if training_config is None:
             training_config = {}
 
-        for key in DEFAULT_TRAINING_CONFIG:
+        for key in default_config.training.asdict():
             if key in flow_config:
                 warn(
                     f"Key {key} should now be specified in `training_config`",
@@ -122,18 +122,18 @@ def update_config(flow_config, training_config=None):
                 training_config[key] = flow_config.pop(key)
 
     if "device_tag" in flow_config:
-        msg = """
-        Specifying `device_tag` in `flow_config` is deprecated. It should now
-        be specified in `training_config`.
-        """
+        msg = (
+            "Specifying `device_tag` in `flow_config` is deprecated. "
+            "It should now be specified in `training_config`."
+        )
         warn(msg, FutureWarning)
         training_config = flow_config.pop("device_tag")
 
     if "inference_device_tag" in flow_config:
-        msg = """
-        Specifying `inference_device_tag` in `flow_config` is deprecated. It
-        should now be specified in `training_config`.
-        """
+        msg = (
+            "Specifying `inference_device_tag` in `flow_config` is deprecated."
+            " It should now be specified in `training_config`."
+        )
         warn(msg, FutureWarning)
         training_config = flow_config.pop("inference_device_tag")
 
