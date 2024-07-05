@@ -102,13 +102,24 @@ def update_config(flow_config, training_config=None):
         Dictionary with updated training configuration
     """
     if flow_config is not None and "model_config" in flow_config:
-        msg = """
-        Specifying `model_config` in `flow_config` is now deprecated.
-        Please specify `flow_config` and `training_config` instead.
-        """
+        msg = (
+            "Specifying `model_config` in `flow_config` is now deprecated. "
+            "Please specify `flow_config` and `training_config` instead."
+        )
         warn(msg, FutureWarning)
-        training_config = copy.deepcopy(flow_config)
-        flow_config = training_config.pop("model_config")
+        flow_config = copy.deepcopy(flow_config)
+        flow_config.update(flow_config.pop("model_config"))
+
+        if training_config is None:
+            training_config = {}
+
+        for key in DEFAULT_TRAINING_CONFIG:
+            if key in flow_config:
+                warn(
+                    f"Key {key} should now be specified in `training_config`",
+                    FutureWarning,
+                )
+                training_config[key] = flow_config.pop(key)
 
     if "device_tag" in flow_config:
         msg = """
