@@ -15,7 +15,7 @@ from nessai.utils.testing import assert_structured_arrays_equal
 from .base import Proposal
 from .. import config
 from ..flowmodel.importance import ImportanceFlowModel
-from ..flowmodel.utils import update_config
+from ..flowmodel.utils import update_flow_config
 from ..livepoint import (
     get_dtype,
     live_points_to_array,
@@ -68,6 +68,7 @@ class ImportanceFlowProposal(Proposal):
         model: Model,
         output: str,
         flow_config: dict = None,
+        training_config: dict = None,
         reparameterisation: str = "logit",
         weighted_kl: bool = True,
         reset_flow: Union[bool, int] = True,
@@ -80,6 +81,7 @@ class ImportanceFlowProposal(Proposal):
         self.model = model
         self.output = output
         self.flow_config = flow_config
+        self.training_config = training_config
         self.plot_training = plot_training
         self.reset_flow = int(reset_flow)
         self.reparameterisation = reparameterisation
@@ -112,12 +114,8 @@ class ImportanceFlowProposal(Proposal):
     @flow_config.setter
     def flow_config(self, config: dict) -> None:
         """Set configuration (includes checking defaults)"""
-        if config is None:
-            config = dict(model_config=dict())
-        elif "model_config" not in config:
-            config["model_config"] = dict()
-        config["model_config"]["n_inputs"] = self.model.dims
-        self._flow_config = update_config(config)
+        config["n_inputs"] = self.model.dims
+        self._flow_config = update_flow_config(config)
 
     @property
     def _reset_flow(self) -> bool:
@@ -153,7 +151,9 @@ class ImportanceFlowProposal(Proposal):
         self.verify_rescaling()
 
         self.flow = ImportanceFlowModel(
-            config=self.flow_config, output=self.output
+            flow_config=self.flow_config,
+            training_config=self.training_config,
+            output=self.output,
         )
         self.flow.initialise()
         super().initialise()
@@ -740,9 +740,7 @@ class ImportanceFlowProposal(Proposal):
         super().resume(model)
         self.flow_config = flow_config
         self.initialise()
-        self.flow.resume(
-            self.flow_config["model_config"], weights_path=weights_path
-        )
+        self.flow.resume(self.flow_config, weights_path=weights_path)
 
     def __getstate__(self):
         d = self.__dict__
