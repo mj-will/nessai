@@ -105,31 +105,6 @@ class FlowProposal(RejectionProposal):
         samples. This is translated to a value for ``fuzz``.
     truncate_log_q : bool, optional
         Truncate proposals using minimum log-probability of the training data.
-    rescale_parameters : list or bool, optional
-        If True live points are rescaled to `rescale_bounds` before training.
-        If an instance of `list` then must contain names of parameters to
-        rescale. If False no rescaling is applied.
-    rescale_bounds : list, optional
-        Lower and upper bound to use for rescaling. Defaults to [-1, 1]. See
-        `rescale_parameters`.
-    update_bounds : bool, optional
-        If True bounds used for rescaling are updated at the starting of
-        training. If False prior bounds are used.
-    boundary_inversion : bool or list, optional
-        If True boundary inversion is applied to all bounds. If
-        If an instance of `list` of parameters names, then inversion
-        only applied to these parameters. If False (default )no inversion is
-        used.
-    inversion_type : {'split', 'duplicate'}
-        Type of inversion to use. ``'split'`` keeps the number of samples
-        the sample but mirrors half around the bound. ``'duplicate'`` mirrors
-        all the samples at the bound.
-    detect_edges : bool, optional
-        If True, when applying the version the option of no inversion is
-        allowed.
-    detect_edges_kwargs : dict, optional
-        Dictionary of keyword arguments passed to \
-                :func:`nessai.utils.detect_edge`.
     reparameterisations : dict, optional
         Dictionary for configure more flexible reparameterisations. This
         ignores any of the other settings related to rescaling. For more
@@ -168,7 +143,6 @@ class FlowProposal(RejectionProposal):
         flow_config=None,
         output="./",
         poolsize=None,
-        rescale_parameters=True,
         latent_prior="truncated_gaussian",
         constant_volume_mode=True,
         volume_fraction=0.95,
@@ -178,11 +152,7 @@ class FlowProposal(RejectionProposal):
         drawsize=None,
         check_acceptance=False,
         truncate_log_q=False,
-        rescale_bounds=[-1, 1],
         expansion_fraction=4.0,
-        boundary_inversion=False,
-        inversion_type="split",
-        update_bounds=True,
         min_radius=False,
         max_radius=50.0,
         max_poolsize_scale=10,
@@ -190,10 +160,8 @@ class FlowProposal(RejectionProposal):
         accumulate_weights=False,
         save_training_data=False,
         compute_radius_with_all=False,
-        detect_edges=False,
-        detect_edges_kwargs=None,
         reparameterisations=None,
-        fallback_reparameterisation=None,
+        fallback_reparameterisation="zscore",
         use_default_reparameterisations=None,
         reverse_reparameterisations=False,
     ):
@@ -213,17 +181,17 @@ class FlowProposal(RejectionProposal):
         self.indices = []
         self.training_count = 0
         self.populated_count = 0
-        self.names = []
+        self.parameters = []
         self.training_data = None
         self.save_training_data = save_training_data
         self.x = None
         self.samples = None
-        self.rescaled_names = []
+        self.prime_parameters = []
         self.acceptance = []
-        self._edges = {}
         self._reparameterisation = None
         self.rescaling_set = False
         self.use_x_prime_prior = False
+        self.update_bounds = False
         self.accumulate_weights = accumulate_weights
 
         self.reparameterisations = reparameterisations
@@ -246,19 +214,11 @@ class FlowProposal(RejectionProposal):
             latent_prior,
         )
 
-        self.rescale_parameters = rescale_parameters
-        self.update_bounds = update_bounds
         self.check_acceptance = check_acceptance
-        self.rescale_bounds = rescale_bounds
         self.truncate_log_q = truncate_log_q
-        self.boundary_inversion = boundary_inversion
-        self.inversion_type = inversion_type
         self.flow_config = flow_config
         self.constant_volume_mode = constant_volume_mode
         self.volume_fraction = volume_fraction
-
-        self.detect_edges = detect_edges
-        self.detect_edges_kwargs = detect_edges_kwargs
 
         self.compute_radius_with_all = compute_radius_with_all
         self.configure_fixed_radius(fixed_radius)
@@ -298,19 +258,19 @@ class FlowProposal(RejectionProposal):
     @property
     def dims(self):
         """Return the number of dimensions"""
-        return len(self.names)
+        return len(self.parameters)
 
     @property
     def rescaled_dims(self):
         """Return the number of rescaled dimensions"""
-        return len(self.rescaled_names)
+        return len(self.prime_parameters)
 
     @property
     def x_dtype(self):
         """Return the dtype for the x space"""
         if not self._x_dtype:
             self._x_dtype = get_dtype(
-                self.names, config.livepoints.default_float_dtype
+                self.parameters, config.livepoints.default_float_dtype
             )
         return self._x_dtype
 
@@ -319,7 +279,7 @@ class FlowProposal(RejectionProposal):
         """Return the dtype for the x prime space"""
         if not self._x_prime_dtype:
             self._x_prime_dtype = get_dtype(
-                self.rescaled_names, config.livepoints.default_float_dtype
+                self.prime_parameters, config.livepoints.default_float_dtype
             )
         return self._x_prime_dtype
 
@@ -580,7 +540,7 @@ class FlowProposal(RejectionProposal):
 
         Parameters
         ----------
-        reparameterisations : {dict, None}
+        reparameterisations : Union[dict, str, None]
             Dictionary of reparameterisations. If None, then the defaults
             from :py:func`get_default_reparameterisations` are used.
         """
@@ -596,10 +556,13 @@ class FlowProposal(RejectionProposal):
         self._reparameterisation = CombinedReparameterisation(
             reverse_order=self.reverse_reparameterisations
         )
-
-        if not isinstance(_reparameterisations, dict):
+        if isinstance(_reparameterisations, str):
+            _reparameterisations = {
+                k: _reparameterisations for k in self.model.names
+            }
+        elif not isinstance(_reparameterisations, dict):
             raise TypeError(
-                "Reparameterisations must be a dictionary, "
+                "Reparameterisations must be a dictionary, string or None, "
                 f"received {type(_reparameterisations).__name__}"
             )
 
@@ -741,13 +704,32 @@ class FlowProposal(RejectionProposal):
 
         self._reparameterisation.check_order()
 
-        self.names = self._reparameterisation.parameters
-        self.rescaled_names = self._reparameterisation.prime_parameters
+        self.parameters = self._reparameterisation.parameters
+        self.prime_parameters = self._reparameterisation.prime_parameters
         self.parameters_to_rescale = [
             p
             for p in self._reparameterisation.parameters
             if p not in self._reparameterisation.prime_parameters
         ]
+
+    @property
+    def names(self):
+        warn(
+            "`names` is deprecated, use `parameters` instead",
+            FutureWarning,
+        )
+        return self.parameters
+
+    @property
+    def rescaled_names(self):
+        warn(
+            (
+                "`rescaled_names` is deprecated, use `rescaled_parameters` "
+                "instead"
+            ),
+            FutureWarning,
+        )
+        return self.prime_parameters
 
     def set_rescaling(self):
         """
@@ -755,32 +737,12 @@ class FlowProposal(RejectionProposal):
         """
         if self.model.reparameterisations is not None:
             self.reparameterisations = self.model.reparameterisations
-        elif (
-            self.reparameterisations is not None
-            or self.use_default_reparameterisations
-        ):
-            pass
-        elif self.rescale_parameters:
-            if not isinstance(self.rescale_parameters, list):
-                self.rescale_parameters = self.model.names.copy()
-
-            self.reparameterisations = {
-                "rescaletobounds": {
-                    "parameters": self.rescale_parameters,
-                    "rescale_bounds": self.rescale_bounds,
-                    "update_bounds": self.update_bounds,
-                    "boundary_inversion": self.boundary_inversion,
-                    "inversion_type": self.inversion_type,
-                    "detect_edges": self.detect_edges,
-                    "detect_edges_kwargs": self.detect_edges_kwargs,
-                },
-            }
 
         self.configure_reparameterisations(self.reparameterisations)
 
-        logger.info(f"x space parameters: {self.names}")
+        logger.info(f"x space parameters: {self.parameters}")
         logger.info(f"parameters to rescale: {self.parameters_to_rescale}")
-        logger.info(f"x prime space parameters: {self.rescaled_names}")
+        logger.info(f"x prime space parameters: {self.prime_parameters}")
         self.rescaling_set = True
 
     def verify_rescaling(self):
@@ -966,7 +928,7 @@ class FlowProposal(RejectionProposal):
             plot_1d_comparison(
                 self.training_data_prime,
                 x_prime_gen,
-                parameters=self.rescaled_names,
+                parameters=self.prime_parameters,
                 labels=["live points", "generated"],
                 filename=os.path.join(output, "x_prime_comparison.png"),
             )
@@ -1013,7 +975,7 @@ class FlowProposal(RejectionProposal):
         # Convert to numpy array for training and remove likelihoods and priors
         # Since the names of parameters may have changes, pull names from flows
         x_prime_array = live_points_to_array(
-            x_prime, self.rescaled_names, copy=True
+            x_prime, self.prime_parameters, copy=True
         )
 
         self.flow.train(
@@ -1089,7 +1051,7 @@ class FlowProposal(RejectionProposal):
             x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
             log_J += log_J_rescale
 
-        x = live_points_to_array(x, names=self.rescaled_names, copy=True)
+        x = live_points_to_array(x, names=self.prime_parameters, copy=True)
 
         if x.ndim == 1:
             x = x[np.newaxis, :]
@@ -1138,7 +1100,7 @@ class FlowProposal(RejectionProposal):
             x, log_prob = x[valid], log_prob[valid]
         x = numpy_array_to_live_points(
             x.astype(config.livepoints.default_float_dtype),
-            self.rescaled_names,
+            self.prime_parameters,
         )
         # Apply rescaling in rescale=True
         if rescale:

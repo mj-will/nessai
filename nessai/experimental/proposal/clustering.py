@@ -51,7 +51,7 @@ class ClusteringFlowProposal(FlowProposal):
         )
         prime_array = live_points_to_array(
             self.training_data_prime,
-            self.rescaled_names,
+            self.prime_parameters,
         )
         cluster_labels = self.flow.get_cluster_labels(prime_array)
 
@@ -82,7 +82,7 @@ class ClusteringFlowProposal(FlowProposal):
 
         x_prime_gen, log_prob = self.backward_pass(z_gen, rescale=False)
         gen_cluster_labels = self.flow.get_cluster_labels(
-            live_points_to_array(x_prime_gen, self.rescaled_names)
+            live_points_to_array(x_prime_gen, self.prime_parameters)
         )
         x_prime_gen["logL"] = log_prob
         x_gen, log_J = self.inverse_rescale(x_prime_gen)
@@ -120,7 +120,7 @@ class ClusteringFlowProposal(FlowProposal):
             plot_1d_comparison(
                 self.training_data_prime,
                 x_prime_gen,
-                parameters=self.rescaled_names,
+                parameters=self.prime_parameters,
                 labels=["live points", "generated"],
                 filename=os.path.join(output, "x_prime_comparison.png"),
             )

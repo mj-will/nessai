@@ -66,12 +66,12 @@ class AugmentedFlowProposal(FlowProposal):
         self._base_rescale = self.rescale
         self.rescale = self._augmented_rescale
         self.augment_names = [f"e_{i}" for i in range(self.augment_dims)]
-        self.names += self.augment_names
-        self.rescaled_names += self.augment_names
-        logger.info(f"augmented x space parameters: {self.names}")
+        self.parameters += self.augment_names
+        self.prime_parameters += self.augment_names
+        logger.info(f"augmented x space parameters: {self.parameters}")
         logger.info(f"parameters to rescale {self.rescale_parameters}")
         logger.info(
-            f"Augmented x prime space parameters: {self.rescaled_names}"
+            f"Augmented x prime space parameters: {self.prime_parameters}"
         )
 
     def update_flow_config(self):
@@ -202,7 +202,7 @@ class AugmentedFlowProposal(FlowProposal):
         x, log_prob = x[valid], log_prob[valid]
         x = numpy_array_to_live_points(
             x.astype(config.livepoints.default_float_dtype),
-            self.rescaled_names,
+            self.prime_parameters,
         )
         # Apply rescaling in rescale=True
         if rescale:
