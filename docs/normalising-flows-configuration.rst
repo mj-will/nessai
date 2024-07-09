@@ -5,18 +5,23 @@ Normalising flows configuration
 
 ``nessai`` uses the implementation of normalising flow available in ``glasflow`` which is based on ``nflows``. The exact interface in ``nessai`` is slightly different to allow for some extra functionality.
 
-The normalising flow is configured using the the keyword argument ``flow_config`` when calling :py:class:`~nessai.flowsampler.FlowSampler`. This is a dictionary which contains the configuration for training and the flow itself which is another dictionary ``model_config``.
+The normalising flow is configured using the the keyword arguments ``flow_config`` and ``training_config`` when calling :py:class:`~nessai.flowsampler.FlowSampler`.
+These are dictionaries which contains the configuration for the flow and the training.
 
-The hyper-parameters accepted in ``model_config`` are:
+.. note::
+
+    In older versions of ``nessai``, all settings were specified in ``flow_config``, see :ref:`updating old flow configurations<Updating old flow configurations>` for how to update to the new keyword arguments.
+
+The keys accepted in ``flow_config`` are:
 
 - ``n_blocks``: number transforms to use
 - ``n_layers``: number of layers to use the neural network in each transform
 - ``n_neurons``: number of neurons per layer in the neural network
 - ``ftype``: type of normalising flow to use, see :ref:`included normalising flows<Included normalising flows>`
-- ``device_tag``: device on which to train the normalising flow, defaults to ``'cpu'``
-- ``kwargs``: keyword arguments parsed to the flow class used, e.g. ``linear_transform`` or ``batch_norm_between_layers``
 
-The remaining items in :code:`flow_config` control the training and these are:
+any additional keys (e.g. ``batch_norm_between_layers``) will be passed as keyword arguments to the normalising flow class.
+
+The settings in ``training_config`` control the training and these are:
 
 - :code:`lr`: the learning rate used to train the model, default is 0.001
 - :code:`batch_size`: the batch size to use for training
@@ -27,25 +32,50 @@ The remaining items in :code:`flow_config` control the training and these are:
 - :code:`clip_grad_norm`: clipping used for the gradient
 - :code:`noise_scale`: scale of the Gaussian noise added to the data. Proposed in Moss 2019.
 
-The default settings are:
+The default settings are for each of these are defined in :code:`nessai.flowmodel.config`
 
-.. code:: python
-
-    default = dict(
-        lr=0.001,
-        batch_size=100,
-        val_size=0.1,
-        max_epochs=500,
-        patience=20,
-        annealing=False,
-        clip_grad_norm=5,
-        noise_scale=0.0
-    )
 
 Example configuration
 =====================
 
 Here's an example of what a configuration could look like:
+
+.. code:: python
+
+    flow_config = dict(
+        n_blocks=4,
+        n_layers=2,
+        n_neurons=16,
+        linear_transform='lu',
+    )
+    training_config=dict(
+        lr=3e-3,
+        batch_size=1000,
+        max_epochs=500,
+        patience=20,
+    )
+
+
+These could then be passed directly to :py:class:`~nessai.flowsampler.FlowSampler`.
+
+Updating old flow configurations
+================================
+
+As of version 0.13.0 of :code:`nessai`, the flows are configured using the two dictionaries mentioned above.
+Updating an old config to use the new format is straightforward; training
+related keys in first level of ``flow_config`` should be moved to
+``training_config`` and all keys in ``model_config`` should be moved to the
+``flow_config`` dictionary. The ``kwargs`` dictionary that was previously
+included in ``model_config`` can specified directly in ``flow_config``.
+Furthermore, ``device_tag`` and ``inference_device_tag`` have been moved to
+``training_config``.
+
+See below for an example.
+
+Example of updating a config
+----------------------------
+
+Old config:
 
 .. code:: python
 
@@ -58,12 +88,28 @@ Here's an example of what a configuration could look like:
             n_blocks=4,
             n_layers=2,
             n_neurons=16,
+            device_tag="cuda",
             kwargs=dict(linear_transform='lu')
         )
     )
 
+New config:
 
-This could then be parsed directly to :py:class:`~nessai.flowsampler.FlowSampler`.
+.. code:: python
+
+    flow_config = dict(
+        n_blocks=4,
+        n_layers=2,
+        n_neurons=16,
+        linear_transform='lu',
+    )
+    training_config=dict(
+        lr=3e-3,
+        batch_size=1000,
+        max_epochs=500,
+        patience=20,
+        device_tag="cuda",
+    )
 
 
 Included normalising flows
