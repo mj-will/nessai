@@ -237,8 +237,8 @@ def configure_model(config):
     if distribution is not None:
         config["distribution"] = distribution
 
-    FlowClass = config.pop("flow")
-    ftype = config.pop("ftype")
+    FlowClass = config.pop("flow", None)
+    ftype = config.pop("ftype", None)
     if FlowClass is None and ftype is None:
         raise RuntimeError("Must specify either 'flow' or 'ftype'.")
 
