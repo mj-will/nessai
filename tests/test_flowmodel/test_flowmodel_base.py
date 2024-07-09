@@ -119,7 +119,7 @@ def test_initialise(model):
     ) as mock:
         FlowModel.initialise(model)
     mock.assert_called_once_with(model.flow_config)
-    model.get_optimiser.assert_called_once_with("adam", weights=0.1)
+    model.get_optimiser.assert_called_once()
     assert model.inference_device == torch.device("cpu")
 
 
@@ -375,7 +375,6 @@ def test_training_non_finite_samples(model, x):
 )
 @pytest.mark.parametrize("test_deprecated", [False, True])
 def test_training_additional_config_args(
-    flow_config,
     data_dim,
     tmpdir,
     kwargs,
@@ -384,7 +383,9 @@ def test_training_additional_config_args(
     """
     Test training with different config args
     """
+    flow_config = {}
     if test_deprecated:
+        flow_config["model_config"] = {}
         flow_config["model_config"]["n_inputs"] = data_dim
         training_config = None
         for key, value in kwargs.items():
@@ -402,7 +403,6 @@ def test_training_additional_config_args(
         output=output,
     )
     assert flow_model.training_config[key] == value
-    print(flow_model.training_config)
 
 
 def test_train_func_conditional(data_dim):
@@ -730,7 +730,7 @@ def test_forward_and_log_prob_integration(
     """Test the basic use of forward and log prob"""
     if conditional:
         conditional = np.random.randn(N, 1)
-        flow_model.model_config["kwargs"]["context_features"] = 1
+        flow_model.flow_config["context_features"] = 1
     flow_model.initialise()
     x = np.random.randn(N, data_dim)
     z, log_prob = flow_model.forward_and_log_prob(x, conditional=conditional)
@@ -748,19 +748,19 @@ def test_lu_cache_reset(tmp_path):
     output = tmp_path / "test"
     output.mkdir()
 
-    config = dict(
+    training_config = dict(
         max_epochs=100,
         patience=1000,
-        model_config=dict(
-            n_inputs=2,
-            n_blocks=2,
-            kwargs=dict(
-                linear_transform="lu",
-            ),
-        ),
+    )
+    flow_config = dict(
+        n_inputs=2,
+        n_blocks=2,
+        linear_transform="lu",
     )
 
-    flow = FlowModel(config=config, output=output)
+    flow = FlowModel(
+        flow_config=flow_config, training_config=training_config, output=output
+    )
     data = np.random.randn(100, 2)
 
     flow.train(data)
@@ -784,20 +784,20 @@ def test_train_without_validation(tmp_path):
     output = tmp_path / "test_no_validation"
     output.mkdir()
 
-    config = dict(
+    training_config = dict(
         max_epochs=100,
         patience=1000,
-        val_size=None,
-        model_config=dict(
-            n_inputs=2,
-            n_blocks=2,
-            kwargs=dict(
-                linear_transform="lu",
-            ),
-        ),
+        val_size=0,
+    )
+    flow_config = dict(
+        n_inputs=2,
+        n_blocks=2,
+        linear_transform="lu",
     )
 
-    flow = FlowModel(config=config, output=output)
+    flow = FlowModel(
+        flow_config=flow_config, training_config=training_config, output=output
+    )
     data = np.random.randn(100, 2)
 
     history = flow.train(data)
@@ -811,19 +811,19 @@ def test_train_conditional_integration(tmp_path):
     output = tmp_path / "test_train_conditional"
     output.mkdir()
 
-    config = dict(
+    training_config = dict(
         max_epochs=10,
-        model_config=dict(
-            n_inputs=2,
-            n_blocks=2,
-            kwargs=dict(
-                linear_transform="lu",
-                context_features=1,
-            ),
-        ),
+    )
+    flow_config = dict(
+        n_inputs=2,
+        n_blocks=2,
+        linear_transform="lu",
+        context_features=1,
     )
 
-    flow = FlowModel(config=config, output=output)
+    flow = FlowModel(
+        flow_config=flow_config, training_config=training_config, output=output
+    )
     data = np.random.randn(100, 2)
     conditional = np.random.randint(2, size=(100, 1))
 
