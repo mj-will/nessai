@@ -7,6 +7,7 @@ import glob
 import logging
 import os
 from typing import Optional
+from warnings import warn
 
 import numpy as np
 import torch
@@ -88,7 +89,7 @@ class ImportanceFlowModel(FlowModel):
         new_flow.device = self.device
         logger.debug(f"Training device: {self.device}")
         self.inference_device = torch.device(
-            self.flow_config.get("inference_device_tag", self.device)
+            self.training_config.get("inference_device_tag", self.device)
             or self.device
         )
         logger.debug(f"Inference device: {self.inference_device}")
@@ -152,9 +153,11 @@ class ImportanceFlowModel(FlowModel):
         """
         self.models = torch.nn.ModuleList()
         logger.debug(f"Loading weights from {self.weights_files}")
+        self.device = torch.device(
+            self.training_config.get("device_tag", "cpu")
+        )
         for wf in self.weights_files:
             new_flow = configure_model(self.flow_config)
-            self.device = self.training_config.get("device_tag", "cpu")
             new_flow.device = self.device
             new_flow.load_state_dict(torch.load(wf))
             self.models.append(new_flow)
@@ -209,7 +212,12 @@ class ImportanceFlowModel(FlowModel):
         weights_path: Optional[str] = None,
     ) -> None:
         """Resume the model"""
-        (self.flow_config,) = update_flow_config(flow_config)
+        if "model_config" in flow_config:
+            warn(
+                "Resuming with old style flow config is not supported",
+                RuntimeWarning,
+            )
+        self.flow_config = update_flow_config(flow_config)
         if weights_path is None:
             logger.debug(
                 "Not weights path specified, looking in output directory"
