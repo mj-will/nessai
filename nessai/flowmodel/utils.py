@@ -122,9 +122,13 @@ def update_config(flow_config, training_config=None):
                     ),
                     FutureWarning,
                 )
+                if key in training_config:
+                    raise RuntimeError(
+                        f"`{key}` is already present in training config"
+                    )
                 training_config[key] = flow_config.pop(key)
 
-    if "device_tag" in flow_config:
+    if flow_config is not None and "device_tag" in flow_config:
         msg = (
             "Specifying `device_tag` in `flow_config` is deprecated. "
             "It should now be specified in `training_config`."
@@ -132,7 +136,7 @@ def update_config(flow_config, training_config=None):
         warn(msg, FutureWarning)
         training_config = flow_config.pop("device_tag")
 
-    if "inference_device_tag" in flow_config:
+    if flow_config is not None and "inference_device_tag" in flow_config:
         msg = (
             "Specifying `inference_device_tag` in `flow_config` is deprecated."
             " It should now be specified in `training_config`."
