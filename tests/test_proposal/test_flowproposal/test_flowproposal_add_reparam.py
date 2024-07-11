@@ -83,7 +83,9 @@ def test_configure_reparameterisation_angle_pair(tmpdir, model):
 
 @pytest.mark.integration_test
 def test_default_reparameterisations(caplog, tmpdir):
-    """Assert that by default the reparameterisation is RescaleToBounds"""
+    """Assert that by default the reparameterisation is z-score"""
+    from nessai.reparameterisations import ScaleAndShift
+
     caplog.set_level("INFO")
     model = MagicMock()
     model.names = ["x1", "x10", "x11"]
@@ -98,4 +100,7 @@ def test_default_reparameterisations(caplog, tmpdir):
     reparams = list(proposal._reparameterisation.values())
     assert len(reparams) == 1
     assert reparams[0].parameters == ["x1", "x10", "x11"]
-    assert proposal.rescale_parameters == ["x1", "x10", "x11"]
+    assert proposal.prime_parameters == ["x1_prime", "x10_prime", "x11_prime"]
+    assert isinstance(reparams[0], ScaleAndShift)
+    assert reparams[0].estimate_scale is True
+    assert reparams[0].estimate_shift is True

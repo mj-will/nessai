@@ -77,8 +77,8 @@ def test_init_estimate(reparam, parameters, prior_bounds):
     assert reparam.estimate_shift is True
     assert list(reparam.scale) == parameters
     assert list(reparam.shift) == parameters
-    assert all([v is None for v in reparam.scale.values()])
-    assert all([v is None for v in reparam.shift.values()])
+    assert all([v == 1 for v in reparam.scale.values()])
+    assert all([v == 0 for v in reparam.shift.values()])
     assert reparam._update is True
 
 

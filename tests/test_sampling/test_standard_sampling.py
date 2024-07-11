@@ -19,8 +19,16 @@ from nessai.utils.testing import IntegrationTestModel
 torch.set_num_threads(1)
 
 
+@pytest.mark.parametrize(
+    "reparameterisations", [None, "rescaletobounds", "zscore"]
+)
 @pytest.mark.slow_integration_test
-def test_sampling_with_rescale(integration_model, flow_config, tmpdir):
+def test_sampling_with_reparameterisation(
+    integration_model,
+    flow_config,
+    tmpdir,
+    reparameterisations,
+):
     """
     Test sampling with rescaling. Checks that flow is trained.
     """
@@ -34,43 +42,12 @@ def test_sampling_with_rescale(integration_model, flow_config, tmpdir):
         flow_config=flow_config,
         training_frequency=10,
         maximum_uninformed=9,
-        rescale_parameters=True,
         seed=1234,
         max_iteration=11,
         poolsize=10,
+        reparameterisations=reparameterisations,
     )
     fp.run()
-    assert fp.ns.proposal.flow.weights_file is not None
-    assert fp.ns.proposal.training_count == 1
-
-
-@pytest.mark.slow_integration_test
-def test_sampling_with_inversion(integration_model, flow_config, tmpdir):
-    """
-    Test sampling with inversion. Checks that flow is trained.
-    """
-    output = str(tmpdir.mkdir("w_rescale"))
-    fp = FlowSampler(
-        integration_model,
-        output=output,
-        resume=False,
-        nlive=100,
-        plot=False,
-        flow_config=flow_config,
-        training_frequency=10,
-        maximum_uninformed=9,
-        rescale_parameters=True,
-        seed=1234,
-        max_iteration=11,
-        poolsize=10,
-        boundary_inversion=True,
-        update_bounds=True,
-    )
-    fp.run()
-    reparams = list(fp.ns.proposal._reparameterisation.values())
-    assert len(reparams) == 1
-    assert reparams[0].parameters == ["x_0", "x_1"]
-    assert list(reparams[0].boundary_inversion.keys()) == ["x_0", "x_1"]
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
 
@@ -91,7 +68,7 @@ def test_sampling_regex_reparams(model, flow_config, tmp_path):
         plot=False,
     )
     fs.run()
-    assert fs.ns._flow_proposal.rescaled_names == ["x_0_prime", "x_1_prime"]
+    assert fs.ns._flow_proposal.prime_parameters == ["x_0_prime", "x_1_prime"]
 
 
 @pytest.mark.slow_integration_test
@@ -109,7 +86,8 @@ def test_sampling_without_rescale(integration_model, flow_config, tmpdir):
         flow_config=flow_config,
         training_frequency=10,
         maximum_uninformed=9,
-        rescale_parameters=False,
+        reparameterisations=None,
+        fallback_reparameterisation=None,
         seed=1234,
         max_iteration=11,
         poolsize=10,
@@ -136,7 +114,6 @@ def test_sampling_with_maf(integration_model, flow_config, tmpdir):
         flow_config=flow_config,
         training_frequency=10,
         maximum_uninformed=9,
-        rescale_parameters=True,
         seed=1234,
         max_iteration=11,
         poolsize=10,
@@ -162,7 +139,6 @@ def test_sampling_uninformed(integration_model, flow_config, tmpdir, analytic):
         flow_config=flow_config,
         training_frequency=None,
         maximum_uninformed=10,
-        rescale_parameters=True,
         seed=1234,
         max_iteration=11,
         poolsize=10,
@@ -197,7 +173,6 @@ def test_sampling_with_n_pool(
             flow_config=flow_config,
             training_frequency=10,
             maximum_uninformed=9,
-            rescale_parameters=True,
             seed=1234,
             max_iteration=11,
             poolsize=10,
@@ -226,7 +201,6 @@ def test_sampling_resume(model, flow_config, tmpdir):
         flow_config=flow_config,
         training_frequency=10,
         maximum_uninformed=9,
-        rescale_parameters=True,
         checkpoint_on_iteration=True,
         checkpoint_interval=5,
         seed=1234,
@@ -272,7 +246,6 @@ def test_sampling_resume_w_pool(
             flow_config=flow_config,
             training_frequency=10,
             maximum_uninformed=9,
-            rescale_parameters=True,
             checkpoint_on_iteration=True,
             checkpoint_interval=5,
             seed=1234,
@@ -328,7 +301,6 @@ def test_sampling_resume_no_max_uninformed(
         flow_config=flow_config,
         training_frequency=10,
         maximum_uninformed=9,
-        rescale_parameters=True,
         seed=1234,
         max_iteration=11,
         checkpoint_on_iteration=True,
@@ -373,7 +345,6 @@ def test_resume_fallback_reparameterisation(tmpdir, model, flow_config):
         flow_config=flow_config,
         training_frequency=10,
         maximum_uninformed=9,
-        rescale_parameters=False,
         use_default_reparameterisations=False,
         fallback_reparameterisation="z-score",
         checkpoint_on_iteration=True,

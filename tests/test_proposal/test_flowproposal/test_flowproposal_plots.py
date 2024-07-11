@@ -11,10 +11,11 @@ from nessai.livepoint import numpy_array_to_live_points
 
 
 @pytest.mark.parametrize("plot", [False, "all"])
-def test_training_plots(proposal, tmpdir, plot):
-    """Make sure traings plots are correctly produced"""
+def test_training_plots(proposal, tmp_path, plot):
+    """Make sure trainings plots are correctly produced"""
     proposal._plot_training = plot
-    output = tmpdir.mkdir("test")
+    output = tmp_path / "test"
+    output.mkdir()
 
     names = ["x", "y"]
     prime_names = ["x_prime", "y_prime"]
@@ -38,9 +39,7 @@ def test_training_plots(proposal, tmpdir, plot):
         array["logL"] = 0.0
 
     proposal.dims = 2
-    proposal.rescale_parameters = True
-    proposal.parameters_to_rescale = names
-    proposal.rescaled_names = prime_names
+    proposal.prime_parameters = prime_names
 
     proposal.forward_pass = MagicMock(return_value=(z, None))
     proposal.backward_pass = MagicMock(return_value=(x_prime_gen, np.ones(10)))
