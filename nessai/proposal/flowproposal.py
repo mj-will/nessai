@@ -558,7 +558,7 @@ class FlowProposal(RejectionProposal):
         )
         if isinstance(_reparameterisations, str):
             _reparameterisations = {
-                k: _reparameterisations for k in self.model.names
+                _reparameterisations: {"parameters": self.model.names}
             }
         elif not isinstance(_reparameterisations, dict):
             raise TypeError(
@@ -706,11 +706,6 @@ class FlowProposal(RejectionProposal):
 
         self.parameters = self._reparameterisation.parameters
         self.prime_parameters = self._reparameterisation.prime_parameters
-        self.parameters_to_rescale = [
-            p
-            for p in self._reparameterisation.parameters
-            if p not in self._reparameterisation.prime_parameters
-        ]
 
     @property
     def names(self):
@@ -741,7 +736,6 @@ class FlowProposal(RejectionProposal):
         self.configure_reparameterisations(self.reparameterisations)
 
         logger.info(f"x space parameters: {self.parameters}")
-        logger.info(f"parameters to rescale: {self.parameters_to_rescale}")
         logger.info(f"x prime space parameters: {self.prime_parameters}")
         self.rescaling_set = True
 
@@ -787,6 +781,7 @@ class FlowProposal(RejectionProposal):
                 raise RuntimeError("Rescaling Jacobian is not invertible")
 
         logger.info("Rescaling functions are invertible")
+        self._reparameterisation.reset()
 
     def rescale(self, x, compute_radius=False, **kwargs):
         """
@@ -912,26 +907,24 @@ class FlowProposal(RejectionProposal):
                 filename=os.path.join(output, "x_generated.png"),
             )
 
-        if self.parameters_to_rescale:
-            if self._plot_training == "all":
-                plot_live_points(
-                    self.training_data_prime,
-                    c="logL",
-                    filename=os.path.join(output, "x_prime_samples.png"),
-                )
-                plot_live_points(
-                    x_prime_gen,
-                    c="logL",
-                    filename=os.path.join(output, "x_prime_generated.png"),
-                )
-
-            plot_1d_comparison(
+            plot_live_points(
                 self.training_data_prime,
-                x_prime_gen,
-                parameters=self.prime_parameters,
-                labels=["live points", "generated"],
-                filename=os.path.join(output, "x_prime_comparison.png"),
+                c="logL",
+                filename=os.path.join(output, "x_prime_samples.png"),
             )
+            plot_live_points(
+                x_prime_gen,
+                c="logL",
+                filename=os.path.join(output, "x_prime_generated.png"),
+            )
+
+        plot_1d_comparison(
+            self.training_data_prime,
+            x_prime_gen,
+            parameters=self.prime_parameters,
+            labels=["live points", "generated"],
+            filename=os.path.join(output, "x_prime_comparison.png"),
+        )
 
     def train(self, x, plot=True):
         """
