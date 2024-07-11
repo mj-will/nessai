@@ -43,7 +43,7 @@ fs = FlowSampler(
     output=output,
     resume=False,
     seed=1234,
-    boundary_inversion=["y"],
+    reparameterisations={"y": "inversion"},
 )
 
 # And go!
