@@ -214,7 +214,7 @@ def test_configure_reparameterisations_dict_missing(mocked_class, proposal):
     assert "No reparameterisation found for x" in str(excinfo.value)
 
 
-def test_configure_reparameterisations_str(proposal):
+def test_configure_reparameterisations_dict_str(proposal):
     """Test configuration for reparameterisations dictionary from a str"""
     proposal.add_default_reparameterisations = MagicMock()
     proposal.get_reparameterisation = get_reparameterisation
@@ -294,6 +294,30 @@ def test_configure_reparameterisations_none(proposal):
     assert all(
         [
             isinstance(r, NullReparameterisation)
+            for r in proposal._reparameterisation.reparameterisations.values()
+        ]
+    )
+
+
+def test_configure_reparameterisations_string(proposal):
+    """Test configuration when input is a string"""
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = get_reparameterisation
+    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
+    proposal.model.names = ["x", "y"]
+    proposal.fallback_reparameterisation = None
+    FlowProposal.configure_reparameterisations(proposal, "rescaletobounds")
+    proposal.add_default_reparameterisations.assert_not_called()
+    assert proposal.prime_parameters == ["x_prime", "y_prime"]
+
+    assert proposal._reparameterisation.parameters == ["x", "y"]
+    assert proposal._reparameterisation.prime_parameters == [
+        "x_prime",
+        "y_prime",
+    ]
+    assert all(
+        [
+            isinstance(r, RescaleToBounds)
             for r in proposal._reparameterisation.reparameterisations.values()
         ]
     )
