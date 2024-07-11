@@ -65,11 +65,10 @@ class AugmentedFlowProposal(FlowProposal):
         # set rescaling.
         self._base_rescale = self.rescale
         self.rescale = self._augmented_rescale
-        self.augment_names = [f"e_{i}" for i in range(self.augment_dims)]
-        self.parameters += self.augment_names
-        self.prime_parameters += self.augment_names
+        self.augment_parameters = [f"e_{i}" for i in range(self.augment_dims)]
+        self.parameters += self.augment_parameters
+        self.prime_parameters += self.augment_parameters
         logger.info(f"augmented x space parameters: {self.parameters}")
-        logger.info(f"parameters to rescale {self.rescale_parameters}")
         logger.info(
             f"Augmented x prime space parameters: {self.prime_parameters}"
         )
@@ -113,10 +112,10 @@ class AugmentedFlowProposal(FlowProposal):
                 generate_augment = "gaussian"
 
         if generate_augment in ["zeros", "zeroes"]:
-            for an in self.augment_names:
+            for an in self.augment_parameters:
                 x_prime[an] = np.zeros(x_prime.size)
         elif generate_augment == "gaussian":
-            for an in self.augment_names:
+            for an in self.augment_parameters:
                 x_prime[an] = np.random.randn(x_prime.size)
         else:
             raise RuntimeError("Unknown method for generating augment samples")
@@ -131,7 +130,7 @@ class AugmentedFlowProposal(FlowProposal):
         """
         log_p = 0.0
         if not self.marginalise_augment:
-            for n in self.augment_names:
+            for n in self.augment_parameters:
                 log_p += stats.norm.logpdf(x[n])
         return log_p
 
