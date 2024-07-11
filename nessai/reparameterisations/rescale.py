@@ -31,7 +31,8 @@ class ScaleAndShift(Reparameterisation):
         x' = (x - shift) / scale
 
     Can apply the Z-score rescaling if :code:`estimate_scale` and
-    :code:`estimate_shift` are both enabled.
+    :code:`estimate_shift` are both enabled. The values are initialised to
+    one and zero respectively.
 
     Parameters
     ----------
@@ -76,12 +77,12 @@ class ScaleAndShift(Reparameterisation):
             self._update = False
 
         if self.estimate_scale:
-            self.scale = {p: None for p in parameters}
+            self.scale = {p: 1.0 for p in parameters}
         elif scale:
             self.scale = self._check_value(scale, "scale")
 
         if self.estimate_shift:
-            self.shift = {p: None for p in parameters}
+            self.shift = {p: 0.0 for p in parameters}
         elif shift:
             self.shift = self._check_value(shift, "shift")
         else:
