@@ -1,6 +1,6 @@
-###################
+===================
 Reparameterisations
-###################
+===================
 
 In ``nessai`` three spaces are defined:
 
@@ -10,11 +10,18 @@ In ``nessai`` three spaces are defined:
 
 The key to efficient sampling with ``nessai`` is to reparameterise the sampling space such that the prime space is simpler for normalising flow to learn.
 
+The reparameterisations are controlled via three keyword arguments:
+
+- :code:`reparameterisations: dict|str|None`: either a dictionary specifying various reparameterisations, a string specifying a single reparameterisation for all parameters or `None` to use the defaults/fallback. See
+- :code:`fallback_reparameterisations: None|str`: reparameterisation use if a reparameterisation has not been specified for a parameter. If `None`, no reparameterisation is used.
+- :code:`use_default_reparameterisations: bool|None`: if :code:`True` any default reparameterisations included in the proposal class, e.g. those in :code:`GWFlowProposal` will be used for any parameters not specified in :code:`reparameterisations`. If :code:`False`, these defaults will be ignored. If :code:`None`, the behaviour will depende on the proposal class.
+- :code:`reverse_reparameterisations: bool`: if :code:`True`, the order of the reparmeterisations will be reversed.
+
 There are two main methods for configuring reparameterisations in ``nessai``. The first is simpler but more limited and the second is more complex but allows for greater control of the specific reparameterisations used.
 
-************************************
-Method 1: general reparameterisation
-************************************
+
+Configuring reparameterisations
+===============================
 
 This method is limited to the following types of reparameterisation:
 
