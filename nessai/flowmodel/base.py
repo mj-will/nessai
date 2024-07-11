@@ -9,7 +9,7 @@ import os
 import shutil
 import torch
 from torch.nn.utils import clip_grad_norm_
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from .utils import update_config
 
@@ -48,9 +48,9 @@ class FlowModel:
 
     def __init__(
         self,
-        flow_config: dict | None = None,
-        training_config: dict | None = None,
-        output: str | None = None,
+        flow_config: Union[dict, None] = None,
+        training_config: Union[dict, None] = None,
+        output: Union[str, None] = None,
     ) -> None:
 
         if output is None:
