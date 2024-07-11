@@ -258,6 +258,25 @@ def test_update_both(reparam, parameters, est_scale, est_shift):
         assert all([v is None for v in reparam.shift.values()])
 
 
+@pytest.mark.parametrize("est_scale", [False, True])
+@pytest.mark.parametrize("est_shift", [False, True])
+def test_reset(reparam, parameters, est_scale, est_shift):
+    reparam.parameters = parameters
+    reparam.scale = {p: None for p in parameters}
+    reparam.shift = {p: None for p in parameters}
+    reparam.estimate_scale = est_scale
+    reparam.estimate_shift = est_shift
+    ScaleAndShift.reset(reparam)
+    if est_scale:
+        assert all(s == 1.0 for s in reparam.scale.values())
+    else:
+        assert all(s is None for s in reparam.scale.values())
+    if est_shift:
+        assert all(s == 0.0 for s in reparam.shift.values())
+    else:
+        assert all(s is None for s in reparam.shift.values())
+
+
 def test_init_no_scale():
     """Make sure an error is raised if the scale is not given"""
     with pytest.raises(

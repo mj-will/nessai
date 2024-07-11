@@ -225,6 +225,14 @@ def test_update(reparam):
     reparam.update_bounds.assert_called_once_with(x)
 
 
+def test_reset(reparam):
+    prior_bounds = {"x": [0, 1]}
+    reparam.prior_bounds = prior_bounds
+    RescaleToBounds.reset(reparam)
+    reparam.reset_inversion.assert_called_once()
+    reparam.set_bounds.assert_called_once_with(prior_bounds)
+
+
 def test_x_prime_log_prior_error(reparam):
     """Assert an error is raised if the prime prior is not defined."""
     reparam.has_prime_prior = False

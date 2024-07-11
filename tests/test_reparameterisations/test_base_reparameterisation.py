@@ -2,6 +2,7 @@
 """
 Test the base reparameterisation.
 """
+import copy
 import numpy as np
 from numpy.testing import assert_equal
 import pytest
@@ -117,3 +118,9 @@ def test_update(reparam):
     """
     x = np.array((1, 2), dtype=[("x", "f8"), ("y", "f8")])
     Reparameterisation.update(reparam, x)
+
+
+def test_reset(reparam):
+    expected = copy.deepcopy(reparam)
+    Reparameterisation.reset(reparam)
+    assert expected == reparam
