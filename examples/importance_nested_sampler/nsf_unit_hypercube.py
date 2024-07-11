@@ -66,19 +66,15 @@ class RosenbrockModel(Model):
 # Configure the flow to be a Neural Spline Flow with a uniform latent
 # distribution
 flow_config = dict(
-    model_config=dict(
-        n_blocks=4,
-        n_neurons=32,
-        ftype="nsf",
-        distribution="uniform",
-        kwargs=dict(
-            linear_transform=None,
-            batch_norm_between_layers=False,
-            tail_bound=1.0,
-            tails=None,
-            num_bins=8,
-        ),
-    ),
+    n_blocks=4,
+    n_neurons=32,
+    ftype="nsf",
+    distribution="uniform",
+    linear_transform=None,
+    batch_norm_between_layers=False,
+    tail_bound=1.0,
+    tails=None,
+    num_bins=8,
 )
 
 # Set up the FlowSampler
