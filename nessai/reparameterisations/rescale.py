@@ -160,6 +160,14 @@ class ScaleAndShift(Reparameterisation):
                 if self.estimate_shift:
                     self.shift[p] = np.mean(x[p])
 
+    def reset(self):
+        """Reset the scale and shift parameters"""
+        for p in self.parameters:
+            if self.estimate_scale:
+                self.scale[p] = 1.0
+            if self.estimate_shift:
+                self.shift[p] = 0.0
+
 
 class Rescale(ScaleAndShift):
     """Reparameterisation that rescales the parameters by a constant factor
@@ -647,6 +655,14 @@ class RescaleToBounds(Reparameterisation):
         """
         self.update_bounds(x)
         self.reset_inversion()
+
+    def reset(self):
+        """Reset the reparameterisation.
+
+        Resets the inversion and the bounds.
+        """
+        self.reset_inversion()
+        self.set_bounds(self.prior_bounds)
 
     def x_prime_log_prior(self, x_prime):
         """Compute the prior in the prime space assuming a uniform prior"""

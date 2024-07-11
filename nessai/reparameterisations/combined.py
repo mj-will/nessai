@@ -185,6 +185,11 @@ class CombinedReparameterisation(dict):
         for r in self.values():
             r.update(x)
 
+    def reset(self):
+        """Reset the reparameterisations"""
+        for r in self.values():
+            r.reset()
+
     def log_prior(self, x):
         """
         Compute any additional priors for auxiliary parameters

@@ -139,3 +139,10 @@ class Reparameterisation:
         Does nothing by default.
         """
         pass
+
+    def reset(self):
+        """Reset the reparameterisation.
+
+        Does nothing by default.
+        """
+        pass
