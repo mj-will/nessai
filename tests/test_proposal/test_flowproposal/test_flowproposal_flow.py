@@ -35,7 +35,7 @@ def test_train_plot_false(mock_os_makedirs, proposal, model):
     """Test the train method"""
     x = model.new_point(2)
     x_prime = model.new_point(2)
-    proposal.rescaled_names = model.names
+    proposal.prime_parameters = model.names
     proposal.save_training_data = False
     proposal.training_count = 0
     proposal.populated = True
@@ -60,7 +60,7 @@ def test_forward_pass(proposal, model, n):
     z = np.random.randn(n, model.dims)
     proposal.clip = False
     proposal.rescale = MagicMock(return_value=[x, 2 * np.ones(n)])
-    proposal.rescaled_names = model.names
+    proposal.prime_parameters = model.names
     proposal.flow = MagicMock()
     proposal.flow.forward_and_log_prob = MagicMock(
         return_value=[z, np.ones(n)]
@@ -88,7 +88,7 @@ def test_backward_pass(proposal, model, log_p, discard_nans):
     proposal.inverse_rescale = MagicMock(
         side_effect=lambda a: (a, np.ones(a.size))
     )
-    proposal.rescaled_names = model.names
+    proposal.prime_parameters = model.names
     proposal.alt_dist = None
     proposal.check_prior_bounds = MagicMock(
         side_effect=lambda a, b, c: (a, b, c)
@@ -112,9 +112,10 @@ def test_backward_pass(proposal, model, log_p, discard_nans):
 @pytest.mark.parametrize("save", [True, False])
 @pytest.mark.parametrize("plot", [True, False])
 @pytest.mark.parametrize("plot_training", [True, False])
-def test_training(proposal, tmpdir, save, plot, plot_training):
+def test_training(proposal, tmp_path, save, plot, plot_training):
     """Test the training method"""
-    output = tmpdir.mkdir("test")
+    output = tmp_path / "test"
+    output.mkdir()
     data = np.random.randn(10, 2)
     data_prime = data / 2
     x = numpy_array_to_live_points(data, ["x", "y"])
@@ -126,7 +127,7 @@ def test_training(proposal, tmpdir, save, plot, plot_training):
     proposal.populated = True
     proposal._plot_training = plot_training
     proposal.save_training_data = save
-    proposal.rescaled_names = ["x_prime", "y_prime"]
+    proposal.prime_parameters = ["x_prime", "y_prime"]
     proposal.output = output
 
     proposal.check_state = MagicMock()

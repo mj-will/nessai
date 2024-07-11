@@ -50,8 +50,8 @@ def test_invertibility(
     x_prime, _ = proposal.rescale(x)
     x_out, _ = proposal.inverse_rescale(x_prime)
 
-    flags = {n: False for n in proposal.names}
-    for name in proposal.names:
+    flags = {n: False for n in proposal.parameters}
+    for name in proposal.parameters:
         flags[name] = np.unique(x_out[name].round(decimals=10)).size == n
     if not all(flags.values()):
         msg = f"""Number of unique samples has changed.

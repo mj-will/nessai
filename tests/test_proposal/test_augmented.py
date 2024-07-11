@@ -45,15 +45,15 @@ def test_update_flow_config(proposal):
 @patch("nessai.proposal.FlowProposal.set_rescaling")
 def test_set_rescaling(mock, proposal):
     """Test the set rescaling method"""
-    proposal.names = ["x", "y"]
-    proposal.rescaled_names = ["x_prime", "y_prime"]
-    proposal.rescale_parameters = proposal.names
+    proposal.parameters = ["x", "y"]
+    proposal.prime_parameters = ["x_prime", "y_prime"]
     proposal.augment_dims = 2
+    proposal.parameters_to_rescale = ["x", "y"]
     AugmentedFlowProposal.set_rescaling(proposal)
 
-    assert proposal.names == ["x", "y", "e_0", "e_1"]
-    assert proposal.rescaled_names == ["x_prime", "y_prime", "e_0", "e_1"]
-    assert proposal.augment_names == ["e_0", "e_1"]
+    assert proposal.parameters == ["x", "y", "e_0", "e_1"]
+    assert proposal.prime_parameters == ["x_prime", "y_prime", "e_0", "e_1"]
+    assert proposal.augment_parameters == ["e_0", "e_1"]
     mock.assert_called_once()
 
 
@@ -63,7 +63,7 @@ def test_set_rescaling(mock, proposal):
 def test_rescaling(mock_zeros, mock_randn, proposal, x, generate):
     """Test the rescaling method"""
     proposal._base_rescale = MagicMock(return_value=[x, np.ones(x.size)])
-    proposal.augment_names = ["e_1"]
+    proposal.augment_parameters = ["e_1"]
     proposal.augment_dims = 1
 
     AugmentedFlowProposal._augmented_rescale(
@@ -88,7 +88,7 @@ def test_rescaling_generate_none(
 ):
     """Test the rescaling method with generate_augment=None"""
     proposal._base_rescale = MagicMock(return_value=[x, np.ones(x.size)])
-    proposal.augment_names = ["e_1"]
+    proposal.augment_parameters = ["e_1"]
     proposal.augment_dims = 1
     proposal.generate_augment = "zeros"
 
@@ -126,7 +126,7 @@ def test_rescaling_generate_unknown(proposal, x):
 def test_augmented_prior(mock, marg, proposal, x):
     """Test the augmented prior with and without marginalistion"""
     proposal.marginalise_augment = marg
-    proposal.augment_names = ["e_1", "e_2"]
+    proposal.augment_parameters = ["e_1", "e_2"]
     log_prior = AugmentedFlowProposal.augmented_prior(proposal, x)
     if marg:
         assert log_prior == 0
@@ -188,7 +188,7 @@ def test_backward_pass(proposal, model, log_p, marg):
     proposal.inverse_rescale = MagicMock(
         side_effect=lambda a: (a, np.ones(a.size))
     )
-    proposal.rescaled_names = model.names
+    proposal.prime_parameters = model.names
     proposal.alt_dist = None
     proposal.check_prior_bounds = MagicMock(side_effect=lambda a, b: (a, b))
     proposal.flow = MagicMock()
@@ -227,15 +227,16 @@ def test_w_default_rescaling(model, tmpdir):
         output=output,
         poolsize=100,
         augment_dims=2,
-        rescale_parameters=True,
-        update_bounds=False,
+        reparameterisations="rescaletobounds",
     )
 
     proposal.initialise()
 
-    assert proposal.rescaled_names == ["x_prime", "y_prime", "e_0", "e_1"]
+    assert proposal.prime_parameters == ["x_prime", "y_prime", "e_0", "e_1"]
 
     x_prime, log_j = proposal.rescale(x)
+
+    print(list(proposal._reparameterisation.values())[0].bounds)
 
     np.testing.assert_array_almost_equal(x_out, x_prime["x_prime"], decimal=15)
     np.testing.assert_array_almost_equal(y_out, x_prime["y_prime"], decimal=15)
@@ -274,7 +275,7 @@ def test_w_reparameterisation(model, tmpdir):
 
     proposal.initialise()
 
-    assert proposal.rescaled_names == ["x_prime", "y_prime", "e_0", "e_1"]
+    assert proposal.prime_parameters == ["x_prime", "y_prime", "e_0", "e_1"]
 
     x_prime, log_j = proposal.rescale(x)
 

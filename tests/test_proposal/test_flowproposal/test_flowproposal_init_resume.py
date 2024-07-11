@@ -204,7 +204,7 @@ def test_resume_pickle(model, tmpdir, reparameterisation, init, latent_prior):
 
     if init:
         assert proposal.fuzz == proposal_re.fuzz
-        assert proposal.rescaled_names == proposal_re.rescaled_names
+        assert proposal.prime_parameters == proposal_re.rescaled_names
 
 
 def test_reset(proposal):

@@ -3,6 +3,7 @@
 Tests for modules/functions that are soon to be deprecated.
 """
 import pytest
+from unittest.mock import create_autospec
 
 
 def test_nested_sampler_deprecation():
@@ -27,3 +28,21 @@ def test_bilbyutils_warning():
         FutureWarning, match=r"`nessai.utils.bilbyutils` is deprecated"
     ):
         from nessai.utils.bilbyutils import get_all_kwargs  # noqa
+
+
+def test_flowproposal_names_warning():
+    from nessai.proposal import FlowProposal
+
+    proposal = create_autospec(FlowProposal)
+    proposal.parameters = ["x"]
+    with pytest.warns(FutureWarning, match=r"`names` is deprecated"):
+        assert FlowProposal.names.__get__(proposal) == ["x"]
+
+
+def test_flowproposal_rescaled_names_warning():
+    from nessai.proposal import FlowProposal
+
+    proposal = create_autospec(FlowProposal)
+    proposal.prime_parameters = ["x"]
+    with pytest.warns(FutureWarning, match=r"`rescaled_names` is deprecated"):
+        assert FlowProposal.rescaled_names.__get__(proposal) == ["x"]

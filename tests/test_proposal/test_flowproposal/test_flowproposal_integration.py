@@ -14,13 +14,14 @@ torch.set_num_threads(1)
 @pytest.mark.parametrize()
 def flow_config():
     return dict(
-        model_config=dict(n_neurons=1, n_blocks=1, n_layers=1, kwargs={})
+        n_neurons=1,
+        n_blocks=1,
+        n_layers=1,
     )
 
 
 @pytest.mark.parametrize("expansion_fraction", [0.0, 1.0, None])
 @pytest.mark.parametrize("check_acceptance", [False, True])
-@pytest.mark.parametrize("rescale_parameters", [False, True])
 @pytest.mark.integration_test
 @pytest.mark.timeout(30)
 def test_flowproposal_populate(
@@ -29,7 +30,6 @@ def test_flowproposal_populate(
     flow_config,
     expansion_fraction,
     check_acceptance,
-    rescale_parameters,
 ):
     """
     Test the populate method in the FlowProposal class with a range of
@@ -47,13 +47,12 @@ def test_flowproposal_populate(
         latent_prior="truncated_gaussian",
         expansion_fraction=expansion_fraction,
         check_acceptance=check_acceptance,
-        rescale_parameters=rescale_parameters,
         max_radius=1.0,
         constant_volume_mode=False,
     )
 
     fp.initialise()
-    worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.names)
+    worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.parameters)
     fp.populate(worst, N=n_draw)
 
     assert fp.x.size == n_draw
@@ -86,15 +85,14 @@ def test_flowproposal_populate_edge_cases(
         poolsize=10,
         latent_prior=latent_prior,
         expansion_fraction=None,
-        rescale_parameters=False,
         max_radius=0.1,
         constant_volume_mode=False,
+        fallback_reparameterisation=None,
     )
 
     fp.initialise()
-    assert fp.rescale_parameters is False
-    assert fp.parameters_to_rescale == []
-    worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.names)
+    assert fp.parameters == fp.prime_parameters
+    worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.parameters)
     fp.populate(worst, N=n_draw)
 
     assert fp.x.size == n_draw
@@ -120,11 +118,13 @@ def test_training(tmpdir, model, plot):
 
 
 @pytest.mark.parametrize("check_acceptance", [False, True])
-@pytest.mark.parametrize("rescale_parameters", [False, True])
 @pytest.mark.integration_test
 @pytest.mark.timeout(30)
 def test_constant_volume_mode(
-    tmpdir, model, flow_config, check_acceptance, rescale_parameters
+    tmpdir,
+    model,
+    flow_config,
+    check_acceptance,
 ):
     """Integration test for constant volume mode.
 
@@ -141,10 +141,9 @@ def test_constant_volume_mode(
         constant_volume_mode=True,
         volume_fraction=0.8647,
         check_acceptance=check_acceptance,
-        rescale_parameters=rescale_parameters,
     )
     fp.initialise()
-    worst = numpy_array_to_live_points(0.5 * np.ones(fp.dims), fp.names)
+    worst = numpy_array_to_live_points(0.5 * np.ones(fp.dims), fp.parameters)
     fp.populate(worst, N=10)
     assert fp.x.size == 10
 
@@ -152,12 +151,12 @@ def test_constant_volume_mode(
     np.testing.assert_approx_equal(fp.fixed_radius, expected_radius, 4)
 
 
-@pytest.mark.parametrize("boundary_inversion", [True, False])
-@pytest.mark.parametrize("inversion_type", ["split", "duplicate"])
+@pytest.mark.parametrize(
+    "reparameterisations",
+    ["rescaletobounds", "inversion", "inversion-duplicate", "zscore"],
+)
 @pytest.mark.integration_test
-def test_verify_rescaling_integration(
-    tmp_path, model, boundary_inversion, inversion_type
-):
+def test_verify_rescaling_integration(tmp_path, model, reparameterisations):
     """Assert verify rescaling passes."""
     output = tmp_path / "test"
     output.mkdir()
@@ -166,16 +165,15 @@ def test_verify_rescaling_integration(
         model,
         output=output,
         poolsize=10,
-        boundary_inversion=boundary_inversion,
-        inversion_type=inversion_type,
+        reparameterisations=reparameterisations,
     )
     fp.set_rescaling()
     fp.verify_rescaling()
 
 
 @pytest.mark.integration_test
-def test_rescaling_integration_with_rescale_parameters(tmp_path, model):
-    """Assert rescale parameters is configured correctly"""
+def test_rescaling_integration_with_zscore(tmp_path, model):
+    """Assert zscore is configured correctly"""
     output = tmp_path / "test"
     output.mkdir()
 
@@ -183,8 +181,33 @@ def test_rescaling_integration_with_rescale_parameters(tmp_path, model):
         model,
         output=output,
         poolsize=10,
-        rescale_parameters=True,
-        rescale_bounds=[0, 1],
+    )
+    fp.set_rescaling()
+
+    n = 10
+    x = model.new_point(n)
+
+    x_prime, log_j = fp.rescale(x)
+
+    x_recon, log_j_inv = fp.inverse_rescale(x_prime)
+
+    assert len(log_j) == n
+    np.testing.assert_array_almost_equal(log_j, -log_j_inv, decimal=15)
+
+    assert_structured_arrays_equal(x_recon, x, atol=1e-15)
+
+
+@pytest.mark.integration_test
+def test_rescaling_integration_with_rescaletobounds(tmp_path, model):
+    """Assert rescaletobounds is configured correctly"""
+    output = tmp_path / "test"
+    output.mkdir()
+
+    fp = FlowProposal(
+        model,
+        output=output,
+        poolsize=10,
+        reparameterisations="rescaletobounds",
     )
     fp.set_rescaling()
 
@@ -198,12 +221,18 @@ def test_rescaling_integration_with_rescale_parameters(tmp_path, model):
     x_prime_expected = x_prime.copy()
     for name in model.names:
         x_prime_expected[name + "_prime"] = (
-            x[name] - model.bounds[name][0]
-        ) / (model.bounds[name][1] - model.bounds[name][0])
-    expected_log_j = -np.log(np.prod(model.upper_bounds - model.lower_bounds))
-
+            2
+            * (
+                (x[name] - model.bounds[name][0])
+                / (model.bounds[name][1] - model.bounds[name][0])
+            )
+            - 1
+        )
+    expected_log_j = np.sum(
+        [np.log(2 / np.ptp(model.bounds[n])) for n in model.names]
+    )
     assert len(log_j) == n
-    assert (log_j == expected_log_j).all()
+    np.testing.assert_allclose(log_j, expected_log_j)
     np.testing.assert_array_almost_equal(log_j, -log_j_inv, decimal=15)
 
     assert_structured_arrays_equal(x_prime, x_prime_expected, atol=1e-15)
@@ -222,7 +251,7 @@ def test_rescaling_integration_no_rescaling(tmp_path, model):
         model,
         output=output,
         poolsize=10,
-        rescale_parameters=False,
+        fallback_reparameterisation=None,
     )
     fp.set_rescaling()
 

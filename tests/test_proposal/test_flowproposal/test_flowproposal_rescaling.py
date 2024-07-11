@@ -105,7 +105,7 @@ def test_configure_reparameterisations_dict(
     # fmt: on
 
     assert proposal.boundary_inversion is True
-    assert proposal.names == ["x"]
+    assert proposal.parameters == ["x"]
 
 
 @patch("nessai.proposal.flowproposal.CombinedReparameterisation")
@@ -155,7 +155,7 @@ def test_configure_reparameterisations_dict_w_params(
         .assert_called_once_with("r")
     # fmt: on
 
-    assert proposal.names == ["x", "y"]
+    assert proposal.parameters == ["x", "y"]
 
 
 def test_configure_reparameterisations_requires_prime_prior(
@@ -214,7 +214,7 @@ def test_configure_reparameterisations_dict_missing(mocked_class, proposal):
     assert "No reparameterisation found for x" in str(excinfo.value)
 
 
-def test_configure_reparameterisations_str(proposal):
+def test_configure_reparameterisations_dict_str(proposal):
     """Test configuration for reparameterisations dictionary from a str"""
     proposal.add_default_reparameterisations = MagicMock()
     proposal.get_reparameterisation = get_reparameterisation
@@ -224,8 +224,7 @@ def test_configure_reparameterisations_str(proposal):
     FlowProposal.configure_reparameterisations(proposal, {"x": "default"})
 
     proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.rescaled_names == ["x_prime", "y"]
-    assert proposal.parameters_to_rescale == ["x"]
+    assert proposal.prime_parameters == ["x_prime", "y"]
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
 
@@ -242,8 +241,7 @@ def test_configure_reparameterisations_dict_reparam(proposal):
     )
 
     proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.rescaled_names == ["x_prime", "y"]
-    assert proposal.parameters_to_rescale == ["x"]
+    assert proposal.prime_parameters == ["x_prime", "y"]
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
 
@@ -271,8 +269,7 @@ def test_configure_reparameterisations_regex(proposal, parameters):
     )
 
     proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.rescaled_names == ["x_0_prime", "x_1_prime", "y"]
-    assert proposal.parameters_to_rescale == ["x_0", "x_1"]
+    assert proposal.prime_parameters == ["x_0_prime", "x_1_prime", "y"]
     assert proposal._reparameterisation.parameters == ["x_0", "x_1", "y"]
     assert proposal._reparameterisation.prime_parameters == [
         "x_0_prime",
@@ -290,14 +287,37 @@ def test_configure_reparameterisations_none(proposal):
     proposal.fallback_reparameterisation = None
     FlowProposal.configure_reparameterisations(proposal, None)
     proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.rescaled_names == ["x", "y"]
+    assert proposal.prime_parameters == ["x", "y"]
 
-    assert proposal.parameters_to_rescale == []
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == ["x", "y"]
     assert all(
         [
             isinstance(r, NullReparameterisation)
+            for r in proposal._reparameterisation.reparameterisations.values()
+        ]
+    )
+
+
+def test_configure_reparameterisations_string(proposal):
+    """Test configuration when input is a string"""
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = get_reparameterisation
+    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
+    proposal.model.names = ["x", "y"]
+    proposal.fallback_reparameterisation = None
+    FlowProposal.configure_reparameterisations(proposal, "rescaletobounds")
+    proposal.add_default_reparameterisations.assert_not_called()
+    assert proposal.prime_parameters == ["x_prime", "y_prime"]
+
+    assert proposal._reparameterisation.parameters == ["x", "y"]
+    assert proposal._reparameterisation.prime_parameters == [
+        "x_prime",
+        "y_prime",
+    ]
+    assert all(
+        [
+            isinstance(r, RescaleToBounds)
             for r in proposal._reparameterisation.reparameterisations.values()
         ]
     )
@@ -312,9 +332,8 @@ def test_configure_reparameterisations_fallback(proposal):
     proposal.fallback_reparameterisation = "default"
     FlowProposal.configure_reparameterisations(proposal, None)
     proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.rescaled_names == ["x_prime", "y_prime"]
+    assert proposal.prime_parameters == ["x_prime", "y_prime"]
 
-    assert proposal.parameters_to_rescale == ["x", "y"]
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == [
         "x_prime",
@@ -384,9 +403,8 @@ def test_set_rescaling_with_model(proposal, model):
     proposal.model.reparameterisations = {"x": "default"}
 
     def update(self):
-        proposal.names = model.names
-        proposal.parameters_to_rescale = ["x"]
-        proposal.rescaled_names = ["x_prime"]
+        proposal.parameters = model.names
+        proposal.prime_parameters = ["x_prime"]
 
     proposal.configure_reparameterisations = MagicMock()
     proposal.configure_reparameterisations.side_effect = update
@@ -397,7 +415,7 @@ def test_set_rescaling_with_model(proposal, model):
         {"x": "default"}
     )
     assert proposal.reparameterisations == {"x": "default"}
-    assert proposal.rescaled_names == ["x_prime"]
+    assert proposal.prime_parameters == ["x_prime"]
 
 
 def test_set_rescaling_with_reparameterisations(proposal, model):
@@ -409,9 +427,8 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
     proposal.reparameterisations = {"x": "default"}
 
     def update(self):
-        proposal.names = model.names
-        proposal.parameters_to_rescale = ["x"]
-        proposal.rescaled_names = ["x_prime"]
+        proposal.parameters = model.names
+        proposal.prime_parameters = ["x_prime"]
 
     proposal.configure_reparameterisations = MagicMock()
     proposal.configure_reparameterisations.side_effect = update
@@ -422,62 +439,7 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
         {"x": "default"}
     )
     assert proposal.reparameterisations == {"x": "default"}
-    assert proposal.rescaled_names == ["x_prime"]
-
-
-@pytest.mark.parametrize("rescale_parameters", [True, ["x"]])
-def test_set_rescaling_parameters(proposal, model, rescale_parameters):
-    """Test setting rescaling without reparameterisations."""
-
-    rescale_bounds = [0, 1]
-    boundary_inversion = True
-    update_bounds = True
-    inversion_type = "split"
-    detect_edges = False
-    detect_edges_kwargs = {}
-    rescaled_names = ["x_prime"]
-
-    _rescale_parameters = (
-        model.names if rescale_parameters is True else rescale_parameters
-    )
-
-    def update(self):
-        proposal.names = model.names
-        proposal.parameters_to_rescale = _rescale_parameters
-        proposal.rescaled_names = rescaled_names
-
-    proposal.model = model
-    proposal.model.reparameterisations = None
-    proposal.reparameterisations = None
-    proposal.configure_reparameterisations = MagicMock()
-    proposal.configure_reparameterisations.side_effect = update
-
-    proposal.rescale_parameters = rescale_parameters
-    proposal.rescale_bounds = rescale_bounds
-    proposal.update_bounds = update_bounds
-    proposal.boundary_inversion = boundary_inversion
-    proposal.inversion_type = inversion_type
-    proposal.detect_edges = detect_edges
-    proposal.detect_edges_kwargs = detect_edges_kwargs
-
-    FlowProposal.set_rescaling(proposal)
-
-    reparameterisations = {
-        "rescaletobounds": {
-            "parameters": _rescale_parameters,
-            "rescale_bounds": rescale_bounds,
-            "update_bounds": update_bounds,
-            "boundary_inversion": boundary_inversion,
-            "inversion_type": inversion_type,
-            "detect_edges": detect_edges,
-            "detect_edges_kwargs": detect_edges_kwargs,
-        },
-    }
-
-    proposal.configure_reparameterisations.assert_called_with(
-        reparameterisations
-    )
-    proposal.parameters_to_rescale == _rescale_parameters
+    assert proposal.prime_parameters == ["x_prime"]
 
 
 @pytest.mark.parametrize("n", [1, 10])
@@ -557,6 +519,7 @@ def test_verify_rescaling(proposal, has_inversion):
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
     proposal.check_state = MagicMock()
     proposal.rescaling_set = True
+    proposal._reparameterisation = MagicMock()
 
     FlowProposal.verify_rescaling(proposal)
 
@@ -570,6 +533,7 @@ def test_verify_rescaling(proposal, has_inversion):
     ]
     proposal.rescale.assert_has_calls(calls)
     proposal.inverse_rescale.assert_has_calls(4 * [call(x_prime)])
+    proposal._reparameterisation.reset.assert_called_once()
 
 
 @pytest.mark.parametrize("has_inversion", [False, True])

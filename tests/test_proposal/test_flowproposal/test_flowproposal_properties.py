@@ -22,19 +22,19 @@ def test_poolsize(proposal):
 
 def test_dims(proposal):
     """Test dims property"""
-    proposal.names = ["x", "y"]
+    proposal.parameters = ["x", "y"]
     assert FlowProposal.dims.__get__(proposal) == 2
 
 
 def test_rescaled_dims(proposal):
     """Test rescaled_dims property"""
-    proposal.rescaled_names = ["x", "y"]
+    proposal.prime_parameters = ["x", "y"]
     assert FlowProposal.rescaled_dims.__get__(proposal) == 2
 
 
 def test_dtype(proposal):
     """Test dims property"""
-    proposal.names = ["x", "y"]
+    proposal.parameters = ["x", "y"]
     proposal._x_dtype = None
     assert (
         FlowProposal.x_dtype.__get__(proposal)
@@ -44,7 +44,7 @@ def test_dtype(proposal):
 
 def test_prime_dtype(proposal):
     """Test dims property"""
-    proposal.rescaled_names = ["x", "y"]
+    proposal.prime_parameters = ["x", "y"]
     proposal._x_prime_dtype = None
     assert (
         FlowProposal.x_prime_dtype.__get__(proposal)
