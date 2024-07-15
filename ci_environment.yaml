@@ -6,7 +6,7 @@ channels:
 dependencies:
   - numpy
   - pandas
-  - scipy>=0.16
+  - scipy>=0.16, <1.14    # tmp fix for a bilby issue
   - matplotlib>=2.0
   - seaborn
   - tqdm
