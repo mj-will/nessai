@@ -14,7 +14,7 @@ from nessai.plot import plot_1d_comparison, plot_histogram, plot_live_points
 from nessai.utils.testing import assert_structured_arrays_equal
 
 from .base import Proposal
-from .. import config
+from .. import config as general_config
 from ..flowmodel.importance import ImportanceFlowModel
 from ..flowmodel.utils import update_flow_config
 from ..livepoint import (
@@ -31,6 +31,118 @@ from ..utils.structures import get_subset_arrays
 
 
 logger = logging.getLogger(__name__)
+
+
+class ImportanceRescalingMixin:
+
+    def verify_rescaling(
+        self, n: int = 1000, rtol: float = 1e-08, atol: float = 1e-08
+    ) -> None:
+        """Verify the rescaling is invertible.
+
+        Uses :code:`numpy.allclose`, see numpy documentation for more details.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples to test.
+        atol : float
+            The absolute tolerance.
+        rtol : float
+            The relative tolerance.
+        """
+        logger.debug("Verifying rescaling")
+        x_in = self.model.sample_unit_hypercube(n)
+
+        x_prime, log_j = self.rescale(x_in)
+        x_re, log_j_inv = self.inverse_rescale(x_prime)
+
+        try:
+            assert_structured_arrays_equal(x_re, x_in, atol=atol, rtol=rtol)
+        except AssertionError as e:
+            raise RuntimeError(f"Rescaling is not invertible. Error: {e}")
+
+        if not np.allclose(log_j, -log_j_inv, atol=atol, rtol=rtol):
+            raise RuntimeError(
+                "Forward and inverse Jacobian determinants are not equal"
+            )
+        logger.debug("Rescaling functions are invertible")
+
+    def to_prime(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Convert samples from the unit hypercube to samples in x'-space
+
+        Parameters
+        ----------
+        x_prime :
+            Unstructured array of samples in the unit hypercube
+
+        Returns
+        -------
+        x :
+            Unstructured array of samples in x'-space
+        log_j :
+            Corresponding log-Jacobian determinant.
+        """
+        x = np.atleast_2d(x)
+        if self.reparameterisation == "logit":
+            x_prime, log_j = logit(x, eps=general_config.general.eps)
+            log_j = log_j.sum(axis=1)
+        elif self.reparameterisation is None:
+            x_prime = x.copy()
+            log_j = np.zeros(x.shape[0])
+        else:
+            raise ValueError(
+                f"Unknown reparameterisation: '{self.reparameterisation}'"
+            )
+        return x_prime, log_j
+
+    def from_prime(self, x_prime: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Convert samples the x'-space to samples in the unit hypercube.
+
+        Parameters
+        ----------
+        x_prime :
+            Unstructured array of samples.
+
+        Returns
+        -------
+        x :
+            Unstructured array of samples in the unit hypercube.
+        log_j :
+            Corresponding log-Jacobian determinant.
+        """
+        x_prime = np.atleast_2d(x_prime)
+        if self.reparameterisation == "logit":
+            x, log_j = sigmoid(x_prime)
+            log_j = log_j.sum(axis=1)
+        elif self.reparameterisation is None:
+            x = x_prime.copy()
+            log_j = np.zeros(x.shape[0])
+        else:
+            raise ValueError(
+                f"Unknown reparameterisation: '{self.reparameterisation}'"
+            )
+        return x, log_j
+
+    def rescale(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """Convert to the space in which the flow is trained.
+
+        Returns an unstructured array.
+        """
+        x = live_points_to_array(x, self.model.names)
+        x_prime, log_j = self.to_prime(x)
+        return x_prime, log_j
+
+    def inverse_rescale(self, x_prime: np.ndarray) -> np.ndarray:
+        """Convert from the space in which the flow is trained.
+
+        Returns a structured array.
+        """
+        x, log_j = self.from_prime(x_prime)
+        if self.clip:
+            x = np.clip(x, 0.0, 1.0)
+        x = numpy_array_to_live_points(x, self.model.names)
+        return x, log_j
 
 
 class InitialImportanceProposal(Proposal):
@@ -82,7 +194,62 @@ class FlexibleInitialImportanceProposal(InitialImportanceProposal):
     pass
 
 
-class ImportanceFlowProposal(Proposal):
+class FlowInitialImportanceProposal(
+    ImportanceRescalingMixin, FlexibleInitialImportanceProposal
+):
+
+    def __init__(
+        self,
+        model: Model,
+        samples: np.ndarray,
+        clip: bool = False,
+        train_on_init: bool = True,
+        flow_config: dict = None,
+        training_config: dict = None,
+    ) -> None:
+        super().__init__(model=model)
+
+        self._flow_config = None
+        self.initialised = False
+
+        self.samples = samples
+        self.clip = clip
+        self.flow_config = flow_config
+        self.training_config = training_config
+
+        if train_on_init:
+            self.train()
+
+    @property
+    def flow_config(self) -> dict:
+        return self._flow_config
+
+    @flow_config.setter
+    def flow_config(self, config: dict) -> None:
+        if config is None:
+            config = {}
+        config["n_inputs"] = self.model.dims
+        self._flow_config = update_config(config)
+
+    def train(self) -> None:
+        x_prime, _ = self.rescale(self.samples)
+
+        self.flow
+        self.initialised = True
+
+    def draw(self, n: int) -> np.ndarray:
+        if not self.initialised:
+            raise RuntimeError("Proposal is not initialised!")
+
+    def log_prob(self, x: np.ndarray) -> np.ndarray:
+        if not self.initialised:
+            raise RuntimeError("Proposal is not initialised!")
+        x_prime, log_j = self.rescale(x)
+        log_prob = self.flow.log_prob(x_prime)
+        return log_prob + log_j
+
+
+class ImportanceFlowProposal(ImportanceRescalingMixin, Proposal):
     """Flow-based proposal for importance-based nested sampling.
 
     Parameters
@@ -182,15 +349,15 @@ class ImportanceFlowProposal(Proposal):
     @staticmethod
     def _check_fields():
         """Check that the logQ and logW fields have been added."""
-        if "logQ" not in config.livepoints.non_sampling_parameters:
+        if "logQ" not in general_config.livepoints.non_sampling_parameters:
             raise RuntimeError(
                 "logQ field missing in non-sampling parameters."
             )
-        if "logW" not in config.livepoints.non_sampling_parameters:
+        if "logW" not in general_config.livepoints.non_sampling_parameters:
             raise RuntimeError(
                 "logW field missing in non-sampling parameters."
             )
-        if "logU" not in config.livepoints.non_sampling_parameters:
+        if "logU" not in general_config.livepoints.non_sampling_parameters:
             raise RuntimeError(
                 "logU field missing in non-sampling parameters."
             )
@@ -211,115 +378,6 @@ class ImportanceFlowProposal(Proposal):
         )
         self.flow.initialise()
         super().initialise()
-
-    def verify_rescaling(
-        self, n: int = 1000, rtol: float = 1e-08, atol: float = 1e-08
-    ) -> None:
-        """Verify the rescaling is invertible.
-
-        Uses :code:`numpy.allclose`, see numpy documentation for more details.
-
-        Parameters
-        ----------
-        n : int
-            Number of samples to test.
-        atol : float
-            The absolute tolerance.
-        rtol : float
-            The relative tolerance.
-        """
-        logger.debug("Verifying rescaling")
-        x_in = self.model.sample_unit_hypercube(n)
-
-        x_prime, log_j = self.rescale(x_in)
-        x_re, log_j_inv = self.inverse_rescale(x_prime)
-
-        try:
-            assert_structured_arrays_equal(x_re, x_in, atol=atol, rtol=rtol)
-        except AssertionError as e:
-            raise RuntimeError(f"Rescaling is not invertible. Error: {e}")
-
-        if not np.allclose(log_j, -log_j_inv, atol=atol, rtol=rtol):
-            raise RuntimeError(
-                "Forward and inverse Jacobian determinants are not equal"
-            )
-        logger.debug("Rescaling functions are invertible")
-
-    def to_prime(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert samples from the unit hypercube to samples in x'-space
-
-        Parameters
-        ----------
-        x_prime :
-            Unstructured array of samples in the unit hypercube
-
-        Returns
-        -------
-        x :
-            Unstructured array of samples in x'-space
-        log_j :
-            Corresponding log-Jacobian determinant.
-        """
-        x = np.atleast_2d(x)
-        if self.reparameterisation == "logit":
-            x_prime, log_j = logit(x, eps=config.general.eps)
-            log_j = log_j.sum(axis=1)
-        elif self.reparameterisation is None:
-            x_prime = x.copy()
-            log_j = np.zeros(x.shape[0])
-        else:
-            raise ValueError(
-                f"Unknown reparameterisation: '{self.reparameterisation}'"
-            )
-        return x_prime, log_j
-
-    def from_prime(self, x_prime: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert samples the x'-space to samples in the unit hypercube.
-
-        Parameters
-        ----------
-        x_prime :
-            Unstructured array of samples.
-
-        Returns
-        -------
-        x :
-            Unstructured array of samples in the unit hypercube.
-        log_j :
-            Corresponding log-Jacobian determinant.
-        """
-        x_prime = np.atleast_2d(x_prime)
-        if self.reparameterisation == "logit":
-            x, log_j = sigmoid(x_prime)
-            log_j = log_j.sum(axis=1)
-        elif self.reparameterisation is None:
-            x = x_prime.copy()
-            log_j = np.zeros(x.shape[0])
-        else:
-            raise ValueError(
-                f"Unknown reparameterisation: '{self.reparameterisation}'"
-            )
-        return x, log_j
-
-    def rescale(self, x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
-        """Convert to the space in which the flow is trained.
-
-        Returns an unstructured array.
-        """
-        x = live_points_to_array(x, self.model.names)
-        x_prime, log_j = self.to_prime(x)
-        return x_prime, log_j
-
-    def inverse_rescale(self, x_prime: np.ndarray) -> np.ndarray:
-        """Convert from the space in which the flow is trained.
-
-        Returns a structured array.
-        """
-        x, log_j = self.from_prime(x_prime)
-        if self.clip:
-            x = np.clip(x, 0.0, 1.0)
-        x = numpy_array_to_live_points(x, self.model.names)
-        return x, log_j
 
     def update_proposal_weights(self, weights: dict) -> None:
         """Method to update the proposal weights dictionary.
@@ -720,7 +778,7 @@ class ImportanceFlowProposal(Proposal):
             raise ValueError("Total counts is zero")
         proposal_id = np.arange(weights.size) - 1
         prime_samples = np.empty([n, self.model.dims])
-        sample_its = np.empty(n, dtype=config.livepoints.it_dtype)
+        sample_its = np.empty(n, dtype=general_config.livepoints.it_dtype)
         count = 0
         # Draw from prior
         for id, m in zip(proposal_id, counts):
@@ -728,7 +786,7 @@ class ImportanceFlowProposal(Proposal):
                 continue
             logger.debug(f"Drawing {m} samples from the {id}th proposal.")
             if id == -1:
-                prime_samples[count : (count + m)] = self.to_prime(
+                prime_samples[count : (count + m)] = self.rescale(
                     self.initial_proposal.draw(m)
                 )[0]
             else:
