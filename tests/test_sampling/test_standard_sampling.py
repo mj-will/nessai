@@ -98,16 +98,17 @@ def test_sampling_without_rescale(integration_model, flow_config, tmpdir):
 
 
 @pytest.mark.slow_integration_test
-def test_sampling_with_maf(integration_model, flow_config, tmpdir):
+def test_sampling_with_maf(integration_model, flow_config, tmp_path):
     """
     Test sampling with MAF. Checks that flow is trained but does not
     check convergence.
     """
-    flow_config["model_config"]["ftype"] = "maf"
-    output = str(tmpdir.mkdir("maf"))
+    from nessai.flows import MaskedAutoregressiveFlow
+
+    flow_config["ftype"] = "maf"
     fp = FlowSampler(
         integration_model,
-        output=output,
+        output=tmp_path / "maf",
         resume=False,
         nlive=100,
         plot=False,
@@ -119,6 +120,7 @@ def test_sampling_with_maf(integration_model, flow_config, tmpdir):
         poolsize=10,
     )
     fp.run()
+    assert isinstance(fp.ns.proposal.flow.model, MaskedAutoregressiveFlow)
     assert fp.ns.proposal.flow.weights_file is not None
     assert fp.ns.proposal.training_count == 1
 
