@@ -15,7 +15,7 @@ from nessai.utils.testing import assert_structured_arrays_equal
 
 from .base import Proposal
 from .. import config as general_config
-from ..flowmodel.importance import ImportanceFlowModel
+from ..flowmodel.importance import ImportanceFlowModel, FlowModel
 from ..flowmodel.utils import update_flow_config
 from ..livepoint import (
     get_dtype,
@@ -202,20 +202,31 @@ class FlowInitialImportanceProposal(
         self,
         model: Model,
         samples: np.ndarray,
+        output: str = None,
         clip: bool = False,
         train_on_init: bool = True,
         flow_config: dict = None,
         training_config: dict = None,
+        reparameterisation: str = "logit",
     ) -> None:
         super().__init__(model=model)
 
         self._flow_config = None
         self.initialised = False
 
+        if output is None:
+            output = os.getcwd()
+        self.output = output
+        os.makedirs(self.output, exist_ok=True)
+
+        if not self.model.in_unit_hypercube(samples).all():
+            raise ValueError("`samples` contains values outside [0, 1)")
+
         self.samples = samples
         self.clip = clip
         self.flow_config = flow_config
         self.training_config = training_config
+        self.reparameterisation = reparameterisation
 
         if train_on_init:
             self.train()
@@ -229,17 +240,48 @@ class FlowInitialImportanceProposal(
         if config is None:
             config = {}
         config["n_inputs"] = self.model.dims
-        self._flow_config = update_config(config)
+        self._flow_config = update_flow_config(config)
 
-    def train(self) -> None:
+    def train(self, **kwargs) -> None:
+
+        self.flow = FlowModel(
+            self.flow_config,
+            training_config=self.training_config,
+            output=self.output,
+        )
         x_prime, _ = self.rescale(self.samples)
-
-        self.flow
+        self.flow.initialise()
+        self.flow.train(x_prime, **kwargs)
         self.initialised = True
 
     def draw(self, n: int) -> np.ndarray:
         if not self.initialised:
             raise RuntimeError("Proposal is not initialised!")
+        samples = np.empty(n, dtype=get_dtype(self.model.names))
+        n_accepted = 0
+        while n_accepted < n:
+            x_prime, log_prob = self.flow.sample_and_log_prob(n)
+            x, log_j = self.inverse_rescale(x_prime)
+            log_prob -= log_j
+            x["logP"] = self.model.batch_evaluate_log_prior(
+                x, unit_hypercube=True
+            )
+            x["logL"] = self.model.batch_evaluate_log_likelihood(
+                x, unit_hypercube=True
+            )
+            accept = (
+                np.isfinite(x["logP"])
+                & np.isfinite(x["logL"])
+                & np.isfinite(log_prob)
+            )
+            n_it = accept.sum()
+            m = min(n_it, n - n_accepted)
+            samples[n_accepted : (n_accepted + m)] = x[accept][:m]
+            n_accepted += m
+        samples["logU"] = self.model.batch_evaluate_log_prior_unit_hypercube(
+            samples
+        )
+        return samples, log_prob[:, np.newaxis]
 
     def log_prob(self, x: np.ndarray) -> np.ndarray:
         if not self.initialised:
