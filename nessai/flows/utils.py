@@ -2,9 +2,10 @@
 """
 Various utilities for implementing normalising flows.
 """
+import copy
 import inspect
 import logging
-from typing import Optional, Type, Union
+from typing import Callable, Optional, Type, Union
 import warnings
 
 from glasflow.nflows import transforms
@@ -197,39 +198,35 @@ def get_flow_class(name: str):
     return FlowClass
 
 
+def get_activation_function(name: str) -> Callable:
+    """Get the activation function from a string."""
+    activations = {"relu": F.relu, "tanh": F.tanh, "swish": silu, "silu": silu}
+    if name not in activations:
+        raise ValueError(f"Unknown activation: {name}")
+    return activations[name]
+
+
 def configure_model(config):
     """
     Setup the flow form a configuration dictionary.
     """
-    from ..flowmodel import config as fmconfig
-
-    kwargs = {}
-    activations = {"relu": F.relu, "tanh": F.tanh, "swish": silu, "silu": silu}
-
-    config = config.copy()
+    config = copy.deepcopy(config)
 
     if not isinstance(config["n_inputs"], int):
         raise TypeError("Number of inputs (n_inputs) must be an int")
 
-    allowed_keys = set(fmconfig.DEFAULT_MODEL_CONFIG.keys())
-    extra_keys = set(config.keys()) - allowed_keys
-    if extra_keys:
-        raise RuntimeError(
-            f"Unknown keys in model config: {extra_keys}. "
-            f"Known keys are: {allowed_keys}"
+    kwargs_dict = config.pop("kwargs", None)
+    if kwargs_dict is not None:
+        warnings.warn(
+            "Specifying the kwargs as a dictionary is deprecated.",
+            FutureWarning,
         )
+        config.update(kwargs_dict)
 
-    k = config.get("kwargs", None)
-    if k is not None:
-        if "activation" in k and isinstance(k["activation"], str):
-            try:
-                k["activation"] = activations[k["activation"]]
-            except KeyError as e:
-                raise RuntimeError(f"Unknown activation function: {e}")
+    if "activation" in config:
+        config["activation"] = get_activation_function(config["activation"])
 
-        kwargs.update(k)
-
-    dist_kwargs = config.pop("distribution_kwargs", None)
+    dist_kwargs = config.pop("distribution_kwargs", {})
     if dist_kwargs is None:
         dist_kwargs = {}
     distribution = get_base_distribution(
@@ -237,41 +234,25 @@ def configure_model(config):
         config.pop("distribution", None),
         **dist_kwargs,
     )
-    if distribution:
-        kwargs["distribution"] = distribution
+    if distribution is not None:
+        config["distribution"] = distribution
 
-    FlowClass = config.get("flow")
-    ftype = config.get("ftype")
+    FlowClass = config.pop("flow", None)
+    ftype = config.pop("ftype", None)
     if FlowClass is None and ftype is None:
         raise RuntimeError("Must specify either 'flow' or 'ftype'.")
 
     if FlowClass is None:
         FlowClass = get_flow_class(ftype)
+
     model = FlowClass(
-        config["n_inputs"],
-        config["n_neurons"],
-        config["n_blocks"],
-        config["n_layers"],
-        **kwargs,
+        config.pop("n_inputs"),
+        config.pop("n_neurons"),
+        config.pop("n_blocks"),
+        config.pop("n_layers"),
+        **config,
     )
-
-    device = torch.device(config.get("device_tag", "cpu"))
-    if device != "cpu":
-        try:
-            model.to(device)
-        except RuntimeError as e:
-            device = torch.device("cpu")
-            logger.warning(
-                "Could not send the normalising flow to the "
-                f"specified device {config['device_tag']} send to CPU "
-                f"instead. Error raised: {e}"
-            )
-    logger.debug("Flow model:")
-    logger.debug(model)
-
-    model.device = device
-
-    return model, device
+    return model
 
 
 def reset_weights(module):

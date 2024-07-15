@@ -65,17 +65,20 @@ def integration_model():
 
 @pytest.fixture()
 def flow_config():
-    d = dict(
-        max_epochs=5,
-        model_config=dict(
-            n_blocks=2,
-            n_neurons=2,
-            n_layers=1,
-            device_tag="cpu",
-            kwargs=dict(batch_norm_between_layers=False),
-        ),
+    return dict(
+        n_blocks=2,
+        n_neurons=2,
+        n_layers=1,
+        batch_norm_between_layers=False,
     )
-    return d
+
+
+@pytest.fixture()
+def training_config():
+    return dict(
+        max_epochs=5,
+        device_tag="cpu",
+    )
 
 
 @pytest.fixture()

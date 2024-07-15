@@ -2,14 +2,23 @@
 """
 Global configuration for nessai.
 """
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import List, Tuple
 
 import numpy as np
 
 
 @dataclass
-class LivepointsConfig:
+class _BaseConfig:
+    """Base class for all configs"""
+
+    def asdict(self):
+        """Return the config as a dictionary."""
+        return asdict(self)
+
+
+@dataclass
+class LivepointsConfig(_BaseConfig):
     """Configuration for live points."""
 
     logl_dtype: str = "f8"
@@ -105,7 +114,7 @@ class LivepointsConfig:
 
 
 @dataclass
-class PlottingConfig:
+class PlottingConfig(_BaseConfig):
     """Configuration for plotting."""
 
     disable_style: bool = False
@@ -137,7 +146,7 @@ class PlottingConfig:
 
 
 @dataclass
-class GeneralConfig:
+class GeneralConfig(_BaseConfig):
     """General configuration options"""
 
     eps: float = 1e-8

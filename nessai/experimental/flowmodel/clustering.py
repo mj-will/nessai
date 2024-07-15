@@ -16,7 +16,7 @@ class ClusteringFlowModel(FlowModel):
     n_clusters: int = None
     cluster_weights: np.ndarray = None
 
-    def __init__(self, config=None, output=None):
+    def __init__(self, flow_config=None, training_config=None, output=None):
         try:
             import faiss
 
@@ -27,17 +27,23 @@ class ClusteringFlowModel(FlowModel):
                 "faiss is not installed! Install faiss-cpu/-gpu in order to "
                 "use the clustering flow model."
             )
-        super().__init__(config=config, output=output)
+        super().__init__(
+            flow_config=flow_config,
+            training_config=training_config,
+            output=output,
+        )
 
-    def setup_from_input_dict(self, config: dict) -> None:
-        config = copy.deepcopy(config)
-        if config is None:
-            config = {}
-        max_n_clusters = config.pop("max_n_clusters", None)
-        super().setup_from_input_dict(config)
+    def setup_from_input_dict(
+        self, flow_config: dict, training_config
+    ) -> None:
+        flow_config = copy.deepcopy(flow_config)
+        if flow_config is None:
+            flow_config = {}
+        max_n_clusters = flow_config.pop("max_n_clusters", None)
+        super().setup_from_input_dict(flow_config, training_config)
         if max_n_clusters is not None:
             self.max_n_clusters = max_n_clusters
-        self.model_config["kwargs"]["context_features"] = 1
+        self.flow_config["context_features"] = 1
 
     def train_clustering(self, samples: np.ndarray, **kwargs) -> np.ndarray:
         """Train the clustering algorithm using a set of samples.

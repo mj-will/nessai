@@ -141,6 +141,7 @@ class FlowProposal(RejectionProposal):
         self,
         model,
         flow_config=None,
+        training_config=None,
         output="./",
         poolsize=None,
         latent_prior="truncated_gaussian",
@@ -176,6 +177,7 @@ class FlowProposal(RejectionProposal):
 
         self.flow = None
         self._flow_config = None
+        self._training_config = None
         self.populated = False
         self.populating = False  # Flag used for resuming during population
         self.indices = []
@@ -217,6 +219,7 @@ class FlowProposal(RejectionProposal):
         self.check_acceptance = check_acceptance
         self.truncate_log_q = truncate_log_q
         self.flow_config = flow_config
+        self.training_config = training_config
         self.constant_volume_mode = constant_volume_mode
         self.volume_fraction = volume_fraction
 
@@ -251,9 +254,17 @@ class FlowProposal(RejectionProposal):
         """
         if config is None:
             config = {}
-        if "model_config" not in config:
-            config["model_config"] = {}
         self._flow_config = config
+
+    @property
+    def training_config(self):
+        """Return the configuration for the flow"""
+        return self._training_config
+
+    @training_config.setter
+    def training_config(self, config):
+        """Set training configuration."""
+        self._training_config = config
 
     @property
     def dims(self):
@@ -471,7 +482,7 @@ class FlowProposal(RejectionProposal):
 
     def update_flow_config(self):
         """Update the flow configuration dictionary."""
-        self.flow_config["model_config"]["n_inputs"] = self.rescaled_dims
+        self.flow_config["n_inputs"] = self.rescaled_dims
 
     def initialise(self):
         """
@@ -500,7 +511,9 @@ class FlowProposal(RejectionProposal):
         self.configure_constant_volume()
         self.update_flow_config()
         self.flow = self._FlowModelClass(
-            config=self.flow_config, output=self.output
+            flow_config=self.flow_config,
+            training_config=self.training_config,
+            output=self.output,
         )
         self.flow.initialise()
         self.populated = False
@@ -1625,7 +1638,7 @@ class FlowProposal(RejectionProposal):
         if self.mask is not None:
             if isinstance(self.mask, list):
                 m = np.array(self.mask)
-            self.flow_config["model_config"]["kwargs"]["mask"] = m
+            self.flow_config["mask"] = m
 
         self.initialise()
 
@@ -1669,10 +1682,8 @@ class FlowProposal(RejectionProposal):
         )
 
         # Mask may be generate via permutation, so must be saved
-        if "mask" in getattr(state.get("flow"), "model_config", {}).get(
-            "kwargs", []
-        ):
-            state["mask"] = state["flow"].model_config["kwargs"]["mask"]
+        if "mask" in getattr(state.get("flow"), "flow_config", {}):
+            state["mask"] = state["flow"].flow_config["mask"]
         else:
             state["mask"] = None
         if state["populated"] and state["indices"]:

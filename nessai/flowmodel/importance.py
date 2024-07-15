@@ -7,12 +7,13 @@ import glob
 import logging
 import os
 from typing import Optional
+from warnings import warn
 
 import numpy as np
 import torch
 
 from .base import FlowModel
-from .utils import update_model_config
+from .utils import update_flow_config
 
 from ..flows import configure_model
 
@@ -26,8 +27,17 @@ class ImportanceFlowModel(FlowModel):
     models: torch.nn.ModuleList = None
     _resume_n_models: int = None
 
-    def __init__(self, config=None, output=None):
-        super().__init__(config=config, output=output)
+    def __init__(
+        self,
+        flow_config: dict = None,
+        training_config: dict = None,
+        output: str = None,
+    ):
+        super().__init__(
+            flow_config=flow_config,
+            training_config=training_config,
+            output=output,
+        )
         self.weights_files = []
         self.models = torch.nn.ModuleList()
 
@@ -65,20 +75,21 @@ class ImportanceFlowModel(FlowModel):
 
         Uses the original optimiser and kwargs.
         """
-        self._optimiser = self.get_optimiser(
-            optimiser=self.optimiser, **self.optimiser_kwargs
-        )
+        self._optimiser = self.get_optimiser()
 
     def add_new_flow(self, reset=False):
         """Add a new flow"""
         logger.debug("Add a new flow")
         if reset or not self.models:
-            new_flow, self.device = configure_model(self.model_config)
+            new_flow = configure_model(self.flow_config)
         else:
             new_flow = copy.deepcopy(self.model)
+        self.device = torch.device(self.training_config.get("device", "cpu"))
+        # Set the default location for the model
+        new_flow.device = self.device
         logger.debug(f"Training device: {self.device}")
         self.inference_device = torch.device(
-            self.model_config.get("inference_device_tag", self.device)
+            self.training_config.get("inference_device_tag", self.device)
             or self.device
         )
         logger.debug(f"Inference device: {self.inference_device}")
@@ -142,8 +153,12 @@ class ImportanceFlowModel(FlowModel):
         """
         self.models = torch.nn.ModuleList()
         logger.debug(f"Loading weights from {self.weights_files}")
+        self.device = torch.device(
+            self.training_config.get("device_tag", "cpu")
+        )
         for wf in self.weights_files:
-            new_flow, self.device = configure_model(self.model_config)
+            new_flow = configure_model(self.flow_config)
+            new_flow.device = self.device
             new_flow.load_state_dict(torch.load(wf))
             self.models.append(new_flow)
         self.models.eval()
@@ -192,10 +207,17 @@ class ImportanceFlowModel(FlowModel):
         ]
 
     def resume(
-        self, model_config: dict, weights_path: Optional[str] = None
+        self,
+        flow_config: dict,
+        weights_path: Optional[str] = None,
     ) -> None:
         """Resume the model"""
-        self.model_config = update_model_config(model_config)
+        if "model_config" in flow_config:
+            warn(
+                "Resuming with old style flow config is not supported",
+                RuntimeWarning,
+            )
+        self.flow_config = update_flow_config(flow_config)
         if weights_path is None:
             logger.debug(
                 "Not weights path specified, looking in output directory"
@@ -209,7 +231,7 @@ class ImportanceFlowModel(FlowModel):
         d = self.__dict__
         # Avoid making a copy because models can be large and this doubles the
         # memory usage.
-        exclude = {"models", "_optimiser", "model_config"}
+        exclude = {"models", "_optimiser", "flow_config"}
         state = {k: d[k] for k in d.keys() - exclude}
         state["initialised"] = False
         state["models"] = None

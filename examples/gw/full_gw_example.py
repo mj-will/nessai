@@ -107,7 +107,7 @@ result = bilby.core.sampler.run_sampler(
     maximum_uninformed=4000,
     seed=150914,
     analytic_priors=True,  # Bilby priors can be sampled from directly
-    flow_config=dict(model_config=dict(n_blocks=6)),
+    flow_config=dict(n_blocks=6),
     n_pool=2,
 )
 

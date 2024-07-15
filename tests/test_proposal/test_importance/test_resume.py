@@ -25,7 +25,7 @@ def test_resume(ifp, model, tmp_path):
 
     assert ifp.flow_config is flow_config
     ifp.flow.resume.assert_called_once_with(
-        flow_config["model_config"],
+        flow_config,
         weights_path=path,
     )
 

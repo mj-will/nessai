@@ -18,7 +18,7 @@ from nessai.flows import (
             net="mlp", batch_norm_within_layers=True, dropout_probability=0.5
         ),
         dict(use_volume_preserving=True),
-        dict(actnorm=True),
+        dict(actnorm=True, batch_norm_between_layers=False),
         dict(linear_transform="permutation"),
         dict(linear_transform="svd"),
         dict(linear_transform="lu"),

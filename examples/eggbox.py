@@ -43,8 +43,11 @@ class EggboxModel(Model):
 
 
 flow_config = dict(
-    patience=50,  # Make sure the flow trains for longer
-    model_config=dict(n_blocks=6, n_neurons=8),
+    n_blocks=6,
+    n_neurons=8,
+)
+training_config = dict(
+    patience=50,
 )
 
 # Sampling the Eggbox will be inefficient, so we increase the maximum size of
@@ -54,6 +57,7 @@ fs = FlowSampler(
     EggboxModel(2),
     output=output,
     flow_config=flow_config,
+    training_config=training_config,
     resume=False,
     seed=1234,
     flow_class="AugmentedFlowProposal",

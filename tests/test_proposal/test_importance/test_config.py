@@ -55,9 +55,11 @@ def test_check_fields_logU():
 def test_initialise(ifp):
     output = "test_init"
     flow_config = {"a": 1}
+    training_config = {"b": 2}
     ifp.initialised = False
     ifp.output = output
     ifp.flow_config = flow_config
+    ifp.training_config = training_config
     flow = MagicMock()
     with patch(
         "nessai.proposal.importance.Proposal.initialise",
@@ -68,7 +70,9 @@ def test_initialise(ifp):
     ifp._check_fields.assert_called_once()
     ifp.verify_rescaling.assert_called_once()
     # Make sure flow is initialised
-    mock_flow.assert_called_once_with(config=flow_config, output=output)
+    mock_flow.assert_called_once_with(
+        flow_config=flow_config, training_config=training_config, output=output
+    )
     flow.initialise.assert_called_once()
     mock_init.assert_called_once()
 

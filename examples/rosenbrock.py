@@ -49,7 +49,7 @@ model = RosenbrockModel(5)
 
 # The Rosenbrock likelihood is more complex, so we configure the normalising
 # flow to improve nessai's performance.
-flow_config = dict(model_config=dict(n_blocks=4, n_neurons=10, n_layers=3))
+flow_config = dict(n_blocks=4, n_neurons=10, n_layers=3)
 
 # Configure the sampler.
 fs = FlowSampler(

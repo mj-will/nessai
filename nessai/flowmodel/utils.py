@@ -3,12 +3,13 @@
 Utilities for configuring FlowModel.
 """
 import copy
+from warnings import warn
 
-from .config import DEFAULT_MODEL_CONFIG, DEFAULT_FLOW_CONFIG
+from . import config as default_config
 from ..flows.utils import get_n_neurons
 
 
-def update_model_config(d):
+def update_flow_config(cfg):
     """Update the model (flow) configuration dictionary based on the defaults.
 
     Parameters
@@ -27,23 +28,54 @@ def update_model_config(d):
     TypeError
         Raised if the input is not a dictionary or None.
     """
-    default = copy.deepcopy(DEFAULT_MODEL_CONFIG)
-    if d is None:
+    default = default_config.flow.asdict()
+    if cfg is None:
         return default
-    elif not isinstance(d, dict):
+    elif not isinstance(cfg, dict):
         raise TypeError(
             "Must pass a dictionary to update the default model config"
         )
-    else:
-        default.update(d)
-        default["n_neurons"] = get_n_neurons(
-            n_neurons=default.get("n_neurons"),
-            n_inputs=default.get("n_inputs"),
+    default.update(copy.deepcopy(cfg))
+    default["n_neurons"] = get_n_neurons(
+        n_neurons=default.get("n_neurons"),
+        n_inputs=default.get("n_inputs"),
+    )
+    return default
+
+
+def update_model_config(cfg):
+    msg = (
+        "`update_model_config` is deprecated, use `update_flow_config` instead"
+    )
+    warn(msg, FutureWarning)
+    return update_flow_config(cfg)
+
+
+def update_training_config(cfg):
+    default = default_config.training.asdict()
+    if cfg is None:
+        return default
+    elif not isinstance(cfg, dict):
+        raise TypeError(
+            "Must pass a dictionary to update the default model config"
+        )
+    default.update(copy.deepcopy(cfg))
+    if default["noise_type"] is not None and default["noise_scale"] is None:
+        raise RuntimeError(
+            "`noise_scale` must be specified when `noise_type` is given."
+        )
+    if isinstance(default["noise_scale"], float):
+        if default["noise_type"] is None:
+            default["noise_type"] = "constant"
+    elif default["noise_scale"] is not None:
+        raise TypeError(
+            "`noise_scale` must be a float. "
+            f"'Got type: {type(default['noise_scale'])}"
         )
     return default
 
 
-def update_config(d):
+def update_config(flow_config, training_config=None):
     """
     Update the configuration dictionary to include the defaults.
 
@@ -57,39 +89,67 @@ def update_config(d):
 
     Parameters
     ----------
-    d : dict
-        Dictionary with configuration
+    flow_config : dict
+        Dictionary with flow configuration
+    training_config : dict
+        Dictionary with training config
 
     Returns
     -------
     dict
-        Dictionary with updated default configuration
+        Dictionary with updated flow configuration
+    dict
+        Dictionary with updated training configuration
     """
-    default = copy.deepcopy(DEFAULT_FLOW_CONFIG)
+    if flow_config is not None and (
+        "model_config" in flow_config
+        or set(flow_config.keys()).intersection(
+            set(default_config.training.asdict().keys())
+        )
+    ):
+        if "model_config" in flow_config:
+            msg = (
+                "Specifying `model_config` in `flow_config` is now deprecated."
+                " Please specify `flow_config` and `training_config` instead."
+            )
+            warn(msg, FutureWarning)
+        flow_config = copy.deepcopy(flow_config)
+        flow_config.update(flow_config.pop("model_config", {}))
 
-    if d is None:
-        default["model_config"] = update_model_config(None)
-    elif not isinstance(d, dict):
-        raise TypeError(
-            "Must pass a dictionary to update the default " "trainer settings"
-        )
-    else:
-        default.update(d)
-        default["model_config"] = update_model_config(
-            default.get("model_config", None)
-        )
+        if training_config is None:
+            training_config = {}
 
-    if default["noise_type"] is not None and default["noise_scale"] is None:
-        raise RuntimeError(
-            "`noise_scale` must be specified when `noise_type` is given."
-        )
-    if isinstance(default["noise_scale"], float):
-        if default["noise_type"] is None:
-            default["noise_type"] = "constant"
-    elif default["noise_scale"] is not None:
-        raise TypeError(
-            "`noise_scale` must be a float. "
-            f"'Got type: {type(default['noise_scale'])}"
-        )
+        for key in default_config.training.asdict():
+            if key in flow_config:
+                warn(
+                    (
+                        f"Key `{key}` should now be specified in "
+                        "`training_config`",
+                    ),
+                    FutureWarning,
+                )
+                if key in training_config:
+                    raise RuntimeError(
+                        f"`{key}` is already present in training config"
+                    )
+                training_config[key] = flow_config.pop(key)
 
-    return default
+    if flow_config is not None and "device_tag" in flow_config:
+        msg = (
+            "Specifying `device_tag` in `flow_config` is deprecated. "
+            "It should now be specified in `training_config`."
+        )
+        warn(msg, FutureWarning)
+        training_config = flow_config.pop("device_tag")
+
+    if flow_config is not None and "inference_device_tag" in flow_config:
+        msg = (
+            "Specifying `inference_device_tag` in `flow_config` is deprecated."
+            " It should now be specified in `training_config`."
+        )
+        warn(msg, FutureWarning)
+        training_config = flow_config.pop("inference_device_tag")
+
+    flow_config = update_flow_config(flow_config)
+    training_config = update_training_config(training_config)
+    return flow_config, training_config

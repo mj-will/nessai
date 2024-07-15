@@ -13,7 +13,7 @@ from unittest.mock import create_autospec, MagicMock, Mock, patch
 import torch.utils
 
 from nessai.flowmodel import FlowModel
-from nessai.flowmodel import config
+from nessai.flowmodel import config as default_config
 from nessai.flows.realnvp import RealNVP
 
 
@@ -45,90 +45,100 @@ def model():
 
 @pytest.fixture(scope="function")
 def flow_model(flow_config, data_dim, tmpdir):
-    flow_config["model_config"]["n_inputs"] = data_dim
+    flow_config["n_inputs"] = data_dim
     output = str(tmpdir.mkdir("flowmodel"))
     return FlowModel(flow_config, output=output)
 
 
-def test_init_no_config(tmpdir):
+def test_init_no_config(tmp_path):
     """Test the init method with no config specified"""
-    output = str(tmpdir.mkdir("no_config"))
-    default_config = config.DEFAULT_FLOW_CONFIG.copy()
-    default_config["model_config"] = config.DEFAULT_MODEL_CONFIG.copy()
+    output = tmp_path / "no_config"
     fm = FlowModel(output=output)
+    assert fm.flow_config == default_config.flow.asdict()
+    assert fm.training_config == default_config.training.asdict()
 
-    assert fm.model_config == default_config["model_config"]
 
-
-def test_init_no_output(model, tmpdir):
+def test_init_no_output(model, tmp_path):
     """Assert the current working directory is used by default"""
-    output = str(tmpdir.mkdir("default_output"))
+    output = tmp_path / "default_output"
     with patch("os.getcwd", return_value=output) as mock:
         FlowModel.__init__(model, output=None)
     mock.assert_called_once()
     assert model.output is output
 
 
-def test_init_config_class(tmpdir):
+def test_init_config_class(tmp_path):
     """Test the init and save methods when specifying `flow` as a class"""
-
-    output = str(tmpdir.mkdir("no_config"))
-    config = dict(model_config=dict(flow=RealNVP))
-    fm = FlowModel(config=config, output=output)
-
-    assert fm.model_config["flow"].__name__ == "RealNVP"
+    output = tmp_path / "config_flow_class"
+    flow_config = dict(flow=RealNVP)
+    fm = FlowModel(flow_config, output=output)
+    assert fm.flow_config["flow"].__name__ == "RealNVP"
 
 
 def test_save_input(model, tmp_path):
-    """Test the save input function"""
+    """Assert the inputs are saved correctly"""
     output = tmp_path / "test"
     output.mkdir()
     model.output = output
 
-    config = dict(
+    training_config = dict(
         patience=10,
         x=np.array([1, 2]),
-        model_config=dict(
-            n_neurons=10,
-            mask=np.array([1, 0]),
-            flow=RealNVP,
-        ),
+    )
+    flow_config = dict(
+        n_neurons=10,
+        mask=np.array([1, 0]),
+        flow=RealNVP,
     )
 
-    FlowModel.save_input(model, config, output_file=None)
+    FlowModel.setup_from_input_dict(model, flow_config, training_config)
 
     file_path = os.path.join(output, "flow_config.json")
     assert os.path.exists(file_path)
     with open(file_path, "r") as fp:
         d = json.load(fp)
-    assert d["x"] == "[1,2]"
-    assert d["model_config"]["mask"] == "[1,0]"
+    assert d["mask"] == [1, 0]
+
+    file_path = os.path.join(output, "training_config.json")
+    assert os.path.exists(file_path)
+    with open(file_path, "r") as fp:
+        d = json.load(fp)
+    assert d["x"] == [1, 2]
 
 
 def test_initialise(model):
     """Test the initialise method"""
     model.get_optimiser = MagicMock()
-    model.model_config = dict(n_neurons=2)
+    model.flow_config = dict(n_neurons=2)
     model.inference_device = None
     model.optimiser = "adam"
-    model.optimiser_kwargs = {"weights": 0.1}
+    model.training_config = dict(optimiser_kwargs={"weights": 0.1})
+    mock_flow = MagicMock()
     with patch(
-        "nessai.flowmodel.base.configure_model", return_value=("model", "cpu")
+        "nessai.flowmodel.base.configure_model", return_value=mock_flow
     ) as mock:
         FlowModel.initialise(model)
-    mock.assert_called_once_with(model.model_config)
-    model.get_optimiser.assert_called_once_with("adam", weights=0.1)
+    mock.assert_called_once_with(model.flow_config)
+    model.get_optimiser.assert_called_once()
     assert model.inference_device == torch.device("cpu")
 
 
-@pytest.mark.parametrize("optimiser", ["Adam", "AdamW", "SGD"])
+@pytest.mark.parametrize("optimiser", ["Adam", "AdamW", "SGD", None])
 def test_get_optimiser(model, optimiser):
     """Test to make sure the three supported optimisers work"""
-    model.lr = 0.1
+    model.training_config = dict(lr=0.1)
+    model.optimiser = "adam"
+    model.optimiser_kwargs = dict(beta=0.9)
     model.model = MagicMock()
-    with patch(f"torch.optim.{optimiser}") as mock:
-        FlowModel.get_optimiser(model, optimiser)
+
+    optimiser_class = optimiser if optimiser is not None else "Adam"
+
+    with patch(f"torch.optim.{optimiser_class}") as mock:
+        FlowModel.get_optimiser(model, optimiser=optimiser, test=True)
     mock.assert_called_once()
+    assert mock.call_args.kwargs["lr"] == 0.1
+    assert mock.call_args.kwargs["beta"] == 0.9
+    assert mock.call_args.kwargs["test"] is True
 
 
 @pytest.mark.parametrize(
@@ -305,14 +315,16 @@ def test_training_with_conditional(data_dim, tmp_path):
     """Test training with conditional inputs"""
     output = tmp_path / "test_train_conditional"
     fm = create_autospec(FlowModel)
-    fm.batch_size = 100
     fm.initialised = True
-    fm.noise_scale = None
     fm.device = "cpu"
     fm.inference_device = None
-    fm.use_dataloader = False
-    fm.annealing = False
-    fm.patience = 20
+    fm.training_config = dict(
+        use_dataloader=False,
+        annealing=False,
+        patience=20,
+        noise_scale=None,
+        batch_size=100,
+    )
     fm.prep_data = MagicMock(return_value=("train", "val", None))
     fm._train = MagicMock(return_value=1.0)
     fm._validate = MagicMock(return_value=1.0)
@@ -361,26 +373,36 @@ def test_training_non_finite_samples(model, x):
         {"val_size": None},
     ],
 )
+@pytest.mark.parametrize("test_deprecated", [False, True])
 def test_training_additional_config_args(
-    flow_config,
     data_dim,
     tmpdir,
     kwargs,
+    test_deprecated,
 ):
     """
     Test training with different config args
     """
-    flow_config["model_config"]["n_inputs"] = data_dim
-    for key, value in kwargs.items():
-        flow_config[key] = value
+    flow_config = {}
+    if test_deprecated:
+        flow_config["model_config"] = {}
+        flow_config["model_config"]["n_inputs"] = data_dim
+        training_config = None
+        for key, value in kwargs.items():
+            flow_config[key] = value
+    else:
+        flow_config["n_inputs"] = data_dim
+        training_config = {}
+        for key, value in kwargs.items():
+            training_config[key] = value
 
     output = str(tmpdir.mkdir("flowmodel"))
-    flow_model = FlowModel(flow_config, output=output)
-
-    assert getattr(flow_model, key) == value
-
-    x = np.random.randn(100, data_dim)
-    flow_model.train(x)
+    flow_model = FlowModel(
+        flow_config,
+        training_config=training_config,
+        output=output,
+    )
+    assert flow_model.training_config[key] == value
 
 
 def test_train_func_conditional(data_dim):
@@ -399,8 +421,7 @@ def test_train_func_conditional(data_dim):
     fm.model = model
     fm._optimiser = MagicMock(spec=torch.optim.Adam)
     fm.device = "cpu"
-    fm.clip_grad_norm = 10.0
-    fm.annealing = False
+    fm.training_config = default_config.training.asdict()
 
     data = torch.utils.data.DataLoader(
         torch.utils.data.TensorDataset(
@@ -431,8 +452,7 @@ def test_validate_func_conditional(data_dim):
     fm.model = model
     fm._optimiser = MagicMock(spec=torch.optim.Adam)
     fm.device = "cpu"
-    fm.clip_grad_norm = 10.0
-    fm.annealing = False
+    fm.training_config = default_config.training.asdict()
 
     data = torch.utils.data.DataLoader(
         torch.utils.data.TensorDataset(
@@ -462,18 +482,22 @@ def test_reset_model(model, weights, perms):
     model.apply = MagicMock()
     model.get_optimiser = MagicMock()
     model.optimiser = MagicMock()
-    model.optimiser_kwargs = {"lr": 0.01}
+    model.flow_config = dict(
+        n_inputs=2,
+    )
+    model.training_config = dict(lr=0.1)
+    model.optimiser_kwargs = dict(beta=0.9)
 
     with patch(
         "nessai.flowmodel.base.configure_model",
-        return_value=(MagicMock, "cpu"),
+        return_value=MagicMock,
     ) as mock:
         FlowModel.reset_model(model, weights=weights, permutations=perms)
 
     if weights and perms:
         mock.assert_called_once()
     if any([weights, perms]):
-        model.get_optimiser.assert_called_once_with(model.optimiser, lr=0.01)
+        model.get_optimiser.assert_called_once()
     else:
         model.get_optimiser.assert_not_called()
 
@@ -481,9 +505,7 @@ def test_reset_model(model, weights, perms):
 def test_sample_and_log_prob(flow_model, n_samples, conditional):
     """Assert the outputs have the correct shape"""
     if conditional is not None:
-        flow_model.model_config["kwargs"]["context_features"] = (
-            conditional.shape[-1]
-        )
+        flow_model.flow_config["context_features"] = conditional.shape[-1]
     flow_model.initialise()
     samples, log_prob = flow_model.sample_and_log_prob(
         n_samples, conditional=conditional
@@ -492,13 +514,12 @@ def test_sample_and_log_prob(flow_model, n_samples, conditional):
     assert len(log_prob) == n_samples
 
 
-def test_sample_and_log_prob_not_initialised(flow_model, data_dim):
+def test_sample_and_log_prob_not_initialised(flow_model):
     """
     Ensure user cannot call the method before the model initialise.
     """
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(RuntimeError, match="Model is not initialised"):
         flow_model.sample_and_log_prob()
-    assert "Model is not initialised" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("N", [1, 100])
@@ -709,7 +730,7 @@ def test_forward_and_log_prob_integration(
     """Test the basic use of forward and log prob"""
     if conditional:
         conditional = np.random.randn(N, 1)
-        flow_model.model_config["kwargs"]["context_features"] = 1
+        flow_model.flow_config["context_features"] = 1
     flow_model.initialise()
     x = np.random.randn(N, data_dim)
     z, log_prob = flow_model.forward_and_log_prob(x, conditional=conditional)
@@ -727,19 +748,19 @@ def test_lu_cache_reset(tmp_path):
     output = tmp_path / "test"
     output.mkdir()
 
-    config = dict(
+    training_config = dict(
         max_epochs=100,
         patience=1000,
-        model_config=dict(
-            n_inputs=2,
-            n_blocks=2,
-            kwargs=dict(
-                linear_transform="lu",
-            ),
-        ),
+    )
+    flow_config = dict(
+        n_inputs=2,
+        n_blocks=2,
+        linear_transform="lu",
     )
 
-    flow = FlowModel(config=config, output=output)
+    flow = FlowModel(
+        flow_config=flow_config, training_config=training_config, output=output
+    )
     data = np.random.randn(100, 2)
 
     flow.train(data)
@@ -763,20 +784,20 @@ def test_train_without_validation(tmp_path):
     output = tmp_path / "test_no_validation"
     output.mkdir()
 
-    config = dict(
+    training_config = dict(
         max_epochs=100,
         patience=1000,
-        val_size=None,
-        model_config=dict(
-            n_inputs=2,
-            n_blocks=2,
-            kwargs=dict(
-                linear_transform="lu",
-            ),
-        ),
+        val_size=0,
+    )
+    flow_config = dict(
+        n_inputs=2,
+        n_blocks=2,
+        linear_transform="lu",
     )
 
-    flow = FlowModel(config=config, output=output)
+    flow = FlowModel(
+        flow_config=flow_config, training_config=training_config, output=output
+    )
     data = np.random.randn(100, 2)
 
     history = flow.train(data)
@@ -790,19 +811,19 @@ def test_train_conditional_integration(tmp_path):
     output = tmp_path / "test_train_conditional"
     output.mkdir()
 
-    config = dict(
+    training_config = dict(
         max_epochs=10,
-        model_config=dict(
-            n_inputs=2,
-            n_blocks=2,
-            kwargs=dict(
-                linear_transform="lu",
-                context_features=1,
-            ),
-        ),
+    )
+    flow_config = dict(
+        n_inputs=2,
+        n_blocks=2,
+        linear_transform="lu",
+        context_features=1,
     )
 
-    flow = FlowModel(config=config, output=output)
+    flow = FlowModel(
+        flow_config=flow_config, training_config=training_config, output=output
+    )
     data = np.random.randn(100, 2)
     conditional = np.random.randint(2, size=(100, 1))
 

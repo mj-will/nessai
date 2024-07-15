@@ -9,7 +9,7 @@ import os
 import shutil
 import torch
 from torch.nn.utils import clip_grad_norm_
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from .utils import update_config
 
@@ -46,53 +46,28 @@ class FlowModel:
     noise_type = None
     model: BaseFlow = None
 
-    def __init__(self, config=None, output=None):
+    def __init__(
+        self,
+        flow_config: Union[dict, None] = None,
+        training_config: Union[dict, None] = None,
+        output: Union[str, None] = None,
+    ) -> None:
+
         if output is None:
             output = os.getcwd()
         self.model = None
         self.initialised = False
         self.output = output
         os.makedirs(self.output, exist_ok=True)
-        self.setup_from_input_dict(config)
+        self.setup_from_input_dict(
+            flow_config=flow_config,
+            training_config=training_config,
+        )
         self.weights_file = None
-
-        self.device = None
-        self.inference_device = None
-        self.use_dataloader = False
         self._batch_size = None
+        self._optimiser = None
 
-    def save_input(self, config, output_file=None):
-        """
-        Save the dictionary used as an inputs as a JSON file in the output
-        directory.
-
-        Parameters
-        ----------
-        config : dict
-            Dictionary to save.
-        output_file : str, optional
-            File to save the config to.
-        """
-        config = copy.deepcopy(config)
-        if output_file is None:
-            output_file = os.path.join(self.output, "flow_config.json")
-        for k, v in list(config.items()):
-            if isinstance(v, np.ndarray):
-                config[k] = np.array2string(config[k], separator=",")
-        for k, v in list(config["model_config"].items()):
-            if isinstance(v, np.ndarray):
-                config["model_config"][k] = np.array2string(
-                    config["model_config"][k], separator=","
-                )
-
-        if "flow" in config["model_config"]:
-            config["model_config"]["flow"] = str(
-                config["model_config"]["flow"]
-            )
-
-        save_to_json(config, output_file)
-
-    def setup_from_input_dict(self, config):
+    def setup_from_input_dict(self, flow_config, training_config):
         """
         Setup the trainer from a dictionary, all keys in the dictionary are
         added as methods to the object. Input is automatically saved.
@@ -102,11 +77,19 @@ class FlowModel:
         config : dict
             Dictionary with parameters that are used to update the defaults.
         """
-        config = update_config(copy.deepcopy(config))
-        logger.debug(f"Flow configuration: {config}")
-        for key, value in config.items():
-            setattr(self, key, value)
-        self.save_input(config)
+        self.flow_config, self.training_config = update_config(
+            flow_config=flow_config, training_config=training_config
+        )
+        logger.debug(f"Flow configuration: {self.flow_config}")
+        logger.debug(f"Training configuration: {self.training_config}")
+
+        save_to_json(
+            self.flow_config, os.path.join(self.output, "flow_config.json")
+        )
+        save_to_json(
+            self.training_config,
+            os.path.join(self.output, "training_config.json"),
+        )
 
     def update_mask(self):
         """Method to update the ask upon calling ``initialise``
@@ -115,9 +98,14 @@ class FlowModel:
         """
         pass
 
-    def get_optimiser(self, optimiser="adam", **kwargs):
+    def get_optimiser(self, optimiser=None, **kwargs):
         """
         Get the optimiser and ensure it is always correctly initialised.
+
+        By default kwargs will include any optimiser specific values,
+        the learning rate and any values included in :code:`optimiser_kwargs`.
+        These will then be updated with any additional keyword arguments that
+        are passed.
 
         Returns
         -------
@@ -131,9 +119,27 @@ class FlowModel:
         }
         if self.model is None:
             raise RuntimeError("Cannot initialise optimiser before model")
+        if optimiser is None:
+            optimiser = self.optimiser
         optim, default_kwargs = optimisers.get(optimiser.lower())
+        default_kwargs["lr"] = self.training_config["lr"]
+        default_kwargs.update(self.optimiser_kwargs)
         default_kwargs.update(kwargs)
-        return optim(self.model.parameters(), lr=self.lr, **default_kwargs)
+        return optim(
+            self.model.parameters(),
+            **default_kwargs,
+        )
+
+    @property
+    def optimiser_kwargs(self) -> dict:
+        kwds = self.training_config.get("optimiser_kwargs")
+        if kwds is None:
+            kwds = {}
+        return kwds
+
+    @property
+    def optimiser(self) -> str:
+        return self.training_config["optimiser"]
 
     def initialise(self):
         """
@@ -147,17 +153,22 @@ class FlowModel:
             - Configuring the inference device
         """
         self.update_mask()
-        self.model, self.device = configure_model(self.model_config)
+        self.model = configure_model(self.flow_config)
+        logger.debug("Flow model:")
+        logger.debug(self.model)
+        self.device = torch.device(
+            self.training_config.get("device_tag", "cpu")
+        )
+        # Set the default location for the model
+        self.model.device = self.device
         logger.debug(f"Training device: {self.device}")
         self.inference_device = torch.device(
-            self.model_config.get("inference_device_tag", self.device)
+            self.flow_config.get("inference_device_tag", self.device)
             or self.device
         )
         logger.debug(f"Inference device: {self.inference_device}")
 
-        self._optimiser = self.get_optimiser(
-            self.optimiser, **self.optimiser_kwargs
-        )
+        self._optimiser = self.get_optimiser()
         self.initialised = True
 
     def move_to(self, device, update_default=False):
@@ -421,14 +432,17 @@ class FlowModel:
                 loss = loss_fn(x, conditional)
             train_loss += loss.item()
             loss.backward()
-            if self.clip_grad_norm:
-                clip_grad_norm_(model.parameters(), self.clip_grad_norm)
+            if self.training_config["clip_grad_norm"]:
+                clip_grad_norm_(
+                    model.parameters(),
+                    self.training_config["clip_grad_norm"],
+                )
             self._optimiser.step()
             n += 1
 
         self.end_iteration()
 
-        if self.annealing:
+        if self.training_config["annealing"]:
             self.scheduler.step()
 
         return train_loss / n
@@ -568,7 +582,7 @@ class FlowModel:
             os.makedirs(output, exist_ok=True)
 
         if val_size is None:
-            val_size = self.val_size
+            val_size = self.training_config["val_size"]
 
         if val_size == 0.0:
             validate = False
@@ -590,25 +604,29 @@ class FlowModel:
 
         weighted = True if weights is not None else False
         is_conditional = True if conditional is not None else False
-        use_dataloader = self.use_dataloader or weighted or is_conditional
+        use_dataloader = (
+            self.training_config["use_dataloader"]
+            or weighted
+            or is_conditional
+        )
 
         train_data, val_data, _ = self.prep_data(
             samples,
             val_size=val_size,
-            batch_size=self.batch_size,
+            batch_size=self.training_config["batch_size"],
             weights=weights,
             conditional=conditional,
             use_dataloader=use_dataloader,
         )
 
         if max_epochs is None:
-            max_epochs = self.max_epochs
-        if self.annealing:
+            max_epochs = self.training_config["max_epochs"]
+        if self.training_config["annealing"]:
             self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
                 self._optimiser, max_epochs
             )
         if patience is None:
-            patience = self.patience
+            patience = self.training_config["patience"]
         best_epoch = 0
         best_val_loss = np.inf
         best_model = copy.deepcopy(self.model.state_dict())
@@ -740,16 +758,14 @@ class FlowModel:
             return
         if weights and permutations:
             logger.debug("Complete reset of model")
-            self.model, self.device = configure_model(self.model_config)
+            self.model = configure_model(self.flow_config)
         elif weights:
             self.model.apply(reset_weights)
             logger.debug("Reset weights")
         elif permutations:
             self.model.apply(reset_permutations)
             logger.debug("Reset linear transforms")
-        self._optimiser = self.get_optimiser(
-            self.optimiser, **self.optimiser_kwargs
-        )
+        self._optimiser = self.get_optimiser()
         logger.debug("Resetting optimiser")
 
     def numpy_array_to_tensor(self, array: np.ndarray, /) -> torch.Tensor:
@@ -914,7 +930,8 @@ class FlowModel:
     def __getstate__(self):
         state = self.__dict__.copy()
         state["initialised"] = False
-        del state["optimiser"]
+        del state["_optimiser"]
         del state["model"]
-        del state["model_config"]
+        # This may have classes etc
+        del state["flow_config"]
         return state
