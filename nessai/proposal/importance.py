@@ -114,6 +114,8 @@ class ImportanceFlowProposal(Proposal):
     @flow_config.setter
     def flow_config(self, config: dict) -> None:
         """Set configuration (includes checking defaults)"""
+        if config is None:
+            config = {}
         config["n_inputs"] = self.model.dims
         self._flow_config = update_flow_config(config)
 
