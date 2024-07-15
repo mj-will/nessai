@@ -2,6 +2,7 @@
 """
 Proposals specifically for use with the importance based nested sampler.
 """
+from abc import abstractmethod
 import logging
 import os
 from typing import Callable, Optional, Tuple, Union
@@ -30,6 +31,55 @@ from ..utils.structures import get_subset_arrays
 
 
 logger = logging.getLogger(__name__)
+
+
+class InitialImportanceProposal(Proposal):
+    """Class for initial proposals for the importance nested sampler.
+
+    Parameters
+    ----------
+    model :
+        Model for computing the log-prior and log-likelihood.
+    """
+
+    def __init__(self, model: Model):
+        self.model = model
+
+    @abstractmethod
+    def log_prob(self, x: np.ndarray) -> np.ndarray:
+        pass
+
+
+class PriorInitialImportanceProposal(InitialImportanceProposal):
+
+    def draw(self, n: int) -> None:
+        samples = np.empty(n, dtype=get_dtype(self.model.names))
+        n_accepted = 0
+        while n_accepted < n:
+            points = self.model.sample_unit_hypercube(n)
+            points["logP"] = self.model.batch_evaluate_log_prior(
+                points, unit_hypercube=True
+            )
+            points["logL"] = self.model.batch_evaluate_log_likelihood(
+                points, unit_hypercube=True
+            )
+            accept = np.isfinite(points["logP"]) & np.isfinite(points["logL"])
+            n_it = accept.sum()
+            m = min(n_it, n - n_accepted)
+            samples[n_accepted : (n_accepted + m)] = points[accept][:m]
+            n_accepted += m
+        samples["logU"] = self.model.batch_evaluate_log_prior_unit_hypercube(
+            samples
+        )
+        log_q = np.zeros([n, 1])
+        return samples, log_q
+
+    def log_prob(self, x: np.ndarray) -> np.ndarray:
+        return np.zeros(x.size)
+
+
+class FlexibleInitialImportanceProposal(InitialImportanceProposal):
+    pass
 
 
 class ImportanceFlowProposal(Proposal):
@@ -74,6 +124,7 @@ class ImportanceFlowProposal(Proposal):
         reset_flow: Union[bool, int] = True,
         clip: bool = False,
         plot_training: bool = False,
+        initial_proposal: InitialImportanceProposal = None,
     ) -> None:
         self.level_count = -1
         self._initialised = False
@@ -85,6 +136,7 @@ class ImportanceFlowProposal(Proposal):
         self.plot_training = plot_training
         self.reset_flow = int(reset_flow)
         self.reparameterisation = reparameterisation
+        self.initial_proposal = initial_proposal
         self.weighted_kl = weighted_kl
         self.clip = clip
         self._weights = {-1: 1.0}
@@ -374,6 +426,7 @@ class ImportanceFlowProposal(Proposal):
 
     def compute_log_Q(
         self,
+        x: np.ndarray,
         x_prime: np.ndarray,
         log_j: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray]:
@@ -406,6 +459,7 @@ class ImportanceFlowProposal(Proposal):
             raise RuntimeError("Some weights are not set!")
 
         log_q_all = np.zeros([x_prime.shape[0], self.n_proposals])
+        log_q_all[:, 0] = self.initial_proposal.log_prob(x)
         n_flows = self.flow.n_models
 
         if self.n_proposals > 1 and log_j is None:
@@ -489,7 +543,7 @@ class ImportanceFlowProposal(Proposal):
                 acc, x, x_prime, log_j, log_q
             )
 
-            x["logQ"], log_q_all = self.compute_log_Q(x_prime, log_j=log_j)
+            x["logQ"], log_q_all = self.compute_log_Q(x, x_prime, log_j=log_j)
             x["logP"] = self.model.batch_evaluate_log_prior(
                 x, unit_hypercube=True
             )
@@ -564,19 +618,13 @@ class ImportanceFlowProposal(Proposal):
                 "Weight(s) missing or not set. "
                 f"Current weights: {self.weights}."
             )
-        x, log_j = self.rescale(samples)
-        return self.compute_log_Q(x, log_j=log_j)
-
-    def _log_prob_initial(self, x: np.ndarray) -> np.ndarray:
-        """Helper function that returns the log-probability for the initial
-        points.
-        """
-        return np.zeros(x.shape[0])
+        x_prime, log_j = self.rescale(samples)
+        return self.compute_log_Q(samples, x_prime, log_j=log_j)
 
     def get_proposal_log_prob(self, it: int) -> Callable:
         """Get a pointer to the function for ith proposal."""
         if it == -1:
-            return self._log_prob_initial
+            return self.initial_proposal.log_prob
         elif it < len(self.flow.models):
             return lambda x: self.flow.log_prob_ith(x, it)
         else:
@@ -620,14 +668,13 @@ class ImportanceFlowProposal(Proposal):
         logger.info(f"KL between {p_it} and {q_it} is: {kl:.3}")
         return kl
 
-    def draw_from_prior(self, n: int) -> Tuple[np.ndarray, np.ndarray]:
+    def draw_from_initial_proposal(
+        self, n: int
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """Draw from the prior"""
-        samples = self.model.sample_unit_hypercube(n)
-        samples["logU"] = self.model.batch_evaluate_log_prior_unit_hypercube(
-            samples
-        )
+        samples, log_q = self.initial_proposal.draw(n)
         prime_samples, log_j = self.rescale(samples)
-        log_Q, log_q = self.compute_log_Q(prime_samples, log_j=log_j)
+        log_Q, log_q = self.compute_log_Q(samples, prime_samples, log_j=log_j)
         samples["logQ"] = log_Q
         samples["logW"] = samples["logU"] - log_Q
         return samples, log_q
@@ -682,7 +729,7 @@ class ImportanceFlowProposal(Proposal):
             logger.debug(f"Drawing {m} samples from the {id}th proposal.")
             if id == -1:
                 prime_samples[count : (count + m)] = self.to_prime(
-                    np.random.rand(m, self.model.dims)
+                    self.initial_proposal.draw(m)
                 )[0]
             else:
                 prime_samples[count : (count + m)] = self.flow.sample_ith(
@@ -708,6 +755,7 @@ class ImportanceFlowProposal(Proposal):
         )
 
         log_q = np.zeros((samples.size, self.n_proposals))
+        log_q[:, 0] = self.initial_proposal.log_prob(samples)
         logger.debug("Computing log_q")
         if self.n_proposals > 1:
             log_q[:, 1:] = (

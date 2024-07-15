@@ -17,11 +17,14 @@ from .. import config
 from ..evidence import _INSIntegralState, log_evidence_from_ins_samples
 from ..model import Model
 from ..posterior import draw_posterior_samples
-from ..proposal.importance import ImportanceFlowProposal
+from ..proposal.importance import (
+    ImportanceFlowProposal,
+    PriorInitialImportanceProposal,
+    InitialImportanceProposal,
+)
 from ..plot import nessai_style, plot_1d_comparison
 from ..livepoint import (
     add_extra_parameters_to_live_points,
-    get_dtype,
 )
 from ..utils.hist import auto_bins
 from ..utils.information import differential_entropy
@@ -384,6 +387,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         close_pool: bool = False,
         strict_threshold: bool = False,
         draw_iid_live: bool = True,
+        initial_proposal=None,
         **kwargs: Any,
     ):
         self.add_fields()
@@ -408,6 +412,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._posterior_samples = None
         self.initialised = False
         self.finalised = False
+        self.initial_proposal = None
+        self.proposal = None
         self.history = None
         self.live_points_ess = np.nan
         self.tolerance = None
@@ -461,6 +467,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._final_samples = None
         self.sample_counts = {}
 
+        self.initial_proposal = self.get_initial_proposal(initial_proposal)
         self.proposal = self.get_proposal(**kwargs)
         self.configure_iterations(min_iteration, max_iteration)
 
@@ -711,10 +718,28 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             self._stop_any = False
 
+    def get_initial_proposal(
+        self,
+        initial_proposal: Optional[InitialImportanceProposal],
+    ) -> None:
+        """Get the initial proposal.
+
+        If not specified, defaults to the prior.
+        """
+        if initial_proposal is None:
+            return PriorInitialImportanceProposal(self.model)
+        else:
+            return initial_proposal
+
     def get_proposal(self, subdir: str = "levels", **kwargs):
         """Configure the proposal."""
         output = os.path.join(self.output, subdir, "")
-        proposal = ImportanceFlowProposal(self.model, output, **kwargs)
+        proposal = ImportanceFlowProposal(
+            self.model,
+            output,
+            initial_proposal=self.initial_proposal,
+            **kwargs,
+        )
         return proposal
 
     def configure_iterations(
@@ -753,41 +778,21 @@ class ImportanceNestedSampler(BaseNestedSampler):
         The live points are automatically sorted and assigned the iteration
         number -1.
         """
+        if self.initial_proposal is None:
+            raise RuntimeError("Initial proposal has not been defined!")
+
         if self.draw_iid_live:
             target = int(2 * self.n_initial)
         else:
             target = self.n_initial
-        live_points = np.empty(target, dtype=get_dtype(self.model.names))
-        n = 0
-        logger.debug(f"Drawing {self.n_initial} initial points")
-        while n < target:
-            points = self.model.sample_unit_hypercube(target)
-            points["logP"] = self.model.batch_evaluate_log_prior(
-                points, unit_hypercube=True
-            )
-            accept = np.isfinite(points["logP"])
-            n_it = accept.sum()
-            m = min(n_it, target - n)
-            live_points[n : (n + m)] = points[accept][:m]
-            n += m
 
-        live_points["logL"] = self.model.batch_evaluate_log_likelihood(
-            live_points, unit_hypercube=True
-        )
-        if not np.isfinite(live_points["logL"]).all():
-            logger.warning("Found infinite values in the log-likelihood")
+        live_points, log_q = self.initial_proposal.draw(target)
+        live_points["logQ"] = log_q.flatten()
+        live_points["logW"] = live_points["logU"] - live_points["logQ"]
+        live_points["it"] = -np.ones(live_points.size)
 
         if np.any(live_points["logL"] == np.inf):
             raise RuntimeError("Live points contain +inf log-likelihoods")
-
-        live_points["it"] = -np.ones(live_points.size)
-        # Since log_Q is computed in the unit-cube
-        live_points["logQ"] = np.zeros(live_points.size)
-        live_points["logU"] = (
-            self.model.batch_evaluate_log_prior_unit_hypercube(live_points)
-        )
-        live_points["logW"] = live_points["logU"] - live_points["logQ"]
-        log_q = np.zeros([live_points.size, 1])
 
         if self.draw_iid_live:
             live_points, iid_samples = (
@@ -1314,9 +1319,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 if nc > c:
                     logger.debug(f"Drawing {nc - c} samples from {it}")
                     if it == -1:
-                        new_samples, new_log_q = proposal.draw_from_prior(
-                            nc - c
-                        )
+                        new_samples, new_log_q = proposal.draw_from(nc - c)
                     else:
                         new_samples, new_log_q = proposal.draw(
                             n=(nc - c),
