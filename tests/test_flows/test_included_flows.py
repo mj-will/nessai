@@ -37,13 +37,20 @@ def z(n, data_dim):
 
 @pytest.fixture(params=flows)
 def flow(request, data_dim):
-    return request.param(data_dim, 8, 2, 2).eval()
+    return request.param(
+        data_dim, 8, 2, 2, batch_norm_between_layers=False
+    ).eval()
 
 
 @pytest.fixture(params=flows)
 def conditional_flow(request, data_dim, conditional_features):
     return request.param(
-        data_dim, 8, 2, 2, context_features=conditional_features
+        data_dim,
+        8,
+        2,
+        2,
+        context_features=conditional_features,
+        batch_norm_between_layers=False,
     ).eval()
 
 

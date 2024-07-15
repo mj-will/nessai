@@ -263,7 +263,7 @@ def test_configure_model_ftype(config):
     """Test the different flows."""
     config["ftype"] = "realnvp"
     with patch("nessai.flows.utils.get_native_flow_class") as mock_get:
-        model, _ = configure_model(config)
+        configure_model(config)
     mock_get.assert_called_with("realnvp")
 
 
@@ -281,33 +281,12 @@ def test_configure_model_flow_class(config):
             pass
 
     config["flow"] = TestFlow
-    model, _ = configure_model(config)
+    model = configure_model(config)
     assert isinstance(model, TestFlow)
     assert model.n_inputs == config["n_inputs"]
     assert model.n_neurons == config["n_neurons"]
     assert model.n_blocks == config["n_blocks"]
     assert model.n_layers == config["n_layers"]
-
-
-def test_configure_model_device_cuda(config):
-    config["device_tag"] = "cuda"
-    expected_device = torch.device("cuda")
-    mock_model = MagicMock()
-    with patch(
-        "nessai.flows.realnvp.RealNVP", return_value=mock_model
-    ) as mock_flow:
-        model, device = configure_model(config)
-
-    mock_flow.assert_called_with(
-        config["n_inputs"],
-        config["n_neurons"],
-        config["n_blocks"],
-        config["n_layers"],
-    )
-
-    mock_model.to.assert_called_once_with(expected_device)
-    assert model.device == expected_device
-    assert device == expected_device
 
 
 @pytest.mark.parametrize(
@@ -366,35 +345,7 @@ def test_configure_model_input_type_error(config):
 def test_configure_model_unknown_activation(config):
     """Assert unknown activation functions raise an error"""
     config["kwargs"] = dict(activation="test")
-    with pytest.raises(RuntimeError) as excinfo:
-        configure_model(config)
-    assert "Unknown activation function: 'test'" in str(excinfo.value)
-
-
-def test_configure_model_invalid_device(caplog, config):
-    """Assert warning is raised and the device is set to CPU"""
-    from nessai.flows.base import NFlow
-
-    config["device_tag"] = "cpu"
-    flow = MagicMock(spec=NFlow)
-
-    def raise_error(input):
-        raise RuntimeError("An error")
-
-    flow.to = MagicMock(side_effect=raise_error)
-    with caplog.at_level(logging.WARNING), patch(
-        "nessai.flows.realnvp.RealNVP", return_value=flow
-    ):
-        configure_model(config)
-    assert "Could not send the normalising flow to" in caplog.text
-
-
-def test_configure_model_invalid_key(config):
-    """Assert an error is raised if invalid keys are present in the config"""
-    config["invalid_key"] = True
-    with pytest.raises(
-        RuntimeError, match=r"Unknown keys in model config: {'invalid_key'}"
-    ):
+    with pytest.raises(ValueError, match="Unknown activation: test"):
         configure_model(config)
 
 

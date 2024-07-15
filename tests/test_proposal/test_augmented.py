@@ -37,9 +37,7 @@ def test_update_flow_config(proposal):
         AugmentedFlowProposal.update_flow_config(proposal)
     mock.assert_called_once()
     mask = np.array([1, 1, -1, -1])
-    np.testing.assert_array_equal(
-        proposal.flow_config["model_config"]["kwargs"]["mask"], mask
-    )
+    np.testing.assert_array_equal(proposal.flow_config["mask"], mask)
 
 
 @patch("nessai.proposal.FlowProposal.set_rescaling")

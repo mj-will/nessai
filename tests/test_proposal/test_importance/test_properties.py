@@ -41,11 +41,14 @@ def test_flow_config(ifp):
 def test_flow_config_setter(ifp, config):
     ifp.model.dims = 2
     out = {"test": True, "model_config": {"n_inputs": 2}}
+    expected = (
+        config | {"n_inputs": 2} if config is not None else {"n_inputs": 2}
+    )
     with patch(
-        "nessai.proposal.importance.update_config", return_value=out
+        "nessai.proposal.importance.update_flow_config", return_value=out
     ) as mock:
         IFP.flow_config.__set__(ifp, config)
-    mock.assert_called_once_with({"model_config": {"n_inputs": 2}})
+    mock.assert_called_once_with(expected)
     assert ifp._flow_config is out
 
 

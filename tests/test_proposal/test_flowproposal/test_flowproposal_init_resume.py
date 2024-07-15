@@ -34,7 +34,8 @@ def test_initialise(tmpdir, proposal, ef, fuzz):
     proposal.rescaled_dims = 2
     proposal.expansion_fraction = ef
     proposal.fuzz = 2.0
-    proposal.flow_config = {"model_config": {}}
+    proposal.flow_config = {}
+    proposal.training_config = {}
     proposal.set_rescaling = MagicMock()
     proposal.verify_rescaling = MagicMock()
     proposal.update_flow_config = MagicMock()
@@ -50,7 +51,9 @@ def test_initialise(tmpdir, proposal, ef, fuzz):
     proposal.update_flow_config.assert_called_once()
     proposal.configure_constant_volume.assert_called_once()
     proposal._FlowModelClass.assert_called_once_with(
-        config=proposal.flow_config, output=proposal.output
+        flow_config=proposal.flow_config,
+        training_config=proposal.training_config,
+        output=proposal.output,
     )
     proposal.flow.initialise.assert_called_once()
     assert proposal.populated is False
@@ -69,12 +72,10 @@ def test_resume(proposal):
     proposal.weights_file = None
     model = MagicMock()
     with patch("nessai.proposal.base.Proposal.resume") as mock:
-        FlowProposal.resume(proposal, model, {"model_config": {"kwargs": {}}})
+        FlowProposal.resume(proposal, model, {})
     mock.assert_called_once_with(model)
     proposal.initialise.assert_called_once()
-    assert array_equal(
-        proposal.flow_config["model_config"]["kwargs"]["mask"], array([1, 0])
-    )
+    assert array_equal(proposal.flow_config["mask"], array([1, 0]))
 
 
 @patch("os.path.exists", return_value=True)
@@ -140,7 +141,7 @@ def test_get_state(proposal, populated, mask):
     proposal._draw_func = lambda x: x
 
     if mask is not None:
-        proposal.flow.model_config = {"kwargs": {"mask": mask}}
+        proposal.flow.flow_config = {"mask": mask}
 
     state = FlowProposal.__getstate__(proposal)
 
@@ -230,17 +231,14 @@ def test_reset(proposal):
 )
 def test_reset_integration(tmpdir, model, latent_prior):
     """Test reset method iteration with other methods"""
-    config = dict(
-        model_config=dict(
-            n_neurons=1,
-            n_blocks=1,
-            n_layers=1,
-            kwargs=dict(
-                batch_norm_between_layers=False,
-                linear_transform=None,
-            ),
-        )
+    flow_config = dict(
+        n_neurons=1,
+        n_blocks=1,
+        n_layers=1,
+        batch_norm_between_layers=False,
+        linear_transform=None,
     )
+    training_config = dict(patience=20)
     output = str(tmpdir.mkdir("reset_integration"))
     poolsize = 2
     drawsize = 100
@@ -251,7 +249,8 @@ def test_reset_integration(tmpdir, model, latent_prior):
     proposal = FlowProposal(
         model,
         output=output,
-        flow_config=config,
+        flow_config=flow_config,
+        training_config=training_config,
         plot=False,
         poolsize=poolsize,
         drawsize=drawsize,
@@ -263,7 +262,8 @@ def test_reset_integration(tmpdir, model, latent_prior):
     modified_proposal = FlowProposal(
         model,
         output=output,
-        flow_config=config,
+        flow_config=flow_config,
+        training_config=training_config,
         plot=False,
         poolsize=poolsize,
         drawsize=drawsize,

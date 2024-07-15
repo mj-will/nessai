@@ -11,21 +11,29 @@ def cfm():
 
 def test_init(cfm, tmp_path, caplog):
     caplog.set_level("DEBUG")
-    config = {}
+    flow_config = {}
+    training_config = {}
     output = tmp_path
     with patch(
         "nessai.experimental.flowmodel.clustering.FlowModel.__init__"
     ) as mock_parent_init:
-        CFM.__init__(cfm, config=config, output=output)
+        CFM.__init__(
+            cfm,
+            flow_config=flow_config,
+            training_config=training_config,
+            output=output,
+        )
 
-    mock_parent_init.assert_called_once_with(config=config, output=output)
+    mock_parent_init.assert_called_once_with(
+        flow_config=flow_config, training_config=training_config, output=output
+    )
     assert "faiss version" in str(caplog.text)
 
 
 @pytest.mark.integration_test
 def test_clustering_integration(tmp_path, caplog):
     caplog.set_level("DEBUG")
-    fm = CFM(config=dict(model_config=dict(n_inputs=2)), output=tmp_path)
+    fm = CFM(flow_config=dict(n_inputs=2), output=tmp_path)
     n = 100
     samples = np.concatenate(
         [

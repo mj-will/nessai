@@ -31,15 +31,12 @@ def test_glasflow_integration(tmp_path):
 
     from glasflow.flows import RealNVP
 
-    config = dict(
-        model_config=dict(
-            ftype="glasflow-realnvp",
-            n_inputs=2,
-            kwargs=None,
-        )
+    flow_config = dict(
+        ftype="glasflow-realnvp",
+        n_inputs=2,
     )
 
-    flowmodel = FlowModel(config=config, output=tmp_path / "test")
+    flowmodel = FlowModel(flow_config=flow_config, output=tmp_path / "test")
 
     flowmodel.initialise()
 
