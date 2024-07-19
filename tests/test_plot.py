@@ -53,7 +53,7 @@ def test_nessai_style_enabled(line_styles):
     ) as mock_style, patch("matplotlib.rc_context") as mock_rc:
         out = plot.nessai_style(line_styles=line_styles)(func)(1, 2)
     assert out == 3
-    mock_style.assert_called_with("ticks")
+    mock_style.assert_called_with(None)
     mock_rc.assert_called_once()
     d = mock_rc.call_args[0][0]["axes.prop_cycle"].by_key()
     if line_styles:
