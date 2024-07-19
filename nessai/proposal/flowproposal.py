@@ -915,6 +915,8 @@ class FlowProposal(RejectionProposal):
         x: array_like
             Array of training live points which can be used to set parameters
         """
+        if self.map_to_unit_hypercube:
+            x = self.model.to_unit_hypercube(x)
         self._reparameterisation.update(x)
 
     @nessai_style()
@@ -923,7 +925,7 @@ class FlowProposal(RejectionProposal):
         z_training_data, _ = self.forward_pass(
             self.training_data, rescale=True
         )
-        z_gen = np.random.randn(self.training_data.size, self.dims)
+        z_gen = self.flow.sample_latent_distribution(self.training_data.size)
 
         fig = plt.figure()
         plt.hist(np.sqrt(np.sum(z_training_data**2, axis=1)), "auto")
