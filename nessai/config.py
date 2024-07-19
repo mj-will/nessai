@@ -123,7 +123,7 @@ class PlottingConfig(_BaseConfig):
     Useful since all plotting functions use the
     :py:func:`~nessai.plot.nessai_style` decorator by default.
     """
-    sns_style: str = "ticks"
+    sns_style: str = None
     """Default seaborn style."""
     base_colour: str = "#02979d"
     """Base colour for plots."""
