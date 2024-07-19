@@ -25,11 +25,13 @@ class MCMCFlowProposal(FlowProposal):
         self,
         *args,
         n_steps=10,
+        n_accept=None,
         step_type: str = "diff",
         plot_chain: bool = False,
         **kwargs,
     ):
         self.n_steps = n_steps
+        self.n_accept = n_accept
         self.step_type = step_type
         self._plot_chain = plot_chain
         super().__init__(*args, **kwargs)
@@ -61,7 +63,7 @@ class MCMCFlowProposal(FlowProposal):
 
         x = numpy_array_to_live_points(
             x.astype(config.livepoints.default_float_dtype),
-            self.rescaled_names,
+            self.prime_parameters,
         )
         if rescale:
             x, log_j_rescale = self.inverse_rescale(x)
@@ -100,7 +102,7 @@ class MCMCFlowProposal(FlowProposal):
         # Ensemble points
         x_prime_array = live_points_to_array(
             self.training_data_prime,
-            self.rescaled_names,
+            self.prime_parameters,
             copy=True,
         )
         np.random.shuffle(x_prime_array)
@@ -120,8 +122,8 @@ class MCMCFlowProposal(FlowProposal):
         z_chain[0] = z_current
 
         z_new_history = []
-        n_accept = 0
-        n_reject = 0
+        n_accept = np.zeros(n_walkers)
+        n_reject = np.zeros(n_walkers)
 
         for i in range(self.n_steps):
 
@@ -150,15 +152,18 @@ class MCMCFlowProposal(FlowProposal):
             x_current[accept] = x_new[accept]
             z_current[accept] = z_new[accept]
             log_j_current[accept] = log_j_new[accept]
-            na = sum(accept)
-            n_accept += na
-            n_reject += n_walkers - na
+            n_accept += accept
+            n_reject += 1 - accept
             z_chain[i] = z_current
+            if self.n_accept is not None and n_accept.mean() > self.n_accept:
+                print("Reached n_accept")
+                break
+            print(n_accept.mean())
 
         z_new_history = np.array(z_new_history)
         self.step.update_stats(
-            n_accept=n_accept,
-            n_reject=n_reject,
+            n_accept=n_accept.mean(),
+            n_reject=n_reject.mean(),
         )
 
         self.samples = self.convert_to_samples(x_current)
@@ -168,7 +173,9 @@ class MCMCFlowProposal(FlowProposal):
             self.plot_chain(z_chain)
         if self._plot_pool and plot:
             self.plot_pool(self.samples)
-        self.population_acceptance = n_accept / (n_accept + n_reject)
+        self.population_acceptance = n_accept.mean() / (
+            n_accept.mean() + n_reject.mean()
+        )
         logger.debug(f"MCMC acceptance: {self.population_acceptance}")
         self.indices = np.random.permutation(self.samples.size).tolist()
         self.populated_count += 1
