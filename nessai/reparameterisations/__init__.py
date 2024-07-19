@@ -63,6 +63,22 @@ default_reparameterisations = {
         ScaleAndShift,
         {"estimate_scale": True, "estimate_shift": True},
     ),
+    "zscore-unit": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "apply_gaussian_cdf": True,
+        },
+    ),
+    "z-score-unit": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "apply_gaussian_cdf": True,
+        },
+    ),
     "angle": (Angle, {}),
     "angle-pi": (Angle, {"scale": 2.0, "prior": "uniform"}),
     "angle-2pi": (Angle, {"scale": 1.0, "prior": "uniform"}),

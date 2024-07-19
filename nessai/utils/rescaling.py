@@ -5,6 +5,7 @@ Utilities related to rescaling.
 import logging
 
 import numpy as np
+from scipy.special import erfc, erfcinv
 
 from .hist import auto_bins
 
@@ -391,8 +392,23 @@ def exp_with_log_jacobian(x):
     return np.exp(x), x.copy()
 
 
+def gaussian_cdf(x):
+    """Gaussian CDF with log-Jacobian determinant"""
+    log_j = -0.5 * np.log(2 * np.pi) - 0.5 * (x**2.0)
+    x = 0.5 * erfc(-x / np.sqrt(2.0))
+    return x, log_j
+
+
+def inverse_gaussian_cdf(x):
+    """Inverse Gaussian CDF with log-Jacobian determinant"""
+    x = -np.sqrt(2) * erfcinv(2.0 * x)
+    log_j = 0.5 * np.log(2 * np.pi) + 0.5 * (x**2.0)
+    return x, log_j
+
+
 rescaling_functions = {
     "logit": (logit, sigmoid),
     "log": (log_with_log_jacobian, exp_with_log_jacobian),
     "exp": (exp_with_log_jacobian, log_with_log_jacobian),
+    "gaussian_cdf": (inverse_gaussian_cdf, gaussian_cdf),
 }

@@ -12,6 +12,8 @@ from ..utils.rescaling import (
     configure_edge_detection,
     determine_rescaled_bounds,
     detect_edge,
+    gaussian_cdf,
+    inverse_gaussian_cdf,
     rescaling_functions,
     rescale_minus_one_to_one,
     rescale_zero_to_one,
@@ -51,6 +53,9 @@ class ScaleAndShift(Reparameterisation):
     estimate_shift : bool
         If true, the value of :code:`shift` will be ignored and the standard
         deviation of the data will be used.
+    apply_gaussian_cdf : bool
+        If true, samples will be mapped to [0, 1] using a Gaussian CDF after
+        applying the initial rescaling.
     """
 
     requires_bounded_prior = False
@@ -63,6 +68,7 @@ class ScaleAndShift(Reparameterisation):
         shift=None,
         estimate_scale=False,
         estimate_shift=False,
+        apply_gaussian_cdf=False,
     ):
         if scale is None and not estimate_scale:
             raise RuntimeError("Must specify a scale or enable estimate_scale")
@@ -70,6 +76,7 @@ class ScaleAndShift(Reparameterisation):
 
         self.estimate_scale = estimate_scale
         self.estimate_shift = estimate_shift
+        self.apply_gaussian_cdf = apply_gaussian_cdf
 
         if self.estimate_scale or self.estimate_shift:
             self._update = True
@@ -127,6 +134,9 @@ class ScaleAndShift(Reparameterisation):
             else:
                 x_prime[pp] = x[p] / self.scale[p]
             log_j -= np.log(np.abs(self.scale[p]))
+            if self.apply_gaussian_cdf:
+                x_prime[pp], lj = gaussian_cdf(x_prime[pp])
+                log_j += lj
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -143,10 +153,15 @@ class ScaleAndShift(Reparameterisation):
         log_j : Log jacobian to be updated
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
-            if self.shift:
-                x[p] = (x_prime[pp] * self.scale[p]) + self.shift[p]
+            if self.apply_gaussian_cdf:
+                x_in, lj = inverse_gaussian_cdf(x_prime[pp])
+                log_j += lj
             else:
-                x[p] = x_prime[pp] * self.scale[p]
+                x_in = x_prime[pp]
+            if self.shift:
+                x[p] = (x_in * self.scale[p]) + self.shift[p]
+            else:
+                x[p] = x_in * self.scale[p]
             log_j += np.log(np.abs(self.scale[p]))
         return x, x_prime, log_j
 
