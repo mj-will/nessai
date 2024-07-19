@@ -1254,6 +1254,9 @@ class NestedSampler(BaseNestedSampler):
         nested_samples : numpy.ndarray
             Array of nested samples.
         """
+        if self.finalised:
+            logger.info("Running has already finished!")
+            return self.state.logZ, np.array(self.nested_samples)
         self.sampling_start_time = datetime.datetime.now()
         if not self.initialised:
             self.initialise(live_points=True)
