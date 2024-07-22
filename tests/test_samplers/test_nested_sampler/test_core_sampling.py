@@ -272,6 +272,7 @@ def test_nested_sampling_loop(sampler, config):
 def test_nested_sampling_loop_prior_sampling(sampler, close_pool):
     """Test the nested sampling loop for prior sampling"""
     sampler.initialised = False
+    sampler.finalised = False
     sampler.nested_samples = sampler.model.new_point(10)
     sampler.prior_sampling = True
     sampler._close_pool = close_pool
