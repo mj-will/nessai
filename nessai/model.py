@@ -106,11 +106,6 @@ class Model(ABC):
     bool
         Parallelise calculating the log-prior using the multiprocessing pool.
     """
-    has_discrete_parameters = False
-    """
-    bool
-        Indicates if the model contains discrete parameters.
-    """
     _vectorised_likelihood = None
     _vectorised_prior = None
     _vectorised_prior_unit_hypercube = None
@@ -172,6 +167,27 @@ class Model(ABC):
         if d == 0:
             d = None
         return d
+
+    @property
+    def discrete_parameters(self):
+        """List of discrete parameters.
+
+        None of there are no discrete parameters.
+        """
+        return self._discrete_parameters
+
+    @discrete_parameters.setter
+    def discrete_parameters(self, parameters):
+        logger.warning(
+            "Handling discrete parameters is experimental and may change in "
+            "future releases!"
+        )
+        self._discrete_parameters = parameters
+
+    @property
+    def has_discrete_parameters(self):
+        """Indicates if the model contains discrete parameters."""
+        return self._discrete_parameters is not None
 
     def _set_upper_lower(self):
         """Set the upper and lower bounds arrays"""
@@ -762,7 +778,9 @@ class Model(ABC):
                         "after 10000 tries, check the log prior function."
                     )
         else:
-            logger.warning("Model has infinite bounds(s)")
+            logger.warning(
+                "Model has infinite bounds(s) and/or discrete parameters"
+            )
             logger.warning("Testing with `new_point`")
             try:
                 x = self.new_point(1)
