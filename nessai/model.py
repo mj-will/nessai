@@ -106,6 +106,11 @@ class Model(ABC):
     bool
         Parallelise calculating the log-prior using the multiprocessing pool.
     """
+    has_discrete_parameters = False
+    """
+    bool
+        Indicates if the model contains discrete parameters.
+    """
     _vectorised_likelihood = None
     _vectorised_prior = None
     _vectorised_prior_unit_hypercube = None
@@ -739,7 +744,7 @@ class Model(ABC):
         if (
             np.isfinite(self.lower_bounds).all()
             and np.isfinite(self.upper_bounds).all()
-        ):
+        ) and not self.has_discrete_parameters:
             logP = -np.inf
             counter = 0
             while (logP == -np.inf) or (logP == np.inf):
