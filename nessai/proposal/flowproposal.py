@@ -732,7 +732,7 @@ class FlowProposal(RejectionProposal):
     def rescaled_names(self):
         warn(
             (
-                "`rescaled_names` is deprecated, use `rescaled_parameters` "
+                "`rescaled_names` is deprecated, use `prime_parameters` "
                 "instead"
             ),
             FutureWarning,
