@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+
+### Added
+
+- Add p-value and additional panel to indices plot
+(https://github.com/mj-will/nessai/pull/391)
+- Add support for numpy 2.0 (https://github.com/mj-will/nessai/pull/387)
+- Add support for arbitrary priors in unit hypercube with the importance sampler
+(https://github.com/mj-will/nessai/pull/377)
+
+### Changed
+
+- Simplify rescaling/reparameterisation configuration
+https://github.com/mj-will/nessai/pull/395)
+- The default reparameterisation has been changed from rescale-to-bounds to
+z-score standardisation (https://github.com/mj-will/nessai/pull/395)
+- Change default seaborn style to avoid plotting issues on some systems
+(https://github.com/mj-will/nessai/pull/397)
+- Rework flow configuration to use `flow_config` and `training_config` keyword
+arguments (https://github.com/mj-will/nessai/pull/394)
+- Skip nested sampling loop and populating live points if run is already finalised
+(https://github.com/mj-will/nessai/pull/393, https://github.com/mj-will/nessai/pull/400)
+
+### Deprecated
+
+- Specifying `model_config` in the `flow_config` dictionary is now deprecated
+(https://github.com/mj-will/nessai/pull/394)
+- `FlowProposal.names`, `FlowProposal.rescaled_names` and
+`FlowProposal.rescaled_dims` are now deprecated
+(https://github.com/mj-will/nessai/pull/395)
+
+### Removed
+
+- `rescale_parameters`, `boundary_inversion`, `inversion_type`, `rescale_bounds`
+`update_bounds`, `detect_edges`, `detect_edges_kwargs`,
+have all been removed in favour of using the reparameterisations directly
+(https://github.com/mj-will/nessai/pull/395)
+- Drop support for Python 3.8 (https://github.com/mj-will/nessai/pull/396)
+
+
+### Experimental
+
+- Add experimental `ClusteringFlowProposal`
+(https://github.com/mj-will/nessai/pull/380)
+- Add experimental support for using flows directly from `glasflow`
+(https://github.com/mj-will/nessai/pull/386)
+
+
 ## [0.12.0]
 
 This release reworks large parts of the importance nested sampler to enable
