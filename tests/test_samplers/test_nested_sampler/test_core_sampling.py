@@ -289,3 +289,15 @@ def test_nested_sampling_loop_prior_sampling(sampler, close_pool):
     sampler.finalise.assert_called_once()
     assert_structured_arrays_equal(samples, sampler.nested_samples)
     assert evidence == -5.99
+
+
+def test_nested_sampling_loop_already_finished(sampler, caplog):
+    caplog.set_level("INFO")
+    sampler.finalised = True
+    sampler.log_evidence = 0.1
+    sampler.nested_samples = [1, 2, 3]
+    logz, ns = NestedSampler.nested_sampling_loop(sampler)
+    assert "Run has already finished!" in str(caplog.text)
+    sampler.check_resume.assert_not_called()
+    assert logz is sampler.log_evidence
+    np.testing.assert_array_equal(ns, np.array(sampler.nested_samples))
