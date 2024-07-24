@@ -4,6 +4,7 @@ Tests for rescaling functions
 """
 import numpy as np
 import pytest
+from scipy import stats
 from unittest.mock import patch
 
 
@@ -12,6 +13,8 @@ from nessai.utils.rescaling import (
     detect_edge,
     determine_rescaled_bounds,
     exp_with_log_jacobian,
+    gaussian_cdf,
+    inverse_gaussian_cdf,
     inverse_rescale_minus_one_to_one,
     inverse_rescale_zero_to_one,
     logistic_function,
@@ -245,3 +248,23 @@ def test_log_exp_inverse():
     x_out, logj_exp = exp_with_log_jacobian(x_log)
     np.testing.assert_almost_equal(x_out, x, decimal=14)
     np.testing.assert_almost_equal(logj_log, -logj_exp, decimal=14)
+
+
+def test_gaussian_cdf():
+    x = np.random.randn(10)
+    x_out, _ = gaussian_cdf(x)
+    np.testing.assert_allclose(x_out, stats.norm.cdf(x), atol=1e-15)
+
+
+def test_inverse_gaussian_cdf():
+    x = np.random.rand(10)
+    x_out, _ = inverse_gaussian_cdf(x)
+    np.testing.assert_allclose(x_out, stats.norm.ppf(x), atol=1e-15)
+
+
+def test_gaussian_cdf_invertible():
+    x = np.random.rand(100)
+    xp, log_j = inverse_gaussian_cdf(x)
+    x_out, log_j_inv = gaussian_cdf(xp)
+    np.testing.assert_array_almost_equal(x_out, x, decimal=10)
+    np.testing.assert_array_almost_equal(-log_j_inv, log_j, decimal=10)
