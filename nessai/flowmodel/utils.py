@@ -124,7 +124,7 @@ def update_config(flow_config, training_config=None):
                 warn(
                     (
                         f"Key `{key}` should now be specified in "
-                        "`training_config`",
+                        "`training_config`"
                     ),
                     FutureWarning,
                 )
