@@ -46,3 +46,12 @@ def test_flowproposal_rescaled_names_warning():
     proposal.prime_parameters = ["x"]
     with pytest.warns(FutureWarning, match=r"`rescaled_names` is deprecated"):
         assert FlowProposal.rescaled_names.__get__(proposal) == ["x"]
+
+
+def test_flowproposal_update_bounds_warning():
+    from nessai.proposal import FlowProposal
+
+    proposal = create_autospec(FlowProposal)
+    proposal.should_update_reparameterisations = True
+    with pytest.warns(FutureWarning, match=r"`update_bounds` is deprecated"):
+        assert FlowProposal.update_bounds.__get__(proposal) is True
