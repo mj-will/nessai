@@ -404,7 +404,7 @@ class RescaleToBounds(Reparameterisation):
             self.has_prime_prior = False
 
             if post_rescaling in ["logit", "log"]:
-                if self._update_bounds:
+                if self._update:
                     raise RuntimeError(
                         "Cannot use log or logit with update bounds"
                     )
