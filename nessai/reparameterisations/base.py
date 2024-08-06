@@ -21,7 +21,7 @@ class Reparameterisation:
         Prior bounds for the parameter(s).
     """
 
-    _update_bounds = False
+    _update = False
     has_prior = False
     has_prime_prior = False
     requires_prime_prior = False

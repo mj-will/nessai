@@ -41,7 +41,6 @@ class FlowModel:
         not specified, the current working directory is used.
     """
 
-    model_config = None
     noise_scale = None
     noise_type = None
     model: BaseFlow = None

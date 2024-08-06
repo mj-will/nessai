@@ -331,7 +331,7 @@ def test_post_rescaling_with_str(reparam, rescaling):
 
     Also test the config for the logit
     """
-    reparam._update_bounds = False
+    reparam._update = False
     reparam.parameters = ["x"]
     from nessai.utils.rescaling import rescaling_functions
 
@@ -346,7 +346,7 @@ def test_post_rescaling_with_str(reparam, rescaling):
 @pytest.mark.parametrize("rescaling", ["log", "logit"])
 def test_post_rescaling_with_logit_update_bounds(reparam, rescaling):
     """Assert an error is raised if using logit and update bounds"""
-    reparam._update_bounds = True
+    reparam._update = True
     with pytest.raises(
         RuntimeError, match=r"Cannot use log or logit with update bounds"
     ):
@@ -370,7 +370,7 @@ def test_post_rescaling_invalid_input(reparam):
 def test_update_bounds_disabled(reparam, caplog):
     """Assert nothing happens in _update_bounds is False"""
     caplog.set_level("DEBUG")
-    reparam._update_bounds = False
+    reparam._update = False
     RescaleToBounds.update_bounds(reparam, [0, 1])
     assert "Update bounds not enabled" in str(caplog.text)
 

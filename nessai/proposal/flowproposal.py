@@ -170,8 +170,8 @@ class FlowProposal(RejectionProposal):
         super(FlowProposal, self).__init__(model)
         logger.debug("Initialising FlowProposal")
 
-        self._x_dtype = False
-        self._x_prime_dtype = False
+        self._x_dtype = None
+        self._x_prime_dtype = None
         self._draw_func = None
         self._populate_dist = None
 
@@ -193,7 +193,7 @@ class FlowProposal(RejectionProposal):
         self._reparameterisation = None
         self.rescaling_set = False
         self.use_x_prime_prior = False
-        self.update_bounds = False
+        self.should_update_reparameterisations = False
         self.accumulate_weights = accumulate_weights
 
         self.reparameterisations = reparameterisations
@@ -279,7 +279,7 @@ class FlowProposal(RejectionProposal):
     @property
     def x_dtype(self):
         """Return the dtype for the x space"""
-        if not self._x_dtype:
+        if self._x_dtype is None:
             self._x_dtype = get_dtype(
                 self.parameters, config.livepoints.default_float_dtype
             )
@@ -288,7 +288,7 @@ class FlowProposal(RejectionProposal):
     @property
     def x_prime_dtype(self):
         """Return the dtype for the x prime space"""
-        if not self._x_prime_dtype:
+        if self._x_prime_dtype is None:
             self._x_prime_dtype = get_dtype(
                 self.prime_parameters, config.livepoints.default_float_dtype
             )
@@ -484,7 +484,7 @@ class FlowProposal(RejectionProposal):
         """Update the flow configuration dictionary."""
         self.flow_config["n_inputs"] = self.rescaled_dims
 
-    def initialise(self):
+    def initialise(self, resumed: bool = False) -> None:
         """
         Initialise the proposal class.
 
@@ -492,23 +492,29 @@ class FlowProposal(RejectionProposal):
             * Setting up the rescaling
             * Verifying the rescaling is invertible
             * Initialising the FlowModel
+
+        Parameters
+        ----------
+        resumed : bool
+            Indicates if the proposal is being initialised after being resumed
+            or not. When true, the reparameterisations will not be
+            reinitialised.
         """
         if not os.path.exists(self.output):
             os.makedirs(self.output, exist_ok=True)
 
-        self._x_dtype = False
-        self._x_prime_dtype = False
+        # Initialise if not resuming or resuming but initialised is False
+        if not resumed or not self.initialised:
+            self.set_rescaling()
+            self.verify_rescaling()
+            if self.expansion_fraction and self.expansion_fraction is not None:
+                logger.info("Overwriting fuzz factor with expansion fraction")
+                self.fuzz = (1 + self.expansion_fraction) ** (
+                    1 / self.rescaled_dims
+                )
+                logger.info(f"New fuzz factor: {self.fuzz}")
 
-        self.set_rescaling()
-        self.verify_rescaling()
-        if self.expansion_fraction and self.expansion_fraction is not None:
-            logger.info("Overwriting fuzz factor with expansion fraction")
-            self.fuzz = (1 + self.expansion_fraction) ** (
-                1 / self.rescaled_dims
-            )
-            logger.info(f"New fuzz factor: {self.fuzz}")
-
-        self.configure_constant_volume()
+            self.configure_constant_volume()
         self.update_flow_config()
         self.flow = self._FlowModelClass(
             flow_config=self.flow_config,
@@ -697,10 +703,10 @@ class FlowProposal(RejectionProposal):
             r = FallbackClass(parameters=other_params, **fallback_kwargs)
             self._reparameterisation.add_reparameterisations(r)
 
-        if any(r._update_bounds for r in self._reparameterisation.values()):
-            self.update_bounds = True
+        if any(r._update for r in self._reparameterisation.values()):
+            self.should_update_reparameterisations = True
         else:
-            self.update_bounds = False
+            self.should_update_reparameterisations = False
 
         if self._reparameterisation.has_prime_prior:
             self.use_x_prime_prior = True
@@ -738,6 +744,17 @@ class FlowProposal(RejectionProposal):
             FutureWarning,
         )
         return self.prime_parameters
+
+    @property
+    def update_bounds(self):
+        warn(
+            (
+                "`update_bounds` is deprecated, use "
+                "`should_update_reparameterisations` instead."
+            ),
+            FutureWarning,
+        )
+        return self.should_update_reparameterisations
 
     def set_rescaling(self):
         """
@@ -1633,14 +1650,13 @@ class FlowProposal(RejectionProposal):
         """
         super().resume(model)
         self.flow_config = flow_config
-        self._reparameterisation = None
 
         if self.mask is not None:
             if isinstance(self.mask, list):
                 m = np.array(self.mask)
             self.flow_config["mask"] = m
 
-        self.initialise()
+        self.initialise(resumed=True)
 
         if weights_file is None:
             weights_file = self.weights_file
@@ -1651,12 +1667,6 @@ class FlowProposal(RejectionProposal):
                 self.flow.reload_weights(weights_file)
         else:
             logger.warning("Could not reload weights for flow")
-
-        if self.update_bounds:
-            if self.training_data is not None:
-                self.check_state(self.training_data)
-            elif self.training_data is None and self.training_count:
-                raise RuntimeError("Could not resume! Missing training data!")
 
     def reset(self):
         """Reset the proposal"""
@@ -1673,6 +1683,7 @@ class FlowProposal(RejectionProposal):
         self.acceptance = []
         self._draw_func = None
         self._populate_dist = None
+        self._reparameterisation.reset()
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -1696,7 +1707,6 @@ class FlowProposal(RejectionProposal):
 
         # user provides model and config for resume
         # flow can be reconstructed from resume
-        del state["_reparameterisation"]
         del state["model"]
         del state["_flow_config"]
         del state["flow"]
