@@ -294,7 +294,7 @@ class RescaleToBounds(Reparameterisation):
             for p in self.boundary_inversion:
                 self.rescale_bounds[p] = [0, 1]
 
-        self._update_bounds = update_bounds if not detect_edges else True
+        self._update = update_bounds if not detect_edges else True
         self.detect_edges = detect_edges
         if self.boundary_inversion:
             self._edges = {n: None for n in self.parameters}
@@ -608,7 +608,7 @@ class RescaleToBounds(Reparameterisation):
 
     def update_bounds(self, x):
         """Update the bounds used for the reparameterisation"""
-        if self._update_bounds:
+        if self._update:
             self.bounds = {
                 p: [
                     self.pre_rescaling(np.min(x[p]))[0] - self.offsets[p],
