@@ -30,6 +30,7 @@ def test_init_use_default_reparams(model, proposal, value, expected):
 def test_initialise(tmpdir, proposal, ef, fuzz):
     """Test the initialise method"""
     p = tmpdir.mkdir("test")
+    proposal.initialised = False
     proposal.output = os.path.join(p, "output")
     proposal.rescaled_dims = 2
     proposal.expansion_fraction = ef
@@ -44,7 +45,7 @@ def test_initialise(tmpdir, proposal, ef, fuzz):
     fm.initialise = MagicMock()
     proposal._FlowModelClass = MagicMock(new=fm)
 
-    FlowProposal.initialise(proposal)
+    FlowProposal.initialise(proposal, resumed=False)
 
     proposal.set_rescaling.assert_called_once()
     proposal.verify_rescaling.assert_called_once()
@@ -95,33 +96,6 @@ def test_resume_w_weights(osexist, proposal):
     proposal.flow.reload_weights.assert_called_once_with("weights.pt")
 
 
-@pytest.mark.parametrize("data", [[1], None])
-@pytest.mark.parametrize("count", [0, 1])
-def test_resume_w_update_bounds(proposal, data, count):
-    """Test the resume method with update bounds"""
-    proposal.initialise = MagicMock()
-    proposal.flow = MagicMock()
-    proposal.mask = None
-    proposal.update_bounds = True
-    proposal.weights_file = None
-    proposal.training_data = data
-    proposal.training_count = count
-    proposal.check_state = MagicMock()
-    model = MagicMock()
-    if count and data is None:
-        with pytest.raises(RuntimeError) as excinfo, patch(
-            "nessai.proposal.base.Proposal.resume"
-        ) as mock:
-            FlowProposal.resume(proposal, model, {})
-        assert "Could not resume" in str(excinfo.value)
-    else:
-        with patch("nessai.proposal.base.Proposal.resume") as mock:
-            FlowProposal.resume(proposal, model, {})
-        if data:
-            proposal.check_state.assert_called_once_with(data)
-    mock.assert_called_once_with(model)
-
-
 @pytest.mark.parametrize("populated", [False, True])
 @pytest.mark.parametrize("mask", [None, [1, 0]])
 def test_get_state(proposal, populated, mask):
@@ -149,7 +123,6 @@ def test_get_state(proposal, populated, mask):
     assert state["initialised"] is False
     assert state["weights_file"] == "file"
     assert state["mask"] is mask
-    assert "_reparameterisation" not in state
     assert "model" not in state
     assert "flow" not in state
     assert "_flow_config" not in state
@@ -214,6 +187,7 @@ def test_reset(proposal):
     proposal.samples = 2
     proposal.populated = True
     proposal.populated_count = 10
+    proposal._reparameterisation = MagicMock()
     FlowProposal.reset(proposal)
     assert proposal.x is None
     assert proposal.samples is None
@@ -222,6 +196,7 @@ def test_reset(proposal):
     assert proposal.r is np.nan
     assert proposal.alt_dist is None
     assert proposal._checked_population
+    proposal._reparameterisation.reset.assert_called_once()
 
 
 @pytest.mark.timeout(60)
@@ -280,6 +255,7 @@ def test_reset_integration(tmpdir, model, latent_prior):
     # attributes that should be different
     ignore = [
         "population_time",
+        "_reparameterisation",
     ]
 
     d1 = proposal.__getstate__()
