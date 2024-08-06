@@ -380,6 +380,58 @@ def test_resume_fallback_reparameterisation(tmpdir, model, flow_config):
 
 
 @pytest.mark.slow_integration_test
+def test_resume_reparameterisation_values(tmpdir, model, flow_config):
+    """
+    Assert the scale and shift values are correct.
+    """
+    from nessai.reparameterisations.rescale import ScaleAndShift
+
+    output = str(tmpdir.mkdir("resume"))
+    fp = FlowSampler(
+        model,
+        output=output,
+        resume=True,
+        nlive=100,
+        plot=False,
+        flow_config=flow_config,
+        training_frequency=10,
+        maximum_uninformed=9,
+        reparameterisations="z-score",
+        checkpoint_on_iteration=True,
+        checkpoint_interval=5,
+        seed=1234,
+        max_iteration=11,
+        poolsize=10,
+    )
+    fp.run()
+
+    reparam = fp.ns._flow_proposal._reparameterisation
+    reparam = next(iter(fp.ns._flow_proposal._reparameterisation.values()))
+    assert isinstance(reparam, ScaleAndShift)
+    original_scale = reparam.scale
+    original_shift = reparam.shift
+    assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
+
+    fp = FlowSampler(
+        model,
+        output=output,
+        resume=True,
+        flow_config=flow_config,
+    )
+    assert fp.ns.iteration == 11
+    fp.ns.max_iteration = 21
+    reparam = next(iter(fp.ns._flow_proposal._reparameterisation.values()))
+    assert isinstance(reparam, ScaleAndShift)
+    assert reparam.scale == original_scale
+    assert reparam.shift == original_shift
+    fp.run()
+    assert fp.ns.iteration == 21
+    assert os.path.exists(
+        os.path.join(output, "nested_sampler_resume.pkl.old")
+    )
+
+
+@pytest.mark.slow_integration_test
 def test_sampling_with_infinite_prior_bounds(tmpdir):
     """
     Make sure the sampler runs when sampling a parameter with infinite prior \
