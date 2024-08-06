@@ -503,7 +503,8 @@ class FlowProposal(RejectionProposal):
         if not os.path.exists(self.output):
             os.makedirs(self.output, exist_ok=True)
 
-        if not resumed and not self.initialised:
+        # Initialise if not resuming or resuming but initialised is False
+        if not resumed or not self.initialised:
             self.set_rescaling()
             self.verify_rescaling()
             if self.expansion_fraction and self.expansion_fraction is not None:
@@ -1682,6 +1683,7 @@ class FlowProposal(RejectionProposal):
         self.acceptance = []
         self._draw_func = None
         self._populate_dist = None
+        self._reparameterisation.reset()
 
     def __getstate__(self):
         state = self.__dict__.copy()
