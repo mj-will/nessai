@@ -2,7 +2,7 @@
 """Test the proposal utilities"""
 from nessai.proposal.utils import (
     check_proposal_kwargs,
-    get_region_sampler_proposal_class,
+    get_flow_proposal_class,
 )
 from nessai.proposal import (
     AugmentedFlowProposal,
@@ -77,7 +77,7 @@ def test_check_kwargs_error():
 
 def test_get_region_sampler_class_none():
     """Test the default flow class"""
-    assert get_region_sampler_proposal_class(None) is FlowProposal
+    assert get_flow_proposal_class(None) is FlowProposal
 
 
 @pytest.mark.parametrize(
@@ -97,13 +97,13 @@ def test_get_region_sampler_class_none():
 )
 def test_get_region_sampler_class_str(proposal_str, ProposalClass):
     """Test the correct class is returned"""
-    assert get_region_sampler_proposal_class(proposal_str) is ProposalClass
+    assert get_flow_proposal_class(proposal_str) is ProposalClass
 
 
 def test_get_region_sampler_class_invalid_str():
     """Test to check the error raised if an unknown class is used"""
     with pytest.raises(ValueError, match=r"Unknown flow class"):
-        get_region_sampler_proposal_class("not_a_valid_class")
+        get_flow_proposal_class("not_a_valid_class")
 
 
 def test_get_region_sampler_class_not_a_subclass():
@@ -116,4 +116,4 @@ def test_get_region_sampler_class_not_a_subclass():
         pass
 
     with pytest.raises(RuntimeError, match=r"inherits"):
-        get_region_sampler_proposal_class(FakeProposal)
+        get_flow_proposal_class(FakeProposal)
