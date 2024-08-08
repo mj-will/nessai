@@ -9,6 +9,7 @@ def cfm():
     return create_autospec(CFM)
 
 
+@pytest.mark.requires("faiss")
 def test_init(cfm, tmp_path, caplog):
     caplog.set_level("DEBUG")
     flow_config = {}
@@ -30,6 +31,7 @@ def test_init(cfm, tmp_path, caplog):
     assert "faiss version" in str(caplog.text)
 
 
+@pytest.mark.requires("faiss")
 @pytest.mark.integration_test
 def test_clustering_integration(tmp_path, caplog):
     caplog.set_level("DEBUG")
