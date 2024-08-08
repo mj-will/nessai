@@ -4,6 +4,7 @@ from nessai.flowsampler import FlowSampler
 from nessai.experimental.proposal.clustering import ClusteringFlowProposal
 
 
+@pytest.requires("faiss")
 @pytest.mark.slow_integration_test
 def test_sampling_with_clusteringflowproposal(integration_model, tmp_path):
     fp = FlowSampler(
