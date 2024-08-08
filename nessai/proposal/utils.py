@@ -3,6 +3,8 @@
 from copy import deepcopy
 from inspect import getmro, signature
 import logging
+from typing import Callable, Union
+from warnings import warn
 
 
 logger = logging.getLogger(__name__)
@@ -82,8 +84,13 @@ def check_proposal_kwargs(ProposalClass, kwargs, strict=False):
     return kwargs_out
 
 
-def get_region_sampler_proposal_class(proposal_class):
-    """Get the proposal class for the standard region sampler.
+def get_flow_proposal_class(
+    proposal_class: Union[str, None, Callable],
+) -> Callable:
+    """Get the proposal class for the standard nested sampler.
+
+    Can also load proposals from entry points. These take priority of the
+    default proposals.
 
     Parameters
     ----------
@@ -96,41 +103,57 @@ def get_region_sampler_proposal_class(proposal_class):
     Proposal class
     """
     from .flowproposal import FlowProposal
+    from .augmented import AugmentedFlowProposal
+    from ..gw.proposal import GWFlowProposal, AugmentedGWFlowProposal
+    from ..experimental.proposal.clustering import ClusteringFlowProposal
+    from ..experimental.gw.proposal import ClusteringGWFlowProposal
+    from ..utils.plugins import get_entry_points
 
-    if proposal_class is not None:
-        if isinstance(proposal_class, str):
-            proposal_class = proposal_class.lower()
-            if proposal_class == "gwflowproposal":
-                from ..gw.proposal import GWFlowProposal as proposal_class
-            elif proposal_class == "augmentedgwflowproposal":
-                from ..gw.proposal import (
-                    AugmentedGWFlowProposal as proposal_class,
-                )
-            elif proposal_class == "flowproposal":
-                proposal_class = FlowProposal
-            elif proposal_class == "augmentedflowproposal":
-                from ..proposal import AugmentedFlowProposal
+    base_proposals = {
+        "augmentedflowproposal": AugmentedFlowProposal,
+        "flowproposal": FlowProposal,
+        "gwflowproposal": GWFlowProposal,
+        "augmentedgwflowpropsal": AugmentedGWFlowProposal,
+        "clusteringflowproposal": ClusteringFlowProposal,
+        "clusteringgwflowproposal": ClusteringGWFlowProposal,
+    }
 
-                proposal_class = AugmentedFlowProposal
-            elif proposal_class == "clusteringflowproposal":
-                from ..experimental.proposal.clustering import (
-                    ClusteringFlowProposal,
-                )
+    external_proposals = get_entry_points("nessai.proposals")
 
-                proposal_class = ClusteringFlowProposal
-            elif proposal_class == "clusteringgwflowproposal":
-                from ..experimental.gw.proposal import (
-                    ClusteringGWFlowProposal,
-                )
+    logger.debug(
+        f"Found the following external proposals: {external_proposals.keys()}"
+    )
 
-                proposal_class = ClusteringGWFlowProposal
-            else:
-                raise ValueError(f"Unknown flow class: {proposal_class}")
-        elif not issubclass(proposal_class, FlowProposal):
-            raise RuntimeError(
-                "Flow class must be string or class that "
-                "inherits from FlowProposal"
+    if proposal_class is None:
+        return FlowProposal
+    elif isinstance(proposal_class, str):
+        proposal_class = proposal_class.lower()
+        if proposal_class in external_proposals:
+            logger.info("Using external proposal class")
+            return external_proposals[proposal_class].load()
+        elif proposal_class in base_proposals:
+            return base_proposals[proposal_class]
+        else:
+            raise ValueError(
+                f"Unknown proposal class: {proposal_class}. "
+                f"Choose from: {list(base_proposals.keys())} or "
+                f"{list(external_proposals.keys())}"
             )
+    elif issubclass(proposal_class, FlowProposal):
+        return proposal_class
     else:
-        proposal_class = FlowProposal
-    return proposal_class
+        raise TypeError(
+            "Unknown proposal_class type. Must a str, subclass of "
+            f"FlowProposal or None. Actual type: {type(proposal_class)}."
+        )
+
+
+def get_region_sampler_proposal_class(*args, **kwargs):
+    warn(
+        (
+            "`get_region_sampler_proposal_class` is deprecated in favour of "
+            "`get_flow_proposal_class`"
+        ),
+        FutureWarning,
+    )
+    return get_flow_proposal_class(*args, **kwargs)
