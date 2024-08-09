@@ -62,9 +62,11 @@ class Dequantise(RescaleToBounds):
             p: [b[0], b[1] + 1] for p, b in self.prior_bounds.items()
         }
 
-    def pre_rescaling(self, x):
+    @staticmethod
+    def pre_rescaling(x):
         n = len(x)
         return x + np.random.rand(n), np.zeros(n)
 
-    def pre_rescaling_inv(self, x):
+    @staticmethod
+    def pre_rescaling_inv(x):
         return np.floor(x), np.zeros(len(x))
