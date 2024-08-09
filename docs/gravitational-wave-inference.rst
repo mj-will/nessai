@@ -2,10 +2,30 @@
 Gravitational-wave inference
 ============================
 
+Gravitational-wave specific proposals and reparameterisations are implemented in
+an additional package  ``nessai-gw``. This can be installed using ``pip`` or
+``conda``:
+
+.. tabs::
+
+     .. code-tab:: console conda
+
+        conda install -c conda-forge nessai-gw
+
+     .. code-tab:: console pip
+
+        pip install nessai-gw
+
+.. warning::
+
+    Older versions of ``nessai`` included a ``.gw`` submodule but this is now deprecated in favour of ``nessai-gw``.
+
+
 Basic configuration
 ===================
 
-``nessai`` includes a default configuration for gravitational-wave inference. This includes default reparameterisations for common parameters. This functionality is enabled by adding :code:`flow_class='gwflowproposal'` to the arguments for the sampler.
+``nessai`` includes a default configuration for gravitational-wave inference. This includes default reparameterisations for common parameters.
+This functionality is enabled by adding :code:`flow_proposal_class='gwflowproposal'` to the keyword arguments for the sampler.
 
 
 Marginalisation
