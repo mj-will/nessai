@@ -13,7 +13,7 @@ output = "./outdir/discrete_example/"
 logger = setup_logger(output=output, log_level="INFO")
 
 
-# Define the mode class, this model has two signal models and a discrete
+# Define the model class, this model has two signal models and a discrete
 # variable that determines which is used for the computing the log-likelihood
 class MultiModelLikelihood(Model):
 
@@ -51,13 +51,15 @@ class MultiModelLikelihood(Model):
         # Compute the log-prior for the uniform parameters
         for n in ["m", "c"]:
             log_p -= np.log(self.bounds[n][1] - self.bounds[n][0])
-        # Only accept the allow values for model, log(0) = -inf
+        # Only accept the allowed values for 'model', log(0) = -inf
         log_p += np.log(~(x["model"] % 1).astype(bool))
         return log_p
 
     def log_likelihood(self, x):
-        # Use a different depending on the value of the "model" parameters
-        # We use the following two models (mx + c) and (mx^1.1 + c)
+        # Use a different likelihood depending on the value of the "model"
+        # parameter. We use the following two models:
+        # 1. (mx + c)
+        # 2. (mx^1.1 + c)
         y_fit = np.where(
             x["model"] == 1,
             (x["m"] * self.x_data + x["c"]),
