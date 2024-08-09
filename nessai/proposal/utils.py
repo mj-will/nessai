@@ -113,7 +113,7 @@ def get_flow_proposal_class(
         "augmentedflowproposal": AugmentedFlowProposal,
         "flowproposal": FlowProposal,
         "gwflowproposal": GWFlowProposal,
-        "augmentedgwflowpropsal": AugmentedGWFlowProposal,
+        "augmentedgwflowproposal": AugmentedGWFlowProposal,
         "clusteringflowproposal": ClusteringFlowProposal,
         "clusteringgwflowproposal": ClusteringGWFlowProposal,
     }
@@ -144,7 +144,8 @@ def get_flow_proposal_class(
     else:
         raise TypeError(
             "Unknown proposal_class type. Must a str, subclass of "
-            f"FlowProposal or None. Actual type: {type(proposal_class)}."
+            f"FlowProposal or None. "
+            f"Actual input: {proposal_class} ({type(proposal_class)})."
         )
 
 
