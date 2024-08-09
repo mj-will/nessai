@@ -8,6 +8,7 @@ import datetime
 import logging
 import os
 from typing import Union
+from warnings import warn
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
@@ -21,7 +22,7 @@ from ..plot import plot_indices, plot_trace, nessai_style
 from ..evidence import _NSIntegralState
 from ..proposal.utils import (
     check_proposal_kwargs,
-    get_region_sampler_proposal_class,
+    get_flow_proposal_class,
 )
 from ..utils import (
     compute_indices_ks_test,
@@ -180,6 +181,7 @@ class NestedSampler(BaseNestedSampler):
         uninformed_proposal=None,
         uninformed_acceptance_threshold=None,
         uninformed_proposal_kwargs=None,
+        flow_proposal_class=None,
         flow_class=None,
         flow_config=None,
         training_frequency=None,
@@ -279,8 +281,16 @@ class NestedSampler(BaseNestedSampler):
             uninformed_acceptance_threshold,
             **uninformed_proposal_kwargs,
         )
+
+        if flow_class is not None:
+            warn(
+                "`flow_class` is deprecated, use `flow_proposal_class`.",
+                FutureWarning,
+            )
+            flow_proposal_class = flow_class
+
         self.configure_flow_proposal(
-            flow_class, flow_config, proposal_plots, **kwargs
+            flow_proposal_class, flow_config, proposal_plots, **kwargs
         )
 
         # Uninformed proposal is used for prior sampling
@@ -431,14 +441,14 @@ class NestedSampler(BaseNestedSampler):
         self._uninformed_proposal = uninformed_proposal(self.model, **kwargs)
 
     def configure_flow_proposal(
-        self, flow_class, flow_config, proposal_plots, **kwargs
+        self, flow_proposal_class, flow_config, proposal_plots, **kwargs
     ):
         """
         Set up the flow-based proposal method
 
         Parameters
         ----------
-        flow_class : None or Callable or str
+        flow_proposal_class : None or Callable or str
             Class to use for proposal. If None FlowProposal is used.
         flow_config : dict
             Configuration dictionary passed to the class.
@@ -452,7 +462,7 @@ class NestedSampler(BaseNestedSampler):
         if not self.plot:
             proposal_plots = False
 
-        ProposalClass = get_region_sampler_proposal_class(flow_class)
+        ProposalClass = get_flow_proposal_class(flow_proposal_class)
 
         if kwargs.get("poolsize", None) is None:
             kwargs["poolsize"] = self.nlive

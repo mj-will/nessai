@@ -2,7 +2,7 @@
 """Test the proposal utilities"""
 from nessai.proposal.utils import (
     check_proposal_kwargs,
-    get_region_sampler_proposal_class,
+    get_flow_proposal_class,
 )
 from nessai.proposal import (
     AugmentedFlowProposal,
@@ -15,6 +15,7 @@ from nessai.gw.proposal import (
 from nessai.experimental.proposal.clustering import ClusteringFlowProposal
 from nessai.experimental.gw.proposal import ClusteringGWFlowProposal
 import pytest
+from unittest.mock import MagicMock, patch
 
 
 def test_class_inheritance():
@@ -75,9 +76,9 @@ def test_check_kwargs_error():
         check_proposal_kwargs(FlowProposal, dict(not_a_kwarg=None))
 
 
-def test_get_region_sampler_class_none():
+def test_get_flow_proposal_class_none():
     """Test the default flow class"""
-    assert get_region_sampler_proposal_class(None) is FlowProposal
+    assert get_flow_proposal_class(None) is FlowProposal
 
 
 @pytest.mark.parametrize(
@@ -95,18 +96,49 @@ def test_get_region_sampler_class_none():
         ["clusteringgwflowproposal", ClusteringGWFlowProposal],
     ],
 )
-def test_get_region_sampler_class_str(proposal_str, ProposalClass):
+def test_get_flow_proposal_class_str(proposal_str, ProposalClass):
     """Test the correct class is returned"""
-    assert get_region_sampler_proposal_class(proposal_str) is ProposalClass
+    with patch("nessai.utils.entry_points.get_entry_points", return_value={}):
+        assert get_flow_proposal_class(proposal_str) is ProposalClass
 
 
-def test_get_region_sampler_class_invalid_str():
+def test_get_flow_proposal_class_external():
+    # Mock class
+    ExternalClass = MagicMock()
+
+    # Mock what is normally returned by the entry point before they are loaded
+    EntryPointClass = MagicMock()
+    EntryPointClass.load = MagicMock(return_value=ExternalClass)
+
+    with patch(
+        "nessai.utils.entry_points.get_entry_points",
+        return_value={"external_class": EntryPointClass},
+    ) as mock_get_entry_points:
+        ProposalClass = get_flow_proposal_class("external_class")
+
+    mock_get_entry_points.assert_called_once_with("nessai.proposals")
+    EntryPointClass.load.assert_called_once()
+    assert ProposalClass is ExternalClass
+
+
+def test_get_flow_proposal_class_subclass():
+    """Test case where the input is a subclass of FlowProposal"""
+
+    class FlowProposalSubClass(FlowProposal):
+        pass
+
+    assert (
+        get_flow_proposal_class(FlowProposalSubClass) is FlowProposalSubClass
+    )
+
+
+def test_get_flow_proposal_class_invalid_str():
     """Test to check the error raised if an unknown class is used"""
-    with pytest.raises(ValueError, match=r"Unknown flow class"):
-        get_region_sampler_proposal_class("not_a_valid_class")
+    with pytest.raises(ValueError, match=r"Unknown proposal class: "):
+        get_flow_proposal_class("not_a_valid_class")
 
 
-def test_get_region_sampler_class_not_a_subclass():
+def test_get_flow_proposal_class_not_a_subclass():
     """
     Test to check an error is raised in the class does not inherit from
     FlowProposal
@@ -115,5 +147,5 @@ def test_get_region_sampler_class_not_a_subclass():
     class FakeProposal:
         pass
 
-    with pytest.raises(RuntimeError, match=r"inherits"):
-        get_region_sampler_proposal_class(FakeProposal)
+    with pytest.raises(TypeError, match=r"Unknown proposal_class"):
+        get_flow_proposal_class(FakeProposal)
