@@ -121,6 +121,17 @@ def test_get_flow_proposal_class_external():
     assert ProposalClass is ExternalClass
 
 
+def test_get_flow_proposal_class_subclass():
+    """Test case where the input is a subclass of FlowProposal"""
+
+    class FlowProposalSubClass(FlowProposal):
+        pass
+
+    assert (
+        get_flow_proposal_class(FlowProposalSubClass) is FlowProposalSubClass
+    )
+
+
 def test_get_flow_proposal_class_invalid_str():
     """Test to check the error raised if an unknown class is used"""
     with pytest.raises(ValueError, match=r"Unknown proposal class: "):
