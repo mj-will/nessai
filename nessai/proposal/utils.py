@@ -107,7 +107,7 @@ def get_flow_proposal_class(
     from ..gw.proposal import GWFlowProposal, AugmentedGWFlowProposal
     from ..experimental.proposal.clustering import ClusteringFlowProposal
     from ..experimental.gw.proposal import ClusteringGWFlowProposal
-    from ..utils.plugins import get_entry_points
+    from ..utils.entry_points import get_entry_points
 
     base_proposals = {
         "augmentedflowproposal": AugmentedFlowProposal,
