@@ -55,3 +55,13 @@ def test_flowproposal_update_bounds_warning():
     proposal.should_update_reparameterisations = True
     with pytest.warns(FutureWarning, match=r"`update_bounds` is deprecated"):
         assert FlowProposal.update_bounds.__get__(proposal) is True
+
+
+def test_get_region_sampler_proposal_class_warning():
+    from nessai.proposal.utils import get_region_sampler_proposal_class
+
+    with pytest.warns(
+        FutureWarning,
+        match=r"`get_region_sampler_proposal_class` is deprecated",
+    ):
+        get_region_sampler_proposal_class(None)

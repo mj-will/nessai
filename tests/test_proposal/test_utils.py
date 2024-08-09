@@ -76,7 +76,7 @@ def test_check_kwargs_error():
         check_proposal_kwargs(FlowProposal, dict(not_a_kwarg=None))
 
 
-def test_get_region_sampler_class_none():
+def test_get_flow_proposal_class_none():
     """Test the default flow class"""
     assert get_flow_proposal_class(None) is FlowProposal
 

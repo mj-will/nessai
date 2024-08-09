@@ -119,7 +119,7 @@ def test_configure_flow_proposal(sampler):
     expected_kwargs = dict(test=True, poolsize=sampler.nlive)
 
     with patch(
-        "nessai.samplers.nestedsampler.get_region_sampler_proposal_class",
+        "nessai.samplers.nestedsampler.get_flow_proposal_class",
         return_value=fake_class,
     ) as mock_get, patch(
         "nessai.samplers.nestedsampler.check_proposal_kwargs",
