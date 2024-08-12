@@ -30,6 +30,7 @@ For questions or other support, please either use our `gitter room <https://app.
    normalising-flows-configuration
    parallelisation
    gravitational-wave-inference
+   plugins
    further-details
    API reference </autoapi/nessai/index>
 
