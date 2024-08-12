@@ -111,6 +111,7 @@ class Model(ABC):
     _vectorised_prior_unit_hypercube = None
     _pool_configured = False
     n_pool = None
+    _discrete_parameters = None
 
     @property
     def names(self):
