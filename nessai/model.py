@@ -173,7 +173,7 @@ class Model(ABC):
     def discrete_parameters(self):
         """List of discrete parameters.
 
-        None of there are no discrete parameters.
+        None if there are no discrete parameters.
         """
         return self._discrete_parameters
 
