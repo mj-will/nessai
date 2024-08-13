@@ -179,6 +179,27 @@ def test_upper_bounds(model):
     np.testing.assert_array_equal(bounds, np.array([1, 1]))
 
 
+def test_discrete_parameters(model):
+    value = ["a", "b"]
+    model._discrete_parameters = value
+    assert Model.discrete_parameters.__get__(model) == value
+
+
+def test_discrete_parameters_setter(model, caplog):
+    value = ["a", "b"]
+    Model.discrete_parameters.__set__(model, value)
+    assert model._discrete_parameters == value
+    assert "discrete parameters is experimental" in str(caplog.text)
+
+
+@pytest.mark.parametrize(
+    "value, expected", [(["a", "b"], True), (None, False)]
+)
+def test_has_discrete_parameters(model, value, expected):
+    model._discrete_parameters = value
+    assert Model.has_discrete_parameters.__get__(model) is expected
+
+
 @pytest.mark.parametrize("value", [True, False])
 def test_vectorised_likelihood(model, value):
     """Assert the correct value is stored if allow_vectorised is True"""
