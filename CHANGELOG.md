@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2]
+
+### Fixed
+
+- Handle error when `linear_transform='None'` which occurs when using `bilby_pipe` after the `flow_config` changes (https://github.com/mj-will/nessai/pull/414)
+
 ## [0.13.1]
 
 ### Changed
@@ -661,7 +667,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.13.2...HEAD
+[0.13.2]: https://github.com/mj-will/nessai/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/mj-will/nessai/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/mj-will/nessai/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/mj-will/nessai/compare/v0.11.0...v0.12.0
