@@ -191,7 +191,10 @@ class RealNVP(NFlow):
                     transforms.normalization.ActNorm(features=features)
                 )
 
-            if linear_transform is not None:
+            if (
+                linear_transform is not None
+                and linear_transform.lower() != "none"
+            ):
                 layers.append(
                     create_linear_transform(linear_transform, features)
                 )

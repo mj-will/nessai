@@ -110,10 +110,14 @@ class NeuralSplineFlow(NFlow):
 
         transforms_list = []
         for i in range(num_layers):
-            if linear_transform is not None:
+            if (
+                linear_transform is not None
+                and linear_transform.lower() != "none"
+            ):
                 transforms_list.append(
                     create_linear_transform(linear_transform, features)
                 )
+
             transforms_list.append(spline_constructor(i))
             if batch_norm_between_layers:
                 transforms_list.append(transforms.BatchNorm(features=features))
