@@ -51,6 +51,7 @@ There are a number of pre-configured reparameterisations included in ``nessai``:
 - ``angle-sine``: Same as :code:`angle` but for angles with sine priors
 - ``angle-2pi``: Same as :code:`angle-pi` but for angles defined on [0, :math:`2\pi`]
 - ``angle-pair``: Reparameterisation for pairs of angles, see :py:class:`nessai.reparameterisations.AnglePair` for details.
+- ``dequantise``: Reparameterisation for discrete parameters for that adds random noise to each integer values.
 - ``'none'``: No reparameterisation is applied.
 
 For details on each of these reparameterisations see :py:mod:`~nessai.reparameterisations`.

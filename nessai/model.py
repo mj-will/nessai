@@ -111,6 +111,7 @@ class Model(ABC):
     _vectorised_prior_unit_hypercube = None
     _pool_configured = False
     n_pool = None
+    _discrete_parameters = None
 
     @property
     def names(self):
@@ -167,6 +168,27 @@ class Model(ABC):
         if d == 0:
             d = None
         return d
+
+    @property
+    def discrete_parameters(self):
+        """List of discrete parameters.
+
+        None if there are no discrete parameters.
+        """
+        return self._discrete_parameters
+
+    @discrete_parameters.setter
+    def discrete_parameters(self, parameters):
+        logger.warning(
+            "Handling discrete parameters is experimental and may change in "
+            "future releases!"
+        )
+        self._discrete_parameters = parameters
+
+    @property
+    def has_discrete_parameters(self):
+        """Indicates if the model contains discrete parameters."""
+        return self._discrete_parameters is not None
 
     def _set_upper_lower(self):
         """Set the upper and lower bounds arrays"""
@@ -739,7 +761,7 @@ class Model(ABC):
         if (
             np.isfinite(self.lower_bounds).all()
             and np.isfinite(self.upper_bounds).all()
-        ):
+        ) and not self.has_discrete_parameters:
             logP = -np.inf
             counter = 0
             while (logP == -np.inf) or (logP == np.inf):
@@ -757,7 +779,9 @@ class Model(ABC):
                         "after 10000 tries, check the log prior function."
                     )
         else:
-            logger.warning("Model has infinite bounds(s)")
+            logger.warning(
+                "Model has infinite bounds(s) and/or discrete parameters"
+            )
             logger.warning("Testing with `new_point`")
             try:
                 x = self.new_point(1)
