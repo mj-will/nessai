@@ -23,6 +23,7 @@ from nessai.flows import (
         dict(linear_transform="svd"),
         dict(linear_transform="lu"),
         dict(linear_transform=None),
+        dict(linear_transform="None"),
         dict(mask=np.array([[1, -1], [-1, 1]])),
         dict(mask=[1, -1]),
         dict(pre_transform="batch_norm"),
@@ -75,6 +76,7 @@ def test_realnvp_actnorm_batchnorm():
         dict(linear_transform="svd"),
         dict(linear_transform="lu"),
         dict(linear_transform=None),
+        dict(linear_transform="None"),
         dict(num_bins=10),
     ],
 )
