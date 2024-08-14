@@ -410,5 +410,7 @@ rescaling_functions = {
     "logit": (logit, sigmoid),
     "log": (log_with_log_jacobian, exp_with_log_jacobian),
     "exp": (exp_with_log_jacobian, log_with_log_jacobian),
-    "gaussian_cdf": (inverse_gaussian_cdf, gaussian_cdf),
+    "gaussian_cdf": (gaussian_cdf, inverse_gaussian_cdf),
+    "inv_gaussian_cdf": (inverse_gaussian_cdf, gaussian_cdf),
+    "inverse_gaussian_cdf": (inverse_gaussian_cdf, gaussian_cdf),
 }
