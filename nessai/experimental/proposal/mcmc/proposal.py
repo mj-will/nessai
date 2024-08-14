@@ -156,9 +156,7 @@ class MCMCFlowProposal(FlowProposal):
             n_reject += 1 - accept
             z_chain[i] = z_current
             if self.n_accept is not None and n_accept.mean() > self.n_accept:
-                print("Reached n_accept")
                 break
-            print(n_accept.mean())
 
         z_new_history = np.array(z_new_history)
         self.step.update_stats(
