@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, call, create_autospec, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.reparameterisations import ScaleAndShift
+from nessai.utils.rescaling import gaussian_cdf, inverse_gaussian_cdf
 from nessai.utils.testing import assert_structured_arrays_equal
 
 
@@ -90,7 +91,8 @@ def test_reparameterise_scale(reparam, n):
     reparam.prime_parameters = ["x_prime", "y_prime"]
     reparam.scale = {"x": -2.0, "y": 4.0}
     reparam.shift = None
-    reparam.apply_gaussian_cdf = False
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
     x = numpy_array_to_live_points(np.ones((n, 2)), reparam.parameters)
     x_prime = numpy_array_to_live_points(
         np.zeros((n, 2)), reparam.prime_parameters
@@ -114,7 +116,8 @@ def test_reparameterise_scale_and_shift(reparam, n):
     reparam.prime_parameters = ["x_prime", "y_prime"]
     reparam.scale = {"x": -2.0, "y": 4.0}
     reparam.shift = {"x": 2.0, "y": -2.0}
-    reparam.apply_gaussian_cdf = False
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
     x = numpy_array_to_live_points(np.ones((n, 2)), reparam.parameters)
     x_prime = numpy_array_to_live_points(
         np.zeros((n, 2)), reparam.prime_parameters
@@ -132,13 +135,17 @@ def test_reparameterise_scale_and_shift(reparam, n):
 
 
 @pytest.mark.parametrize("n", [1, 2])
-def test_reparameterise_scale_and_shift_gaussian_cdf(reparam, n):
+def test_reparameterise_scale_post_rescaling(reparam, n):
     """Test the reparameterise method"""
+
     reparam.parameters = ["x", "y"]
     reparam.prime_parameters = ["x_prime", "y_prime"]
     reparam.scale = {"x": -2.0, "y": 4.0}
     reparam.shift = {"x": 2.0, "y": -2.0}
-    reparam.apply_gaussian_cdf = True
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = True
+    reparam.post_rescaling = gaussian_cdf
+    reparam.post_rescaling_inv = inverse_gaussian_cdf
     x = numpy_array_to_live_points(np.ones((n, 2)), reparam.parameters)
     x_prime = numpy_array_to_live_points(
         np.zeros((n, 2)), reparam.prime_parameters
@@ -168,7 +175,8 @@ def test_reparameterise_scale_overflow(reparam, scale):
     reparam.prime_parameters = ["x_prime"]
     reparam.scale = {"x": scale}
     reparam.shift = None
-    reparam.apply_gaussian_cdf = False
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
     x_array = np.arange(100.0, dtype=float)
     x = numpy_array_to_live_points(
         scale * x_array[:, np.newaxis], reparam.parameters
@@ -195,7 +203,8 @@ def test_inverse_reparameterise_scale(reparam, n):
     reparam.prime_parameters = ["x_prime", "y_prime"]
     reparam.scale = {"x": -2.0, "y": 4.0}
     reparam.shift = None
-    reparam.apply_gaussian_cdf = False
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
     x = numpy_array_to_live_points(np.zeros((n, 2)), reparam.parameters)
     x_prime = numpy_array_to_live_points(
         np.ones((n, 2)), reparam.prime_parameters
@@ -222,7 +231,8 @@ def test_inverse_reparameterise_scale_overflow(reparam, scale):
     reparam.prime_parameters = ["x_prime"]
     reparam.scale = {"x": scale}
     reparam.shift = None
-    reparam.apply_gaussian_cdf = False
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
     x_array = np.arange(100.0, dtype=float)
     x = numpy_array_to_live_points(
         np.ones((x_array.size, 1)), reparam.parameters
@@ -247,7 +257,8 @@ def test_inverse_reparameterise_scale_and_shift(reparam, n):
     reparam.prime_parameters = ["x_prime", "y_prime"]
     reparam.scale = {"x": -2.0, "y": 4.0}
     reparam.shift = {"x": 1.0, "y": -2.0}
-    reparam.apply_gaussian_cdf = False
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = False
     x = numpy_array_to_live_points(np.zeros((n, 2)), reparam.parameters)
     x_prime = numpy_array_to_live_points(
         np.ones((n, 2)), reparam.prime_parameters
@@ -266,13 +277,16 @@ def test_inverse_reparameterise_scale_and_shift(reparam, n):
 
 
 @pytest.mark.parametrize("n", [1, 2])
-def test_inverse_reparameterise_scale_and_shift_gaussian_cdf(reparam, n):
+def test_inverse_reparameterise_scale_and_shift_post_rescaling(reparam, n):
     """Test the inverse reparameterise method"""
     reparam.parameters = ["x", "y"]
     reparam.prime_parameters = ["x_prime", "y_prime"]
     reparam.scale = {"x": -2.0, "y": 4.0}
     reparam.shift = {"x": 1.0, "y": -2.0}
-    reparam.apply_gaussian_cdf = True
+    reparam.has_pre_rescaling = False
+    reparam.has_post_rescaling = True
+    reparam.post_rescaling = gaussian_cdf
+    reparam.post_rescaling_inv = inverse_gaussian_cdf
     x = numpy_array_to_live_points(np.zeros((n, 2)), reparam.parameters)
     x_prime = numpy_array_to_live_points(
         stats.norm.cdf(1) * np.ones((n, 2)), reparam.prime_parameters
@@ -402,7 +416,8 @@ def test_init_incorrect_shift_type():
 @pytest.mark.parametrize("shift", [-2.0, 2.0, None])
 @pytest.mark.parametrize("estimate_scale", [True, False])
 @pytest.mark.parametrize("estimate_shift", [True, False])
-@pytest.mark.parametrize("apply_gaussian_cdf", [True, False])
+@pytest.mark.parametrize("pre_rescaling", [None, "inverse_gaussian_cdf"])
+@pytest.mark.parametrize("post_rescaling", [None, "gaussian_cdf"])
 def test_invertible(
     is_invertible,
     model,
@@ -410,11 +425,15 @@ def test_invertible(
     shift,
     estimate_scale,
     estimate_shift,
-    apply_gaussian_cdf,
+    pre_rescaling,
+    post_rescaling,
 ):
     """Assert scale and shift is invertible for different settings."""
-
-    x = model.new_point(100)
+    unit_hypercube = True if pre_rescaling is not None else False
+    if unit_hypercube:
+        x = model.sample_unit_hypercube(100)
+    else:
+        x = model.new_point(100)
 
     reparam = ScaleAndShift(
         parameters=model.names,
@@ -423,8 +442,14 @@ def test_invertible(
         shift=shift,
         estimate_scale=estimate_scale,
         estimate_shift=estimate_shift,
-        apply_gaussian_cdf=apply_gaussian_cdf,
+        pre_rescaling=pre_rescaling,
+        post_rescaling=post_rescaling,
     )
 
     reparam.update(x)
-    assert is_invertible(reparam, atol=1e-13, rtol=1e-13)
+    assert is_invertible(
+        reparam,
+        atol=1e-12,
+        rtol=1e-12,
+        unit_hypercube=unit_hypercube,
+    )
