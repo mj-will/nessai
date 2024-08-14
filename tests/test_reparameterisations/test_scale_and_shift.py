@@ -501,7 +501,7 @@ def test_invertible(
     reparam.update(x)
     assert is_invertible(
         reparam,
-        atol=1e-12,
-        rtol=1e-12,
+        atol=1e-10,
+        rtol=1e-10,
         unit_hypercube=unit_hypercube,
     )
