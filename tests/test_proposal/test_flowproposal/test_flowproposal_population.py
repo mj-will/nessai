@@ -117,6 +117,19 @@ def test_compute_weights_prime_prior(proposal, x, log_q):
     np.testing.assert_array_equal(log_w, out)
 
 
+def test_compute_weights_unit_hypercube(proposal, x, log_q):
+    proposal.use_x_prime_prior = False
+    proposal.map_to_unit_hypercube = True
+    proposal.unit_hypercube_log_prior = MagicMock(
+        return_value=-np.ones(x.size)
+    )
+    log_w = FlowProposal.compute_weights(proposal, x, log_q)
+
+    proposal.unit_hypercube_log_prior.assert_called_once_with(x)
+    out = -1 - log_q
+    np.testing.assert_array_equal(log_w, out)
+
+
 @patch("numpy.random.rand", return_value=np.array([0.1, 0.9]))
 def test_rejection_sampling(proposal, z, x, log_q):
     """Test rejection sampling method."""
@@ -129,7 +142,11 @@ def test_rejection_sampling(proposal, z, x, log_q):
     z_out, x_out = FlowProposal.rejection_sampling(proposal, z)
 
     proposal.backward_pass.assert_called_once_with(
-        z, rescale=True, return_z=True, discard_nans=False
+        z,
+        rescale=True,
+        return_z=True,
+        discard_nans=False,
+        return_unit_hypercube=proposal.map_to_unit_hypercube,
     )
     proposal.compute_weights.assert_called_once()
     assert x_out.size == 1
@@ -172,7 +189,11 @@ def test_rejection_sampling_truncate(proposal, z, x):
     )
 
     proposal.backward_pass.assert_called_once_with(
-        z, rescale=True, return_z=True, discard_nans=False
+        z,
+        rescale=True,
+        return_z=True,
+        discard_nans=False,
+        return_unit_hypercube=proposal.map_to_unit_hypercube,
     )
     proposal.compute_weights.assert_called_once()
     assert x_out.size == 1
@@ -233,6 +254,28 @@ def test_convert_to_samples_with_prime(mock_plot, proposal):
     assert out_samples.dtype.names == ("x",) + tuple(
         config.livepoints.non_sampling_parameters
     )
+
+
+def test_convert_to_samples_unit_hypercube(proposal):
+    """Test convert to sample without the prime prior"""
+    samples = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
+    samples_hyper = samples.copy()
+    samples["x"] /= 2
+    proposal.use_x_prime_prior = False
+    proposal.map_to_unit_hypercube = True
+    proposal.model = MagicMock()
+    proposal.model.names = ["x"]
+    proposal.model.batch_evaluate_log_prior = MagicMock(
+        return_value=np.ones(10)
+    )
+    proposal.model.from_unit_hypercube = MagicMock(return_value=samples_hyper)
+
+    out_samples = FlowProposal.convert_to_samples(proposal, samples, plot=True)
+
+    assert out_samples.dtype.names == ("x",) + tuple(
+        config.livepoints.non_sampling_parameters
+    )
+    np.testing.assert_array_equal(out_samples["x"], samples_hyper["x"])
 
 
 def test_get_alt_distribution_truncated_gaussian(proposal):
@@ -492,7 +535,14 @@ def test_populate_accumulate_weights(
     draw_calls = 3 * [call(5)]
     proposal.draw_latent_prior.assert_has_calls(draw_calls)
 
-    backwards_calls = [call(zz, rescale=True) for zz in z]
+    backwards_calls = [
+        call(
+            zz,
+            rescale=True,
+            return_unit_hypercube=proposal.map_to_unit_hypercube,
+        )
+        for zz in z
+    ]
     proposal.backward_pass.assert_has_calls(backwards_calls)
 
     compute_weights_calls = [call(xx, lq) for xx, lq in zip(x, log_q)]
@@ -661,7 +711,14 @@ def test_populate_not_accumulate_weights(
     draw_calls = 3 * [call(5)]
     proposal.draw_latent_prior.assert_has_calls(draw_calls)
 
-    backwards_calls = [call(zz, rescale=True) for zz in z]
+    backwards_calls = [
+        call(
+            zz,
+            rescale=True,
+            return_unit_hypercube=proposal.map_to_unit_hypercube,
+        )
+        for zz in z
+    ]
     proposal.backward_pass.assert_has_calls(backwards_calls)
 
     compute_weights_calls = [call(xx, lq) for xx, lq in zip(x, log_q)]
@@ -806,7 +863,14 @@ def test_populate_truncate_log_q(proposal):
 
     proposal.forward_pass.assert_called_once_with(proposal.training_data)
 
-    backwards_calls = [call(zz, rescale=True) for zz in z]
+    backwards_calls = [
+        call(
+            zz,
+            rescale=True,
+            return_unit_hypercube=proposal.map_to_unit_hypercube,
+        )
+        for zz in z
+    ]
     proposal.backward_pass.assert_has_calls(backwards_calls)
 
     compute_weights_calls = [(xx[:-1], lq[:-1]) for xx, lq in zip(x, log_q)]

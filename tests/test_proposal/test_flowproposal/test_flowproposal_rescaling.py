@@ -74,11 +74,14 @@ def test_configure_reparameterisations_dict(
     proposal.get_reparameterisation = MagicMock(
         return_value=(dummy_rc, {"boundary_inversion": True})
     )
+    proposal.map_to_unit_hypercube = False
     proposal.model = MagicMock()
-    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
+    proposal.model.bounds = {"x": [-1, 1]}
     proposal.model.names = ["x"]
+    proposal.fallback_reparameterisations = None
     proposal.reverse_reparameterisations = reverse_order
     proposal.use_default_reparameterisations = use_default_reparameterisations
+    proposal.prior_bounds = proposal.model.bounds
 
     with patch(
         "nessai.proposal.flowproposal.CombinedReparameterisation",
@@ -133,6 +136,8 @@ def test_configure_reparameterisations_dict_w_params(
     )
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x", "y"]
+    proposal.map_to_unit_hypercube = False
+    proposal.prior_bounds = proposal.model.bounds
 
     with patch(
         "nessai.proposal.flowproposal.CombinedReparameterisation",
@@ -180,6 +185,7 @@ def test_configure_reparameterisations_requires_prime_prior(
     )
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x", "y"]
+    proposal.map_to_unit_hypercube = False
 
     with patch(
         "nessai.proposal.flowproposal.CombinedReparameterisation",
@@ -452,6 +458,7 @@ def test_rescale(proposal, n):
         np.random.randn(n, 2), ["x_prime", "y_prime"]
     )
     proposal.x_prime_dtype = get_dtype(["x_prime", "y_prime"])
+    proposal.map_to_unit_hypercube = False
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.reparameterise = MagicMock(
         return_value=[x, x_prime, np.ones(x.size)]
@@ -479,6 +486,7 @@ def test_inverse_rescale(proposal, n):
     )
     x_prime["logL"] = np.random.randn(n)
     x_prime["logP"] = np.random.randn(n)
+    proposal.map_to_unit_hypercube = False
     proposal.x_dtype = get_dtype(["x", "y"])
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.inverse_reparameterise = MagicMock(
@@ -622,10 +630,17 @@ def test_verify_rescaling_rescaling_not_set(proposal):
         FlowProposal.verify_rescaling(proposal)
 
 
-def test_check_state_update(proposal):
+def test_check_state_update(proposal, map_to_unit_hypercube):
     """Assert the update method is called"""
     x = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
+    x_hyper = x.copy()
+    proposal.map_to_unit_hypercube = map_to_unit_hypercube
     proposal._reparameterisation = Mock()
     proposal._reparameterisation.update = MagicMock()
+    proposal.model.to_unit_hypercube = MagicMock(return_value=x_hyper)
     FlowProposal.check_state(proposal, x)
-    proposal._reparameterisation.update.assert_called_once_with(x)
+    if map_to_unit_hypercube:
+        proposal.model.to_unit_hypercube.assert_called_once_with(x)
+        proposal._reparameterisation.update.assert_called_once_with(x_hyper)
+    else:
+        proposal._reparameterisation.update.assert_called_once_with(x)

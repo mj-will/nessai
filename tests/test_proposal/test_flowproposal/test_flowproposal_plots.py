@@ -20,6 +20,7 @@ def test_training_plots(proposal, tmp_path, plot):
     names = ["x", "y"]
     prime_names = ["x_prime", "y_prime"]
     z = np.random.randn(10, 2)
+    z_gen = np.random.randn(10, 2)
     x = np.random.randn(10, 2)
     x_prime = x / 2
     proposal.training_data = numpy_array_to_live_points(x, names)
@@ -40,6 +41,8 @@ def test_training_plots(proposal, tmp_path, plot):
 
     proposal.dims = 2
     proposal.prime_parameters = prime_names
+    proposal.flow = MagicMock()
+    proposal.flow.sample_latent_distribution = MagicMock(return_value=z_gen)
 
     proposal.forward_pass = MagicMock(return_value=(z, None))
     proposal.backward_pass = MagicMock(return_value=(x_prime_gen, np.ones(10)))

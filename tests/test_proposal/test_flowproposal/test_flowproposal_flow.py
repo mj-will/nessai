@@ -76,7 +76,9 @@ def test_forward_pass(proposal, model, n):
 
 @pytest.mark.parametrize("log_p", [np.ones(2), np.array([-1, np.inf])])
 @pytest.mark.parametrize("discard_nans", [False, True])
-def test_backward_pass(proposal, model, log_p, discard_nans):
+def test_backward_pass(
+    proposal, model, log_p, discard_nans, map_to_unit_hypercube
+):
     """Test the forward pass method"""
     n = 2
     if discard_nans:
@@ -85,9 +87,11 @@ def test_backward_pass(proposal, model, log_p, discard_nans):
         acc = len(log_p)
     x = np.random.randn(n, model.dims)
     z = np.random.randn(n, model.dims)
-    proposal.inverse_rescale = MagicMock(
-        side_effect=lambda a: (a, np.ones(a.size))
-    )
+
+    def inverse_rescale(a, return_unit_hypercube):
+        return a, np.zeros(a.size)
+
+    proposal.inverse_rescale = MagicMock(side_effect=inverse_rescale)
     proposal.prime_parameters = model.names
     proposal.alt_dist = None
     proposal.check_prior_bounds = MagicMock(
@@ -100,10 +104,15 @@ def test_backward_pass(proposal, model, log_p, discard_nans):
         proposal,
         z,
         discard_nans=discard_nans,
+        return_unit_hypercube=map_to_unit_hypercube,
     )
 
     assert len(x_out) == acc
     proposal.inverse_rescale.assert_called_once()
+    assert (
+        proposal.inverse_rescale.call_args.kwargs["return_unit_hypercube"]
+        is map_to_unit_hypercube
+    )
     proposal.flow.sample_and_log_prob.assert_called_once_with(
         z=z, alt_dist=None
     )

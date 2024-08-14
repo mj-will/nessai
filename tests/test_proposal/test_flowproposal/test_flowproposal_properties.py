@@ -2,6 +2,7 @@
 """Test different properties in FlowProposal"""
 from nessai import config
 from nessai.proposal import FlowProposal
+import numpy as np
 
 
 EXTRA_PARAMS_DTYPE = [
@@ -84,3 +85,22 @@ def test_population_dtype_prime_prior(proposal):
         ("logP", "f8"),
         ("logL", "f8"),
     ]
+
+
+def test_prior_bounds_no_unit_hypercube(proposal, model):
+    proposal._prior_bounds = None
+    proposal.map_to_unit_hypercube = False
+    proposal.model = model
+    out = FlowProposal.prior_bounds.__get__(proposal)
+    assert out is model.bounds
+    assert proposal._prior_bounds is model.bounds
+
+
+def test_prior_bounds_unit_hypercube(proposal, model):
+    proposal._prior_bounds = None
+    proposal.map_to_unit_hypercube = True
+    proposal.model = model
+    out = FlowProposal.prior_bounds.__get__(proposal)
+    assert list(out.keys()) == model.names
+    assert all(np.array_equal(v, np.array([0, 1])) for v in out.values())
+    assert proposal._prior_bounds is out
