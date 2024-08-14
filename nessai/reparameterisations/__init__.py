@@ -63,20 +63,52 @@ default_reparameterisations = {
         ScaleAndShift,
         {"estimate_scale": True, "estimate_shift": True},
     ),
-    "zscore-unit": (
+    "zscore-gaussian-cdf": (
         ScaleAndShift,
         {
             "estimate_scale": True,
             "estimate_shift": True,
-            "apply_gaussian_cdf": True,
+            "post_rescaling": "gaussian_cdf",
         },
     ),
-    "z-score-unit": (
+    "z-score-gaussian-cdf": (
         ScaleAndShift,
         {
             "estimate_scale": True,
             "estimate_shift": True,
-            "apply_gaussian_cdf": True,
+            "post_rescaling": "gaussian_cdf",
+        },
+    ),
+    "z-score-logit": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "pre_rescaling": "logit",
+        },
+    ),
+    "zscore-logit": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "pre_rescaling": "logit",
+        },
+    ),
+    "z-score-inv-gaussian-cdf": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "pre_rescaling": "inv_gaussian_cdf",
+        },
+    ),
+    "zscore-inv-gaussian-cdf": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "pre_rescaling": "inv_gaussian_cdf",
         },
     ),
     "angle": (Angle, {}),
