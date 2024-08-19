@@ -22,6 +22,8 @@ This will install the dependencies needed but the version of PyTorch will not
 necessarily be the correct version for your system.
 
 
+.. _nessai-bilby:
+
 Using nessai with bilby
 =======================
 
