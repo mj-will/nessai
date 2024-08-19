@@ -449,7 +449,7 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
 
 
 @pytest.mark.parametrize("n", [1, 10])
-def test_rescale(proposal, n):
+def test_rescale(proposal, n, map_to_unit_hypercube):
     """Test rescaling when using reparameterisation dict"""
     x = numpy_array_to_live_points(np.random.randn(n, 2), ["x", "y"])
     x["logL"] = np.random.randn(n)
@@ -458,11 +458,12 @@ def test_rescale(proposal, n):
         np.random.randn(n, 2), ["x_prime", "y_prime"]
     )
     proposal.x_prime_dtype = get_dtype(["x_prime", "y_prime"])
-    proposal.map_to_unit_hypercube = False
+    proposal.map_to_unit_hypercube = map_to_unit_hypercube
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.reparameterise = MagicMock(
         return_value=[x, x_prime, np.ones(x.size)]
     )
+    proposal.model.to_unit_hypercube = MagicMock(side_effect=lambda a: a)
 
     x_prime_out, log_j = FlowProposal.rescale(
         proposal, x, compute_radius=False, test="lower"
@@ -475,10 +476,14 @@ def test_rescale(proposal, n):
         x[["logP", "logL"]], x_prime_out[["logP", "logL"]]
     )
     proposal._reparameterisation.reparameterise.assert_called_once()
+    if map_to_unit_hypercube:
+        proposal.model.to_unit_hypercube.assert_called_once_with(x)
+    else:
+        proposal.model.to_unit_hypercube.assert_not_called()
 
 
 @pytest.mark.parametrize("n", [1, 10])
-def test_inverse_rescale(proposal, n):
+def test_inverse_rescale(proposal, n, map_to_unit_hypercube):
     """Test rescaling when using reparameterisation dict"""
     x = numpy_array_to_live_points(np.random.randn(n, 2), ["x", "y"]).squeeze()
     x_prime = numpy_array_to_live_points(
@@ -486,12 +491,13 @@ def test_inverse_rescale(proposal, n):
     )
     x_prime["logL"] = np.random.randn(n)
     x_prime["logP"] = np.random.randn(n)
-    proposal.map_to_unit_hypercube = False
+    proposal.map_to_unit_hypercube = map_to_unit_hypercube
     proposal.x_dtype = get_dtype(["x", "y"])
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.inverse_reparameterise = MagicMock(
         return_value=[x, x_prime, np.ones(x.size)]
     )
+    proposal.model.from_unit_hypercube = MagicMock(side_effect=lambda a: a)
 
     x_out, log_j = FlowProposal.inverse_rescale(proposal, x_prime)
 
@@ -500,6 +506,10 @@ def test_inverse_rescale(proposal, n):
         x_prime[["logP", "logL"]], x_out[["logP", "logL"]]
     )
     proposal._reparameterisation.inverse_reparameterise.assert_called_once()
+    if map_to_unit_hypercube:
+        proposal.model.from_unit_hypercube.assert_called_once_with(x)
+    else:
+        proposal.model.from_unit_hypercube.assert_not_called()
 
 
 @pytest.mark.parametrize("has_inversion", [False, True])
