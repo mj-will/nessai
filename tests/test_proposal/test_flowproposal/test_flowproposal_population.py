@@ -66,6 +66,41 @@ def test_prime_log_prior(proposal):
     assert "Prime prior is not implemented" in str(excinfo.value)
 
 
+def test_unit_hypercube_log_prior_wo_reparameterisation(proposal, x):
+
+    log_prior = -np.ones(x.size)
+    proposal._reparameterisation = None
+    proposal.model = MagicMock()
+    proposal.model.batch_evaluate_log_prior_unit_hypercube = MagicMock(
+        return_value=log_prior
+    )
+
+    log_prior_out = FlowProposal.unit_hypercube_log_prior(proposal, x)
+
+    assert np.array_equal(log_prior, log_prior_out)
+    proposal.model.batch_evaluate_log_prior_unit_hypercube.assert_called_once_with(  # noqa: E501
+        x
+    )
+
+
+def test_unit_hypercube_log_prior_w_reparameterisation(proposal, x):
+    log_prior = -np.ones(x.size)
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.log_prior = MagicMock(return_value=log_prior)
+    proposal.model = MagicMock()
+    proposal.model.batch_evaluate_log_prior_unit_hypercube = MagicMock(
+        return_value=log_prior.copy()
+    )
+
+    log_prior_out = FlowProposal.unit_hypercube_log_prior(proposal, x)
+
+    assert np.array_equal(log_prior_out, -2 * np.ones(x.size))
+    proposal._reparameterisation.log_prior.assert_called_once_with(x)
+    proposal.model.batch_evaluate_log_prior_unit_hypercube.assert_called_once_with(  # noqa: E501
+        x
+    )
+
+
 @pytest.mark.parametrize(
     "acceptance, scale", [(0.0, 10.0), (0.5, 2.0), (0.01, 10.0), (2.0, 1.0)]
 )
