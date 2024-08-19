@@ -63,6 +63,54 @@ default_reparameterisations = {
         ScaleAndShift,
         {"estimate_scale": True, "estimate_shift": True},
     ),
+    "zscore-gaussian-cdf": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "post_rescaling": "gaussian_cdf",
+        },
+    ),
+    "z-score-gaussian-cdf": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "post_rescaling": "gaussian_cdf",
+        },
+    ),
+    "z-score-logit": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "pre_rescaling": "logit",
+        },
+    ),
+    "zscore-logit": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "pre_rescaling": "logit",
+        },
+    ),
+    "z-score-inv-gaussian-cdf": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "pre_rescaling": "inv_gaussian_cdf",
+        },
+    ),
+    "zscore-inv-gaussian-cdf": (
+        ScaleAndShift,
+        {
+            "estimate_scale": True,
+            "estimate_shift": True,
+            "pre_rescaling": "inv_gaussian_cdf",
+        },
+    ),
     "angle": (Angle, {}),
     "angle-pi": (Angle, {"scale": 2.0, "prior": "uniform"}),
     "angle-2pi": (Angle, {"scale": 1.0, "prior": "uniform"}),

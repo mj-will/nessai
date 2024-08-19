@@ -27,8 +27,13 @@ def LightReparam() -> _LightReparam:
 def is_invertible(model, n=100):
     """Test if a reparameterisation is invertible."""
 
-    def test_invertibility(reparam, model=model, atol=0.0, rtol=0.0):
-        x = model.new_point(N=n)
+    def test_invertibility(
+        reparam, model=model, atol=0.0, rtol=0.0, unit_hypercube=False
+    ):
+        if unit_hypercube:
+            x = model.sample_unit_hypercube(n)
+        else:
+            x = model.new_point(N=n)
         x_prime = empty_structured_array(n, names=reparam.prime_parameters)
         log_j = np.zeros(n)
         assert x.size == x_prime.size

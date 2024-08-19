@@ -71,21 +71,27 @@ def assert_structured_arrays_equal(x, y, atol=0.0, rtol=0.0):
         )
 
     valid = {f: False for f in x.dtype.names}
+    max_diff = {f: np.nan for f in x.dtype.names}
     for field in valid.keys():
         valid[field] = np.allclose(
             x[field], y[field], equal_nan=True, atol=atol, rtol=rtol
         )
+        max_diff[field] = np.nanmax(x[field] - y[field])
 
     if not all(valid.values()):
         mismatched = [k for k, v in valid.items() if v is False]
         msg = f"""
         Arrays are not equal.
 
+        rtol={rtol}
+        atol={atol}
+
         Mismatched fields: {mismatched}
         """
         for f in mismatched:
             msg += f"""
             Field: {f}
+            Max. diff.: {max_diff[f]}
             Expected: {y[f]}
             Actual: {x[f]}
             """

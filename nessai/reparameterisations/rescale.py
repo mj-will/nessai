@@ -22,7 +22,105 @@ from ..utils.rescaling import (
 logger = logging.getLogger(__name__)
 
 
-class ScaleAndShift(Reparameterisation):
+class PrePostRescalingMixin:
+    """Mixin that adds support for pre- and post-rescaling functions"""
+
+    has_pre_rescaling = False
+    has_post_rescaling = False
+
+    def configure_pre_rescaling(self, pre_rescaling):
+        """Configure the rescaling applied before the standard rescaling.
+
+        Parameters
+        ----------
+        pre_rescaling : str or Tuple[Callable, Callable]
+            Name of the pre-rescaling of tuple contain the forward and inverse
+            functions that should return the rescaled value and the Jacobian.
+        """
+        if pre_rescaling is not None:
+            if isinstance(pre_rescaling, str):
+                logger.debug(f"Getting pre-rescaling function {pre_rescaling}")
+                (
+                    self.pre_rescaling,
+                    self.pre_rescaling_inv,
+                ) = rescaling_functions.get(
+                    pre_rescaling.lower(), (None, None)
+                )
+                if self.pre_rescaling is None:
+                    raise RuntimeError(
+                        f"Unknown rescaling function: {pre_rescaling}"
+                    )
+            elif len(pre_rescaling) == 2:
+                self.pre_rescaling = pre_rescaling[0]
+                self.pre_rescaling_inv = pre_rescaling[1]
+            else:
+                raise RuntimeError(
+                    "Pre-rescaling must be a str or tuple of two functions"
+                )
+            self.has_pre_rescaling = True
+        else:
+            logger.debug("No pre-rescaling to configure")
+            self.has_pre_rescaling = False
+
+    def configure_post_rescaling(self, post_rescaling):
+        """Configure the rescaling applied after the standard rescaling.
+
+        Used to apply the logit/sigmoid transforms after rescaling to [0, 1]
+
+        Parameters
+        ----------
+        post_rescaling : str or Tuple[Callable, Callable]
+            Name of the post-rescaling of tuple contain the forward and inverse
+            functions that should return the rescaled value and the Jacobian.
+        """
+        if post_rescaling is not None:
+            if isinstance(post_rescaling, str):
+                logger.debug(
+                    f"Getting post-rescaling function {post_rescaling}"
+                )
+                (
+                    self.post_rescaling,
+                    self.post_rescaling_inv,
+                ) = rescaling_functions.get(
+                    post_rescaling.lower(), (None, None)
+                )
+                if self.post_rescaling is None:
+                    raise RuntimeError(
+                        f"Unknown rescaling function: {post_rescaling}"
+                    )
+            elif len(post_rescaling) == 2:
+                self.post_rescaling = post_rescaling[0]
+                self.post_rescaling_inv = post_rescaling[1]
+            else:
+                raise RuntimeError(
+                    "Post-rescaling must be a str or tuple of two functions"
+                )
+            logger.debug("Disabling prime prior with post-rescaling")
+            self.has_prime_prior = False
+
+            self.has_post_rescaling = True
+        else:
+            logger.debug("No post-rescaling to configure")
+            self.has_post_rescaling = False
+
+    def pre_rescaling(self, x):
+        """Function applied before rescaling to bounds"""
+        return x.copy(), np.zeros_like(x)
+
+    def pre_rescaling_inv(self, x):
+        """Inverse of function applied before rescaling to bounds"""
+        return x.copy(), np.zeros_like(x)
+
+    def post_rescaling(self, x):
+        """Function applied after rescaling to bounds"""
+        return x, np.zeros_like(x)
+
+    def post_rescaling_inv(self, x):
+        """Inverse of function applied after rescaling to bounds"""
+        return x, np.zeros_like(x)
+
+
+class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
     """Reparameterisation that shifts and scales by a value.
 
     Applies
@@ -51,6 +149,14 @@ class ScaleAndShift(Reparameterisation):
     estimate_shift : bool
         If true, the value of :code:`shift` will be ignored and the standard
         deviation of the data will be used.
+    pre_rescaling : tuple of functions or str
+        A function that applies a rescaling prior to the main rescaling and
+        its inverse. Each function should return a value and the log-Jacobian
+        determinant. Alternatively, can be the name of a known rescaling.
+    post_rescaling : tuple of functions or str
+        A function that applies a rescaling after to the main rescaling and
+        its inverse. Each function should return a value and the log-Jacobian
+        determinant. Alternatively, can be the name of a known rescaling
     """
 
     requires_bounded_prior = False
@@ -63,6 +169,8 @@ class ScaleAndShift(Reparameterisation):
         shift=None,
         estimate_scale=False,
         estimate_shift=False,
+        pre_rescaling=None,
+        post_rescaling=None,
     ):
         if scale is None and not estimate_scale:
             raise RuntimeError("Must specify a scale or enable estimate_scale")
@@ -87,6 +195,9 @@ class ScaleAndShift(Reparameterisation):
             self.shift = self._check_value(shift, "shift")
         else:
             self.shift = None
+
+        self.configure_pre_rescaling(pre_rescaling)
+        self.configure_post_rescaling(post_rescaling)
 
     def _check_value(self, value, name):
         """Helper function to check the scale or shift parameters are valid."""
@@ -122,11 +233,19 @@ class ScaleAndShift(Reparameterisation):
         log_j : Log jacobian to be updated
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
-            if self.shift:
-                x_prime[pp] = (x[p] - self.shift[p]) / self.scale[p]
+            if self.has_pre_rescaling:
+                x_prime[pp], lj = self.pre_rescaling(x[p])
+                log_j += lj
             else:
-                x_prime[pp] = x[p] / self.scale[p]
+                x_prime[pp] = x[p]
+            if self.shift:
+                x_prime[pp] = (x_prime[pp] - self.shift[p]) / self.scale[p]
+            else:
+                x_prime[pp] = x_prime[pp] / self.scale[p]
             log_j -= np.log(np.abs(self.scale[p]))
+            if self.has_post_rescaling:
+                x_prime[pp], lj = self.post_rescaling(x_prime[pp])
+                log_j += lj
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -143,11 +262,19 @@ class ScaleAndShift(Reparameterisation):
         log_j : Log jacobian to be updated
         """
         for p, pp in zip(self.parameters, self.prime_parameters):
-            if self.shift:
-                x[p] = (x_prime[pp] * self.scale[p]) + self.shift[p]
+            if self.has_post_rescaling:
+                x_in, lj = self.post_rescaling_inv(x_prime[pp])
+                log_j += lj
             else:
-                x[p] = x_prime[pp] * self.scale[p]
+                x_in = x_prime[pp]
+            if self.shift:
+                x[p] = (x_in * self.scale[p]) + self.shift[p]
+            else:
+                x[p] = x_in * self.scale[p]
             log_j += np.log(np.abs(self.scale[p]))
+            if self.has_pre_rescaling:
+                x[p], lj = self.pre_rescaling_inv(x[p])
+                log_j += lj
         return x, x_prime, log_j
 
     def update(self, x):
@@ -155,10 +282,11 @@ class ScaleAndShift(Reparameterisation):
         if self._update:
             logger.debug("Updating scale and shift")
             for p in self.parameters:
+                x_pre = self.pre_rescaling(x[p])[0]
                 if self.estimate_scale:
-                    self.scale[p] = np.std(x[p])
+                    self.scale[p] = np.std(x_pre)
                 if self.estimate_shift:
-                    self.shift[p] = np.mean(x[p])
+                    self.shift[p] = np.mean(x_pre)
 
     def reset(self):
         """Reset the scale and shift parameters"""
@@ -175,7 +303,7 @@ class Rescale(ScaleAndShift):
     """
 
 
-class RescaleToBounds(Reparameterisation):
+class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
     """Reparameterisation that maps to the specified interval.
 
     By default the interval is [-1, 1]. Also includes options for
@@ -331,42 +459,6 @@ class RescaleToBounds(Reparameterisation):
 
         self.set_bounds(self.prior_bounds)
 
-    def configure_pre_rescaling(self, pre_rescaling):
-        """Configure the rescaling applied before the standard rescaling.
-
-        Used in :code:`DistanceReparameterisation`.
-
-        Parameters
-        ----------
-        pre_rescaling : str or Tuple[Callable, Callable]
-            Name of the pre-rescaling of tuple contain the forward and inverse
-            functions that should return the rescaled value and the Jacobian.
-        """
-        if pre_rescaling is not None:
-            if isinstance(pre_rescaling, str):
-                logger.debug(f"Getting pre-rescaling function {pre_rescaling}")
-                (
-                    self.pre_rescaling,
-                    self.pre_rescaling_inv,
-                ) = rescaling_functions.get(
-                    pre_rescaling.lower(), (None, None)
-                )
-                if self.pre_rescaling is None:
-                    raise RuntimeError(
-                        f"Unknown rescaling function: {pre_rescaling}"
-                    )
-            elif len(pre_rescaling) == 2:
-                self.pre_rescaling = pre_rescaling[0]
-                self.pre_rescaling_inv = pre_rescaling[1]
-            else:
-                raise RuntimeError(
-                    "Pre-rescaling must be a str or tuple of two functions"
-                )
-            self.has_pre_rescaling = True
-        else:
-            logger.debug("No pre-rescaling to configure")
-            self.has_pre_rescaling = False
-
     def configure_post_rescaling(self, post_rescaling):
         """Configure the rescaling applied after the standard rescaling.
 
@@ -378,42 +470,17 @@ class RescaleToBounds(Reparameterisation):
             Name of the post-rescaling of tuple contain the forward and inverse
             functions that should return the rescaled value and the Jacobian.
         """
-        if post_rescaling is not None:
-            if isinstance(post_rescaling, str):
-                logger.debug(
-                    f"Getting post-rescaling function {post_rescaling}"
-                )
-                (
-                    self.post_rescaling,
-                    self.post_rescaling_inv,
-                ) = rescaling_functions.get(
-                    post_rescaling.lower(), (None, None)
-                )
-                if self.post_rescaling is None:
-                    raise RuntimeError(
-                        f"Unknown rescaling function: {post_rescaling}"
-                    )
-            elif len(post_rescaling) == 2:
-                self.post_rescaling = post_rescaling[0]
-                self.post_rescaling_inv = post_rescaling[1]
-            else:
+        super().configure_post_rescaling(post_rescaling)
+        if post_rescaling is not None and post_rescaling in ["logit", "log"]:
+            if self._update:
                 raise RuntimeError(
-                    "Post-rescaling must be a str or tuple of two functions"
+                    "Cannot use log or logit with update bounds"
                 )
+            logger.debug("Setting bounds to [0, 1] for log/logit")
+            self.rescale_bounds = {p: [0, 1] for p in self.parameters}
+
             logger.debug("Disabling prime prior with post-rescaling")
             self.has_prime_prior = False
-
-            if post_rescaling in ["logit", "log"]:
-                if self._update:
-                    raise RuntimeError(
-                        "Cannot use log or logit with update bounds"
-                    )
-                logger.debug("Setting bounds to [0, 1] for log/logit")
-                self.rescale_bounds = {p: [0, 1] for p in self.parameters}
-            self.has_post_rescaling = True
-        else:
-            logger.debug("No post-rescaling to configure")
-            self.has_post_rescaling = False
 
     def pre_rescaling(self, x):
         """Function applied before rescaling to bounds"""

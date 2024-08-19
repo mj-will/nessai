@@ -46,8 +46,9 @@ def n_samples():
 def samples(model, n_samples, n_it, log_q, ins_parameters):
     x = model.sample_unit_hypercube(n_samples)
     x["it"] = np.random.randint(-1, n_it - 1, size=len(x))
-    x["logL"] = model.log_likelihood(x)
-    x["logP"] = model.log_prior(x)
+    xx = model.from_unit_hypercube(x)
+    x["logL"] = model.log_likelihood(xx)
+    x["logP"] = model.log_prior(xx)
 
     alpha = np.bincount(
         x["it"] + np.abs(x["it"].min()), minlength=n_it

@@ -284,7 +284,7 @@ def test_compute_importance(ordered_samples, log_q, samples, ratio):
     assert np.all(np.isfinite(list(out.values())))
 
 
-@pytest.mark.parametrize("threshold", [None, 0])
+@pytest.mark.parametrize("threshold", [None, -10.0])
 def test_computed_evidence_ratio(ordered_samples, samples, threshold):
     log_z_total = -10.0
     log_z = -6.0
