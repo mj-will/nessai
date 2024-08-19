@@ -34,7 +34,22 @@ By default the version of PyTorch will not necessarily match the drivers on your
 
 ### Using ``bilby``
 
-As of `bilby` version 1.1.0, ``nessai`` is now supported by default but it is still an optional requirement. See the [``bilby`` documentation](https://lscsoft.docs.ligo.org/bilby/index.html) for installation instructions for `bilby`
+As of ``bilby`` version 2.3.0, the recommended way to use ``nessai`` is via the [``nessai-bilby`` sampler plugin](https://github.com/bilby-dev/nessai-bilby).
+This can be installed via either ``conda`` or ``pip`` and provides the most
+up-to-date interface for ``nessai``.
+This includes support for the importance nested sampler (``inessai``).
+
+It can be installed using either
+
+```console
+pip install nessai-bilby
+```
+
+or
+
+```console
+conda install -c conda-forge nessai-bilby
+```
 
 See the examples included with ``nessai`` for how to run ``nessai`` via ``bilby``.
 
