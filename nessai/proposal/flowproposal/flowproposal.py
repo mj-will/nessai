@@ -9,9 +9,11 @@ import logging
 import numpy as np
 from scipy.special import logsumexp
 
+from ... import config
 from .base import BaseFlowProposal
 from ...livepoint import (
     empty_structured_array,
+    numpy_array_to_live_points,
 )
 from ...utils import (
     compute_radius,
@@ -302,6 +304,68 @@ class FlowProposal(BaseFlowProposal):
     def draw_latent_prior(self, n):
         """Draw n samples from the latent prior."""
         return self._draw_func(N=n)
+
+    def backward_pass(
+        self,
+        z,
+        rescale=True,
+        discard_nans=True,
+        return_z=False,
+        return_unit_hypercube=False,
+    ):
+        """
+        A backwards pass from the model (latent -> real)
+
+        Parameters
+        ----------
+        z : array_like
+            Structured array of points in the latent space
+        rescale : bool, optional (True)
+            Apply inverse rescaling function
+        discard_nan: bool
+            If True, samples with NaNs or Infs in log_q are removed.
+        return_z : bool
+            If True, return the array of latent samples, this may differ from
+            the input since samples can be discarded.
+
+        Returns
+        -------
+        x : array_like
+            Samples in the data space
+        log_prob : array_like
+            Log probabilities corresponding to each sample (including the
+            Jacobian)
+        z : array_like
+            Samples in the latent space, only returned if :code:`return_z=True`
+        """
+        # Compute the log probability
+        try:
+            x, log_prob = self.flow.sample_and_log_prob(
+                z=z, alt_dist=self.alt_dist
+            )
+        except AssertionError:
+            return np.array([]), np.array([])
+
+        if discard_nans:
+            valid = np.isfinite(log_prob)
+            x, log_prob = x[valid], log_prob[valid]
+        x = numpy_array_to_live_points(
+            x.astype(config.livepoints.default_float_dtype),
+            self.prime_parameters,
+        )
+        # Apply rescaling in rescale=True
+        if rescale:
+            x, log_J = self.inverse_rescale(
+                x, return_unit_hypercube=return_unit_hypercube
+            )
+            # Include Jacobian for the rescaling
+            log_prob -= log_J
+            if not return_unit_hypercube:
+                x, z, log_prob = self.check_prior_bounds(x, z, log_prob)
+        if return_z:
+            return x, log_prob, z
+        else:
+            return x, log_prob
 
     def populate(
         self,
