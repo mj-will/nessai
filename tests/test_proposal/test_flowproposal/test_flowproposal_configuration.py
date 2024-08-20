@@ -9,9 +9,8 @@ from nessai import utils
 
 def test_config_drawsize_none(proposal):
     """Test the popluation configuration with no drawsize given"""
-    FlowProposal.configure_population(
-        proposal, 2000, None, True, 10, 1.0, 0.0, "gaussian"
-    )
+    proposal.poolsize = 2000
+    FlowProposal.configure_population(proposal, None, 1.0, 0.0, "gaussian")
     assert proposal.drawsize == 2000
 
 
@@ -19,12 +18,13 @@ def test_config_poolsize_none(proposal):
     """
     Test the popluation configuration raises an error if poolsize is None.
     """
-    with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.configure_population(
-            proposal, None, None, True, 10, 1.0, 0.0, "gaussian"
+    with pytest.raises(RuntimeError, match=r"Must specify `poolsize`"):
+        FlowProposal.configure_poolsize(
+            proposal,
+            None,
+            True,
+            10,
         )
-
-    assert "poolsize" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("fixed_radius", [False, 5.0, 1])
@@ -128,7 +128,8 @@ def test_configure_constant_volume(proposal, latent_prior):
     proposal.min_radius = 5.0
     proposal.fuzz = 1.5
     with patch(
-        "nessai.proposal.flowproposal.compute_radius", return_value=4.0
+        "nessai.proposal.flowproposal.flowproposal.compute_radius",
+        return_value=4.0,
     ) as mock:
         FlowProposal.configure_constant_volume(proposal)
     mock.assert_called_once_with(5, 0.95)
@@ -141,7 +142,9 @@ def test_configure_constant_volume(proposal, latent_prior):
 def test_configure_constant_volume_disabled(proposal):
     """Assert nothing happens if constant_volume is False"""
     proposal.constant_volume_mode = False
-    with patch("nessai.proposal.flowproposal.compute_radius") as mock:
+    with patch(
+        "nessai.proposal.flowproposal.flowproposal.compute_radius"
+    ) as mock:
         FlowProposal.configure_constant_volume(proposal)
     mock.assert_not_called()
 

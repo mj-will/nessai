@@ -165,78 +165,6 @@ def test_compute_weights_unit_hypercube(proposal, x, log_q):
     np.testing.assert_array_equal(log_w, out)
 
 
-@patch("numpy.random.rand", return_value=np.array([0.1, 0.9]))
-def test_rejection_sampling(proposal, z, x, log_q):
-    """Test rejection sampling method."""
-    proposal.use_x_prime_prior = False
-    proposal.truncate = False
-    proposal.backward_pass = MagicMock(return_value=(x, log_q, z))
-    log_w = np.log(np.array([0.5, 0.5]))
-    proposal.compute_weights = MagicMock(return_value=log_w)
-
-    z_out, x_out = FlowProposal.rejection_sampling(proposal, z)
-
-    proposal.backward_pass.assert_called_once_with(
-        z,
-        rescale=True,
-        return_z=True,
-        discard_nans=False,
-        return_unit_hypercube=proposal.map_to_unit_hypercube,
-    )
-    proposal.compute_weights.assert_called_once()
-    assert x_out.size == 1
-    assert z_out.shape == (1, 2)
-    assert_structured_arrays_equal(x_out[0], x[0])
-    assert np.array_equal(z_out[0], z[0])
-
-
-def test_rejection_sampling_empty(proposal, z):
-    """Test rejection sampling method if no valid points are produced by
-    `backwards_pass`
-    """
-    proposal.use_x_prime_prior = False
-    proposal.truncate = False
-    proposal.backward_pass = MagicMock(
-        return_value=(np.array([]), np.array([]), np.array([]))
-    )
-
-    z_out, x_out = FlowProposal.rejection_sampling(proposal, z)
-
-    assert x_out.size == 0
-    assert z_out.size == 0
-
-
-@patch("numpy.random.rand", return_value=np.array([0.1]))
-def test_rejection_sampling_truncate(proposal, z, x):
-    """Test rejection sampling method with truncation"""
-    proposal.use_x_prime_prior = False
-    proposal.truncate = True
-    log_q = np.array([0.0, 1.0])
-    proposal.backward_pass = MagicMock(return_value=(x, log_q, z))
-    min_log_q = 0.5
-    log_w = np.log(np.array([0.5]))
-    proposal.compute_weights = MagicMock(return_value=log_w)
-
-    z_out, x_out = FlowProposal.rejection_sampling(
-        proposal,
-        z,
-        min_log_q=min_log_q,
-    )
-
-    proposal.backward_pass.assert_called_once_with(
-        z,
-        rescale=True,
-        return_z=True,
-        discard_nans=False,
-        return_unit_hypercube=proposal.map_to_unit_hypercube,
-    )
-    proposal.compute_weights.assert_called_once()
-    assert x_out.size == 1
-    assert z_out.shape == (1, 2)
-    assert_structured_arrays_equal(x_out[0], x[1])
-    assert np.array_equal(z_out[0], z[1])
-
-
 def test_compute_acceptance(proposal):
     """Test the compute_acceptance method"""
     proposal.samples = np.arange(1, 11, dtype=float).view([("logL", "f8")])
@@ -261,7 +189,7 @@ def test_convert_to_samples(proposal):
     )
 
 
-@patch("nessai.proposal.flowproposal.plot_1d_comparison")
+@patch("nessai.proposal.flowproposal.base.plot_1d_comparison")
 def test_convert_to_samples_with_prime(mock_plot, proposal):
     """Test convert to sample with the prime prior"""
     samples = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
@@ -337,7 +265,7 @@ def test_get_alt_distribution_uniform(proposal, prior):
     proposal.flow = Mock()
     proposal.flow.device = "cpu"
     with patch(
-        "nessai.proposal.flowproposal.get_uniform_distribution"
+        "nessai.proposal.flowproposal.flowproposal.get_uniform_distribution"
     ) as mock:
         dist = FlowProposal.get_alt_distribution(proposal)
 
@@ -388,7 +316,7 @@ def test_prep_latent_prior_truncated(proposal):
     dist.sample = MagicMock()
 
     with patch(
-        "nessai.proposal.flowproposal.NDimensionalTruncatedGaussian",
+        "nessai.proposal.flowproposal.flowproposal.NDimensionalTruncatedGaussian",  # noqa: E501
         return_value=dist,
     ) as mock_dist:
         FlowProposal.prep_latent_prior(proposal)
@@ -412,7 +340,8 @@ def test_prep_latent_prior_other(proposal):
     proposal._draw_latent_prior = draw
 
     with patch(
-        "nessai.proposal.flowproposal.partial", side_effect=partial
+        "nessai.proposal.flowproposal.flowproposal.partial",
+        side_effect=partial,
     ) as mock_partial:
         FlowProposal.prep_latent_prior(proposal)
 
@@ -538,7 +467,7 @@ def test_populate_accumulate_weights(
 
     x_empty = np.empty(0, dtype=proposal.population_dtype)
     with patch(
-        "nessai.proposal.flowproposal.empty_structured_array",
+        "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
         return_value=x_empty,
     ) as mock_empty, patch(
         "numpy.random.rand", return_value=rand_u
@@ -714,7 +643,7 @@ def test_populate_not_accumulate_weights(
 
     x_empty = np.empty(poolsize, dtype=proposal.population_dtype)
     with patch(
-        "nessai.proposal.flowproposal.empty_structured_array",
+        "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
         return_value=x_empty,
     ) as mock_empty, patch(
         "numpy.random.rand", side_effect=rand_u
@@ -881,7 +810,7 @@ def test_populate_truncate_log_q(proposal):
 
     x_empty = np.empty(0, dtype=proposal.population_dtype)
     with patch(
-        "nessai.proposal.flowproposal.empty_structured_array",
+        "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
         return_value=x_empty,
     ) as mock_empty, patch(
         "numpy.random.rand", return_value=rand_u

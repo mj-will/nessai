@@ -146,9 +146,11 @@ def test_training(proposal, tmp_path, save, plot, plot_training):
     proposal._plot_training_data = MagicMock()
 
     with patch(
-        "nessai.proposal.flowproposal.live_points_to_array",
+        "nessai.proposal.flowproposal.base.live_points_to_array",
         return_value=data_prime,
-    ), patch("nessai.proposal.flowproposal.save_live_points") as mock_save:
+    ), patch(
+        "nessai.proposal.flowproposal.base.save_live_points"
+    ) as mock_save:
         FlowProposal.train(proposal, x, plot=plot)
 
     assert_structured_arrays_equal(x, proposal.training_data)

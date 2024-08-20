@@ -3,7 +3,7 @@
 import numpy as np
 from nessai.livepoint import get_dtype, numpy_array_to_live_points
 from nessai.model import Model
-from nessai.proposal import FlowProposal
+from nessai.proposal.flowproposal import FlowProposal
 from nessai.reparameterisations import (
     NullReparameterisation,
     RescaleToBounds,
@@ -45,7 +45,7 @@ def test_default_reparameterisation(proposal):
     FlowProposal.add_default_reparameterisations(proposal)
 
 
-@patch("nessai.proposal.flowproposal.get_reparameterisation")
+@patch("nessai.proposal.flowproposal.base.get_reparameterisation")
 def test_get_reparamaterisation(mocked_fn, proposal):
     """Make sure the underlying function is called"""
     FlowProposal.get_reparameterisation(proposal, "angle")
@@ -84,7 +84,7 @@ def test_configure_reparameterisations_dict(
     proposal.prior_bounds = proposal.model.bounds
 
     with patch(
-        "nessai.proposal.flowproposal.CombinedReparameterisation",
+        "nessai.proposal.flowproposal.base.CombinedReparameterisation",
         return_value=dummy_cmb_rc,
     ) as mocked_class:
         FlowProposal.configure_reparameterisations(
@@ -111,7 +111,7 @@ def test_configure_reparameterisations_dict(
     assert proposal.parameters == ["x"]
 
 
-@patch("nessai.proposal.flowproposal.CombinedReparameterisation")
+@patch("nessai.proposal.flowproposal.base.CombinedReparameterisation")
 def test_configure_reparameterisations_dict_w_params(
     mocked_class, proposal, dummy_rc, dummy_cmb_rc
 ):
@@ -140,7 +140,7 @@ def test_configure_reparameterisations_dict_w_params(
     proposal.prior_bounds = proposal.model.bounds
 
     with patch(
-        "nessai.proposal.flowproposal.CombinedReparameterisation",
+        "nessai.proposal.flowproposal.base.CombinedReparameterisation",
         return_value=dummy_cmb_rc,
     ) as mocked_class:
         FlowProposal.configure_reparameterisations(
@@ -188,7 +188,7 @@ def test_configure_reparameterisations_requires_prime_prior(
     proposal.map_to_unit_hypercube = False
 
     with patch(
-        "nessai.proposal.flowproposal.CombinedReparameterisation",
+        "nessai.proposal.flowproposal.base.CombinedReparameterisation",
         return_value=dummy_cmb_rc,
     ), pytest.raises(RuntimeError) as excinfo:
         FlowProposal.configure_reparameterisations(
@@ -220,7 +220,7 @@ def test_configure_reparameterisations_prime_prior_unit_hypercube(
     proposal.map_to_unit_hypercube = True
 
     with patch(
-        "nessai.proposal.flowproposal.CombinedReparameterisation",
+        "nessai.proposal.flowproposal.base.CombinedReparameterisation",
         return_value=dummy_cmb_rc,
     ), pytest.raises(
         RuntimeError,
@@ -440,6 +440,7 @@ def test_set_rescaling_with_model(proposal, model):
     """
     proposal.model = model
     proposal.model.reparameterisations = {"x": "default"}
+    proposal.expansion_fraction = None
 
     def update(self):
         proposal.parameters = model.names
@@ -455,6 +456,7 @@ def test_set_rescaling_with_model(proposal, model):
     )
     assert proposal.reparameterisations == {"x": "default"}
     assert proposal.prime_parameters == ["x_prime"]
+    proposal.configure_constant_volume.assert_called_once()
 
 
 def test_set_rescaling_with_reparameterisations(proposal, model):
@@ -464,6 +466,7 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
     proposal.model = model
     proposal.model.reparameterisations = None
     proposal.reparameterisations = {"x": "default"}
+    proposal.expansion_fraction = None
 
     def update(self):
         proposal.parameters = model.names
@@ -479,6 +482,7 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
     )
     assert proposal.reparameterisations == {"x": "default"}
     assert proposal.prime_parameters == ["x_prime"]
+    proposal.configure_constant_volume.assert_called_once()
 
 
 @pytest.mark.parametrize("n", [1, 10])
