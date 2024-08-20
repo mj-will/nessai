@@ -927,7 +927,7 @@ class BaseFlowProposal(RejectionProposal):
 
         return z, log_prob + log_J
 
-    def backward_pass(self, z, rescale=True):
+    def backward_pass(self, z, rescale=True, **kwargs):
         """
         A backwards pass from the model (latent -> real)
 
@@ -954,7 +954,7 @@ class BaseFlowProposal(RejectionProposal):
         )
         # Apply rescaling in rescale=True
         if rescale:
-            x, log_j_rescale = self.inverse_rescale(x)
+            x, log_j_rescale = self.inverse_rescale(x, **kwargs)
             # Include Jacobian for the rescaling
             log_j += log_j_rescale
         return x, log_j
