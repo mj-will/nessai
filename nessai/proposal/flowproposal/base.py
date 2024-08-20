@@ -341,14 +341,7 @@ class BaseFlowProposal(RejectionProposal):
         if not resumed or not self.initialised:
             self.set_rescaling()
             self.verify_rescaling()
-            if self.expansion_fraction and self.expansion_fraction is not None:
-                logger.info("Overwriting fuzz factor with expansion fraction")
-                self.fuzz = (1 + self.expansion_fraction) ** (
-                    1 / self.rescaled_dims
-                )
-                logger.info(f"New fuzz factor: {self.fuzz}")
 
-            self.configure_constant_volume()
         self.update_flow_config()
         self.flow = self._FlowModelClass(
             flow_config=self.flow_config,
