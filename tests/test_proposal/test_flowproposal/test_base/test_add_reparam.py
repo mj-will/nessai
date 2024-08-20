@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import MagicMock, create_autospec
 
 from nessai.model import Model
-from nessai.proposal import FlowProposal
+from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.reparameterisations import default_reparameterisations
 
 # General reparameterisations that do not need extra parameters
@@ -38,7 +38,7 @@ def test_configure_reparameterisations(tmpdir, model, reparameterisation):
 
     Only tests reparameterisations that don't need extra parameters.
     """
-    proposal = FlowProposal(
+    proposal = BaseFlowProposal(
         model,
         output=str(tmpdir.mkdir("test")),
         poolsize=10,
@@ -52,7 +52,7 @@ def test_configure_reparameterisations(tmpdir, model, reparameterisation):
 @pytest.mark.parametrize("reparameterisation", ["scale", "rescale"])
 def test_configure_reparameterisation_scale(tmpdir, model, reparameterisation):
     """Test adding the `Rescale` reparameterisation"""
-    proposal = FlowProposal(
+    proposal = BaseFlowProposal(
         model,
         output=str(tmpdir.mkdir("test")),
         poolsize=10,
@@ -69,7 +69,7 @@ def test_configure_reparameterisation_angle_pair(tmpdir, model):
     """Test adding the `AnglePair` reparameterisation"""
     model.names.append("y")
     model.bounds = {"x": [0, 2 * np.pi], "y": [-np.pi / 2, np.pi / 2]}
-    proposal = FlowProposal(
+    proposal = BaseFlowProposal(
         model,
         output=str(tmpdir.mkdir("test")),
         poolsize=10,
@@ -91,7 +91,7 @@ def test_default_reparameterisations(caplog, tmpdir):
     model.names = ["x1", "x10", "x11"]
     model.bounds = {p: [-1, 1] for p in model.names}
     model.reparameterisations = None
-    proposal = FlowProposal(
+    proposal = BaseFlowProposal(
         model, poolsize=100, output=str(tmpdir.mkdir("test"))
     )
     # Mocked model so can't verify rescaling
