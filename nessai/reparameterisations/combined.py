@@ -47,6 +47,10 @@ class CombinedReparameterisation(dict):
         return any(r.requires_prime_prior for r in self.values())
 
     @property
+    def one_to_one(self):
+        return all(r.one_to_one for r in self.values())
+
+    @property
     def to_prime_order(self):
         """Order when converting to the prime space"""
         if self.reverse_order:

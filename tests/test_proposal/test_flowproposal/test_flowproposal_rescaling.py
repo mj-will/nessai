@@ -576,6 +576,7 @@ def test_verify_rescaling(proposal, has_inversion):
     proposal.check_state = MagicMock()
     proposal.rescaling_set = True
     proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.one_to_one = True
 
     FlowProposal.verify_rescaling(proposal)
 
@@ -611,6 +612,8 @@ def test_verify_rescaling_invertible_error(proposal, has_inversion):
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
     proposal.rescaling_set = True
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.one_to_one = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
@@ -640,6 +643,8 @@ def test_verify_rescaling_invertible_error_non_sampling(
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
     proposal.rescaling_set = True
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.one_to_one = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
@@ -665,6 +670,8 @@ def test_verify_rescaling_jacobian_error(proposal, has_inversion):
     proposal.rescale = MagicMock(return_value=(x_prime, log_j))
     proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
     proposal.rescaling_set = True
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.one_to_one = True
 
     with pytest.raises(RuntimeError) as excinfo:
         FlowProposal.verify_rescaling(proposal)
@@ -676,6 +683,18 @@ def test_verify_rescaling_rescaling_not_set(proposal):
     proposal.rescaling_set = False
     with pytest.raises(RuntimeError, match=r"Rescaling must be set .*"):
         FlowProposal.verify_rescaling(proposal)
+
+
+def test_verify_rescaling_not_one_to_one(proposal, caplog):
+    proposal.rescaling_set = True
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.one_to_one = False
+    proposal.model.new_point = MagicMock()
+    FlowProposal.verify_rescaling(proposal)
+    assert "Could not check if reparameterisation is invertible" in str(
+        caplog.text
+    )
+    proposal.model.new_point.assert_not_called()
 
 
 def test_check_state_update(proposal, map_to_unit_hypercube):
