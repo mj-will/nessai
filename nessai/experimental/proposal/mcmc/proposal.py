@@ -84,7 +84,10 @@ class MCMCFlowProposal(BaseFlowProposal):
         # Initial points
         z_current = z_ensemble[:n_walkers]
         x_current, log_j_current = self.backward_pass(z_current)
-        x_current["logP"] = self.model.batch_evaluate_log_prior(x_current)
+        if self.map_to_unit_hypercube:
+            log_p_current = self.unit_hypercube_log_prior(x_current)
+        else:
+            log_p_current = self.log_prior(x_current)
         x_current["logL"] = self.model.batch_evaluate_log_likelihood(x_current)
 
         z_chain = np.empty((self.n_steps, n_walkers, z_current.shape[-1]))
@@ -99,9 +102,16 @@ class MCMCFlowProposal(BaseFlowProposal):
             z_new, log_j_step = self.step(z_current)
             z_new_history.append(z_new)
 
-            x_new, log_j_flow = self.backward_pass(z_new, rescale=True)
-            x_new["logP"] = self.model.batch_evaluate_log_prior(x_new)
-            finite_prior = np.isfinite(x_new["logP"])
+            x_new, log_j_flow = self.backward_pass(
+                z_new,
+                rescale=True,
+                return_unit_hypercube=self.map_to_unit_hypercube,
+            )
+            if self.map_to_unit_hypercube:
+                log_p = self.unit_hypercube_log_prior(x_new)
+            else:
+                log_p = self.log_prior(x_new)
+            finite_prior = np.isfinite(log_p)
 
             log_j_new = log_j_step + log_j_flow
 
@@ -111,9 +121,7 @@ class MCMCFlowProposal(BaseFlowProposal):
                 self.model.batch_evaluate_log_likelihood(x_new[finite_prior])
             )
             logl_accept = x_new["logL"] > log_l_threshold
-            log_factor = (
-                x_new["logP"] + log_j_new - x_current["logP"] - log_j_current
-            )
+            log_factor = log_p + log_j_new - log_p_current - log_j_current
             log_u = np.log(np.random.rand(n_walkers))
 
             accept = (log_factor > log_u) & finite_prior & logl_accept
