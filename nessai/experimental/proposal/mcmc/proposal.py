@@ -24,7 +24,7 @@ class MCMCFlowProposal(BaseFlowProposal):
         model,
         n_steps=10,
         n_accept=None,
-        step_type: str = "diff",
+        step_type: str = "gaussian",
         plot_chain: bool = False,
         **kwargs,
     ):
@@ -51,6 +51,11 @@ class MCMCFlowProposal(BaseFlowProposal):
             os.path.join(self.output, f"chain_{self.populated_count}.png")
         )
         plt.close(fig)
+
+    def x_prime_log_prior(self, x):
+        raise RuntimeError(
+            "MCMCFlowProposal does not support using x-prime priors"
+        )
 
     def populate(
         self,
@@ -83,12 +88,16 @@ class MCMCFlowProposal(BaseFlowProposal):
 
         # Initial points
         z_current = z_ensemble[:n_walkers]
-        x_current, log_j_current = self.backward_pass(z_current)
+        x_current, log_j_current = self.backward_pass(
+            z_current, return_unit_hypercube=self.map_to_unit_hypercube
+        )
         if self.map_to_unit_hypercube:
             log_p_current = self.unit_hypercube_log_prior(x_current)
         else:
             log_p_current = self.log_prior(x_current)
-        x_current["logL"] = self.model.batch_evaluate_log_likelihood(x_current)
+        x_current["logL"] = self.model.batch_evaluate_log_likelihood(
+            x_current, unit_hypercube=self.map_to_unit_hypercube
+        )
 
         z_chain = np.empty((self.n_steps, n_walkers, z_current.shape[-1]))
         z_chain[0] = z_current
@@ -118,7 +127,10 @@ class MCMCFlowProposal(BaseFlowProposal):
             # Only evaluate function where log-prior is finite
             # Default is NaN, so will not pass threshold.
             x_new["logL"][finite_prior] = (
-                self.model.batch_evaluate_log_likelihood(x_new[finite_prior])
+                self.model.batch_evaluate_log_likelihood(
+                    x_new[finite_prior],
+                    unit_hypercube=self.map_to_unit_hypercube,
+                )
             )
             logl_accept = x_new["logL"] > log_l_threshold
             log_factor = log_p + log_j_new - log_p_current - log_j_current
