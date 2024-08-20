@@ -1145,7 +1145,7 @@ class BaseFlowProposal(RejectionProposal):
         return x
 
     @abstractmethod
-    def populate(self, worst_point, N=10000):
+    def populate(self, worst_point, n_samples=10000):
         raise NotImplementedError
 
     def compute_acceptance(self, logL):
@@ -1187,7 +1187,7 @@ class BaseFlowProposal(RejectionProposal):
             if self.update_poolsize:
                 self.update_poolsize_scale(self.ns_acceptance)
             while not self.populated:
-                self.populate(worst_point, N=self.poolsize)
+                self.populate(worst_point, n_samples=self.poolsize)
             self.populating = False
         # new sample is drawn randomly from proposed points
         # popping from right end is faster

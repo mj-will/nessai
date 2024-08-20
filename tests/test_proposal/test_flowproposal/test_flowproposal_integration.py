@@ -53,7 +53,7 @@ def test_flowproposal_populate(
 
     fp.initialise()
     worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.parameters)
-    fp.populate(worst, N=n_draw)
+    fp.populate(worst, n_samples=n_draw)
 
     assert fp.x.size == n_draw
 
@@ -93,7 +93,7 @@ def test_flowproposal_populate_edge_cases(
     fp.initialise()
     assert fp.parameters == fp.prime_parameters
     worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.parameters)
-    fp.populate(worst, N=n_draw)
+    fp.populate(worst, n_samples=n_draw)
 
     assert fp.x.size == n_draw
 
@@ -144,7 +144,7 @@ def test_constant_volume_mode(
     )
     fp.initialise()
     worst = numpy_array_to_live_points(0.5 * np.ones(fp.dims), fp.parameters)
-    fp.populate(worst, N=10)
+    fp.populate(worst, n_samples=10)
     assert fp.x.size == 10
 
     np.testing.assert_approx_equal(fp.r, expected_radius, 4)

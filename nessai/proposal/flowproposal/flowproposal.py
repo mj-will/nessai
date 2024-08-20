@@ -304,7 +304,12 @@ class FlowProposal(BaseFlowProposal):
         return self._draw_func(N=n)
 
     def populate(
-        self, worst_point, N=10000, plot=True, r=None, max_samples=1_000_000
+        self,
+        worst_point,
+        n_samples=10000,
+        plot=True,
+        r=None,
+        max_samples=1_000_000,
     ):
         """
         Populate a pool of latent points given the current worst point.
@@ -314,7 +319,7 @@ class FlowProposal(BaseFlowProposal):
         worst_point : structured_array
             The current worst point used to compute the radius of the contour
             in the latent space.
-        N : int, optional (10000)
+        n_samples : int, optional (10000)
             The total number of points to populate in the pool
         plot : {True, False, 'all'}
             Enable or disable plots for during training. By default the plots
@@ -368,11 +373,13 @@ class FlowProposal(BaseFlowProposal):
         if self.accumulate_weights:
             samples = empty_structured_array(0, dtype=self.population_dtype)
         else:
-            samples = empty_structured_array(N, dtype=self.population_dtype)
+            samples = empty_structured_array(
+                n_samples, dtype=self.population_dtype
+            )
 
         self.prep_latent_prior()
 
-        log_n = np.log(N)
+        log_n = np.log(n_samples)
         log_n_expected = -np.inf
         n_proposed = 0
         log_weights = np.empty(0)
@@ -380,7 +387,7 @@ class FlowProposal(BaseFlowProposal):
         n_accepted = 0
         accept = None
 
-        while n_accepted < N:
+        while n_accepted < n_samples:
             z = self.draw_latent_prior(self.drawsize)
             n_proposed += z.shape[0]
 
@@ -412,7 +419,7 @@ class FlowProposal(BaseFlowProposal):
                     "Drawn %s - n expected: %s / %s",
                     samples.size,
                     np.exp(log_n_expected),
-                    N,
+                    n_samples,
                 )
 
                 # Only try rejection sampling if we expected to accept enough
@@ -431,10 +438,10 @@ class FlowProposal(BaseFlowProposal):
                 log_u = np.log(np.random.rand(len(log_w)))
                 accept = log_w > log_u
                 n_accept_batch = accept.sum()
-                m = min(N - n_accepted, n_accept_batch)
+                m = min(n_samples - n_accepted, n_accept_batch)
                 samples[n_accepted : n_accepted + m] = x[accept][:m]
                 n_accepted += n_accept_batch
-                logger.debug("n accepted: %s / %s", n_accepted, N)
+                logger.debug("n accepted: %s / %s", n_accepted, n_samples)
 
         if self.accumulate_weights:
             if accept is None or len(accept) != len(samples):
@@ -442,9 +449,9 @@ class FlowProposal(BaseFlowProposal):
                 accept = (log_weights - log_constant) > log_u
             logger.debug("Total number of samples: %s", samples.size)
             n_accepted = np.sum(accept)
-            self.x = samples[accept][:N]
+            self.x = samples[accept][:n_samples]
         else:
-            self.x = samples[:N]
+            self.x = samples[:n_samples]
 
         self.samples = self.convert_to_samples(self.x, plot=plot)
 

@@ -473,7 +473,7 @@ def test_populate_accumulate_weights(
         "numpy.random.rand", return_value=rand_u
     ) as mock_rand:
         FlowProposal.populate(
-            proposal, worst_point, N=poolsize, plot=True, r=r
+            proposal, worst_point, n_samples=poolsize, plot=True, r=r
         )
 
     mock_empty.assert_called_once_with(
@@ -649,7 +649,7 @@ def test_populate_not_accumulate_weights(
         "numpy.random.rand", side_effect=rand_u
     ) as mock_rand:
         FlowProposal.populate(
-            proposal, worst_point, N=poolsize, plot=True, r=r
+            proposal, worst_point, n_samples=poolsize, plot=True, r=r
         )
 
     mock_empty.assert_called_once_with(
@@ -815,7 +815,9 @@ def test_populate_truncate_log_q(proposal):
     ) as mock_empty, patch(
         "numpy.random.rand", return_value=rand_u
     ) as mock_rand:
-        FlowProposal.populate(proposal, worst_point, N=poolsize, plot=False)
+        FlowProposal.populate(
+            proposal, worst_point, n_samples=poolsize, plot=False
+        )
 
     mock_empty.assert_called_once_with(
         0,
