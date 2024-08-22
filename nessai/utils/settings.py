@@ -3,8 +3,26 @@
 Used for bilby and pycbc-inference.
 """
 
-from inspect import signature
-from typing import List, Callable, Tuple
+from inspect import getmro, signature
+from typing import Any, List, Callable, Tuple
+
+
+def _get_kwargs(func: Callable) -> dict[str, Any]:
+    return {
+        k: v.default
+        for k, v in signature(func).parameters.items()
+        if v.default is not v.empty
+    }
+
+
+def _get_all_kwargs(callable: Callable) -> dict[str, Any]:
+    try:
+        parameters = {}
+        for cls in getmro(callable):
+            parameters.update(_get_kwargs(cls))
+    except AttributeError:
+        parameters = _get_kwargs(callable)
+    return parameters
 
 
 def _get_standard_methods() -> Tuple[List[Callable], List[Callable]]:
@@ -12,15 +30,20 @@ def _get_standard_methods() -> Tuple[List[Callable], List[Callable]]:
     method.
     """
     from ..flowsampler import FlowSampler
-    from ..proposal import AugmentedFlowProposal, FlowProposal
+    from ..proposal.utils import (
+        available_base_flow_proposal_classes,
+        available_external_flow_proposal_classes,
+    )
     from ..samplers import NestedSampler
 
-    methods = [
-        AugmentedFlowProposal,
-        FlowProposal,
-        NestedSampler,
-        FlowSampler,
-    ]
+    methods = (
+        list(available_external_flow_proposal_classes(load=True).values())
+        + list(available_base_flow_proposal_classes().values())
+        + [
+            NestedSampler,
+            FlowSampler,
+        ]
+    )
     run_methods = [
         FlowSampler.run_standard_sampler,
     ]
@@ -75,13 +98,7 @@ def get_all_kwargs(
     run_kwargs = {}
     for kwds, methods in zip([kwargs, run_kwargs], [methods, run_methods]):
         for m in methods:
-            kwds.update(
-                {
-                    k: v.default
-                    for k, v in signature(m).parameters.items()
-                    if v.default is not v.empty
-                }
-            )
+            kwds.update(_get_all_kwargs(m))
 
     if split_kwargs:
         return kwargs, run_kwargs
@@ -109,9 +126,5 @@ def get_run_kwargs_list(importance_nested_sampler: bool = False) -> List[str]:
         method = FlowSampler.run_importance_nested_sampler
     else:
         method = FlowSampler.run_standard_sampler
-    run_kwargs_list = [
-        k
-        for k, v in signature(method).parameters.items()
-        if v.default is not v.empty
-    ]
+    run_kwargs_list = list(_get_all_kwargs(method).keys())
     return run_kwargs_list
