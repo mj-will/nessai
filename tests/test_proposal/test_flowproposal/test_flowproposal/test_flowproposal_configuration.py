@@ -14,19 +14,6 @@ def test_config_drawsize_none(proposal):
     assert proposal.drawsize == 2000
 
 
-def test_config_poolsize_none(proposal):
-    """
-    Test the popluation configuration raises an error if poolsize is None.
-    """
-    with pytest.raises(RuntimeError, match=r"Must specify `poolsize`"):
-        FlowProposal.configure_poolsize(
-            proposal,
-            None,
-            True,
-            10,
-        )
-
-
 @pytest.mark.parametrize("fixed_radius", [False, 5.0, 1])
 def test_config_fixed_radius(proposal, fixed_radius):
     """Test the configuration for a fixed radius"""
@@ -62,26 +49,6 @@ def test_min_max_radius_invalid_input(proposal, rmin, rmax):
     """Test configuration of min radius and no max radius"""
     with pytest.raises(RuntimeError):
         FlowProposal.configure_min_max_radius(proposal, rmin, rmax)
-
-
-@pytest.mark.parametrize(
-    "plot, plot_pool, plot_train",
-    [
-        (True, True, True),
-        ("all", "all", "all"),
-        ("train", False, "all"),
-        ("pool", "all", False),
-        ("min", True, True),
-        ("minimal", True, True),
-        (False, False, False),
-        ("some", False, False),
-    ],
-)
-def test_configure_plotting(proposal, plot, plot_pool, plot_train):
-    """Test the configuration of plotting settings"""
-    FlowProposal.configure_plotting(proposal, plot)
-    assert proposal._plot_pool == plot_pool
-    assert proposal._plot_training == plot_train
 
 
 @pytest.mark.parametrize(
@@ -158,18 +125,3 @@ def test_constant_volume_invalid_latent_prior(proposal):
     proposal.latent_prior = "gaussian"
     with pytest.raises(RuntimeError, match=err):
         FlowProposal.configure_constant_volume(proposal)
-
-
-def test_update_flow_proposal(proposal):
-    """Assert the number of inputs is updated"""
-    proposal.flow_config = {"model_config": {}}
-    proposal.rescaled_dims = 4
-    FlowProposal.update_flow_config(proposal)
-    assert proposal.flow_config["n_inputs"] == 4
-
-
-def test_flow_config(proposal):
-    """Assert the correct config is returned"""
-    config = {"a": 1}
-    proposal._flow_config = config
-    assert FlowProposal.flow_config.__get__(proposal) is config

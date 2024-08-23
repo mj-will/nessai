@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """Test methods related to initialising and resuming the proposal method"""
 import numpy as np
-import os
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from nessai.proposal import FlowProposal
 
@@ -12,88 +11,7 @@ def test_init(model):
     """Test init with some kwargs"""
     fp = FlowProposal(model, poolsize=1000)
     assert fp.model == model
-
-
-@pytest.mark.parametrize(
-    "value, expected", [(True, True), (False, False), (None, False)]
-)
-def test_init_use_default_reparams(model, proposal, value, expected):
-    """Assert use_default_reparameterisations is set correctly"""
-    proposal.use_default_reparameterisations = False
-    FlowProposal.__init__(
-        proposal, model, poolsize=10, use_default_reparameterisations=value
-    )
-    assert proposal.use_default_reparameterisations is expected
-
-
-@pytest.mark.parametrize("ef, fuzz", [(2.0, 3.0**0.5), (False, 2.0)])
-def test_initialise(tmpdir, proposal, ef, fuzz):
-    """Test the initialise method"""
-    p = tmpdir.mkdir("test")
-    proposal.initialised = False
-    proposal.output = os.path.join(p, "output")
-    proposal.rescaled_dims = 2
-    proposal.expansion_fraction = ef
-    proposal.fuzz = 2.0
-    proposal.flow_config = {}
-    proposal.training_config = {}
-    proposal.set_rescaling = MagicMock()
-    proposal.verify_rescaling = MagicMock()
-    proposal.update_flow_config = MagicMock()
-    proposal.configure_constant_volume = MagicMock()
-    fm = MagicMock()
-    fm.initialise = MagicMock()
-    proposal._FlowModelClass = MagicMock(new=fm)
-
-    FlowProposal.initialise(proposal, resumed=False)
-
-    proposal.set_rescaling.assert_called_once()
-    proposal.verify_rescaling.assert_called_once()
-    proposal.update_flow_config.assert_called_once()
-    proposal.configure_constant_volume.assert_called_once()
-    proposal._FlowModelClass.assert_called_once_with(
-        flow_config=proposal.flow_config,
-        training_config=proposal.training_config,
-        output=proposal.output,
-    )
-    proposal.flow.initialise.assert_called_once()
-    assert proposal.populated is False
-    assert proposal.initialised
-    assert proposal.fuzz == fuzz
-    assert os.path.exists(os.path.join(p, "output"))
-
-
-def test_resume(proposal):
-    """Test the resume method."""
-    from numpy import array, array_equal
-
-    proposal.initialise = MagicMock()
-    proposal.mask = [1, 0]
-    proposal.update_bounds = False
-    proposal.weights_file = None
-    model = MagicMock()
-    with patch("nessai.proposal.base.Proposal.resume") as mock:
-        FlowProposal.resume(proposal, model, {})
-    mock.assert_called_once_with(model)
-    proposal.initialise.assert_called_once()
-    assert array_equal(proposal.flow_config["mask"], array([1, 0]))
-
-
-@patch("os.path.exists", return_value=True)
-def test_resume_w_weights(osexist, proposal):
-    """Test the resume method with weights"""
-    proposal.initialise = MagicMock()
-    proposal.flow = MagicMock()
-    proposal.mask = None
-    proposal.update_bounds = False
-    proposal.weights_file = None
-    model = MagicMock()
-    with patch("nessai.proposal.base.Proposal.resume") as mock:
-        FlowProposal.resume(proposal, model, {}, weights_file="weights.pt")
-    mock.assert_called_once_with(model)
-    osexist.assert_called_once_with("weights.pt")
-    proposal.initialise.assert_called_once()
-    proposal.flow.reload_weights.assert_called_once_with("weights.pt")
+    assert fp.poolsize == 1000
 
 
 @pytest.mark.parametrize("populated", [False, True])
@@ -103,29 +21,18 @@ def test_get_state(proposal, populated, mask):
 
     Tests cases where the proposal is and isn't populated.
     """
+    parent_state = {"a": "val"}
+    with patch(
+        "nessai.proposal.flowproposal.base.BaseFlowProposal.__getstate__",
+        return_value=parent_state,
+    ) as mock:
+        state = FlowProposal.__getstate__(proposal)
 
-    proposal.populated = populated
-    proposal.indices = [1, 2]
-    proposal._reparameterisation = MagicMock()
-    proposal.model = MagicMock()
-    proposal._flow_config = {}
-    proposal.initialised = True
-    proposal.flow = MagicMock()
-    proposal.flow.weights_file = "file"
-    proposal._draw_func = lambda x: x
-
-    if mask is not None:
-        proposal.flow.flow_config = {"mask": mask}
-
-    state = FlowProposal.__getstate__(proposal)
-
-    assert state["resume_populated"] is populated
-    assert state["initialised"] is False
-    assert state["weights_file"] == "file"
-    assert state["mask"] is mask
-    assert "model" not in state
-    assert "flow" not in state
-    assert "_flow_config" not in state
+    mock.assert_called_once()
+    assert state["_draw_func"] is None
+    assert state["_populate_dist"] is None
+    assert state["alt_dist"] is None
+    assert state["a"] == "val"
 
 
 @pytest.mark.integration_test
@@ -183,20 +90,13 @@ def test_resume_pickle(model, tmpdir, reparameterisation, init, latent_prior):
 
 def test_reset(proposal):
     """Test reset method"""
-    proposal.x = 1
-    proposal.samples = 2
-    proposal.populated = True
-    proposal.populated_count = 10
-    proposal._reparameterisation = MagicMock()
-    FlowProposal.reset(proposal)
-    assert proposal.x is None
-    assert proposal.samples is None
-    assert proposal.populated is False
-    assert proposal.populated_count == 0
+    with patch(
+        "nessai.proposal.flowproposal.base.BaseFlowProposal.reset"
+    ) as mock:
+        FlowProposal.reset(proposal)
+    mock.assert_called_once()
     assert proposal.r is np.nan
     assert proposal.alt_dist is None
-    assert proposal._checked_population
-    proposal._reparameterisation.reset.assert_called_once()
 
 
 @pytest.mark.timeout(60)

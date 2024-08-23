@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
 """Test methods related to reparameterisations"""
+
 import numpy as np
 from nessai.livepoint import get_dtype, numpy_array_to_live_points
 from nessai.model import Model
-from nessai.proposal.flowproposal import FlowProposal
+from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.reparameterisations import (
     NullReparameterisation,
     RescaleToBounds,
@@ -42,13 +42,13 @@ def test_default_reparameterisation(proposal):
     """Test to make sure default reparameterisation does not cause errors
     for default proposal.
     """
-    FlowProposal.add_default_reparameterisations(proposal)
+    BaseFlowProposal.add_default_reparameterisations(proposal)
 
 
 @patch("nessai.proposal.flowproposal.base.get_reparameterisation")
 def test_get_reparamaterisation(mocked_fn, proposal):
     """Make sure the underlying function is called"""
-    FlowProposal.get_reparameterisation(proposal, "angle")
+    BaseFlowProposal.get_reparameterisation(proposal, "angle")
     mocked_fn.assert_called_once_with("angle")
 
 
@@ -87,7 +87,7 @@ def test_configure_reparameterisations_dict(
         "nessai.proposal.flowproposal.base.CombinedReparameterisation",
         return_value=dummy_cmb_rc,
     ) as mocked_class:
-        FlowProposal.configure_reparameterisations(
+        BaseFlowProposal.configure_reparameterisations(
             proposal, {"x": {"reparameterisation": "default"}}
         )
 
@@ -143,7 +143,7 @@ def test_configure_reparameterisations_dict_w_params(
         "nessai.proposal.flowproposal.base.CombinedReparameterisation",
         return_value=dummy_cmb_rc,
     ) as mocked_class:
-        FlowProposal.configure_reparameterisations(
+        BaseFlowProposal.configure_reparameterisations(
             proposal,
             {"x": {"reparameterisation": "default", "parameters": ["y"]}},
         )
@@ -191,7 +191,7 @@ def test_configure_reparameterisations_requires_prime_prior(
         "nessai.proposal.flowproposal.base.CombinedReparameterisation",
         return_value=dummy_cmb_rc,
     ), pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.configure_reparameterisations(
+        BaseFlowProposal.configure_reparameterisations(
             proposal,
             {"x": {"reparameterisation": "default", "parameters": ["y"]}},
         )
@@ -226,7 +226,7 @@ def test_configure_reparameterisations_prime_prior_unit_hypercube(
         RuntimeError,
         match="x prime prior does not support map to unit hypercube",
     ):
-        FlowProposal.configure_reparameterisations(
+        BaseFlowProposal.configure_reparameterisations(
             proposal,
             {"x": {"reparameterisation": "default", "parameters": ["y"]}},
         )
@@ -246,7 +246,7 @@ def test_configure_reparameterisations_dict_missing(mocked_class, proposal):
     proposal.model.names = ["x", "y"]
 
     with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.configure_reparameterisations(
+        BaseFlowProposal.configure_reparameterisations(
             proposal, {"x": {"scale": 1.0}}
         )
 
@@ -260,7 +260,7 @@ def test_configure_reparameterisations_dict_str(proposal):
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x", "y"]
     proposal.fallback_reparameterisation = None
-    FlowProposal.configure_reparameterisations(proposal, {"x": "default"})
+    BaseFlowProposal.configure_reparameterisations(proposal, {"x": "default"})
 
     proposal.add_default_reparameterisations.assert_not_called()
     assert proposal.prime_parameters == ["x_prime", "y"]
@@ -275,7 +275,7 @@ def test_configure_reparameterisations_dict_reparam(proposal):
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x", "y"]
     proposal.fallback_reparameterisation = None
-    FlowProposal.configure_reparameterisations(
+    BaseFlowProposal.configure_reparameterisations(
         proposal, {"default": {"parameters": ["x"]}}
     )
 
@@ -302,7 +302,7 @@ def test_configure_reparameterisations_regex(proposal, parameters):
     proposal.model.names = ["x_0", "x_1", "y"]
     proposal.model.bounds = {"x_0": [-1, 1], "x_1": [-1, 1], "y": [-1, 1]}
     proposal.fallback_reparameterisation = None
-    FlowProposal.configure_reparameterisations(
+    BaseFlowProposal.configure_reparameterisations(
         proposal,
         {"z-score": {"parameters": parameters}},
     )
@@ -324,7 +324,7 @@ def test_configure_reparameterisations_none(proposal):
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x", "y"]
     proposal.fallback_reparameterisation = None
-    FlowProposal.configure_reparameterisations(proposal, None)
+    BaseFlowProposal.configure_reparameterisations(proposal, None)
     proposal.add_default_reparameterisations.assert_not_called()
     assert proposal.prime_parameters == ["x", "y"]
 
@@ -345,7 +345,7 @@ def test_configure_reparameterisations_string(proposal):
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x", "y"]
     proposal.fallback_reparameterisation = None
-    FlowProposal.configure_reparameterisations(proposal, "rescaletobounds")
+    BaseFlowProposal.configure_reparameterisations(proposal, "rescaletobounds")
     proposal.add_default_reparameterisations.assert_not_called()
     assert proposal.prime_parameters == ["x_prime", "y_prime"]
 
@@ -369,7 +369,7 @@ def test_configure_reparameterisations_fallback(proposal):
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x", "y"]
     proposal.fallback_reparameterisation = "default"
-    FlowProposal.configure_reparameterisations(proposal, None)
+    BaseFlowProposal.configure_reparameterisations(proposal, None)
     proposal.add_default_reparameterisations.assert_not_called()
     assert proposal.prime_parameters == ["x_prime", "y_prime"]
 
@@ -389,7 +389,7 @@ def test_configure_reparameterisations_fallback(proposal):
 def test_configure_reparameterisations_incorrect_type(proposal):
     """Assert an error is raised when input is not a dictionary"""
     with pytest.raises(TypeError) as excinfo:
-        FlowProposal.configure_reparameterisations(proposal, ["default"])
+        BaseFlowProposal.configure_reparameterisations(proposal, ["default"])
     assert "must be a dictionary" in str(excinfo.value)
 
 
@@ -399,7 +399,7 @@ def test_configure_reparameterisations_incorrect_config_type(proposal):
     """
     proposal.model.names = ["x"]
     with pytest.raises(TypeError) as excinfo:
-        FlowProposal.configure_reparameterisations(proposal, {"x": ["a"]})
+        BaseFlowProposal.configure_reparameterisations(proposal, {"x": ["a"]})
     assert "Unknown config type" in str(excinfo.value)
 
 
@@ -414,7 +414,7 @@ def test_configure_reparameterisation_unknown(proposal, reparam):
     """
     proposal.model.names = ["x"]
     with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.configure_reparameterisations(proposal, reparam)
+        BaseFlowProposal.configure_reparameterisations(proposal, reparam)
     assert "is not a parameter in the model or a known" in str(excinfo.value)
 
 
@@ -428,7 +428,7 @@ def test_configure_reparameterisation_no_parameters(proposal, dummy_rc):
         )
     )
     with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.configure_reparameterisations(
+        BaseFlowProposal.configure_reparameterisations(
             proposal, {"default": {"update_bounds": True}}
         )
     assert "No parameters key" in str(excinfo.value)
@@ -449,14 +449,13 @@ def test_set_rescaling_with_model(proposal, model):
     proposal.configure_reparameterisations = MagicMock()
     proposal.configure_reparameterisations.side_effect = update
 
-    FlowProposal.set_rescaling(proposal)
+    BaseFlowProposal.set_rescaling(proposal)
 
     proposal.configure_reparameterisations.assert_called_once_with(
         {"x": "default"}
     )
     assert proposal.reparameterisations == {"x": "default"}
     assert proposal.prime_parameters == ["x_prime"]
-    proposal.configure_constant_volume.assert_called_once()
 
 
 def test_set_rescaling_with_reparameterisations(proposal, model):
@@ -475,14 +474,13 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
     proposal.configure_reparameterisations = MagicMock()
     proposal.configure_reparameterisations.side_effect = update
 
-    FlowProposal.set_rescaling(proposal)
+    BaseFlowProposal.set_rescaling(proposal)
 
     proposal.configure_reparameterisations.assert_called_once_with(
         {"x": "default"}
     )
     assert proposal.reparameterisations == {"x": "default"}
     assert proposal.prime_parameters == ["x_prime"]
-    proposal.configure_constant_volume.assert_called_once()
 
 
 @pytest.mark.parametrize("n", [1, 10])
@@ -502,7 +500,7 @@ def test_rescale(proposal, n, map_to_unit_hypercube):
     )
     proposal.model.to_unit_hypercube = MagicMock(side_effect=lambda a: a)
 
-    x_prime_out, log_j = FlowProposal.rescale(
+    x_prime_out, log_j = BaseFlowProposal.rescale(
         proposal, x, compute_radius=False, test="lower"
     )
 
@@ -539,7 +537,7 @@ def test_inverse_rescale(
     )
     proposal.model.from_unit_hypercube = MagicMock(side_effect=lambda a: a)
 
-    x_out, log_j = FlowProposal.inverse_rescale(
+    x_out, log_j = BaseFlowProposal.inverse_rescale(
         proposal, x_prime, return_unit_hypercube=return_unit_hypercube
     )
 
@@ -582,7 +580,7 @@ def test_verify_rescaling(proposal, has_inversion):
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.one_to_one = True
 
-    FlowProposal.verify_rescaling(proposal)
+    BaseFlowProposal.verify_rescaling(proposal)
 
     proposal.check_state.assert_has_calls(4 * [call(x)])
     # Should call 4 different test cases
@@ -620,7 +618,7 @@ def test_verify_rescaling_invertible_error(proposal, has_inversion):
     proposal._reparameterisation.one_to_one = True
 
     with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.verify_rescaling(proposal)
+        BaseFlowProposal.verify_rescaling(proposal)
     assert "Rescaling is not invertible for x" in str(excinfo.value)
 
 
@@ -651,7 +649,7 @@ def test_verify_rescaling_invertible_error_non_sampling(
     proposal._reparameterisation.one_to_one = True
 
     with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.verify_rescaling(proposal)
+        BaseFlowProposal.verify_rescaling(proposal)
     assert "Non-sampling parameter logL changed" in str(excinfo.value)
 
 
@@ -678,7 +676,7 @@ def test_verify_rescaling_jacobian_error(proposal, has_inversion):
     proposal._reparameterisation.one_to_one = True
 
     with pytest.raises(RuntimeError) as excinfo:
-        FlowProposal.verify_rescaling(proposal)
+        BaseFlowProposal.verify_rescaling(proposal)
     assert "Rescaling Jacobian is not invertible" in str(excinfo.value)
 
 
@@ -686,7 +684,7 @@ def test_verify_rescaling_rescaling_not_set(proposal):
     """Assert an error is raised if the rescaling is not set"""
     proposal.rescaling_set = False
     with pytest.raises(RuntimeError, match=r"Rescaling must be set .*"):
-        FlowProposal.verify_rescaling(proposal)
+        BaseFlowProposal.verify_rescaling(proposal)
 
 
 def test_verify_rescaling_not_one_to_one(proposal, caplog):
@@ -694,7 +692,7 @@ def test_verify_rescaling_not_one_to_one(proposal, caplog):
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.one_to_one = False
     proposal.model.new_point = MagicMock()
-    FlowProposal.verify_rescaling(proposal)
+    BaseFlowProposal.verify_rescaling(proposal)
     assert "Could not check if reparameterisation is invertible" in str(
         caplog.text
     )
@@ -709,7 +707,7 @@ def test_check_state_update(proposal, map_to_unit_hypercube):
     proposal._reparameterisation = Mock()
     proposal._reparameterisation.update = MagicMock()
     proposal.model.to_unit_hypercube = MagicMock(return_value=x_hyper)
-    FlowProposal.check_state(proposal, x)
+    BaseFlowProposal.check_state(proposal, x)
     if map_to_unit_hypercube:
         proposal.model.to_unit_hypercube.assert_called_once_with(x)
         proposal._reparameterisation.update.assert_called_once_with(x_hyper)

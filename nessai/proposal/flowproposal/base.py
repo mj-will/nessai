@@ -196,6 +196,8 @@ class BaseFlowProposal(RejectionProposal):
     @training_config.setter
     def training_config(self, config):
         """Set training configuration."""
+        if config is None:
+            config = {}
         self._training_config = config
 
     @property
@@ -816,7 +818,7 @@ class BaseFlowProposal(RejectionProposal):
             proceed with caution!
         """
         if not self.initialised:
-            raise RuntimeError("FlowProposal is not initialised.")
+            raise RuntimeError(f"{self.__name__} is not initialised.")
 
         if (plot and self._plot_training) or self.save_training_data:
             block_output = os.path.join(
@@ -958,31 +960,6 @@ class BaseFlowProposal(RejectionProposal):
             # Include Jacobian for the rescaling
             log_j += log_j_rescale
         return x, log_j
-
-    def radius(self, z, *arrays):
-        """
-        Calculate the radius of a latent point or set of latent points.
-        If multiple points are parsed the maximum radius is returned.
-
-        Parameters
-        ----------
-        z : :obj:`np.ndarray`
-            Array of points in the latent space
-        *arrays :
-            Additional arrays to return the corresponding value
-
-        Returns
-        -------
-        tuple of arrays
-            Tuple of array with the maximum radius and corresponding values
-            from any additional arrays that were passed.
-        """
-        r = np.sqrt(np.sum(z**2.0, axis=-1))
-        i = np.nanargmax(r)
-        if arrays:
-            return (r[i],) + tuple(a[i] for a in arrays)
-        else:
-            return r[i]
 
     def log_prior(self, x):
         """

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock
 
-from nessai.proposal import FlowProposal
+from nessai.proposal.flowproposal.base import BaseFlowProposal
 
 
 def test_draw_populated(proposal):
@@ -12,7 +12,7 @@ def test_draw_populated(proposal):
     proposal.populated = True
     proposal.samples = np.arange(3)
     proposal.indices = list(range(3))
-    out = FlowProposal.draw(proposal, None)
+    out = BaseFlowProposal.draw(proposal, None)
     assert out == proposal.samples[2]
     assert proposal.indices == [0, 1]
 
@@ -24,7 +24,7 @@ def test_draw_populated_last_sample(proposal):
     proposal.populated = True
     proposal.samples = np.arange(3)
     proposal.indices = [0]
-    out = FlowProposal.draw(proposal, None)
+    out = BaseFlowProposal.draw(proposal, None)
     assert out == proposal.samples[0]
     assert proposal.indices == []
     assert proposal.populated is False
@@ -49,7 +49,7 @@ def test_draw_not_populated(proposal, update, wait):
 
     proposal.populate = MagicMock(side_effect=mock_populate)
 
-    out = FlowProposal.draw(proposal, 1.0)
+    out = BaseFlowProposal.draw(proposal, 1.0)
 
     assert out == 2
     assert proposal.populated is True
