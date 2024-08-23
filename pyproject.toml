@@ -74,6 +74,7 @@ nflows = [
 ]
 
 [tool.setuptools_scm]
+version_scheme = "release-branch-semver"
 
 [tool.pytest.ini_options]
 addopts = [
