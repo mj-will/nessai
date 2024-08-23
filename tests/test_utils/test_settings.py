@@ -16,8 +16,15 @@ from nessai.utils.settings import (
 
 def test_get_standard_methods():
     """Assert a list of methods is returned"""
-    kwds, run = _get_standard_methods()
-    assert len(kwds) == 4
+    with patch(
+        "nessai.proposal.utils.available_external_flow_proposal_classes",
+        return_value={"a": 1, "b": 2},
+    ), patch(
+        "nessai.proposal.utils.available_base_flow_proposal_classes",
+        return_value={"b": 2, "c": 3, "d": 4, "e": 5},
+    ):
+        kwds, run = _get_standard_methods()
+    assert len(kwds) == 8
     assert len(run) == 1
 
 
