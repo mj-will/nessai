@@ -343,8 +343,15 @@ class FlowProposal(BaseFlowProposal):
             x, log_prob = self.flow.sample_and_log_prob(
                 z=z, alt_dist=self.alt_dist
             )
-        except AssertionError:
-            return np.array([]), np.array([])
+        except AssertionError as e:
+            logger.warning(
+                "Assertion error raised when sampling from the flow."
+                f"Error: {e}"
+            )
+            if return_z:
+                return np.array([]), np.array([]), np.array([])
+            else:
+                return np.array([]), np.array([])
 
         if discard_nans:
             valid = np.isfinite(log_prob)
