@@ -3,6 +3,8 @@
 from nessai.proposal.utils import (
     check_proposal_kwargs,
     get_flow_proposal_class,
+    available_base_flow_proposal_classes,
+    available_external_flow_proposal_classes,
 )
 from nessai.proposal import (
     AugmentedFlowProposal,
@@ -149,3 +151,36 @@ def test_get_flow_proposal_class_not_a_subclass():
 
     with pytest.raises(TypeError, match=r"Unknown proposal_class"):
         get_flow_proposal_class(FakeProposal)
+
+
+def test_available_base_flow_proposal_classes():
+    avail = available_base_flow_proposal_classes()
+    print(avail)
+    assert len(avail) == 6
+
+
+@pytest.mark.parametrize("load", [True, False])
+def test_available_external_flow_proposal_classes(load):
+    """Test the available_external_flow_proposal_classes function"""
+    # Mock class
+    ExternalClass = MagicMock(spec=[])
+
+    # Mock what is normally returned by the entry point before they are loaded
+    EntryPointClass = MagicMock(spec=["load"])
+    EntryPointClass.load = MagicMock(return_value=ExternalClass)
+
+    # Always return the version that needs to be loaded
+    with patch(
+        "nessai.utils.entry_points.get_entry_points",
+        return_value={"external_class": EntryPointClass},
+    ) as mock_get_entry_points:
+        avail = available_external_flow_proposal_classes(load=load)
+
+    mock_get_entry_points.assert_called_once_with("nessai.proposals")
+
+    if load:
+        EntryPointClass.load.assert_called_once()
+        assert avail == {"external_class": ExternalClass}
+    else:
+        EntryPointClass.load.assert_not_called()
+        assert avail == {"external_class": EntryPointClass}
