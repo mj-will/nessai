@@ -126,3 +126,8 @@ def test_reset(proposal):
     assert proposal.populated_count == 0
     assert proposal._checked_population
     proposal._reparameterisation.reset.assert_called_once()
+
+
+def test_populate_error(proposal):
+    with pytest.raises(NotImplementedError):
+        BaseFlowProposal.populate(proposal, 1.0, n_samples=10)
