@@ -348,7 +348,7 @@ class FlowProposal(BaseFlowProposal):
 
         if discard_nans:
             valid = np.isfinite(log_prob)
-            x, log_prob = x[valid], log_prob[valid]
+            x, log_prob, z = get_subset_arrays(valid, x, log_prob, z)
         x = numpy_array_to_live_points(
             x.astype(config.livepoints.default_float_dtype),
             self.prime_parameters,
