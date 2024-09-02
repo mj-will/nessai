@@ -13,7 +13,6 @@ from warnings import warn
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import numpy as np
-from tqdm import tqdm
 
 from .base import BaseNestedSampler
 from .. import config
@@ -719,33 +718,30 @@ class NestedSampler(BaseNestedSampler):
         """
         Initialise the pool of live points.
         """
-        i = 0
+        accepted = 0
         live_points = empty_structured_array(
             self.nlive, names=self.model.names
         )
 
-        with tqdm(total=self.nlive, desc="Drawing live points") as pbar:
-            while i < self.nlive:
-                while i < self.nlive:
-                    _, live_point = next(self.yield_sample(None))
-                    if live_point is None:
-                        break
-                    if np.isnan(live_point["logL"]):
-                        logger.error(
-                            "Likelihood function returned NaN for "
-                            f"live_point {live_point}"
-                        )
-                        logger.error(
-                            "You may want to check your likelihood function"
-                        )
-                        break
-                    if np.isfinite(live_point["logP"]) and np.isfinite(
-                        live_point["logL"]
-                    ):
-                        live_points[i] = live_point
-                        i += 1
-                        pbar.update()
-                        break
+        logger.info("Populating initial live points")
+        while accepted < self.nlive:
+            _, live_point = next(self.yield_sample(None))
+            if live_point is None:
+                continue
+            if np.isnan(live_point["logL"]):
+                logger.error(
+                    "Likelihood function returned NaN for "
+                    f"live_point {live_point}"
+                )
+                logger.error("You may want to check your likelihood function")
+                continue
+            if np.isfinite(live_point["logP"]) and np.isfinite(
+                live_point["logL"]
+            ):
+                live_points[accepted] = live_point
+                accepted += 1
+            if accepted % (self.nlive // 10) == 0:
+                logger.info(f"Populated {accepted} / {self.nlive} live points")
 
         self.live_points = np.sort(live_points, order="logL")
         self.live_points["it"] = 0
