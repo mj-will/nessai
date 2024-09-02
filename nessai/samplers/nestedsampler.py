@@ -6,6 +6,7 @@ from collections import deque
 from copy import copy
 import datetime
 import logging
+import math
 import os
 from typing import Union
 from warnings import warn
@@ -740,7 +741,8 @@ class NestedSampler(BaseNestedSampler):
             ):
                 live_points[accepted] = live_point
                 accepted += 1
-            if accepted % (self.nlive // 10) == 0:
+            # Round up to avoid issues in nlive < 10
+            if accepted % math.ceil(self.nlive / 10) == 0:
                 logger.info(f"Populated {accepted} / {self.nlive} live points")
 
         self.live_points = np.sort(live_points, order="logL")
