@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add experimental support for discrete parameters (https://github.com/mj-will/nessai/pull/401)
+- Support remapping to the unit hypercube with the standard sampler (https://github.com/mj-will/nessai/pull/398)
+- Support reparameterisations that are not one-to-one (https://github.com/mj-will/nessai/pull/418)
+- Support user-defined for flow proposal classes via the `nessai.proposals` entry point (https://github.com/mj-will/nessai/pull/411)
+- Add an `inverse` method to `FlowModel` (https://github.com/mj-will/nessai/pull/419)
+
+### Changed
+
+- Rework progress bar to no longer use tqdm (https://github.com/mj-will/nessai/pull/422)
+- `nessai.proposal.flowproposal.FlowProposal` submodule has been refactored into two classes (https://github.com/mj-will/nessai/pull/419)
+- `N` has been renamed to `n_samples` in `FlowProposal.populate`
+
+### Fixed
+
+- Fix outputs of `FlowProposal.backwards_pass` when `discard_nans` and `return_z` are both `True` (https://github.com/mj-will/nessai/pull/419)
+
+### Deprecated
+
+- The `flow_class` argument for `NestedSampler` is deprecated in favour of `flow_proposal_class` (https://github.com/mj-will/nessai/pull/411)
+
+### Removed
+
+- The deprecated `FlowProposal.rejection_sampling` method has been removed (https://github.com/mj-will/nessai/pull/419)
+
 ## [0.13.2]
 
 ### Fixed
