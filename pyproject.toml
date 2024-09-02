@@ -30,7 +30,6 @@ dependencies = [
     "scipy>0.16",
     "seaborn",
     "torch>=1.11.0",
-    "tqdm",
 ]
 dynamic = [
     "version",
