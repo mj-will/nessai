@@ -1,3 +1,5 @@
+"""Base proposal class that contains common methods."""
+
 from abc import abstractmethod
 import copy
 import logging

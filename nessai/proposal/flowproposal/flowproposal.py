@@ -1,5 +1,6 @@
-"""
-Main proposal object that includes normalising flows.
+"""Proposal class that uses normalising flows and rejection sampling.
+
+This is the default proposal used by nessai.
 """
 
 import datetime
