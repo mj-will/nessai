@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
-"""
-Main proposal object that includes normalising flows.
-"""
+"""Base proposal class that contains common methods."""
+
+from abc import abstractmethod
 import copy
-import datetime
-from functools import partial
 import logging
 import os
 import re
@@ -13,35 +10,30 @@ from warnings import warn
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.lib.recfunctions as rfn
-from scipy.special import logsumexp
 import torch
 
-from .. import config
-from ..flowmodel import FlowModel
-from ..livepoint import (
+from ... import config
+from ...flowmodel import FlowModel
+from ...livepoint import (
     live_points_to_array,
     numpy_array_to_live_points,
     get_dtype,
     empty_structured_array,
 )
-from ..reparameterisations import (
+from ...reparameterisations import (
     CombinedReparameterisation,
     get_reparameterisation,
 )
-from ..plot import plot_live_points, plot_1d_comparison, nessai_style
-from .rejection import RejectionProposal
-from ..utils import (
-    compute_radius,
-    get_uniform_distribution,
+from ...plot import plot_live_points, plot_1d_comparison, nessai_style
+from ..rejection import RejectionProposal
+from ...utils import (
     save_live_points,
 )
-from ..utils.sampling import NDimensionalTruncatedGaussian
-from ..utils.structures import get_subset_arrays
 
 logger = logging.getLogger(__name__)
 
 
-class FlowProposal(RejectionProposal):
+class BaseFlowProposal(RejectionProposal):
     """
     Object that handles training and proposal points
 
@@ -57,10 +49,6 @@ class FlowProposal(RejectionProposal):
     plot : {True, False, 'all', 'min'}, optional
         Controls the plotting level: ``True`` - all plots; ``False`` - no
         plots; ``'all'`` -  all plots and ``'min'`` -  1d plots and loss.
-    latent_prior : {'truncated_gaussian', 'gaussian', 'uniform_nsphere', \
-            'gaussian'}, optional
-        Prior distribution in the latent space. Defaults to
-        'truncated_gaussian'.
     poolsize : int, optional
         Size of the proposal pool. Defaults to 10000.
     update_poolsize : bool, optional
@@ -70,42 +58,10 @@ class FlowProposal(RejectionProposal):
         Maximum scale for increasing the poolsize. E.g. if this value is 10
         and the poolsize is 1000 the maximum number of points in the pool
         is 10,000.
-    drawsize : int, optional
-        Number of points to simultaneously draw when populating the proposal
-        Defaults to 10000
     check_acceptance : bool, optional
         If True the acceptance is computed after populating the pool. This
         includes computing the likelihood for every point. Default False.
-    min_radius : float, optional
-        Minimum radius used for population. If not specified not minimum is
-        used.
-    max_radius : float, optional
-        If a float then this value is used as an upper limit for the
-        computed radius when populating the proposal. If unspecified no
-        upper limit is used.
-    fixed_radius : float, optional
-        If specified and the chosen latent distribution is compatible, this
-        radius will be used to draw new samples instead of the value computed
-        with the flow.
-    constant_volume_mode : bool
-        If True, then a constant volume is used for the latent contour used to
-        draw new samples. The exact volume can be set using `volume_fraction`
-    volume_fraction : float
-        Fraction of the total probability to contain with the latent contour
-        when using a constant volume.
-    compute_radius_with_all : bool, optional
-        If True all the radius of the latent contour is computed using the
-        maximum radius of all the samples used to train the flow.
-    fuzz : float, optional
-        Fuzz-factor applied to the radius. If unspecified no fuzz-factor is
-        applied.
-    expansion_fraction : float, optional
-        Similar to ``fuzz`` but instead a scaling factor applied to the radius
-        this specifies a rescaling for volume of the n-ball used to draw
-        samples. This is translated to a value for ``fuzz``.
-    truncate_log_q : bool, optional
-        Truncate proposals using minimum log-probability of the training data.
-    reparameterisations : dict, optional
+    reparameterisations : Union[dict, str], optional
         Dictionary for configure more flexible reparameterisations. This
         ignores any of the other settings related to rescaling. For more
         details see the documentation.
@@ -127,6 +83,9 @@ class FlowProposal(RejectionProposal):
         Passed to :code:`reverse_order` in
         :py:obj:`~nessai.reparameterisations.combined.CombinedReparameterisation`.
         Reverses the order of the reparameterisations.
+    map_to_unit_hypercube : bool
+        If true, samples will be mapped to the unit hypercube before any
+        reparameterisations are applied.
     """
 
     use_default_reparameterisations = False
@@ -142,25 +101,14 @@ class FlowProposal(RejectionProposal):
         model,
         flow_config=None,
         training_config=None,
-        output="./",
+        output=None,
         poolsize=None,
-        latent_prior="truncated_gaussian",
-        constant_volume_mode=True,
-        volume_fraction=0.95,
-        fuzz=1.0,
         plot="min",
-        fixed_radius=False,
-        drawsize=None,
         check_acceptance=False,
-        truncate_log_q=False,
-        expansion_fraction=4.0,
-        min_radius=False,
-        max_radius=50.0,
         max_poolsize_scale=10,
         update_poolsize=True,
         accumulate_weights=False,
         save_training_data=False,
-        compute_radius_with_all=False,
         reparameterisations=None,
         fallback_reparameterisation="zscore",
         use_default_reparameterisations=None,
@@ -168,13 +116,11 @@ class FlowProposal(RejectionProposal):
         map_to_unit_hypercube=False,
     ):
 
-        super(FlowProposal, self).__init__(model)
-        logger.debug("Initialising FlowProposal")
+        super().__init__(model)
 
         self._x_dtype = None
         self._x_prime_dtype = None
         self._draw_func = None
-        self._populate_dist = None
         self._prior_bounds = None
 
         self.flow = None
@@ -185,12 +131,12 @@ class FlowProposal(RejectionProposal):
         self.indices = []
         self.training_count = 0
         self.populated_count = 0
-        self.parameters = []
+        self.parameters = None
         self.training_data = None
         self.save_training_data = save_training_data
         self.x = None
         self.samples = None
-        self.prime_parameters = []
+        self.prime_parameters = None
         self.acceptance = []
         self._reparameterisation = None
         self.rescaling_set = False
@@ -207,33 +153,18 @@ class FlowProposal(RejectionProposal):
         self.fallback_reparameterisation = fallback_reparameterisation
         self.reverse_reparameterisations = reverse_reparameterisations
 
-        self.output = output
-
-        self.configure_population(
-            poolsize,
-            drawsize,
-            update_poolsize,
-            max_poolsize_scale,
-            fuzz,
-            expansion_fraction,
-            latent_prior,
-        )
+        self.output = output if output is not None else os.getcwd()
 
         self.check_acceptance = check_acceptance
-        self.truncate_log_q = truncate_log_q
         self.flow_config = flow_config
         self.training_config = training_config
-        self.constant_volume_mode = constant_volume_mode
-        self.volume_fraction = volume_fraction
 
-        self.compute_radius_with_all = compute_radius_with_all
-        self.configure_fixed_radius(fixed_radius)
-        self.configure_min_max_radius(min_radius, max_radius)
-
+        self.configure_poolsize(
+            poolsize=poolsize,
+            max_poolsize_scale=max_poolsize_scale,
+            update_poolsize=update_poolsize,
+        )
         self.configure_plotting(plot)
-
-        self.configure_latent_prior()
-        self.alt_dist = None
 
     @property
     def poolsize(self):
@@ -267,6 +198,8 @@ class FlowProposal(RejectionProposal):
     @training_config.setter
     def training_config(self, config):
         """Set training configuration."""
+        if config is None:
+            config = {}
         self._training_config = config
 
     @property
@@ -325,34 +258,23 @@ class FlowProposal(RejectionProposal):
                 self._prior_bounds = self.model.bounds
         return self._prior_bounds
 
-    def configure_population(
+    def configure_poolsize(
         self,
         poolsize,
-        drawsize,
         update_poolsize,
         max_poolsize_scale,
-        fuzz,
-        expansion_fraction,
-        latent_prior,
     ):
         """
-        Configure settings related to population
+        Configure settings related to the pool size
         """
         if poolsize is None:
-            raise RuntimeError("Must specify a poolsize!")
-
-        if drawsize is None:
-            drawsize = poolsize
+            raise RuntimeError("Must specify `poolsize`")
 
         self._poolsize = poolsize
         self._poolsize_scale = 1.0
         self.update_poolsize = update_poolsize
         self.max_poolsize_scale = max_poolsize_scale
         self.ns_acceptance = 1.0
-        self.drawsize = drawsize
-        self.fuzz = fuzz
-        self.expansion_fraction = expansion_fraction
-        self.latent_prior = latent_prior
 
     def configure_plotting(self, plot):
         """Configure plotting.
@@ -396,110 +318,6 @@ class FlowProposal(RejectionProposal):
             self._plot_pool = False
             self._plot_training = False
 
-    def configure_latent_prior(self):
-        """Configure the latent prior"""
-        if self.latent_prior == "truncated_gaussian":
-            from ..utils import draw_truncated_gaussian
-
-            self._draw_latent_prior = draw_truncated_gaussian
-
-        elif self.latent_prior == "gaussian":
-            logger.warning("Using a gaussian latent prior WITHOUT truncation")
-            from ..utils import draw_gaussian
-
-            self._draw_latent_prior = draw_gaussian
-        elif self.latent_prior == "uniform":
-            from ..utils import draw_uniform
-
-            self._draw_latent_prior = draw_uniform
-        elif self.latent_prior in ["uniform_nsphere", "uniform_nball"]:
-            from ..utils import draw_nsphere
-
-            self._draw_latent_prior = draw_nsphere
-        elif self.latent_prior == "flow":
-            self._draw_latent_prior = None
-        else:
-            raise RuntimeError(
-                f"Unknown latent prior: {self.latent_prior}, choose from: "
-                "truncated_gaussian (default), gaussian, "
-                "uniform, uniform_nsphere"
-            )
-
-    def configure_fixed_radius(self, fixed_radius):
-        """Configure the fixed radius"""
-        if fixed_radius:
-            try:
-                self.fixed_radius = float(fixed_radius)
-            except ValueError:
-                logger.error(
-                    "Fixed radius enabled but could not be converted to a "
-                    "float. Setting fixed_radius=False"
-                )
-                self.fixed_radius = False
-        else:
-            self.fixed_radius = False
-
-    def configure_min_max_radius(self, min_radius, max_radius):
-        """
-        Configure the minimum and maximum radius
-        """
-        if isinstance(min_radius, (int, float)):
-            self.min_radius = float(min_radius)
-        else:
-            raise RuntimeError("Min radius must be an int or float")
-
-        if max_radius:
-            if isinstance(max_radius, (int, float)):
-                self.max_radius = float(max_radius)
-            else:
-                raise RuntimeError("Max radius must be an int or float")
-        else:
-            logger.warning(
-                "Running without a maximum radius! The proposal "
-                "process may get stuck if very large radii are "
-                "returned by the worst point."
-            )
-            self.max_radius = False
-
-    def configure_constant_volume(self):
-        """Configure using constant volume latent contour."""
-        if self.constant_volume_mode:
-            logger.debug("Configuring constant volume latent contour")
-            if self.latent_prior == "truncated_gaussian":
-                pass
-            elif self.latent_prior in ["uniform_nball", "uniform_nsphere"]:
-                logger.warning(
-                    "Constant volume mode with latent_prior="
-                    f"{self.latent_prior} is experimental!"
-                )
-            else:
-                raise RuntimeError(
-                    "Constant volume mode is not supported for latent_prior="
-                    f"{self.latent_prior}"
-                )
-            self.fixed_radius = compute_radius(
-                self.rescaled_dims, self.volume_fraction
-            )
-            self.fuzz = 1.0
-            if self.max_radius < self.fixed_radius:
-                logger.warning(
-                    "Max radius is less than the radius need to use a "
-                    "constant volume latent contour. Max radius will be "
-                    "disabled."
-                )
-                self.max_radius = False
-            if self.min_radius > self.fixed_radius:
-                logger.warning(
-                    "Min radius is greater than the radius need to use a "
-                    "constant volume latent contour. Min radius will be "
-                    "disabled."
-                )
-                self.min_radius = False
-        else:
-            logger.debug(
-                "Nothing to configure for constant volume latent contour."
-            )
-
     def update_flow_config(self):
         """Update the flow configuration dictionary."""
         self.flow_config["n_inputs"] = self.rescaled_dims
@@ -527,14 +345,7 @@ class FlowProposal(RejectionProposal):
         if not resumed or not self.initialised:
             self.set_rescaling()
             self.verify_rescaling()
-            if self.expansion_fraction and self.expansion_fraction is not None:
-                logger.info("Overwriting fuzz factor with expansion fraction")
-                self.fuzz = (1 + self.expansion_fraction) ** (
-                    1 / self.rescaled_dims
-                )
-                logger.info(f"New fuzz factor: {self.fuzz}")
 
-            self.configure_constant_volume()
         self.update_flow_config()
         self.flow = self._FlowModelClass(
             flow_config=self.flow_config,
@@ -842,7 +653,7 @@ class FlowProposal(RejectionProposal):
         logger.info("Rescaling functions are invertible")
         self._reparameterisation.reset()
 
-    def rescale(self, x, compute_radius=False, **kwargs):
+    def rescale(self, x, **kwargs):
         """
         Rescale from the physical space to the primed physical space
 
@@ -872,7 +683,7 @@ class FlowProposal(RejectionProposal):
             x = self.model.to_unit_hypercube(x)
 
         x, x_prime, log_J = self._reparameterisation.reparameterise(
-            x, x_prime, log_J, compute_radius=compute_radius, **kwargs
+            x, x_prime, log_J, **kwargs
         )
 
         for p in config.livepoints.non_sampling_parameters:
@@ -1009,7 +820,7 @@ class FlowProposal(RejectionProposal):
             proceed with caution!
         """
         if not self.initialised:
-            raise RuntimeError("FlowProposal is not initialised.")
+            raise RuntimeError(f"{self.__name__} is not initialised.")
 
         if (plot and self._plot_training) or self.save_training_data:
             block_output = os.path.join(
@@ -1085,7 +896,7 @@ class FlowProposal(RejectionProposal):
         flags = self.model.in_bounds(x)
         return (a[flags] for a in (x,) + args)
 
-    def forward_pass(self, x, rescale=True, compute_radius=True):
+    def forward_pass(self, x, rescale=True, **kwargs):
         """
         Pass a vector of points through the model
 
@@ -1109,7 +920,7 @@ class FlowProposal(RejectionProposal):
         """
         log_J = 0
         if rescale:
-            x, log_J_rescale = self.rescale(x, compute_radius=compute_radius)
+            x, log_J_rescale = self.rescale(x, **kwargs)
             log_J += log_J_rescale
 
         x = live_points_to_array(x, names=self.prime_parameters, copy=True)
@@ -1120,14 +931,7 @@ class FlowProposal(RejectionProposal):
 
         return z, log_prob + log_J
 
-    def backward_pass(
-        self,
-        z,
-        rescale=True,
-        discard_nans=True,
-        return_z=False,
-        return_unit_hypercube=False,
-    ):
+    def backward_pass(self, z, rescale=True, **kwargs):
         """
         A backwards pass from the model (latent -> real)
 
@@ -1137,75 +941,27 @@ class FlowProposal(RejectionProposal):
             Structured array of points in the latent space
         rescale : bool, optional (True)
             Apply inverse rescaling function
-        discard_nan: bool
-            If True, samples with NaNs or Infs in log_q are removed.
-        return_z : bool
-            If True, return the array of latent samples, this may differ from
-            the input since samples can be discarded.
 
         Returns
         -------
         x : array_like
             Samples in the data space
-        log_prob : array_like
-            Log probabilities corresponding to each sample (including the
-            Jacobian)
-        z : array_like
-            Samples in the latent space, only returned if :code:`return_z=True`
+        log_j : array_like
+            Log Jacobian determinant
         """
         # Compute the log probability
-        try:
-            x, log_prob = self.flow.sample_and_log_prob(
-                z=z, alt_dist=self.alt_dist
-            )
-        except AssertionError:
-            return np.array([]), np.array([])
+        x, log_j = self.flow.inverse(z)
 
-        if discard_nans:
-            valid = np.isfinite(log_prob)
-            x, log_prob = x[valid], log_prob[valid]
         x = numpy_array_to_live_points(
             x.astype(config.livepoints.default_float_dtype),
             self.prime_parameters,
         )
         # Apply rescaling in rescale=True
         if rescale:
-            x, log_J = self.inverse_rescale(
-                x, return_unit_hypercube=return_unit_hypercube
-            )
+            x, log_j_rescale = self.inverse_rescale(x, **kwargs)
             # Include Jacobian for the rescaling
-            log_prob -= log_J
-            if not return_unit_hypercube:
-                x, z, log_prob = self.check_prior_bounds(x, z, log_prob)
-        if return_z:
-            return x, log_prob, z
-        else:
-            return x, log_prob
-
-    def radius(self, z, *arrays):
-        """
-        Calculate the radius of a latent point or set of latent points.
-        If multiple points are parsed the maximum radius is returned.
-
-        Parameters
-        ----------
-        z : :obj:`np.ndarray`
-            Array of points in the latent space
-        *arrays :
-            Additional arrays to return the corresponding value
-
-        Returns
-        -------
-        tuple of arrays
-            Tuple of array with the maximum radius and corresponding values
-            from any additional arrays that were passed.
-        """
-        r = np.sqrt(np.sum(z**2.0, axis=-1))
-        i = np.nanargmax(r)
-        if arrays:
-            return (r[i],) + tuple(a[i] for a in arrays)
-        else:
-            return r[i]
+            log_j += log_j_rescale
+        return x, log_j
 
     def log_prior(self, x):
         """
@@ -1288,61 +1044,6 @@ class FlowProposal(RejectionProposal):
         else:
             return log_w
 
-    def rejection_sampling(self, z, min_log_q=None):
-        """
-        Perform rejection sampling.
-
-        Converts samples from the latent space and computes the corresponding
-        weights. Then returns samples using standard rejection sampling.
-
-        Parameters
-        ----------
-        z :  ndarray
-            Samples from the latent space
-        min_log_q : float, optional
-            Lower bound on the log-probability computed using the flow that
-            is used to truncate new samples.
-
-        Returns
-        -------
-        array_like
-            Array of accepted latent samples.
-        array_like
-            Array of accepted samples in the X space.
-        """
-        msg = (
-            "`FlowProposal.rejection_sampling` is deprecated and will be "
-            "removed in a future release."
-        )
-        warn(msg, FutureWarning)
-
-        x, log_q, z = self.backward_pass(
-            z,
-            rescale=not self.use_x_prime_prior,
-            discard_nans=False,
-            return_z=True,
-            return_unit_hypercube=self.map_to_unit_hypercube,
-        )
-
-        if not x.size:
-            return np.array([]), x
-
-        if min_log_q:
-            above = log_q >= min_log_q
-            x = x[above]
-            z = z[above]
-            log_q = log_q[above]
-        else:
-            valid = np.isfinite(log_q)
-            x, z, log_q = get_subset_arrays(valid, x, z, log_q)
-
-        # rescale given priors used initially, need for priors
-        log_w = self.compute_weights(x, log_q)
-        log_u = np.log(np.random.rand(x.shape[0]))
-        indices = np.where(log_w >= log_u)[0]
-
-        return z[indices], x[indices]
-
     def convert_to_samples(self, x, plot=True):
         """
         Convert the array to samples ready to be used.
@@ -1385,206 +1086,9 @@ class FlowProposal(RejectionProposal):
         x["logP"] = self.model.batch_evaluate_log_prior(x)
         return x
 
-    def prep_latent_prior(self):
-        """Prepare the latent prior."""
-        if self.latent_prior == "truncated_gaussian":
-            self._populate_dist = NDimensionalTruncatedGaussian(
-                self.dims,
-                self.r,
-                fuzz=self.fuzz,
-            )
-            self._draw_func = self._populate_dist.sample
-        elif self.latent_prior == "flow":
-            self._draw_func = lambda N: self.flow.sample_latent_distribution(N)
-        else:
-            self._draw_func = partial(
-                self._draw_latent_prior,
-                dims=self.dims,
-                r=self.r,
-                fuzz=self.fuzz,
-            )
-
-    def draw_latent_prior(self, n):
-        """Draw n samples from the latent prior."""
-        return self._draw_func(N=n)
-
-    def populate(
-        self, worst_point, N=10000, plot=True, r=None, max_samples=1_000_000
-    ):
-        """
-        Populate a pool of latent points given the current worst point.
-
-        Parameters
-        ----------
-        worst_point : structured_array
-            The current worst point used to compute the radius of the contour
-            in the latent space.
-        N : int, optional (10000)
-            The total number of points to populate in the pool
-        plot : {True, False, 'all'}
-            Enable or disable plots for during training. By default the plots
-            are only one-dimensional histograms, `'all'` includes corner
-            plots with samples, these are often a few MB in size so
-            proceed with caution!
-        """
-        st = datetime.datetime.now()
-        if not self.initialised:
-            raise RuntimeError(
-                "Proposal has not been initialised. "
-                "Try calling `initialise()` first."
-            )
-        if r is not None:
-            logger.debug(f"Using user inputs for radius {r}")
-        elif self.fixed_radius:
-            r = self.fixed_radius
-        else:
-            logger.debug(f"Populating with worst point: {worst_point}")
-            if self.compute_radius_with_all:
-                logger.debug("Using previous live points to compute radius")
-                worst_point = self.training_data
-            worst_z = self.forward_pass(
-                worst_point, rescale=True, compute_radius=True
-            )[0]
-            r = self.radius(worst_z)
-            if self.max_radius and r > self.max_radius:
-                r = self.max_radius
-            if self.min_radius and r < self.min_radius:
-                r = self.min_radius
-
-        if self.truncate_log_q:
-            log_q_live_points = self.forward_pass(self.training_data)[1]
-            min_log_q = log_q_live_points.min()
-            logger.debug(f"Truncating with log_q={min_log_q:.3f}")
-        else:
-            min_log_q = None
-
-        logger.debug(f"Populating proposal with latent radius: {r:.5}")
-        self.r = r
-
-        self.alt_dist = self.get_alt_distribution()
-
-        if self.indices:
-            logger.debug(
-                "Existing pool of samples is not empty. "
-                "Discarding existing samples."
-            )
-        self.indices = []
-
-        if self.accumulate_weights:
-            samples = empty_structured_array(0, dtype=self.population_dtype)
-        else:
-            samples = empty_structured_array(N, dtype=self.population_dtype)
-
-        self.prep_latent_prior()
-
-        log_n = np.log(N)
-        log_n_expected = -np.inf
-        n_proposed = 0
-        log_weights = np.empty(0)
-        log_constant = -np.inf
-        n_accepted = 0
-        accept = None
-
-        while n_accepted < N:
-            z = self.draw_latent_prior(self.drawsize)
-            n_proposed += z.shape[0]
-
-            x, log_q = self.backward_pass(
-                z,
-                rescale=not self.use_x_prime_prior,
-                return_unit_hypercube=self.map_to_unit_hypercube,
-            )
-            if self.truncate_log_q:
-                above_min_log_q = log_q > min_log_q
-                logger.debug(
-                    "Discarding %s samples below log_q_min",
-                    self.drawsize - above_min_log_q.sum(),
-                )
-                x, log_q = get_subset_arrays(above_min_log_q, x, log_q)
-            # Handle case where all samples are below min_log_q
-            if not len(x):
-                continue
-            log_w = self.compute_weights(x, log_q)
-
-            if self.accumulate_weights:
-
-                samples = np.concatenate([samples, x])
-                log_weights = np.concatenate([log_weights, log_w])
-                log_constant = max(np.nanmax(log_w), log_constant)
-                log_n_expected = logsumexp(log_weights - log_constant)
-
-                logger.debug(
-                    "Drawn %s - n expected: %s / %s",
-                    samples.size,
-                    np.exp(log_n_expected),
-                    N,
-                )
-
-                # Only try rejection sampling if we expected to accept enough
-                # points. In the case where we don't, we continue drawing
-                # samples
-                if log_n_expected >= log_n:
-                    log_u = np.log(np.random.rand(len(log_weights)))
-                    accept = (log_weights - log_constant) > log_u
-                    n_accepted = np.sum(accept)
-                if n_proposed > max_samples:
-                    logger.warning("Reached max samples (%s)", max_samples)
-                    break
-
-            else:
-                log_w -= log_w.max()
-                log_u = np.log(np.random.rand(len(log_w)))
-                accept = log_w > log_u
-                n_accept_batch = accept.sum()
-                m = min(N - n_accepted, n_accept_batch)
-                samples[n_accepted : n_accepted + m] = x[accept][:m]
-                n_accepted += n_accept_batch
-                logger.debug("n accepted: %s / %s", n_accepted, N)
-
-        if self.accumulate_weights:
-            if accept is None or len(accept) != len(samples):
-                log_u = np.log(np.random.rand(len(log_weights)))
-                accept = (log_weights - log_constant) > log_u
-            logger.debug("Total number of samples: %s", samples.size)
-            n_accepted = np.sum(accept)
-            self.x = samples[accept][:N]
-        else:
-            self.x = samples[:N]
-
-        self.samples = self.convert_to_samples(self.x, plot=plot)
-
-        if self._plot_pool and plot:
-            self.plot_pool(self.samples)
-
-        self.population_time += datetime.datetime.now() - st
-        logger.debug("Evaluating log-likelihoods")
-        self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
-            self.samples
-        )
-        if self.check_acceptance:
-            self.acceptance.append(
-                self.compute_acceptance(worst_point["logL"])
-            )
-            logger.debug(f"Current acceptance {self.acceptance[-1]}")
-
-        self.indices = np.random.permutation(self.samples.size).tolist()
-        self.population_acceptance = n_accepted / n_proposed
-        self.populated_count += 1
-        self.populated = True
-        self._checked_population = False
-        logger.debug(f"Proposal populated with {len(self.indices)} samples")
-        logger.debug(
-            f"Overall proposal acceptance: {self.x.size / n_proposed:.4}"
-        )
-
-    def get_alt_distribution(self):
-        """
-        Get a distribution for the latent prior used to draw samples.
-        """
-        if self.latent_prior in ["uniform_nsphere", "uniform_nball"]:
-            return get_uniform_distribution(
-                self.dims, self.r * self.fuzz, device=self.flow.device
-            )
+    @abstractmethod
+    def populate(self, worst_point, n_samples=10000):
+        raise NotImplementedError
 
     def compute_acceptance(self, logL):
         """
@@ -1625,7 +1129,7 @@ class FlowProposal(RejectionProposal):
             if self.update_poolsize:
                 self.update_poolsize_scale(self.ns_acceptance)
             while not self.populated:
-                self.populate(worst_point, N=self.poolsize)
+                self.populate(worst_point, n_samples=self.poolsize)
             self.populating = False
         # new sample is drawn randomly from proposed points
         # popping from right end is faster
@@ -1747,12 +1251,8 @@ class FlowProposal(RejectionProposal):
         self.populated_count = 0
         self.population_acceptance = None
         self._poolsize_scale = 1.0
-        self.r = np.nan
-        self.alt_dist = None
         self._checked_population = True
         self.acceptance = []
-        self._draw_func = None
-        self._populate_dist = None
         self._reparameterisation.reset()
 
     def __getstate__(self):
@@ -1771,9 +1271,6 @@ class FlowProposal(RejectionProposal):
             state["resume_populated"] = True
         else:
             state["resume_populated"] = False
-
-        state["_draw_func"] = None
-        state["_populate_dist"] = None
 
         # user provides model and config for resume
         # flow can be reconstructed from resume

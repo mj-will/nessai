@@ -7,7 +7,7 @@ import pytest
 from unittest.mock import MagicMock, create_autospec
 
 from nessai.model import Model
-from nessai.proposal import FlowProposal
+from nessai.proposal.flowproposal import FlowProposal
 from nessai.reparameterisations import default_reparameterisations
 
 # General reparameterisations that do not need extra parameters

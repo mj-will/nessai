@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 """
 Test functions related to training and using the flow.
 """
+
 import os
 import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
 
 from nessai.livepoint import numpy_array_to_live_points
-from nessai.proposal import FlowProposal
+from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.utils.testing import assert_structured_arrays_equal
 
 
@@ -16,17 +16,18 @@ def test_reset_model_weights(proposal):
     """Test resetting model weights"""
     proposal.flow = MagicMock()
     proposal.flow.reset_model = MagicMock()
-    FlowProposal.reset_model_weights(proposal, reset_permutations=True)
+    BaseFlowProposal.reset_model_weights(proposal, reset_permutations=True)
     proposal.flow.reset_model.assert_called_once_with(reset_permutations=True)
 
 
 def test_train_not_initialised(proposal):
     """Assert an error is raised if the proposal is not initialised"""
     proposal.initialised = False
+    proposal.__name__ = "BaseFlowProposal"
     with pytest.raises(
-        RuntimeError, match=r"FlowProposal is not initialised."
+        RuntimeError, match=r"BaseFlowProposal is not initialised."
     ):
-        FlowProposal.train(proposal, [1, 2])
+        BaseFlowProposal.train(proposal, [1, 2])
 
 
 @patch("os.path.exists", return_value=False)
@@ -43,7 +44,7 @@ def test_train_plot_false(mock_os_makedirs, proposal, model):
     proposal.flow.train = MagicMock()
     proposal.check_state = MagicMock()
     proposal.rescale = MagicMock(return_value=(x_prime, np.zeros_like(x)))
-    FlowProposal.train(proposal, x, plot=False)
+    BaseFlowProposal.train(proposal, x, plot=False)
 
     assert_structured_arrays_equal(x, proposal.training_data)
     proposal.check_state.assert_called_once_with(proposal.training_data)
@@ -66,7 +67,9 @@ def test_forward_pass(proposal, model, n):
         return_value=[z, np.ones(n)]
     )
 
-    z_out, log_p = FlowProposal.forward_pass(proposal, x, compute_radius=False)
+    z_out, log_p = BaseFlowProposal.forward_pass(
+        proposal, x, compute_radius=False
+    )
 
     assert np.array_equal(z, z_out)
     assert np.array_equal(log_p, 3 * np.ones(n))
@@ -74,48 +77,51 @@ def test_forward_pass(proposal, model, n):
     proposal.flow.forward_and_log_prob.assert_called_once()
 
 
-@pytest.mark.parametrize("log_p", [np.ones(2), np.array([-1, np.inf])])
-@pytest.mark.parametrize("discard_nans", [False, True])
-def test_backward_pass(
-    proposal, model, log_p, discard_nans, map_to_unit_hypercube
-):
-    """Test the forward pass method"""
-    n = 2
-    if discard_nans:
-        acc = int(np.isfinite(log_p).sum())
-    else:
-        acc = len(log_p)
-    x = np.random.randn(n, model.dims)
-    z = np.random.randn(n, model.dims)
-
-    def inverse_rescale(a, return_unit_hypercube):
-        return a, np.zeros(a.size)
-
-    proposal.inverse_rescale = MagicMock(side_effect=inverse_rescale)
-    proposal.prime_parameters = model.names
-    proposal.alt_dist = None
-    proposal.check_prior_bounds = MagicMock(
-        side_effect=lambda a, b, c: (a, b, c)
+@pytest.mark.parametrize("rescale", [True, False])
+def test_backward_pass(proposal, rescale):
+    """Test the backward pass method"""
+    z = np.random.randn(10, 2)
+    x_prime = np.random.randn(*z.shape)
+    x = numpy_array_to_live_points(
+        np.random.randn(*x_prime.shape),
+        ["x", "y"],
     )
+    log_j = np.random.rand(z.shape[0])
     proposal.flow = MagicMock()
-    proposal.flow.sample_and_log_prob = MagicMock(return_value=[x, log_p])
+    # log_j has in place operations
+    proposal.flow.inverse = MagicMock(return_value=(x_prime, log_j.copy()))
+    proposal.prime_parameters = ["x_prime", "y_prime"]
 
-    x_out, log_p = FlowProposal.backward_pass(
-        proposal,
-        z,
-        discard_nans=discard_nans,
-        return_unit_hypercube=map_to_unit_hypercube,
+    x_rescale = numpy_array_to_live_points(
+        np.random.randn(*x_prime.shape),
+        ["x", "y"],
+    )
+    log_j_rescale = np.random.rand(x_prime.shape[0])
+    proposal.inverse_rescale = MagicMock(
+        return_value=(x_rescale, log_j_rescale)
     )
 
-    assert len(x_out) == acc
-    proposal.inverse_rescale.assert_called_once()
-    assert (
-        proposal.inverse_rescale.call_args.kwargs["return_unit_hypercube"]
-        is map_to_unit_hypercube
-    )
-    proposal.flow.sample_and_log_prob.assert_called_once_with(
-        z=z, alt_dist=None
-    )
+    with patch(
+        "nessai.proposal.flowproposal.base.numpy_array_to_live_points",
+        return_value=x,
+    ) as mock:
+        x_out, log_j_out = BaseFlowProposal.backward_pass(
+            proposal, z, rescale=rescale, test=True
+        )
+
+    proposal.flow.inverse.assert_called_once_with(z)
+    mock.assert_called_once()
+    np.testing.assert_array_equal(mock.call_args[0][0], x_prime)
+    assert mock.call_args[0][1] == proposal.prime_parameters
+
+    if not rescale:
+        proposal.inverse_rescale.assert_not_called()
+        assert x_out is x
+        np.testing.assert_array_equal(log_j_out, log_j)
+    else:
+        proposal.inverse_rescale.assert_called_once_with(x, test=True)
+        assert x_out is x_rescale
+        np.testing.assert_array_equal(log_j_out, log_j_rescale + log_j)
 
 
 @pytest.mark.parametrize("save", [True, False])
@@ -146,10 +152,12 @@ def test_training(proposal, tmp_path, save, plot, plot_training):
     proposal._plot_training_data = MagicMock()
 
     with patch(
-        "nessai.proposal.flowproposal.live_points_to_array",
+        "nessai.proposal.flowproposal.base.live_points_to_array",
         return_value=data_prime,
-    ), patch("nessai.proposal.flowproposal.save_live_points") as mock_save:
-        FlowProposal.train(proposal, x, plot=plot)
+    ), patch(
+        "nessai.proposal.flowproposal.base.save_live_points"
+    ) as mock_save:
+        BaseFlowProposal.train(proposal, x, plot=plot)
 
     assert_structured_arrays_equal(x, proposal.training_data)
 

@@ -607,6 +607,28 @@ def test_forward_and_log_prob(model, n_samples, conditional):
     np.testing.assert_equal(out_log_prob, log_prob.numpy())
 
 
+def test_inverse(model, n_samples, conditional):
+    z = np.random.randn(n_samples, 2)
+    log_j = torch.randn(n_samples)
+    x = torch.randn(n_samples, 2)
+    model.model = MagicMock()
+    model.model.device = "cpu"
+    model.model.eval = MagicMock()
+    model.model.inverse = MagicMock(return_value=(x, log_j))
+
+    out_x, out_log_j = FlowModel.inverse(model, z, conditional=conditional)
+
+    model.model.eval.assert_called_once()
+    model.model.inverse.assert_called_once()
+    if conditional is not None:
+        assert np.array_equal(
+            model.model.inverse.call_args_list[0][1]["context"],
+            conditional,
+        )
+    np.testing.assert_equal(out_x, x.numpy())
+    np.testing.assert_equal(out_log_j, log_j.numpy())
+
+
 def test_log_prob(model, n_samples, conditional):
     """Assert the correct method from the flow is called"""
     x = np.random.randn(n_samples, 2)

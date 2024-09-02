@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import create_autospec
 
-from nessai.proposal import FlowProposal
+from nessai.proposal.flowproposal import FlowProposal
 
 
 @pytest.fixture(params=[True, False])

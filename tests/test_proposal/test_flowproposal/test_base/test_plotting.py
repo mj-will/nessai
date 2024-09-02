@@ -71,7 +71,7 @@ def test_plot_pool_all(proposal):
     proposal._plot_pool = "all"
     proposal.populated_count = 0
     x = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
-    with patch("nessai.proposal.flowproposal.plot_live_points") as plot:
+    with patch("nessai.proposal.flowproposal.base.plot_live_points") as plot:
         FlowProposal.plot_pool(proposal, x)
     plot.assert_called_once_with(
         x, c="logL", filename=os.path.join("test", "pool_0.png")
@@ -113,7 +113,7 @@ def test_plot_pool_1d(proposal, tmpdir, alt_dist):
             return_value=log_p
         )
         proposal.alt_dist = None
-    with patch("nessai.proposal.flowproposal.plot_1d_comparison") as plot:
+    with patch("nessai.proposal.flowproposal.base.plot_1d_comparison") as plot:
         FlowProposal.plot_pool(proposal, x)
 
     plot.assert_called_once_with(

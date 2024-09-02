@@ -6,6 +6,8 @@ import logging
 from typing import Callable, Union
 from warnings import warn
 
+from ..utils.settings import _get_all_kwargs
+
 
 logger = logging.getLogger(__name__)
 
@@ -33,15 +35,9 @@ def check_proposal_kwargs(ProposalClass, kwargs, strict=False):
     dict
         Dictionary of updated kwargs.
     """
-    from ..proposal import AugmentedFlowProposal, FlowProposal
-    from ..gw.proposal import AugmentedGWFlowProposal, GWFlowProposal
-
-    proposals = {
-        AugmentedFlowProposal,
-        AugmentedGWFlowProposal,
-        FlowProposal,
-        GWFlowProposal,
-    }
+    proposals = list(available_base_flow_proposal_classes().values()) + list(
+        available_external_flow_proposal_classes(load=True).values()
+    )
 
     class_keys = set()
     for cls in getmro(ProposalClass):
@@ -65,7 +61,7 @@ def check_proposal_kwargs(ProposalClass, kwargs, strict=False):
     allowed_extra_keys = set()
 
     for proposal in proposals:
-        allowed_extra_keys.update(set(signature(proposal).parameters.keys()))
+        allowed_extra_keys.update(set(_get_all_kwargs(proposal)))
 
     invalid_keys = extra_keys - allowed_extra_keys
 
@@ -82,6 +78,37 @@ def check_proposal_kwargs(ProposalClass, kwargs, strict=False):
         for key in extra_keys:
             kwargs_out.pop(key)
     return kwargs_out
+
+
+def available_base_flow_proposal_classes():
+    from .flowproposal import FlowProposal
+    from .augmented import AugmentedFlowProposal
+    from ..gw.proposal import GWFlowProposal, AugmentedGWFlowProposal
+    from ..experimental.proposal.clustering import ClusteringFlowProposal
+    from ..experimental.gw.proposal import ClusteringGWFlowProposal
+
+    base_proposals = {
+        "clusteringgwflowproposal": ClusteringGWFlowProposal,
+        "augmentedgwflowproposal": AugmentedGWFlowProposal,
+        "gwflowproposal": GWFlowProposal,
+        "clusteringflowproposal": ClusteringFlowProposal,
+        "augmentedflowproposal": AugmentedFlowProposal,
+        "flowproposal": FlowProposal,
+    }
+    return base_proposals
+
+
+def available_external_flow_proposal_classes(load: bool = False):
+    from ..utils.entry_points import get_entry_points
+
+    external_proposals = get_entry_points("nessai.proposals")
+    logger.debug(
+        f"Found the following external proposals: {external_proposals.keys()}"
+    )
+    if load:
+        for key in external_proposals:
+            external_proposals[key] = external_proposals[key].load()
+    return external_proposals
 
 
 def get_flow_proposal_class(
@@ -103,26 +130,9 @@ def get_flow_proposal_class(
     Proposal class
     """
     from .flowproposal import FlowProposal
-    from .augmented import AugmentedFlowProposal
-    from ..gw.proposal import GWFlowProposal, AugmentedGWFlowProposal
-    from ..experimental.proposal.clustering import ClusteringFlowProposal
-    from ..experimental.gw.proposal import ClusteringGWFlowProposal
-    from ..utils.entry_points import get_entry_points
 
-    base_proposals = {
-        "augmentedflowproposal": AugmentedFlowProposal,
-        "flowproposal": FlowProposal,
-        "gwflowproposal": GWFlowProposal,
-        "augmentedgwflowproposal": AugmentedGWFlowProposal,
-        "clusteringflowproposal": ClusteringFlowProposal,
-        "clusteringgwflowproposal": ClusteringGWFlowProposal,
-    }
-
-    external_proposals = get_entry_points("nessai.proposals")
-
-    logger.debug(
-        f"Found the following external proposals: {external_proposals.keys()}"
-    )
+    base_proposals = available_base_flow_proposal_classes()
+    external_proposals = available_external_flow_proposal_classes(load=False)
 
     if proposal_class is None:
         return FlowProposal
