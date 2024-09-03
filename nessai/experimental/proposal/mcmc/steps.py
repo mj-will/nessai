@@ -34,8 +34,8 @@ class GaussianStep(Step):
     def __init__(
         self,
         dims: int,
-        ensemble: np.ndarray | None = None,
-        scale: float | None = None,
+        ensemble: Optional[np.ndarray] = None,
+        scale: Optional[float] = None,
         update_scale: bool = True,
         target_acceptance: float = 0.5,
     ) -> None:
@@ -86,7 +86,7 @@ class DifferentialEvolutionStep(Step):
     def __init__(
         self,
         dims: int,
-        ensemble: np.ndarray | None = None,
+        ensemble: Optional[np.ndarray] = None,
         mix_fraction: float = 0.5,
         sigma: float = 1e-4,
     ) -> None:
