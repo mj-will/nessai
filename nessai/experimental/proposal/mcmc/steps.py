@@ -2,13 +2,16 @@ from functools import lru_cache
 import logging
 import math
 import numpy as np
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 
 class Step:
 
-    def __init__(self, dims: int, ensemble: np.ndarray | None = None) -> None:
+    def __init__(
+        self, dims: int, ensemble: Optional[np.ndarray] = None
+    ) -> None:
         self.dims = dims
         self.update_ensemble(ensemble)
 
