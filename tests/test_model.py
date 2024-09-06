@@ -1263,6 +1263,36 @@ def test_pool_ray(integration_model):
     assert integration_model.pool is None
 
 
+@pytest.mark.requires("multiprocess")
+def test_pool_multiprocess(integration_model):
+    """Integration test for evaluating the likelihood with a pool from
+    multiprocess.
+    """
+    import multiprocess as mp
+
+    integration_model.fn = lambda x: x
+    pool = mp.Pool(
+        1,
+        initializer=initialise_pool_variables,
+        initargs=(integration_model,),
+    )
+
+    integration_model.configure_pool(pool=pool)
+    assert integration_model.pool is pool
+    x = integration_model.new_point(10)
+    out = integration_model.batch_evaluate_log_likelihood(x)
+
+    target = np.array(
+        [integration_model.log_likelihood(xx) for xx in x],
+        dtype=config.livepoints.logl_dtype,
+    ).flatten()
+    np.testing.assert_array_equal(out, target)
+    assert integration_model.likelihood_evaluations == 10
+
+    integration_model.close_pool()
+    assert integration_model.pool is None
+
+
 @pytest.mark.integration_test
 @pytest.mark.parametrize("pickleable", [False, True])
 def test_n_pool(integration_model, mp_context, pickleable):
