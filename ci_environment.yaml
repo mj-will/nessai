@@ -17,6 +17,7 @@ dependencies:
   - bilby
   - astropy
   - faiss-cpu>=1.7.3,!=1.7.4    # conda release for 1.7.4 is broken
+  - multiprocess
   - pytest
   - pytest-cov
   - pytest-timeout
