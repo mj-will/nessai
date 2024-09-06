@@ -34,18 +34,20 @@ Alternatively, ``nessai`` can use a user-defined pool. This is specified by sett
 
 :code:`pool` can then passed to the :code:`pool` keyword argument when setting up the sampler.
 
--------------
-Using ``ray``
--------------
+---------------------------------------
+Using pool objects from other libraries
+---------------------------------------
 
-``ray`` includes a `distributed multiprocessing pool <https://docs.ray.io/en/latest/ray-more-libs/multiprocessing.html>`_ that can also be used with ``nessai``. Simply import :code:`ray.util.multiprocessing.Pool` instead of the standard pool and initialise using the method described above.
+``nessai`` supports using pool objects from other libraries, below are a list of libraries that have been tested.
+
+- ``multiprocess`` (`homepage <https://github.com/uqfoundation/multiprocess>`_): this is a drop-in replacement for the standard multiprocessing but can use ``dill`` for picking, the :code:`Pool` object can used as described above.
+- ``ray`` (`documentation <https://docs.ray.io/en/latest/index.html>`_): the `distributed multiprocessing pool <https://docs.ray.io/en/latest/ray-more-libs/multiprocessing.html>`_ (:code:`ray.util.multiprocessing.Pool`) can be used as described above.
 
 
------------
-Other pools
------------
-
-When a pool object is passed to :code:`nessai` it tries to determine how many processes the pool contains and (if the likelihood is vectorised) uses this information to determine the chunk size when evaluating the likelihood. If it can not determine this, then likelihood vectorisation will be disabled. This can be avoided by specifying :code:`n_pool` when initialising the sampler.
+.. note::
+    When a pool object is passed to :code:`nessai` it tries to determine how many processes the pool contains and (if the likelihood is vectorised) uses this information to determine the chunk size when evaluating the likelihood.
+    If it can not determine this, then likelihood vectorisation will be disabled.
+    This can be avoided by specifying :code:`n_pool` alongside :code:`pool` when initialising the sampler.
 
 ***********************
 PyTorch parallelisation
