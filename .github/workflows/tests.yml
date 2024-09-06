@@ -62,7 +62,7 @@ jobs:
         python -m pytest --cov-report=xml --without-integration --without-slow-integration
       shell: bash -el {0}
     - name: Upload coverage
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
