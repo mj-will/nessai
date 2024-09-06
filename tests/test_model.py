@@ -1233,7 +1233,6 @@ def test_pool(integration_model, mp_context, pickleable, init):
 @pytest.mark.requires("ray")
 @pytest.mark.integration_test
 @pytest.mark.flaky(reruns=3)
-@pytest.mark.skip(reason="Skipping test with ray")
 def test_pool_ray(integration_model):
     """Integration test for evaluating the likelihood with a pool from ray.
 
