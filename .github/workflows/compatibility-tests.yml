@@ -28,8 +28,16 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        # Install CPU-only version of PyTorch
+        pip install torch --index-url https://download.pytorch.org/whl/cpu
         pip install -e .[test]
         pip install bilby
-    - name: Run bilby compatibility tests
+    - name: Run bilby compatibility tests (without plugin)
+      run: |
+        python -m pytest --bilby-compatibility -m "bilby_compatibility"
+    - name: Install bilby plugin
+      run: |
+        pip install nessai-bilby
+    - name: Run bilby compatibility tests (with plugin)
       run: |
         python -m pytest --bilby-compatibility -m "bilby_compatibility"
