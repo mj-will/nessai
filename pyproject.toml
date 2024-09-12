@@ -60,7 +60,7 @@ dev = [
     "ray[default]; sys_platform != 'win32' and python_version < '3.12'",
     "multiprocess",
     "corner",
-    "black>=24.0",
+    "ruff",
     "faiss-cpu",
 ]
 docs = [
