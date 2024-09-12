@@ -1,14 +1,14 @@
 import datetime
 import logging
-import matplotlib.pyplot as plt
-import numpy as np
 import os
 
-from ....proposal.flowproposal.base import BaseFlowProposal
+import matplotlib.pyplot as plt
+import numpy as np
+
 from ....livepoint import (
     live_points_to_array,
 )
-
+from ....proposal.flowproposal.base import BaseFlowProposal
 from .steps import (
     KNOWN_STEPS,
 )
@@ -40,7 +40,6 @@ class MCMCFlowProposal(BaseFlowProposal):
         self.step = StepClass(dims=self.rescaled_dims)
 
     def plot_chain(self, chains):
-
         nsteps, nchains, ndims = chains.shape
 
         fig, axs = plt.subplots(ndims, 1, figsize=(4, 10))
@@ -107,7 +106,6 @@ class MCMCFlowProposal(BaseFlowProposal):
         n_reject = np.zeros(n_walkers)
 
         for i in range(self.n_steps):
-
             z_new, log_j_step = self.step(z_current)
             z_new_history.append(z_new)
 

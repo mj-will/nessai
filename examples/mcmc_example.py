@@ -2,11 +2,11 @@
 
 # Example of using the experimental MCMCFlowProposal
 
+import numpy as np
+
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.utils import setup_logger
-import numpy as np
-
 
 output = "./outdir/mcmc_example/"
 logger = setup_logger(output=output)

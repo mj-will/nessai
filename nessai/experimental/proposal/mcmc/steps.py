@@ -1,14 +1,14 @@
-from functools import lru_cache
 import logging
 import math
-import numpy as np
+from functools import lru_cache
 from typing import Optional
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
 
 class Step:
-
     def __init__(
         self, dims: int, ensemble: Optional[np.ndarray] = None
     ) -> None:
@@ -30,7 +30,6 @@ class Step:
 
 
 class GaussianStep(Step):
-
     def __init__(
         self,
         dims: int,
@@ -82,7 +81,6 @@ def _get_nondiagonal_pairs(n: int) -> np.ndarray:
 
 
 class DifferentialEvolutionStep(Step):
-
     def __init__(
         self,
         dims: int,
