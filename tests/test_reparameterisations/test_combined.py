@@ -2,17 +2,19 @@
 """
 Test the combined reparameterisation class.
 """
-import numpy as np
-import pytest
+
 from unittest.mock import MagicMock, call, create_autospec, patch
 
+import numpy as np
+import pytest
+
+from nessai.livepoint import empty_structured_array
 from nessai.reparameterisations import (
     Angle,
     CombinedReparameterisation,
     Reparameterisation,
     RescaleToBounds,
 )
-from nessai.livepoint import empty_structured_array
 from nessai.utils.testing import assert_structured_arrays_equal
 
 

@@ -5,8 +5,9 @@
 #
 # This example should take around 5 minutes to run
 
-import numpy as np
 import os
+
+import numpy as np
 
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model

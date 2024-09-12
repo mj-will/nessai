@@ -2,10 +2,11 @@
 
 from unittest.mock import MagicMock
 
-from nessai import config as nessai_config
-from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 import numpy as np
 import pytest
+
+from nessai import config as nessai_config
+from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 
 
 @pytest.mark.parametrize("save_log_q", [False, True])

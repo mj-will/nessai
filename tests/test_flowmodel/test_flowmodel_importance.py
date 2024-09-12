@@ -6,10 +6,11 @@ import os
 import pickle
 from unittest.mock import MagicMock, create_autospec, patch
 
-from nessai.flowmodel.importance import ImportanceFlowModel as IFM
 import numpy as np
 import pytest
 import torch
+
+from nessai.flowmodel.importance import ImportanceFlowModel as IFM
 
 
 @pytest.fixture()
@@ -200,10 +201,13 @@ def test_add_new_flow_first_inference_device(ifm):
 
     dummy_device = object()
 
-    with patch(
-        "nessai.flowmodel.importance.configure_model",
-        return_value=flow,
-    ), patch("torch.device", return_value=dummy_device) as mock_device:
+    with (
+        patch(
+            "nessai.flowmodel.importance.configure_model",
+            return_value=flow,
+        ),
+        patch("torch.device", return_value=dummy_device) as mock_device,
+    ):
         IFM.add_new_flow(ifm, reset=False)
 
     mock_device.call_args_list[0].args[0] == "cpu"
@@ -326,10 +330,13 @@ def test_load_all_weights(ifm):
             for _ in range(len(weights_files))
         ]
     )
-    with patch(
-        "nessai.flowmodel.importance.configure_model",
-        side_effect=list(models),
-    ) as mock_configure, patch("torch.load", side_effect=weights):
+    with (
+        patch(
+            "nessai.flowmodel.importance.configure_model",
+            side_effect=list(models),
+        ) as mock_configure,
+        patch("torch.load", side_effect=weights),
+    ):
         IFM.load_all_weights(ifm)
 
     assert len(mock_configure.call_args_list) == 3

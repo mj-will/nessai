@@ -2,16 +2,18 @@
 """
 Test the functions related to configuring proposal methods
 """
-import numpy as np
+
 import os
-import pytest
 from unittest.mock import MagicMock, patch
 
-from nessai.samplers.nestedsampler import NestedSampler
+import numpy as np
+import pytest
+
 from nessai.proposal import (
     AnalyticProposal,
     RejectionProposal,
 )
+from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture
@@ -118,14 +120,16 @@ def test_configure_flow_proposal(sampler):
     kwargs = dict(test=True, invalid=True)
     expected_kwargs = dict(test=True, poolsize=sampler.nlive)
 
-    with patch(
-        "nessai.samplers.nestedsampler.get_flow_proposal_class",
-        return_value=fake_class,
-    ) as mock_get, patch(
-        "nessai.samplers.nestedsampler.check_proposal_kwargs",
-        return_value=expected_kwargs,
-    ) as mock_check:
-
+    with (
+        patch(
+            "nessai.samplers.nestedsampler.get_flow_proposal_class",
+            return_value=fake_class,
+        ) as mock_get,
+        patch(
+            "nessai.samplers.nestedsampler.check_proposal_kwargs",
+            return_value=expected_kwargs,
+        ) as mock_check,
+    ):
         NestedSampler.configure_flow_proposal(
             sampler, None, flow_config, False, **kwargs
         )

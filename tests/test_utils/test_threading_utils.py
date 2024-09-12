@@ -2,6 +2,7 @@
 """
 Tests for threading related utilities.
 """
+
 from unittest.mock import patch
 
 from nessai.utils.threading import configure_threads

@@ -2,21 +2,22 @@
 """
 Object and functions to handle training the normalising flow.
 """
+
 import copy
 import logging
-import numpy as np
 import os
 import shutil
-import torch
-from torch.nn.utils import clip_grad_norm_
 from typing import Optional, Tuple, Union
 
-from .utils import update_config
+import numpy as np
+import torch
+from torch.nn.utils import clip_grad_norm_
 
-from ..flows import configure_model, reset_weights, reset_permutations
+from ..flows import configure_model, reset_permutations, reset_weights
 from ..flows.base import BaseFlow
 from ..plot import plot_loss
-from ..utils import save_to_json, compute_minimum_distances
+from ..utils import compute_minimum_distances, save_to_json
+from .utils import update_config
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,6 @@ class FlowModel:
         training_config: Union[dict, None] = None,
         output: Union[str, None] = None,
     ) -> None:
-
         if output is None:
             output = os.getcwd()
         self.model = None
@@ -640,7 +640,6 @@ class FlowModel:
         current_weights_file = os.path.join(output, "model.pt")
 
         for epoch in range(1, max_epochs + 1):
-
             loss = self._train(
                 train_data,
                 noise_scale=noise_scale,

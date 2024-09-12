@@ -2,9 +2,11 @@
 """
 Test the rejection proposal class.
 """
+
+from unittest.mock import MagicMock, Mock, create_autospec, patch
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, Mock, create_autospec, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import RejectionProposal

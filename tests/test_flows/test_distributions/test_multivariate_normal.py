@@ -1,7 +1,7 @@
 import numpy as np
-from scipy import stats
-import torch
 import pytest
+import torch
+from scipy import stats
 
 from nessai.flows.distributions import MultivariateNormal
 

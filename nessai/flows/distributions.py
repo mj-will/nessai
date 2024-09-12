@@ -2,15 +2,16 @@
 """
 Distributions to use as the 'base distribution' for normalising flows.
 """
+
 import math
 
+import numpy as np
+import torch
 from glasflow.distributions import (
     ResampledGaussian as BaseResampledGaussian,
 )
 from glasflow.nflows.distributions import Distribution
 from glasflow.nflows.utils import torchutils
-import numpy as np
-import torch
 
 
 class MultivariateNormal(Distribution):

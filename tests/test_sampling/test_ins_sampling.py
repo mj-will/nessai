@@ -3,9 +3,10 @@
 import os
 import pickle
 
-from nessai.flowsampler import FlowSampler
 import numpy as np
 import pytest
+
+from nessai.flowsampler import FlowSampler
 
 
 @pytest.mark.slow_integration_test

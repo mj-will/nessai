@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Tests related to drawing new points from the pool."""
+
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 
 from nessai.proposal.flowproposal.base import BaseFlowProposal
 

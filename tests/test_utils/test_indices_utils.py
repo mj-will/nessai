@@ -2,10 +2,11 @@
 """
 Tests for utilities related to insertion indices.
 """
+
 import numpy as np
 import pytest
 
-from nessai.utils.indices import compute_indices_ks_test, bonferroni_correction
+from nessai.utils.indices import bonferroni_correction, compute_indices_ks_test
 
 
 @pytest.mark.parametrize("mode", ["D+", "D-"])

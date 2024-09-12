@@ -60,7 +60,7 @@ dev = [
     "ray[default]; sys_platform != 'win32' and python_version < '3.12'",
     "multiprocess",
     "corner",
-    "black>=24.0",
+    "ruff",
     "faiss-cpu",
 ]
 docs = [
@@ -97,17 +97,12 @@ exclude_lines = [
     "if TYPE_CHECKING:",
 ]
 
-[tool.black]
+[tool.ruff]
 line-length = 79
-target-version = [
-    "py38",
-    "py39",
-    "py310",
-    "py311",
-    "py312",
-]
+indent-width = 4
+target-version = "py39"
 
-[tool.flake8]
-extend-ignore = [
-    "E203",
-]
+[tool.ruff.lint]
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+extend-select = ["I"]

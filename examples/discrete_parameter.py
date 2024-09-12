@@ -2,11 +2,12 @@
 Example showing how to handle discrete parameters using reparametersations.
 """
 
+import numpy as np
+
 from nessai.flowsampler import FlowSampler
+from nessai.livepoint import empty_structured_array
 from nessai.model import Model
 from nessai.utils import setup_logger
-from nessai.livepoint import empty_structured_array
-import numpy as np
 
 # Configure the output directory and logger
 output = "./outdir/discrete_example/"
@@ -16,7 +17,6 @@ logger = setup_logger(output=output, log_level="INFO")
 # Define the model class, this model has two signal models and a discrete
 # variable that determines which is used for the computing the log-likelihood
 class MultiModelLikelihood(Model):
-
     def __init__(self, x_data, y_data):
         # x and y data
         self.x_data = x_data

@@ -2,17 +2,18 @@
 """
 Reparameterisations for handling angles.
 """
+
 import logging
 
 import numpy as np
 from scipy import stats
 
-from .base import Reparameterisation
 from ..priors import (
     log_2d_cartesian_prior,
     log_2d_cartesian_prior_sine,
 )
-from ..utils.rescaling import rescale_zero_to_one, inverse_rescale_zero_to_one
+from ..utils.rescaling import inverse_rescale_zero_to_one, rescale_zero_to_one
+from .base import Reparameterisation
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,6 @@ class AnglePair(Reparameterisation):
     def __init__(
         self, parameters=None, prior_bounds=None, prior=None, convention=None
     ):
-
         if len(parameters) not in [2, 3]:
             raise RuntimeError(
                 "Must use a pair of angles or a pair plus a radius"

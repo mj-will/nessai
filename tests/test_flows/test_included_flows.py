@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """Basic tests for all of the included flows"""
+
+import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-import numpy as np
 
-from nessai.flows import RealNVP, MaskedAutoregressiveFlow, NeuralSplineFlow
+from nessai.flows import MaskedAutoregressiveFlow, NeuralSplineFlow, RealNVP
 
 flows = [RealNVP, MaskedAutoregressiveFlow, NeuralSplineFlow]
 

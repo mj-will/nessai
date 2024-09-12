@@ -1,9 +1,11 @@
 """Test the properties defined in ImportanceFlowProposal"""
 
 from unittest.mock import patch
-from nessai.proposal.importance import ImportanceFlowProposal as IFP
+
 import numpy as np
 import pytest
+
+from nessai.proposal.importance import ImportanceFlowProposal as IFP
 
 
 @pytest.fixture

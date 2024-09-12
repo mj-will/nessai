@@ -2,6 +2,7 @@
 """
 Proposals specifically for use with the importance based nested sampler.
 """
+
 import logging
 import os
 from typing import Callable, Optional, Tuple, Union
@@ -12,7 +13,6 @@ from scipy.special import logsumexp
 from nessai.plot import plot_1d_comparison, plot_histogram, plot_live_points
 from nessai.utils.testing import assert_structured_arrays_equal
 
-from .base import Proposal
 from .. import config
 from ..flowmodel.importance import ImportanceFlowModel
 from ..flowmodel.utils import update_flow_config
@@ -27,7 +27,7 @@ from ..utils.rescaling import (
     sigmoid,
 )
 from ..utils.structures import get_subset_arrays
-
+from .base import Proposal
 
 logger = logging.getLogger(__name__)
 

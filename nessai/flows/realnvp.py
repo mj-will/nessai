@@ -2,14 +2,14 @@
 """
 Implementation of Real Non Volume Preserving flows.
 """
+
 import logging
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-
-from glasflow.nflows.distributions import StandardNormal
 from glasflow.nflows import transforms
+from glasflow.nflows.distributions import StandardNormal
 
 from .base import NFlow
 from .utils import create_linear_transform, create_pre_transform
@@ -94,7 +94,6 @@ class RealNVP(NFlow):
         distribution=None,
         **kwargs,
     ):
-
         if features <= 1:
             raise ValueError(
                 "RealNVP requires at least 2 dimensions. "
@@ -185,7 +184,6 @@ class RealNVP(NFlow):
             )
 
         for i in range(num_layers):
-
             if actnorm:
                 layers.append(
                     transforms.normalization.ActNorm(features=features)

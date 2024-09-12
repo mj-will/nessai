@@ -1,11 +1,12 @@
-from nessai.flowmodel import FlowModel
+import numpy as np
+import pytest
+
 from nessai.experimental.flows.glasflow import (
     GlasflowWrapper,
     get_glasflow_class,
     known_flows,
 )
-import numpy as np
-import pytest
+from nessai.flowmodel import FlowModel
 
 
 @pytest.mark.parametrize("name", known_flows.keys())
@@ -28,7 +29,6 @@ def test_get_glasflow_class_invalid_flow():
 
 @pytest.mark.integration_test
 def test_glasflow_integration(tmp_path):
-
     from glasflow.flows import RealNVP
 
     flow_config = dict(

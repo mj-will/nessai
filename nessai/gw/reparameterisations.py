@@ -7,18 +7,15 @@ import logging
 
 import numpy as np
 
+from ..priors import log_uniform_prior
 from ..reparameterisations import (
-    default_reparameterisations,
+    AnglePair,
     Reparameterisation,
     RescaleToBounds,
-    AnglePair,
+    default_reparameterisations,
     get_reparameterisation,
 )
-
-from ..priors import log_uniform_prior
-
 from .utils import get_distance_converter
-
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +85,6 @@ class DistanceReparameterisation(RescaleToBounds):
         prior_bounds=None,
         **kwargs,
     ):
-
         if isinstance(parameters, str):
             parameters = [parameters]
 

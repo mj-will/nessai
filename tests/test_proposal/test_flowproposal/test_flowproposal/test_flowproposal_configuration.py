@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Test general configuration functions"""
-import pytest
+
 from unittest.mock import patch
 
-from nessai.proposal import FlowProposal
+import pytest
+
 from nessai import utils
+from nessai.proposal import FlowProposal
 
 
 def test_config_drawsize_none(proposal):

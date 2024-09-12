@@ -2,6 +2,7 @@
 """
 Utilities for the test suite.
 """
+
 import numpy as np
 
 from ..model import Model

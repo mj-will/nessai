@@ -2,14 +2,15 @@
 """
 Test the FlowModel object.
 """
+
 import json
-import numpy as np
 import os
 import pickle
+from unittest.mock import MagicMock, Mock, create_autospec, patch
+
+import numpy as np
 import pytest
 import torch
-from unittest.mock import create_autospec, MagicMock, Mock, patch
-
 import torch.utils
 
 from nessai.flowmodel import FlowModel

@@ -2,11 +2,13 @@
 """
 Test the base proposal class.
 """
+
 import logging
 import pickle
+from unittest.mock import MagicMock, Mock, create_autospec
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, Mock, create_autospec
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal.base import Proposal

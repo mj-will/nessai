@@ -2,10 +2,12 @@
 """
 Test utilities for sampling in the latent space.
 """
+
+from unittest.mock import create_autospec, patch
+
 import numpy as np
 import pytest
-from scipy import stats, special
-from unittest.mock import create_autospec, patch
+from scipy import special, stats
 
 from nessai.utils.sampling import (
     NDimensionalTruncatedGaussian,

@@ -8,13 +8,13 @@ Requires corner.
 """
 
 import os
+
 import numpy as np
 
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.plot import corner_plot
 from nessai.utils import setup_logger
-
 
 output = "./outdir/corner_plot_example/"
 logger = setup_logger(output=output)

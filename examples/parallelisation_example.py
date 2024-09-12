@@ -7,14 +7,14 @@ Shows the two methods supported in nessai: setting n_pool or using a
 user-defined pool.
 """
 
-import numpy as np
 from multiprocessing import Pool
+
+import numpy as np
 
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.utils import setup_logger
 from nessai.utils.multiprocessing import initialise_pool_variables
-
 
 output = "./outdir/parallelisation_example/"
 logger = setup_logger(output=output)

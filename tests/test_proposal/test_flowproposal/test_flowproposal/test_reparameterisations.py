@@ -1,6 +1,8 @@
-from nessai.proposal.flowproposal.flowproposal import FlowProposal
-import pytest
 from unittest.mock import patch
+
+import pytest
+
+from nessai.proposal.flowproposal.flowproposal import FlowProposal
 
 
 @pytest.mark.parametrize(

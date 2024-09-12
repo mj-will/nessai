@@ -1,8 +1,9 @@
 import datetime
-import numpy as np
 import pickle
-import pytest
 from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pytest
 
 from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 
@@ -20,7 +21,6 @@ def test_getstate_no_model(ins):
 
 
 def test_getstate_model(ins):
-
     evals = 10
     time = datetime.timedelta(seconds=30)
 
@@ -40,7 +40,6 @@ def test_getstate_model(ins):
 
 @pytest.mark.parametrize("has_log_q", [False, True])
 def test_resume_from_pickled_sampler(model, samples, has_log_q):
-
     sampler = MagicMock()
 
     obj = MagicMock()

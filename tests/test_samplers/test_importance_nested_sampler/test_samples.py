@@ -2,13 +2,16 @@
 
 from unittest.mock import MagicMock, create_autospec
 
+import numpy as np
+import pytest
+
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.samplers.importancesampler import (
     ImportanceNestedSampler as INS,
+)
+from nessai.samplers.importancesampler import (
     OrderedSamples,
 )
-import numpy as np
-import pytest
 
 
 def test_ordered_samples_property(ins):

@@ -2,22 +2,24 @@
 """
 Tests for rescaling functions
 """
+
 import multiprocessing
+import sys
 from multiprocessing.dummy import Pool
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-import sys
-from unittest.mock import MagicMock, patch
 
 from nessai.utils.multiprocessing import (
     batch_evaluate_function,
     check_multiprocessing_start_method,
     check_vectorised_function,
-    initialise_pool_variables,
     get_n_pool,
+    initialise_pool_variables,
     log_likelihood_wrapper,
-    log_prior_wrapper,
     log_prior_unit_hypercube_wrapper,
+    log_prior_wrapper,
 )
 
 
@@ -134,7 +136,6 @@ def test_batch_evaluate_function_vectorised(
     chunksize,
     expected_calls,
 ):
-
     global ncalls
     ncalls = 0
 

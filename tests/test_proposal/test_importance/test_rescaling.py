@@ -2,11 +2,12 @@
 
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
+
 from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal.importance import ImportanceFlowProposal as IFP
-import numpy as np
-import pytest
 
 
 def test_verify_rescaling_pass(ifp, x_prime):
@@ -151,10 +152,13 @@ def test_inverse_rescale(ifp, x, x_prime, log_j, clip, model):
     ifp.model.names = names
     ifp.from_prime = MagicMock(return_value=(x_array, log_j))
 
-    with patch(
-        "nessai.proposal.importance.numpy_array_to_live_points",
-        return_value=x,
-    ) as mock_to_array, patch("numpy.clip", return_value=x_array) as mock_clip:
+    with (
+        patch(
+            "nessai.proposal.importance.numpy_array_to_live_points",
+            return_value=x,
+        ) as mock_to_array,
+        patch("numpy.clip", return_value=x_array) as mock_clip,
+    ):
         x_out, log_j_out = IFP.inverse_rescale(ifp, x_prime)
 
     ifp.from_prime.assert_called_once_with(x_prime)

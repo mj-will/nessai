@@ -2,6 +2,7 @@
 """
 General tests of `get_reparameterisation`.
 """
+
 import pytest
 
 from nessai.reparameterisations import (

@@ -8,6 +8,8 @@ from scipy.special import logsumexp
 
 from nessai.evidence import (
     _INSIntegralState as INSState,
+)
+from nessai.evidence import (
     log_evidence_from_ins_samples,
 )
 

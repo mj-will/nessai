@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import create_autospec
+
+import pytest
 
 from nessai.samplers.nestedsampler import NestedSampler
 

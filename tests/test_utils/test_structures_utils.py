@@ -2,6 +2,7 @@
 """
 Tests for utilities related to python structures such as lists.
 """
+
 import numpy as np
 import pytest
 

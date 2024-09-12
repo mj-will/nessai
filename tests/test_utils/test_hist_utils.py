@@ -2,6 +2,7 @@
 """
 Tests for utilities related to producing histograms.
 """
+
 import numpy as np
 import pytest
 

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Transform for use in normalising flows."""
+
 from warnings import warn
+
 from glasflow.nflows.transforms import LULinear as BaseLULinear
 
 

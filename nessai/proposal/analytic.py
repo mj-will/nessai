@@ -2,6 +2,7 @@
 """
 Proposal method for initial sampling when priors can be sampled analytically.
 """
+
 import datetime
 
 import numpy as np

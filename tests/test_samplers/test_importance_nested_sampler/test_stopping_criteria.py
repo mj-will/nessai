@@ -1,6 +1,8 @@
-from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
+from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 
 
 @pytest.mark.parametrize(

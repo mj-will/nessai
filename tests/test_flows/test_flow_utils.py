@@ -1,12 +1,19 @@
 # -*- coding: utf-8 -*-
 """Test the flow utilities"""
+
 import logging
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 import torch
 import torch.nn.functional as F
-from unittest.mock import MagicMock, patch
 
+from nessai.flows import (
+    MaskedAutoregressiveFlow,
+    NeuralSplineFlow,
+    RealNVP,
+)
 from nessai.flows.utils import (
     configure_model,
     create_linear_transform,
@@ -15,14 +22,9 @@ from nessai.flows.utils import (
     get_flow_class,
     get_n_neurons,
     get_native_flow_class,
-    silu,
-    reset_weights,
     reset_permutations,
-)
-from nessai.flows import (
-    RealNVP,
-    NeuralSplineFlow,
-    MaskedAutoregressiveFlow,
+    reset_weights,
+    silu,
 )
 
 
@@ -93,11 +95,13 @@ def test_get_base_distribution_lars(name, n_layers):
 
     mlp = object()
 
-    with patch("nessai.flows.utils.ResampledGaussian") as mock_dist, patch(
-        "nessai.flows.utils.MLP", return_value=mlp
-    ) as mock_mlp, patch(
-        "nessai.flows.utils.get_n_neurons", return_value=8
-    ) as mock_get_neurons:
+    with (
+        patch("nessai.flows.utils.ResampledGaussian") as mock_dist,
+        patch("nessai.flows.utils.MLP", return_value=mlp) as mock_mlp,
+        patch(
+            "nessai.flows.utils.get_n_neurons", return_value=8
+        ) as mock_get_neurons,
+    ):
         get_base_distribution(2, name, **kwargs)
 
     mock_get_neurons.assert_called_once_with(None, n_inputs=2)
@@ -318,9 +322,10 @@ def test_configure_model_distribution(config):
     """Assert distribution is added to the kwargs"""
     config["distribution"] = "mvn"
     dist = MagicMock()
-    with patch(
-        "nessai.flows.utils.get_base_distribution", return_value=dist
-    ), patch("nessai.flows.realnvp.RealNVP") as mock:
+    with (
+        patch("nessai.flows.utils.get_base_distribution", return_value=dist),
+        patch("nessai.flows.realnvp.RealNVP") as mock,
+    ):
         configure_model(config)
     assert "distribution" in mock.call_args[1]
     assert mock.call_args[1]["distribution"] is dist

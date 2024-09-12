@@ -2,24 +2,24 @@
 """
 Functions and objects related to the main nested sampling algorithm.
 """
-from collections import deque
-from copy import copy
+
 import datetime
 import logging
 import math
 import os
+from collections import deque
+from copy import copy
 from typing import Union
 from warnings import warn
 
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 import numpy as np
+from matplotlib.lines import Line2D
 
-from .base import BaseNestedSampler
 from .. import config
-from ..livepoint import empty_structured_array
-from ..plot import plot_indices, plot_trace, nessai_style
 from ..evidence import _NSIntegralState
+from ..livepoint import empty_structured_array
+from ..plot import nessai_style, plot_indices, plot_trace
 from ..proposal.utils import (
     check_proposal_kwargs,
     get_flow_proposal_class,
@@ -28,6 +28,7 @@ from ..utils import (
     compute_indices_ks_test,
     rolling_mean,
 )
+from .base import BaseNestedSampler
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +199,6 @@ class NestedSampler(BaseNestedSampler):
         trace_parameters=None,
         **kwargs,
     ):
-
         super().__init__(
             model,
             nlive,
@@ -1283,7 +1283,6 @@ class NestedSampler(BaseNestedSampler):
         logger.info("Starting nested sampling loop")
 
         while self.condition > self.tolerance:
-
             self.check_state()
 
             self.consume_sample()

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test the version number."""
+
 from importlib import reload
 from unittest.mock import patch
 
@@ -12,8 +13,9 @@ except ImportError:
 
     LIB = "importlib_metadata"
 
-import nessai
 import pytest
+
+import nessai
 
 
 @pytest.fixture(autouse=True)

@@ -2,9 +2,8 @@
 """
 Implementation of MaskedAutoregressiveFlow.
 """
-import logging
 
-from torch.nn import functional as F
+import logging
 
 from glasflow.nflows.distributions.normal import StandardNormal
 from glasflow.nflows.transforms.autoregressive import (
@@ -16,6 +15,7 @@ from glasflow.nflows.transforms.permutations import (
     RandomPermutation,
     ReversePermutation,
 )
+from torch.nn import functional as F
 
 from .base import NFlow
 
@@ -74,7 +74,6 @@ class MaskedAutoregressiveFlow(NFlow):
         batch_norm_within_layers=False,
         batch_norm_between_layers=False,
     ):
-
         if use_random_permutations:
             permutation_constructor = RandomPermutation
         else:

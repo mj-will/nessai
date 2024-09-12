@@ -2,9 +2,11 @@
 """
 Test utilities for computing distances.
 """
+
+from unittest.mock import patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch
 
 from nessai.utils.distance import compute_minimum_distances
 

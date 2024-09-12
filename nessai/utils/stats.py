@@ -2,8 +2,9 @@
 """
 Utilities related to statistics.
 """
+
 import numpy as np
-from scipy.special import logsumexp, betainc
+from scipy.special import betainc, logsumexp
 
 
 def effective_sample_size(log_w):

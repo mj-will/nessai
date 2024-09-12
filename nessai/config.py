@@ -2,6 +2,7 @@
 """
 Global configuration for nessai.
 """
+
 from dataclasses import asdict, dataclass, field
 from typing import List, Tuple
 

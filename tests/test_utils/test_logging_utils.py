@@ -2,10 +2,12 @@
 """
 Test utilities related to logging.
 """
+
 import logging
 import os
 import sys
 from unittest.mock import MagicMock, patch
+
 import pytest
 
 from nessai.utils.logging import setup_logger

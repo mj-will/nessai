@@ -3,6 +3,7 @@
 Functions related to creating live points and converting to other common
 data-types.
 """
+
 import logging
 
 import numpy as np

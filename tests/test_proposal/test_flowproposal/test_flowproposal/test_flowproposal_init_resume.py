@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Test methods related to initialising and resuming the proposal method"""
+
+from unittest.mock import patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch
 
 from nessai.proposal import FlowProposal
 

@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 """Base nested sampler object"""
-from abc import ABC, abstractmethod
+
 import datetime
 import logging
 import os
 import pickle
 import time
+from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional, Union
 
-from glasflow import __version__ as glasflow_version
 import numpy as np
 import torch
+from glasflow import __version__ as glasflow_version
 
 from .. import __version__ as version
 from ..model import Model

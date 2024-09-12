@@ -3,10 +3,11 @@
 from dataclasses import dataclass
 from typing import List
 
-from nessai.livepoint import empty_structured_array
-from nessai.utils.testing import assert_structured_arrays_equal
 import numpy as np
 import pytest
+
+from nessai.livepoint import empty_structured_array
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @dataclass

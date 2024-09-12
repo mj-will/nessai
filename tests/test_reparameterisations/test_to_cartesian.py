@@ -2,9 +2,11 @@
 """
 Test the ToCartesian reparameterisation.
 """
+
+from unittest.mock import create_autospec, patch
+
 import numpy as np
 import pytest
-from unittest.mock import create_autospec, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.reparameterisations import ToCartesian
@@ -46,9 +48,10 @@ def test_init(reparam, mode, scale):
 
 def test_init_invalid_mode(reparam):
     """Test the init method with an invalid mode"""
-    with patch("nessai.reparameterisations.Angle.__init__"), pytest.raises(
-        RuntimeError
-    ) as excinfo:
+    with (
+        patch("nessai.reparameterisations.Angle.__init__"),
+        pytest.raises(RuntimeError) as excinfo,
+    ):
         ToCartesian.__init__(reparam, mode="double")
     assert "Unknown mode" in str(excinfo.value)
 

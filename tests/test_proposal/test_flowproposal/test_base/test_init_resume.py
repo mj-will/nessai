@@ -1,9 +1,10 @@
 """Test methods related to initialising and resuming the proposal method"""
 
-import numpy as np
 import os
+from unittest.mock import MagicMock, patch
+
+import numpy as np
 import pytest
-from unittest.mock import patch, MagicMock
 
 from nessai.proposal.flowproposal.base import BaseFlowProposal
 

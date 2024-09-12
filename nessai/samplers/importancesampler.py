@@ -2,6 +2,7 @@
 """
 Importance nested sampler.
 """
+
 import datetime
 import logging
 import os
@@ -12,17 +13,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.special import logsumexp
 
-from .base import BaseNestedSampler
 from .. import config
 from ..evidence import _INSIntegralState, log_evidence_from_ins_samples
-from ..model import Model
-from ..posterior import draw_posterior_samples
-from ..proposal.importance import ImportanceFlowProposal
-from ..plot import nessai_style, plot_1d_comparison
 from ..livepoint import (
     add_extra_parameters_to_live_points,
     get_dtype,
 )
+from ..model import Model
+from ..plot import nessai_style, plot_1d_comparison
+from ..posterior import draw_posterior_samples
+from ..proposal.importance import ImportanceFlowProposal
 from ..utils.hist import auto_bins
 from ..utils.information import differential_entropy
 from ..utils.optimise import optimise_meta_proposal_weights
@@ -30,7 +30,8 @@ from ..utils.stats import (
     effective_sample_size,
     weighted_quantile,
 )
-from ..utils.structures import get_subset_arrays, get_inverse_indices
+from ..utils.structures import get_inverse_indices, get_subset_arrays
+from .base import BaseNestedSampler
 
 logger = logging.getLogger(__name__)
 

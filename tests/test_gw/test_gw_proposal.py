@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 """Test the GW flow proposal method"""
+
 from math import pi
+from unittest.mock import MagicMock, create_autospec, patch
+
 import numpy as np
 import pytest
-from unittest.mock import create_autospec, MagicMock, patch
 
-from nessai.gw.proposal import GWFlowProposal, AugmentedGWFlowProposal
+from nessai.gw.proposal import AugmentedGWFlowProposal, GWFlowProposal
 
 
 @pytest.fixture

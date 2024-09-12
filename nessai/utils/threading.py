@@ -2,6 +2,7 @@
 """
 Utilities related to managing threads used by nessai.
 """
+
 import logging
 
 import torch

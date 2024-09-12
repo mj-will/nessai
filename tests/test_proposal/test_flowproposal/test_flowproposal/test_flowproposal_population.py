@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 """Test methods related to popluation of the proposal after training"""
+
 import datetime
 from functools import partial
+from unittest.mock import MagicMock, Mock, call, patch
 
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, Mock, patch, call
 
-from nessai.proposal import FlowProposal
 from nessai.livepoint import get_dtype, numpy_array_to_live_points
+from nessai.proposal import FlowProposal
 from nessai.utils.testing import assert_structured_arrays_equal
 
 
@@ -238,12 +239,13 @@ def test_populate_accumulate_weights(
     proposal.convert_to_samples = MagicMock(side_effect=convert_to_samples)
 
     x_empty = np.empty(0, dtype=proposal.population_dtype)
-    with patch(
-        "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
-        return_value=x_empty,
-    ) as mock_empty, patch(
-        "numpy.random.rand", return_value=rand_u
-    ) as mock_rand:
+    with (
+        patch(
+            "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
+            return_value=x_empty,
+        ) as mock_empty,
+        patch("numpy.random.rand", return_value=rand_u) as mock_rand,
+    ):
         FlowProposal.populate(
             proposal, worst_point, n_samples=poolsize, plot=True, r=r
         )
@@ -414,12 +416,13 @@ def test_populate_not_accumulate_weights(
     proposal.convert_to_samples = MagicMock(side_effect=convert_to_samples)
 
     x_empty = np.empty(poolsize, dtype=proposal.population_dtype)
-    with patch(
-        "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
-        return_value=x_empty,
-    ) as mock_empty, patch(
-        "numpy.random.rand", side_effect=rand_u
-    ) as mock_rand:
+    with (
+        patch(
+            "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
+            return_value=x_empty,
+        ) as mock_empty,
+        patch("numpy.random.rand", side_effect=rand_u) as mock_rand,
+    ):
         FlowProposal.populate(
             proposal, worst_point, n_samples=poolsize, plot=True, r=r
         )
@@ -581,12 +584,13 @@ def test_populate_truncate_log_q(proposal):
     )
 
     x_empty = np.empty(0, dtype=proposal.population_dtype)
-    with patch(
-        "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
-        return_value=x_empty,
-    ) as mock_empty, patch(
-        "numpy.random.rand", return_value=rand_u
-    ) as mock_rand:
+    with (
+        patch(
+            "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
+            return_value=x_empty,
+        ) as mock_empty,
+        patch("numpy.random.rand", return_value=rand_u) as mock_rand,
+    ):
         FlowProposal.populate(
             proposal, worst_point, n_samples=poolsize, plot=False
         )

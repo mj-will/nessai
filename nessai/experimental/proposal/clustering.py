@@ -1,9 +1,9 @@
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os
 import seaborn as sns
 
-from ..flowmodel.clustering import ClusteringFlowModel
 from ...livepoint import live_points_to_array
 from ...model import Model
 from ...plot import (
@@ -11,6 +11,7 @@ from ...plot import (
     plot_1d_comparison,
 )
 from ...proposal.flowproposal import FlowProposal
+from ..flowmodel.clustering import ClusteringFlowModel
 
 
 class ClusteringFlowProposal(FlowProposal):

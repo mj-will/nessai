@@ -5,6 +5,7 @@ nessai is a nested sampling algorithm for Bayesian Inference that incorporates
 normalising flows. It is designed for applications where the Bayesian
 likelihood is computationally expensive.
 """
+
 import logging
 from importlib.metadata import PackageNotFoundError, version
 

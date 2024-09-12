@@ -1,8 +1,10 @@
-from nessai.reparameterisations.rescale import PrePostRescalingMixin
-from nessai.utils.rescaling import rescaling_functions
+from unittest.mock import create_autospec
+
 import numpy as np
 import pytest
-from unittest.mock import create_autospec
+
+from nessai.reparameterisations.rescale import PrePostRescalingMixin
+from nessai.utils.rescaling import rescaling_functions
 
 
 @pytest.fixture

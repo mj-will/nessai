@@ -3,8 +3,9 @@
 from dataclasses import dataclass
 from typing import List
 
-from nessai.utils.sorting import sort_reparameterisations
 import pytest
+
+from nessai.utils.sorting import sort_reparameterisations
 
 
 @dataclass

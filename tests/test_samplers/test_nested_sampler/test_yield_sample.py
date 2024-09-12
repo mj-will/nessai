@@ -2,8 +2,10 @@
 """
 Test the functions related to yielding new samples
 """
-import pytest
+
 from unittest.mock import MagicMock
+
+import pytest
 
 from nessai.livepoint import parameters_to_live_point
 from nessai.samplers.nestedsampler import NestedSampler

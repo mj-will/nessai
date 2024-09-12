@@ -1,12 +1,13 @@
 """Configuration for ImportanceFlowProposal tests"""
 
-import pytest
 from unittest.mock import MagicMock, create_autospec
+
+import numpy as np
+import pytest
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.model import Model
 from nessai.proposal.importance import ImportanceFlowProposal
-import numpy as np
 
 NSAMPLES = 10
 

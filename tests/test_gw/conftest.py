@@ -2,9 +2,10 @@
 
 from typing import Callable
 
+import pytest
+
 from nessai.livepoint import dict_to_live_points
 from nessai.model import Model as BaseModel
-import pytest
 
 
 @pytest.fixture()
@@ -36,7 +37,6 @@ def get_bilby_gw_model() -> Callable:
     """
 
     def get_model(parameters, injection_parameters) -> BaseModel:
-
         import bilby
 
         priors = bilby.gw.prior.BBHPriorDict()

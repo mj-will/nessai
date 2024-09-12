@@ -2,8 +2,10 @@
 """
 Tests for modules/functions that are soon to be deprecated.
 """
-import pytest
+
 from unittest.mock import create_autospec
+
+import pytest
 
 
 def test_nested_sampler_deprecation():

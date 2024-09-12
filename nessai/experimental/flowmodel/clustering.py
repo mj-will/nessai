@@ -1,8 +1,9 @@
 import copy
 import logging
+from typing import Any, Tuple
+
 import numpy as np
 from scipy.special import logsumexp
-from typing import Any, Tuple
 
 from ...flowmodel.base import FlowModel
 

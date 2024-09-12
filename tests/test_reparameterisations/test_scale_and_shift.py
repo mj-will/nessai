@@ -2,10 +2,12 @@
 """
 Test the ScaleAndShift class.
 """
+
+from unittest.mock import MagicMock, call, create_autospec, patch
+
 import numpy as np
 import pytest
 from scipy import stats
-from unittest.mock import MagicMock, call, create_autospec, patch
 
 from nessai.livepoint import empty_structured_array, numpy_array_to_live_points
 from nessai.reparameterisations import ScaleAndShift
@@ -365,8 +367,9 @@ def test_update_both(reparam, parameters, est_scale, est_shift):
     reparam._update = True
     reparam.estimate_scale = est_scale
     reparam.estimate_shift = est_shift
-    with patch("numpy.std", side_effect=[1, 2]), patch(
-        "numpy.mean", side_effect=[3, 4]
+    with (
+        patch("numpy.std", side_effect=[1, 2]),
+        patch("numpy.mean", side_effect=[3, 4]),
     ):
         ScaleAndShift.update(reparam, x)
 

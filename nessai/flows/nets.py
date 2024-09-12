@@ -2,6 +2,7 @@
 """
 Neural networks for use in flows.
 """
+
 import numpy as np
 import torch
 from torch import nn

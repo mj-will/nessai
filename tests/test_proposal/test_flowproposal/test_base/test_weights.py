@@ -1,14 +1,14 @@
 """Test methods related to computing weights"""
 
 import os
+from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, Mock, patch
 
 from nessai import config
-from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.livepoint import numpy_array_to_live_points
+from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.utils.testing import assert_structured_arrays_equal
 
 
@@ -65,7 +65,6 @@ def test_prime_log_prior(proposal):
 
 
 def test_unit_hypercube_log_prior_wo_reparameterisation(proposal, x):
-
     log_prior = -np.ones(x.size)
     proposal._reparameterisation = None
     proposal.model = MagicMock()

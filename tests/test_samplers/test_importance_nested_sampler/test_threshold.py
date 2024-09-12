@@ -3,12 +3,15 @@
 import os
 from unittest.mock import MagicMock
 
-from nessai.samplers.importancesampler import (
-    ImportanceNestedSampler as INS,
-    OrderedSamples,
-)
 import numpy as np
 import pytest
+
+from nessai.samplers.importancesampler import (
+    ImportanceNestedSampler as INS,
+)
+from nessai.samplers.importancesampler import (
+    OrderedSamples,
+)
 
 
 @pytest.mark.parametrize("include_likelihood", [False, True])

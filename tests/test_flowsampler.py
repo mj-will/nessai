@@ -2,6 +2,7 @@
 """
 Tests for the FlowSampler class.
 """
+
 import json
 import logging
 import os
@@ -12,15 +13,15 @@ import time
 from threading import Thread
 from unittest.mock import MagicMock, call, create_autospec, patch
 
-
 import h5py
+import numpy as np
 import pytest
+
 from nessai import config as nessai_config
 from nessai.evidence import _NSIntegralState
 from nessai.flowsampler import FlowSampler
-from nessai.samplers import NestedSampler
 from nessai.livepoint import numpy_array_to_live_points
-import numpy as np
+from nessai.samplers import NestedSampler
 
 
 @pytest.fixture()
@@ -133,9 +134,12 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
     flow_sampler.save_kwargs = MagicMock()
     flow_sampler.check_resume = MagicMock(return_value=False)
 
-    with patch(
-        f"nessai.flowsampler.{sampler_class}", return_value="ns"
-    ) as mock, patch("nessai.flowsampler.configure_threads") as mock_threads:
+    with (
+        patch(
+            f"nessai.flowsampler.{sampler_class}", return_value="ns"
+        ) as mock,
+        patch("nessai.flowsampler.configure_threads") as mock_threads,
+    ):
         FlowSampler.__init__(
             flow_sampler,
             integration_model,
@@ -220,8 +224,9 @@ def test_init_eps(flow_sampler, tmp_path):
 
     flow_sampler.save_kwargs = MagicMock()
 
-    with patch("nessai.flowsampler.NestedSampler", return_value="ns"), patch(
-        "nessai.flowsampler.configure_threads"
+    with (
+        patch("nessai.flowsampler.NestedSampler", return_value="ns"),
+        patch("nessai.flowsampler.configure_threads"),
     ):
         FlowSampler.__init__(flow_sampler, model, output=output, eps=eps)
 
@@ -352,11 +357,12 @@ def test_init_resume(tmp_path, test_old, error):
         flow_config=flow_config,
     )
 
-    with patch(
-        "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
-    ) as mock_resume, patch(
-        "nessai.flowsampler.configure_threads"
-    ) as mock_threads:
+    with (
+        patch(
+            "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
+        ) as mock_resume,
+        patch("nessai.flowsampler.configure_threads") as mock_threads,
+    ):
         fs = FlowSampler(
             integration_model,
             output=output,
@@ -399,10 +405,14 @@ def test_resume_error_cannot_resume(flow_sampler, tmp_path):
 
     flow_sampler.output = output
 
-    with patch(
-        "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
-    ), patch("nessai.flowsampler.configure_threads"), pytest.raises(
-        RuntimeError, match=r"Could not resume sampler with error:"
+    with (
+        patch(
+            "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
+        ),
+        patch("nessai.flowsampler.configure_threads"),
+        pytest.raises(
+            RuntimeError, match=r"Could not resume sampler with error:"
+        ),
     ):
         FlowSampler._resume_from_file(
             flow_sampler,
@@ -476,10 +486,13 @@ def test_init_cannot_resume_integration(tmp_path, integration_model):
 
     flow_sampler.output = output
 
-    with patch(
-        "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
-    ), pytest.raises(
-        RuntimeError, match=r"Could not resume sampler with error"
+    with (
+        patch(
+            "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
+        ),
+        pytest.raises(
+            RuntimeError, match=r"Could not resume sampler with error"
+        ),
     ):
         FlowSampler(
             integration_model,
@@ -501,9 +514,10 @@ def test_init_resume_error_no_file(flow_sampler, tmp_path):
 
     flow_sampler.check_resume = MagicMock(return_value=False)
 
-    with patch("nessai.flowsampler.configure_threads"), patch(
-        "nessai.flowsampler.NestedSampler"
-    ) as mock_init:
+    with (
+        patch("nessai.flowsampler.configure_threads"),
+        patch("nessai.flowsampler.NestedSampler") as mock_init,
+    ):
         FlowSampler.__init__(
             flow_sampler,
             integration_model,
@@ -602,7 +616,6 @@ def test_log_evidence_error(flow_sampler):
 
 @pytest.mark.parametrize("use_ins", [False, True])
 def test_run(flow_sampler, use_ins):
-
     flow_sampler.importance_nested_sampler = use_ins
 
     kwargs = dict(
@@ -743,9 +756,11 @@ def test_run_standard_plots_disabled(flow_sampler):
     flow_sampler.state = MagicMock()
     flow_sampler.state.plot = MagicMock()
 
-    with patch("nessai.flowsampler.draw_posterior_samples"), patch(
-        "nessai.plot.plot_indices"
-    ) as mock_indices, patch("nessai.plot.plot_live_points") as mock_post:
+    with (
+        patch("nessai.flowsampler.draw_posterior_samples"),
+        patch("nessai.plot.plot_indices") as mock_indices,
+        patch("nessai.plot.plot_live_points") as mock_post,
+    ):
         FlowSampler.run_standard_sampler(
             flow_sampler,
             plot=True,
@@ -979,9 +994,12 @@ def test_signal_handling(
     output = tmp_path / "output"
     output.mkdir()
 
-    with patch("multiprocessing.Pool", mp_context.Pool), patch(
-        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
-        mp_context.get_start_method,
+    with (
+        patch("multiprocessing.Pool", mp_context.Pool),
+        patch(
+            "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+            mp_context.get_start_method,
+        ),
     ):
         FlowSampler(
             integration_model,

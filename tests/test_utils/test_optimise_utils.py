@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for the optimisation utilities."""
+
 from collections import namedtuple
 from unittest.mock import patch
 
@@ -7,8 +8,8 @@ import numpy as np
 import pytest
 
 from nessai.livepoint import numpy_array_to_live_points
-from nessai.utils.testing import assert_structured_arrays_equal
 from nessai.utils.optimise import optimise_meta_proposal_weights
+from nessai.utils.testing import assert_structured_arrays_equal
 
 n_its = 10
 

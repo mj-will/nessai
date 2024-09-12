@@ -2,22 +2,22 @@
 """
 Various utilities for implementing normalising flows.
 """
+
 import copy
 import inspect
 import logging
-from typing import Callable, Optional, Type, Union
 import warnings
+from typing import Callable, Optional, Type, Union
 
-from glasflow.nflows import transforms
-from glasflow.nflows.distributions import Distribution
-from glasflow.distributions import MultivariateUniform
 import numpy as np
 import torch
 import torch.nn.functional as F
+from glasflow.distributions import MultivariateUniform
+from glasflow.nflows import transforms
+from glasflow.nflows.distributions import Distribution
 
 from .distributions import MultivariateNormal, ResampledGaussian
 from .nets import MLP
-
 
 logger = logging.getLogger(__name__)
 
@@ -169,9 +169,9 @@ def get_n_neurons(
 def get_native_flow_class(name):
     """Get a natively implemented flow class."""
     name = name.lower()
-    from .realnvp import RealNVP
     from .maf import MaskedAutoregressiveFlow
     from .nsf import NeuralSplineFlow
+    from .realnvp import RealNVP
 
     flows = {
         "realnvp": RealNVP,

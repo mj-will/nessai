@@ -3,9 +3,10 @@ Test functions related to training and using the flow.
 """
 
 import os
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal.flowproposal.base import BaseFlowProposal
@@ -151,12 +152,15 @@ def test_training(proposal, tmp_path, save, plot, plot_training):
     proposal.flow.train = MagicMock()
     proposal._plot_training_data = MagicMock()
 
-    with patch(
-        "nessai.proposal.flowproposal.base.live_points_to_array",
-        return_value=data_prime,
-    ), patch(
-        "nessai.proposal.flowproposal.base.save_live_points"
-    ) as mock_save:
+    with (
+        patch(
+            "nessai.proposal.flowproposal.base.live_points_to_array",
+            return_value=data_prime,
+        ),
+        patch(
+            "nessai.proposal.flowproposal.base.save_live_points"
+        ) as mock_save,
+    ):
         BaseFlowProposal.train(proposal, x, plot=plot)
 
     assert_structured_arrays_equal(x, proposal.training_data)

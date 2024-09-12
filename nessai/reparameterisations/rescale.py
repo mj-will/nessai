@@ -2,22 +2,23 @@
 """
 Reparameterisations that rescale the parameters.
 """
+
 import logging
 
 import numpy as np
 
-from .base import Reparameterisation
 from ..priors import log_uniform_prior
 from ..utils.rescaling import (
     configure_edge_detection,
-    determine_rescaled_bounds,
     detect_edge,
-    rescaling_functions,
-    rescale_minus_one_to_one,
-    rescale_zero_to_one,
+    determine_rescaled_bounds,
     inverse_rescale_minus_one_to_one,
     inverse_rescale_zero_to_one,
+    rescale_minus_one_to_one,
+    rescale_zero_to_one,
+    rescaling_functions,
 )
+from .base import Reparameterisation
 
 logger = logging.getLogger(__name__)
 
@@ -365,7 +366,6 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         pre_rescaling=None,
         post_rescaling=None,
     ):
-
         super().__init__(parameters=parameters, prior_bounds=prior_bounds)
 
         self.bounds = None

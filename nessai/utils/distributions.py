@@ -3,8 +3,9 @@
 Utilities for getting distributions for use in \
         :py:class:`~nessai.proposal.flowproposal.FlowProposal`
 """
-from glasflow.nflows.distributions.uniform import BoxUniform
+
 import torch
+from glasflow.nflows.distributions.uniform import BoxUniform
 from torch.distributions import MultivariateNormal
 
 

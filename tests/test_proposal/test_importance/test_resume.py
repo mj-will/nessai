@@ -3,12 +3,12 @@
 import pickle
 from unittest.mock import MagicMock, patch
 
-from nessai.proposal.importance import ImportanceFlowProposal as IFP
 import pytest
+
+from nessai.proposal.importance import ImportanceFlowProposal as IFP
 
 
 def test_resume(ifp, model, tmp_path):
-
     flow_config = dict(patience=10, model_config=dict(n_inputs=2))
 
     ifp.initialise = MagicMock()
@@ -33,7 +33,6 @@ def test_resume(ifp, model, tmp_path):
 @pytest.mark.integration_test
 @pytest.mark.usefixtures("ins_parameters")
 def test_getstate_integration(tmp_path, model):
-
     ifp = IFP(
         model,
         output=tmp_path / "test_resume",

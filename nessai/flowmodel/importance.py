@@ -2,6 +2,7 @@
 """
 FlowModel for use in importance nested sampling.
 """
+
 import copy
 import glob
 import logging
@@ -12,11 +13,9 @@ from warnings import warn
 import numpy as np
 import torch
 
+from ..flows import configure_model
 from .base import FlowModel
 from .utils import update_flow_config
-
-from ..flows import configure_model
-
 
 logger = logging.getLogger(__name__)
 

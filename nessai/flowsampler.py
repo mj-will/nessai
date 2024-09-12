@@ -2,6 +2,7 @@
 """
 Main code that handles running and checkpoiting the sampler.
 """
+
 import logging
 import os
 import signal
@@ -10,12 +11,11 @@ from typing import Optional
 
 from . import config
 from .livepoint import live_points_to_dict
-from .samplers import NestedSampler, ImportanceNestedSampler
 from .posterior import draw_posterior_samples
+from .samplers import ImportanceNestedSampler, NestedSampler
 from .utils import configure_threads
+from .utils.io import save_dict_to_hdf5, save_to_json
 from .utils.torchutils import set_torch_default_dtype
-from .utils.io import save_to_json, save_dict_to_hdf5
-
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,6 @@ class FlowSampler:
         result_extension="hdf5",
         **kwargs,
     ):
-
         configure_threads(
             pytorch_threads=pytorch_threads,
         )

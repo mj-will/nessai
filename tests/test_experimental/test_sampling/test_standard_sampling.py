@@ -1,7 +1,7 @@
 import pytest
 
-from nessai.flowsampler import FlowSampler
 from nessai.experimental.proposal.clustering import ClusteringFlowProposal
+from nessai.flowsampler import FlowSampler
 
 
 @pytest.mark.requires("faiss")

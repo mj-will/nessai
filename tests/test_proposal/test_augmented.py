@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """Test the augment proposal"""
+
+from unittest.mock import MagicMock, create_autospec, patch
+
 import numpy as np
 import pytest
-from unittest.mock import create_autospec, MagicMock, patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import AugmentedFlowProposal

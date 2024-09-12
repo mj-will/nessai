@@ -2,7 +2,9 @@
 """
 Base objects for implementing normalising flows.
 """
+
 from abc import ABC, abstractmethod
+
 from torch.nn import Module
 
 
@@ -184,8 +186,8 @@ class NFlow(BaseFlow):
 
     def __init__(self, transform, distribution):
         super().__init__()
-        from glasflow.nflows.transforms import Transform
         from glasflow.nflows.distributions import Distribution
+        from glasflow.nflows.transforms import Transform
 
         if not isinstance(transform, Transform):
             raise TypeError(

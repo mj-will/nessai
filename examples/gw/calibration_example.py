@@ -7,8 +7,9 @@ This example should take ~30 minutes to run.
 
 Adapted from the example included in bilby.
 """
-import numpy as np
+
 import bilby
+import numpy as np
 
 # Standard configuration using bilby
 duration = 4.0
