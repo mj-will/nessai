@@ -2,16 +2,18 @@
 """
 Test the RescaleToBound class.
 """
-import numpy as np
-import pytest
+
 from unittest.mock import MagicMock, call, create_autospec, patch
 
-from nessai.reparameterisations import RescaleToBounds
+import numpy as np
+import pytest
+
 from nessai.livepoint import (
-    get_dtype,
     empty_structured_array,
+    get_dtype,
     numpy_array_to_live_points,
 )
+from nessai.reparameterisations import RescaleToBounds
 from nessai.utils.testing import assert_structured_arrays_equal
 
 # Tolerances for assert_allclose
@@ -607,7 +609,6 @@ def test_apply_inversion_detect_edge(reparam):
     with patch(
         "nessai.reparameterisations.rescale.detect_edge", return_value=False
     ) as mock_fn:
-
         _ = RescaleToBounds._apply_inversion(
             reparam, x, x_prime, log_j, "x", "x_prime", False, test=True
         )
@@ -677,12 +678,13 @@ def test_apply_inversion_split(reparam):
     x = numpy_array_to_live_points(np.array([3, 4]), ["x"])
     log_j = np.zeros(2)
 
-    with patch(
-        "numpy.random.choice", return_value=np.array([1])
-    ) as rnd, patch(
-        "nessai.reparameterisations.rescale.rescale_zero_to_one",
-        side_effect=lambda x, *args: (x, np.array([5, 6])),
-    ) as f:
+    with (
+        patch("numpy.random.choice", return_value=np.array([1])) as rnd,
+        patch(
+            "nessai.reparameterisations.rescale.rescale_zero_to_one",
+            side_effect=lambda x, *args: (x, np.array([5, 6])),
+        ) as f,
+    ):
         x_out, x_prime_out, log_j_out = RescaleToBounds._apply_inversion(
             reparam,
             x,
@@ -732,10 +734,13 @@ def test_apply_inversion_duplicate(reparam, inv_type, compute_radius):
     x = numpy_array_to_live_points(np.array([[1, 2], [3, 4]]), ["x", "y"])
     log_j = np.zeros(2)
 
-    with patch("numpy.random.choice") as rnd, patch(
-        "nessai.reparameterisations.rescale.rescale_zero_to_one",
-        side_effect=lambda x, *args: (x, np.array([5, 6])),
-    ) as f:
+    with (
+        patch("numpy.random.choice") as rnd,
+        patch(
+            "nessai.reparameterisations.rescale.rescale_zero_to_one",
+            side_effect=lambda x, *args: (x, np.array([5, 6])),
+        ) as f,
+    ):
         x_out, x_prime_out, log_j_out = RescaleToBounds._apply_inversion(
             reparam,
             x,

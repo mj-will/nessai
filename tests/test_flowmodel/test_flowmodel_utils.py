@@ -2,8 +2,10 @@
 """
 Test the FlowModel utils.
 """
-import pytest
+
 from unittest.mock import patch
+
+import pytest
 
 from nessai.flowmodel import config as default_config
 from nessai.flowmodel.utils import (
@@ -18,14 +20,16 @@ def test_update_config():
     training_config = dict(patience=1)
     expected_out_flow = object()
     expected_out_training = object()
-    with patch(
-        "nessai.flowmodel.utils.update_flow_config",
-        return_value=expected_out_flow,
-    ) as update_fcfg, patch(
-        "nessai.flowmodel.utils.update_training_config",
-        return_value=expected_out_training,
-    ) as update_tcfg:
-
+    with (
+        patch(
+            "nessai.flowmodel.utils.update_flow_config",
+            return_value=expected_out_flow,
+        ) as update_fcfg,
+        patch(
+            "nessai.flowmodel.utils.update_training_config",
+            return_value=expected_out_training,
+        ) as update_tcfg,
+    ):
         flow_config_out, training_config_out = update_config(
             flow_config, training_config
         )

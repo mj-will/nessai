@@ -2,11 +2,12 @@
 """
 Utilities for configuring FlowModel.
 """
+
 import copy
 from warnings import warn
 
-from . import config as default_config
 from ..flows.utils import get_n_neurons
+from . import config as default_config
 
 
 def update_flow_config(cfg):

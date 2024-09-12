@@ -1,10 +1,10 @@
 """Base proposal class that contains common methods."""
 
-from abc import abstractmethod
 import copy
 import logging
 import os
 import re
+from abc import abstractmethod
 from warnings import warn
 
 import matplotlib.pyplot as plt
@@ -15,20 +15,20 @@ import torch
 from ... import config
 from ...flowmodel import FlowModel
 from ...livepoint import (
+    empty_structured_array,
+    get_dtype,
     live_points_to_array,
     numpy_array_to_live_points,
-    get_dtype,
-    empty_structured_array,
 )
+from ...plot import nessai_style, plot_1d_comparison, plot_live_points
 from ...reparameterisations import (
     CombinedReparameterisation,
     get_reparameterisation,
 )
-from ...plot import plot_live_points, plot_1d_comparison, nessai_style
-from ..rejection import RejectionProposal
 from ...utils import (
     save_live_points,
 )
+from ..rejection import RejectionProposal
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +115,6 @@ class BaseFlowProposal(RejectionProposal):
         reverse_reparameterisations=False,
         map_to_unit_hypercube=False,
     ):
-
         super().__init__(model)
 
         self._x_dtype = None

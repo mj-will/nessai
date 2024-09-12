@@ -2,28 +2,29 @@
 """
 Object for defining the use-defined model.
 """
-from abc import ABC, abstractmethod
+
 import datetime
 import logging
+from abc import ABC, abstractmethod
+
 import numpy as np
 
 from . import config
 from .livepoint import (
-    empty_structured_array,
-    parameters_to_live_point,
-    numpy_array_to_live_points,
-    unstructured_view,
     _unstructured_view_dtype,
+    empty_structured_array,
+    numpy_array_to_live_points,
+    parameters_to_live_point,
+    unstructured_view,
 )
 from .utils.multiprocessing import (
-    get_n_pool,
-    log_likelihood_wrapper,
-    log_prior_wrapper,
-    log_prior_unit_hypercube_wrapper,
     batch_evaluate_function,
     check_vectorised_function,
+    get_n_pool,
+    log_likelihood_wrapper,
+    log_prior_unit_hypercube_wrapper,
+    log_prior_wrapper,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -329,6 +330,7 @@ class Model(ABC):
                 f"Starting multiprocessing pool with {n_pool} processes"
             )
             import multiprocessing
+
             from nessai.utils.multiprocessing import (
                 check_multiprocessing_start_method,
                 initialise_pool_variables,

@@ -2,6 +2,7 @@
 """
 Utilities related to rescaling.
 """
+
 import logging
 
 import numpy as np

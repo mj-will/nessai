@@ -2,13 +2,15 @@
 """
 Test the base flow class
 """
-import pytest
-import torch
+
 from unittest.mock import MagicMock, create_autospec, patch
 
-from nessai.flows.base import BaseFlow, NFlow
-from glasflow.nflows.transforms import Transform
+import pytest
+import torch
 from glasflow.nflows.distributions import Distribution
+from glasflow.nflows.transforms import Transform
+
+from nessai.flows.base import BaseFlow, NFlow
 
 
 @pytest.fixture

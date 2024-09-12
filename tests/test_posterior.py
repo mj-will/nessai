@@ -2,10 +2,12 @@
 """
 Test functions related to drawing posterior samples
 """
+
 import logging
+from unittest.mock import patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.posterior import compute_weights, draw_posterior_samples
@@ -46,9 +48,11 @@ def test_compute_weights_correct_weights(expectation):
     nlive = 10
     log_l = np.random.randn(20)
     out = -np.log1p(1 / nlive) * np.ones(len(log_l))
-    with patch("numpy.log1p", return_value=out) as mock_log1p, patch(
-        "nessai.posterior.logsubexp", return_value=np.random.rand(21)
-    ), patch("nessai.posterior.log_integrate_log_trap", return_value=0.0):
+    with (
+        patch("numpy.log1p", return_value=out) as mock_log1p,
+        patch("nessai.posterior.logsubexp", return_value=np.random.rand(21)),
+        patch("nessai.posterior.log_integrate_log_trap", return_value=0.0),
+    ):
         compute_weights(log_l, nlive=nlive, expectation=expectation)
     if expectation == "t":
         mock_log1p.assert_called_once()

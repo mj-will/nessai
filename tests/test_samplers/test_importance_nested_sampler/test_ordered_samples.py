@@ -1,9 +1,11 @@
-from nessai.samplers.importancesampler import OrderedSamples
-from nessai.evidence import _INSIntegralState
-from nessai.utils.testing import assert_structured_arrays_equal
+from unittest.mock import MagicMock, create_autospec, patch
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, create_autospec, patch
+
+from nessai.evidence import _INSIntegralState
+from nessai.samplers.importancesampler import OrderedSamples
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture()

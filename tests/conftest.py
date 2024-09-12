@@ -1,14 +1,14 @@
 """General configuration for the test suite"""
 
+import multiprocessing
 import sys
+import time
 
-from numpy.random import seed
 import numpy as np
 import pytest
-from scipy.stats import norm
-import time
 import torch
-import multiprocessing
+from numpy.random import seed
+from scipy.stats import norm
 
 from nessai.livepoint import (
     add_extra_parameters_to_live_points,
@@ -16,7 +16,6 @@ from nessai.livepoint import (
 )
 from nessai.model import Model
 from nessai.utils.testing import IntegrationTestModel
-
 
 seed(170817)
 torch.manual_seed(170817)

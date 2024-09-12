@@ -2,10 +2,12 @@
 """
 Test general config functions called when the nested sampler is initialised.
 """
+
 import os
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch, MagicMock
 
 from nessai.samplers.nestedsampler import NestedSampler
 

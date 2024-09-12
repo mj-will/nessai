@@ -2,12 +2,13 @@
 
 from unittest.mock import MagicMock, create_autospec
 
-from nessai.flowmodel.importance import ImportanceFlowModel
-from nessai.livepoint import numpy_array_to_live_points, live_points_to_array
-from nessai.proposal.importance import ImportanceFlowProposal as IFP
 import numpy as np
-from scipy.special import logsumexp
 import pytest
+from scipy.special import logsumexp
+
+from nessai.flowmodel.importance import ImportanceFlowModel
+from nessai.livepoint import live_points_to_array, numpy_array_to_live_points
+from nessai.proposal.importance import ImportanceFlowProposal as IFP
 
 
 @pytest.mark.parametrize("n", [1, 10])
@@ -36,7 +37,6 @@ def test_draw_from_prior(ifp, n, model):
 @pytest.mark.parametrize("n", [1, 3, 10, 100])
 @pytest.mark.parametrize("test_counts", [False, True])
 def test_draw_from_flows(ifp, model, n, test_counts):
-
     n_flows = 5
     weights = np.random.rand(n_flows + 1)
     if test_counts:
@@ -88,7 +88,6 @@ def test_draw_from_flows(ifp, model, n, test_counts):
 
 @pytest.mark.usefixtures("ins_parameters")
 def test_draw(ifp, model):
-
     n_proposals = 5
     n_draw = 100
     ifp.n_proposals = n_proposals

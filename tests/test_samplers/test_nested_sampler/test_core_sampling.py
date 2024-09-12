@@ -2,10 +2,12 @@
 """
 Test the main sampling functions
 """
+
 import logging
+from unittest.mock import MagicMock, call
+
 import numpy as np
 import pytest
-from unittest.mock import call, MagicMock
 
 from nessai.livepoint import (
     numpy_array_to_live_points,

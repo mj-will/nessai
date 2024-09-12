@@ -4,7 +4,7 @@ Used for bilby and pycbc-inference.
 """
 
 from inspect import getmro, signature
-from typing import Any, List, Callable, Tuple
+from typing import Any, Callable, List, Tuple
 
 
 def _get_kwargs(func: Callable) -> dict[str, Any]:

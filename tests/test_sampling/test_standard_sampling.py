@@ -2,19 +2,20 @@
 """
 Integration tests for running the sampler with different configurations.
 """
+
 import logging
 import os
-from scipy.stats import norm
-import torch
-import pytest
-import numpy as np
 from unittest.mock import patch
+
+import numpy as np
+import pytest
+import torch
+from scipy.stats import norm
 
 from nessai.flowsampler import FlowSampler
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.model import Model
 from nessai.utils.testing import IntegrationTestModel
-
 
 torch.set_num_threads(1)
 
@@ -162,9 +163,12 @@ def test_sampling_with_n_pool(
     Test running the sampler with multiprocessing.
     """
     output = str(tmpdir.mkdir("pool"))
-    with patch("multiprocessing.Pool", mp_context.Pool), patch(
-        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
-        mp_context.get_start_method,
+    with (
+        patch("multiprocessing.Pool", mp_context.Pool),
+        patch(
+            "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+            mp_context.get_start_method,
+        ),
     ):
         fp = FlowSampler(
             integration_model,
@@ -235,9 +239,12 @@ def test_sampling_resume_w_pool(
     Test resuming the sampler with a pool.
     """
     output = str(tmpdir.mkdir("resume"))
-    with patch("multiprocessing.Pool", mp_context.Pool), patch(
-        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
-        mp_context.get_start_method,
+    with (
+        patch("multiprocessing.Pool", mp_context.Pool),
+        patch(
+            "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+            mp_context.get_start_method,
+        ),
     ):
         fp = FlowSampler(
             integration_model,
@@ -261,9 +268,12 @@ def test_sampling_resume_w_pool(
     # Make sure the pool is already closed
     integration_model.close_pool()
 
-    with patch("multiprocessing.Pool", mp_context.Pool), patch(
-        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
-        mp_context.get_start_method,
+    with (
+        patch("multiprocessing.Pool", mp_context.Pool),
+        patch(
+            "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+            mp_context.get_start_method,
+        ),
     ):
         fp = FlowSampler(
             integration_model,
@@ -440,7 +450,6 @@ def test_sampling_with_infinite_prior_bounds(tmpdir):
     output = str(tmpdir.mkdir("infinite_bounds"))
 
     class TestModel(Model):
-
         names = ["x", "y"]
         bounds = {"x": [0, 1], "y": [-np.inf, np.inf]}
         reparameterisations = {"x": "default", "y": None}

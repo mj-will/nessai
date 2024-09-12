@@ -2,8 +2,9 @@
 
 # Example of using the importance nested sampler in nessai
 
-import numpy as np
 import os
+
+import numpy as np
 
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model

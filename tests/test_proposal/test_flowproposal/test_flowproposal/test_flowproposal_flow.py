@@ -2,9 +2,10 @@
 Test functions related to training and using the flow.
 """
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 
 from nessai.proposal import FlowProposal
 

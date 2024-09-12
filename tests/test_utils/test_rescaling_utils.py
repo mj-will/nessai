@@ -2,11 +2,12 @@
 """
 Tests for rescaling functions
 """
+
+from unittest.mock import patch
+
 import numpy as np
 import pytest
 from scipy import stats
-from unittest.mock import patch
-
 
 from nessai.utils.rescaling import (
     configure_edge_detection,
@@ -17,11 +18,11 @@ from nessai.utils.rescaling import (
     inverse_gaussian_cdf,
     inverse_rescale_minus_one_to_one,
     inverse_rescale_zero_to_one,
-    logistic_function,
     log_with_log_jacobian,
+    logistic_function,
+    logit,
     rescale_minus_one_to_one,
     rescale_zero_to_one,
-    logit,
     sigmoid,
 )
 
@@ -97,9 +98,10 @@ def test_detect_edge_max_location(hist_values, kwargs, expected):
 
 def test_detect_edge_auto_bins():
     """Assert auto bins is called if nbins is auto"""
-    with patch(
-        "numpy.histogram", return_value=([10, 0, 0], [1, 2, 3])
-    ) as m, patch("nessai.utils.rescaling.auto_bins", return_value=4) as mab:
+    with (
+        patch("numpy.histogram", return_value=([10, 0, 0], [1, 2, 3])) as m,
+        patch("nessai.utils.rescaling.auto_bins", return_value=4) as mab,
+    ):
         out = detect_edge([5, 6], nbins="auto")
     m.assert_called_once_with([5, 6], bins=4, density=True, range=None)
     mab.assert_called_once_with([5, 6])

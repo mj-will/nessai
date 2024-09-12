@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """Test different properties in BaseFlowProposal"""
-from nessai import config
-from nessai.proposal.flowproposal.base import BaseFlowProposal
+
 import numpy as np
 import pytest
 
+from nessai import config
+from nessai.proposal.flowproposal.base import BaseFlowProposal
 
 EXTRA_PARAMS_DTYPE = [
     (nsp, d)

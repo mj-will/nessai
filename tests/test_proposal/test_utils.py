@@ -1,23 +1,26 @@
 # -*- coding: utf-8 -*-
 """Test the proposal utilities"""
-from nessai.proposal.utils import (
-    check_proposal_kwargs,
-    get_flow_proposal_class,
-    available_base_flow_proposal_classes,
-    available_external_flow_proposal_classes,
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from nessai.experimental.gw.proposal import ClusteringGWFlowProposal
+from nessai.experimental.proposal.clustering import ClusteringFlowProposal
+from nessai.gw.proposal import (
+    AugmentedGWFlowProposal,
+    GWFlowProposal,
 )
 from nessai.proposal import (
     AugmentedFlowProposal,
     FlowProposal,
 )
-from nessai.gw.proposal import (
-    AugmentedGWFlowProposal,
-    GWFlowProposal,
+from nessai.proposal.utils import (
+    available_base_flow_proposal_classes,
+    available_external_flow_proposal_classes,
+    check_proposal_kwargs,
+    get_flow_proposal_class,
 )
-from nessai.experimental.proposal.clustering import ClusteringFlowProposal
-from nessai.experimental.gw.proposal import ClusteringGWFlowProposal
-import pytest
-from unittest.mock import MagicMock, patch
 
 
 def test_class_inheritance():

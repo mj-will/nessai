@@ -1,5 +1,5 @@
-from ..proposal.clustering import ClusteringFlowProposal
 from ...gw.proposal import GWFlowProposal
+from ..proposal.clustering import ClusteringFlowProposal
 
 
 class ClusteringGWFlowProposal(ClusteringFlowProposal, GWFlowProposal):

@@ -1,17 +1,20 @@
 """Tests for the proposals and meta-proposal"""
 
 import datetime
+import os
 from unittest.mock import MagicMock, patch
 
+import numpy as np
+import pytest
+
+from nessai.proposal.importance import ImportanceFlowProposal
 from nessai.samplers.importancesampler import (
     ImportanceNestedSampler as INS,
+)
+from nessai.samplers.importancesampler import (
     OrderedSamples,
 )
-from nessai.proposal.importance import ImportanceFlowProposal
 from nessai.utils.testing import assert_structured_arrays_equal
-import numpy as np
-import os
-import pytest
 
 
 @pytest.fixture()
@@ -41,7 +44,6 @@ def test_get_proposal(ins, model, tmp_path):
 
 @pytest.mark.parametrize("weighted_kl", [False, True])
 def test_add_new_proposal(ins, samples, log_q, weighted_kl):
-
     n = int(0.8 * len(samples))
 
     ins.training_samples = MagicMock(spec=OrderedSamples)

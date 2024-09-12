@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, create_autospec
+
 from nessai.flows.distributions import ResampledGaussian
 
 

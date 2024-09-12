@@ -2,16 +2,18 @@
 """
 Test the AnglePair reparmeterisation
 """
-import numpy as np
-import pytest
+
 from unittest.mock import MagicMock, create_autospec
 
-from nessai.reparameterisations import AnglePair
+import numpy as np
+import pytest
+
 from nessai.livepoint import (
     get_dtype,
     numpy_array_to_live_points,
     parameters_to_live_point,
 )
+from nessai.reparameterisations import AnglePair
 
 angle_pairs = [
     (["ra", "dec"], [[0, 2 * np.pi], [-np.pi / 2, np.pi / 2]]),
@@ -35,7 +37,6 @@ def reparam():
 @pytest.fixture(scope="function")
 def assert_invertibility():
     def test_invertibility(reparam, angles, radial=None):
-
         n = list(angles.values())[0].size
         x = np.zeros([n], dtype=get_dtype(reparam.parameters))
         x_prime = np.zeros([n], dtype=get_dtype(reparam.prime_parameters))

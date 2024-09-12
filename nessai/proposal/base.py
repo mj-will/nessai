@@ -2,9 +2,11 @@
 """
 Base object for all proposal classes.
 """
-from abc import ABC, abstractmethod
+
 import datetime
 import logging
+from abc import ABC, abstractmethod
+
 import numpy as np
 
 logger = logging.getLogger(__name__)

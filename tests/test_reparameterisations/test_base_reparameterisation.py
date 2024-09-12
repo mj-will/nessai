@@ -2,11 +2,13 @@
 """
 Test the base reparameterisation.
 """
+
 import copy
-import numpy as np
-from numpy.testing import assert_equal
-import pytest
 from unittest.mock import create_autospec
+
+import numpy as np
+import pytest
+from numpy.testing import assert_equal
 
 from nessai.reparameterisations import Reparameterisation
 

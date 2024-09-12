@@ -2,6 +2,7 @@
 """
 Utilities related to insertion indices.
 """
+
 import numpy as np
 from scipy import stats
 

@@ -2,9 +2,11 @@
 """
 Tests related to checking and updating the state of sampler and the history.
 """
+
 import os
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from nessai.livepoint import parameters_to_live_point
 from nessai.samplers.nestedsampler import NestedSampler

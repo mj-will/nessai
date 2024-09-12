@@ -1,7 +1,9 @@
-from nessai.experimental.flowmodel.clustering import ClusteringFlowModel as CFM
+from unittest.mock import create_autospec, patch
+
 import numpy as np
 import pytest
-from unittest.mock import create_autospec, patch
+
+from nessai.experimental.flowmodel.clustering import ClusteringFlowModel as CFM
 
 
 @pytest.fixture

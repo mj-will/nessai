@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Utilities for proposal classes"""
+
+import logging
 from copy import deepcopy
 from inspect import getmro, signature
-import logging
 from typing import Callable, Union
 from warnings import warn
 
 from ..utils.settings import _get_all_kwargs
-
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +81,11 @@ def check_proposal_kwargs(ProposalClass, kwargs, strict=False):
 
 
 def available_base_flow_proposal_classes():
-    from .flowproposal import FlowProposal
-    from .augmented import AugmentedFlowProposal
-    from ..gw.proposal import GWFlowProposal, AugmentedGWFlowProposal
-    from ..experimental.proposal.clustering import ClusteringFlowProposal
     from ..experimental.gw.proposal import ClusteringGWFlowProposal
+    from ..experimental.proposal.clustering import ClusteringFlowProposal
+    from ..gw.proposal import AugmentedGWFlowProposal, GWFlowProposal
+    from .augmented import AugmentedFlowProposal
+    from .flowproposal import FlowProposal
 
     base_proposals = {
         "clusteringgwflowproposal": ClusteringGWFlowProposal,

@@ -3,12 +3,15 @@
 import datetime
 from unittest.mock import MagicMock, create_autospec
 
+import numpy as np
+
+from nessai.evidence import _INSIntegralState
 from nessai.samplers.importancesampler import (
     ImportanceNestedSampler as INS,
+)
+from nessai.samplers.importancesampler import (
     OrderedSamples,
 )
-from nessai.evidence import _INSIntegralState
-import numpy as np
 
 
 def test_get_result_dictionary(ins, history, samples, iid):

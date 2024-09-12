@@ -2,12 +2,13 @@
 """
 Functions related to computing the evidence.
 """
-from abc import ABC, abstractmethod
+
 import logging
+from abc import ABC, abstractmethod
 from typing import Optional
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from scipy.special import logsumexp
 
 from .plot import nessai_style

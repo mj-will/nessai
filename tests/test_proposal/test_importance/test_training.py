@@ -1,13 +1,14 @@
 """Test training functions in ImportanceFlowProposal"""
 
 import os
-
-from nessai.proposal.importance import ImportanceFlowProposal as IFP
-from nessai.livepoint import numpy_array_to_live_points
-from nessai.utils.testing import assert_structured_arrays_equal
-import numpy as np
 from unittest.mock import MagicMock, Mock, patch
+
+import numpy as np
 import pytest
+
+from nessai.livepoint import numpy_array_to_live_points
+from nessai.proposal.importance import ImportanceFlowProposal as IFP
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture
@@ -129,7 +130,6 @@ def test_train_plotting(
 )
 @pytest.mark.usefixtures("ins_parameters")
 def test_train_weights(ifp, x, x_prime, weights, weighted_kl):
-
     x["logW"] = np.log(np.random.rand(x.size))
 
     ifp.rescale = Mock(return_value=(x_prime, None))

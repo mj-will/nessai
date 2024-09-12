@@ -2,6 +2,7 @@
 """
 Definitions of common priors in the prime space.
 """
+
 import numpy as np
 
 

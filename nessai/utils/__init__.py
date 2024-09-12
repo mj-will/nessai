@@ -2,6 +2,8 @@
 """
 General utilities for nessai.
 """
+
+from .distance import compute_minimum_distances
 from .distributions import get_multivariate_normal, get_uniform_distribution
 from .hist import auto_bins
 from .indices import bonferroni_correction, compute_indices_ks_test
@@ -34,11 +36,9 @@ from .sampling import (
     draw_truncated_gaussian,
     draw_uniform,
 )
-from .distance import compute_minimum_distances
 from .stats import rolling_mean
 from .structures import replace_in_list
 from .threading import configure_threads
-
 
 __all__ = [
     "BoxUniform",

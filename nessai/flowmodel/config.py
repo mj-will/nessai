@@ -2,6 +2,7 @@
 """
 Default configuration of FlowModel.
 """
+
 from dataclasses import dataclass
 from typing import Callable
 

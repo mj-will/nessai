@@ -1,4 +1,5 @@
 from functools import partial
+
 from glasflow.flows import CouplingNSF, RealNVP
 
 from ...flows.base import BaseFlow

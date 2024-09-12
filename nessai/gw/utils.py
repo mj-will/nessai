@@ -2,16 +2,18 @@
 """
 Utilities specific to the gw subpackage.
 """
-from abc import ABC, abstractmethod
+
 import logging
+from abc import ABC, abstractmethod
+
 import numpy as np
 from scipy import interpolate
 
 logger = logging.getLogger(__name__)
 
 try:
-    from astropy import cosmology as cosmo
     import astropy.units as u
+    from astropy import cosmology as cosmo
 except ImportError:
     logger.debug(
         "Could not import astropy, running with reduced functionality"

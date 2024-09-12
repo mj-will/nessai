@@ -2,12 +2,13 @@
 
 from unittest.mock import MagicMock, create_autospec
 
-from nessai.livepoint import live_points_to_array
-from nessai.flowmodel.importance import ImportanceFlowModel
-from nessai.proposal.importance import ImportanceFlowProposal as IFP
 import numpy as np
-from scipy.special import logsumexp
 import pytest
+from scipy.special import logsumexp
+
+from nessai.flowmodel.importance import ImportanceFlowModel
+from nessai.livepoint import live_points_to_array
+from nessai.proposal.importance import ImportanceFlowProposal as IFP
 
 
 @pytest.fixture()
@@ -121,7 +122,6 @@ def test_kl_between_proposals(ifp, model, p_it, q_it, x):
 
 
 def test_update_log_q(ifp, model, x):
-
     n_proposals = 5
     ifp.level_count = 4
 
@@ -177,7 +177,6 @@ def test_compute_meta_proposal_from_log_q(ifp):
 
 @pytest.mark.usefixtures("ins_parameters")
 def test_compute_meta_proposal_samples(ifp, x, x_prime, log_j):
-
     ifp.level_count = 2
     ifp.weights = {-1: 0.25, 0: 0.25, 1: 0.25, 2: 0.25}
 

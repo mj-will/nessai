@@ -2,6 +2,7 @@
 """
 Test information utilities.
 """
+
 import numpy as np
 
 from nessai.utils.information import differential_entropy

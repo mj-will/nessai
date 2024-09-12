@@ -3,8 +3,9 @@
 
 All samplers inherit from :py:obj:`nessai.samplers.base.BaseNestedSampler`.
 """
-from .nestedsampler import NestedSampler
+
 from .importancesampler import ImportanceNestedSampler
+from .nestedsampler import NestedSampler
 
 __all__ = [
     "ImportanceNestedSampler",

@@ -2,9 +2,10 @@
 """
 Test utilities for distributions.
 """
-import pytest
+
 from unittest.mock import patch
 
+import pytest
 import torch
 
 from nessai.utils.distributions import (
@@ -15,7 +16,7 @@ from nessai.utils.distributions import (
 
 def test_get_uniform_distribution():
     """
-    Test function for getting uniform torch distrbution over n dimensions
+    Test function for getting uniform torch distribution over n dimensions
     """
     with patch("nessai.utils.distributions.BoxUniform") as m:
         get_uniform_distribution(10, 2)

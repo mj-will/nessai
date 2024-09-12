@@ -2,6 +2,7 @@
 """
 Proposal method for initial sampling when priors are not analytical.
 """
+
 import numpy as np
 
 from .analytic import AnalyticProposal

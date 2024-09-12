@@ -2,7 +2,9 @@
 """
 Test the object that handles the nested sampling evidence and prior volumes.
 """
+
 from unittest.mock import create_autospec, patch
+
 import numpy as np
 import pytest
 

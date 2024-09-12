@@ -3,10 +3,13 @@
 Test the functions related to when the flow should be trained or reset and
 training itself.
 """
+
 import datetime
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
+
 from nessai.samplers.nestedsampler import NestedSampler
 
 

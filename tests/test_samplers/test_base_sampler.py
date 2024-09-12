@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 """Test the base nested sampler"""
+
 import datetime
 import os
 import pickle
-import pytest
 import time
 from unittest.mock import MagicMock, create_autospec, patch
+
+import pytest
 
 from nessai.samplers.base import BaseNestedSampler
 
@@ -339,9 +341,10 @@ def test_checkpoint_time(sampler, wait):
     sampler.sampling_time = datetime.timedelta()
     sampler.resume_file = "test.pkl"
 
-    with patch("nessai.samplers.base.safe_file_dump") as sfd_mock, patch(
-        "datetime.datetime", return_value=now
-    ) as mock_datetime:
+    with (
+        patch("nessai.samplers.base.safe_file_dump") as sfd_mock,
+        patch("datetime.datetime", return_value=now) as mock_datetime,
+    ):
         wait()
         mock_datetime.now.return_value = now
         mock_datetime.side_effect = lambda *args, **kw: datetime.datetime(
@@ -447,12 +450,14 @@ def test_resume(model):
     obj = MagicMock()
     pickle_out = MagicMock()
 
-    with patch("pickle.load", return_value=obj) as mock_pickle, patch(
-        "builtins.open"
-    ), patch(
-        "nessai.samplers.base.BaseNestedSampler.resume_from_pickled_sampler",
-        return_value=pickle_out,
-    ) as mock_resume:
+    with (
+        patch("pickle.load", return_value=obj) as mock_pickle,
+        patch("builtins.open"),
+        patch(
+            "nessai.samplers.base.BaseNestedSampler.resume_from_pickled_sampler",
+            return_value=pickle_out,
+        ) as mock_resume,
+    ):
         out = BaseNestedSampler.resume("test.pkl", model)
 
     assert out is pickle_out

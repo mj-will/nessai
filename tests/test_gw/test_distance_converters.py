@@ -2,10 +2,12 @@
 """
 Test the distance converter classes.
 """
+
+from unittest.mock import MagicMock, Mock, call, create_autospec, patch
+
 import numpy as np
 import pytest
 from scipy import stats
-from unittest.mock import MagicMock, Mock, call, create_autospec, patch
 
 from nessai.gw.utils import (
     ComovingDistanceConverter,
@@ -191,21 +193,23 @@ def test_comoving_vol_init(comoving_vol_converter):
     z_values = np.arange(n_interp + 2)
 
     # Patch hell - There has to be a better way
-    with patch(
-        "nessai.gw.utils.cosmo.Planck15", return_value=MagicMock()
-    ), patch(
-        "nessai.gw.utils.cosmo.Planck15.comoving_distance",
-        side_effect=[dc_min, dc_max],
-    ) as cd_mock, patch(
-        "nessai.gw.utils.cosmo.Planck15.luminosity_distance",
-        side_effect=[dl_array],
-    ) as ld_mock, patch(
-        "nessai.gw.utils.cosmo.z_at_value", side_effect=z_values
-    ), patch(
-        "numpy.linspace", return_value=dc_array
-    ) as linspace_mock, patch(
-        "nessai.gw.utils.interpolate.splrep", side_effect=["dc2dl", "dl2dc"]
-    ) as interp_mock:
+    with (
+        patch("nessai.gw.utils.cosmo.Planck15", return_value=MagicMock()),
+        patch(
+            "nessai.gw.utils.cosmo.Planck15.comoving_distance",
+            side_effect=[dc_min, dc_max],
+        ) as cd_mock,
+        patch(
+            "nessai.gw.utils.cosmo.Planck15.luminosity_distance",
+            side_effect=[dl_array],
+        ) as ld_mock,
+        patch("nessai.gw.utils.cosmo.z_at_value", side_effect=z_values),
+        patch("numpy.linspace", return_value=dc_array) as linspace_mock,
+        patch(
+            "nessai.gw.utils.interpolate.splrep",
+            side_effect=["dc2dl", "dl2dc"],
+        ) as interp_mock,
+    ):
         ComovingDistanceConverter.__init__(
             comoving_vol_converter,
             d_min=d_min,

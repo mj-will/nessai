@@ -2,12 +2,13 @@
 """
 Functions related to computing the posterior samples.
 """
+
 import logging
 
 import numpy as np
 from scipy.special import logsumexp
 
-from .evidence import logsubexp, log_integrate_log_trap
+from .evidence import log_integrate_log_trap, logsubexp
 from .utils.stats import effective_sample_size
 
 logger = logging.getLogger(__name__)

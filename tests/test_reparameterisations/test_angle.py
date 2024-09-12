@@ -2,16 +2,18 @@
 """
 Test the Angle reparameterisation
 """
-import numpy as np
-import pytest
+
 from unittest.mock import MagicMock, create_autospec
 
-from nessai.reparameterisations import Angle
+import numpy as np
+import pytest
+
 from nessai.livepoint import (
     empty_structured_array,
     numpy_array_to_live_points,
     parameters_to_live_point,
 )
+from nessai.reparameterisations import Angle
 from nessai.utils.testing import assert_structured_arrays_equal
 
 scales = [1.0, 2.0]
@@ -30,7 +32,6 @@ def reparam():
 @pytest.fixture(scope="function")
 def assert_invertibility(model, n=100):
     def test_invertibility(reparam, angle, radial=None):
-
         x = empty_structured_array(n, names=reparam.parameters)
         x_prime = empty_structured_array(n, names=reparam.prime_parameters)
         log_j = 0

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Utilities for computing information and entropy"""
+
 import numpy as np
 
 

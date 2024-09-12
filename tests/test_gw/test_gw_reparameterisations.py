@@ -1,21 +1,22 @@
 # -*- coding: utf-8 -*-
 """Tests for GW reparameterisations"""
 
+from unittest.mock import MagicMock, create_autospec, patch
+
+import numpy as np
 import pytest
+
 from nessai.gw.reparameterisations import (
     DeltaPhaseReparameterisation,
     DistanceReparameterisation,
     default_gw,
     get_gw_reparameterisation,
 )
-from nessai.utils.testing import assert_structured_arrays_equal
-import numpy as np
-from unittest.mock import MagicMock, patch, create_autospec
-
 from nessai.livepoint import (
     dict_to_live_points,
     empty_structured_array,
 )
+from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture

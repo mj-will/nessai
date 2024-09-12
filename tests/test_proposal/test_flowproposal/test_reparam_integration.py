@@ -2,9 +2,11 @@
 """
 Integration tests for adding the default reparameterisations
 """
+
+from unittest.mock import MagicMock, create_autospec
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, create_autospec
 
 from nessai.model import Model
 from nessai.proposal.flowproposal import FlowProposal

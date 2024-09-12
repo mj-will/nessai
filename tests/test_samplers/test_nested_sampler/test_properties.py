@@ -2,12 +2,14 @@
 """
 Test the properties in NestedSampler
 """
-from collections import deque
-import time
+
 import datetime
+import time
+from collections import deque
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
-from unittest.mock import MagicMock
 
 from nessai.samplers.nestedsampler import NestedSampler
 

@@ -11,7 +11,6 @@ from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.utils import setup_logger
 
-
 output = "./outdir/eggbox/"
 logger = setup_logger(output=output)
 

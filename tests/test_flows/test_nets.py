@@ -3,10 +3,10 @@
 
 from unittest.mock import create_autospec
 
-import torch
-from torch import nn
-import torch.nn.functional as F
 import pytest
+import torch
+import torch.nn.functional as F
+from torch import nn
 
 from nessai.flows.nets import MLP
 

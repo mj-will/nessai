@@ -1,6 +1,10 @@
 """Test methods related to reparameterisations"""
 
+from unittest.mock import MagicMock, Mock, call, patch
+
 import numpy as np
+import pytest
+
 from nessai.livepoint import get_dtype, numpy_array_to_live_points
 from nessai.model import Model
 from nessai.proposal.flowproposal.base import BaseFlowProposal
@@ -9,8 +13,6 @@ from nessai.reparameterisations import (
     RescaleToBounds,
     get_reparameterisation,
 )
-import pytest
-from unittest.mock import MagicMock, Mock, call, patch
 
 
 @pytest.fixture
@@ -187,10 +189,13 @@ def test_configure_reparameterisations_requires_prime_prior(
     proposal.model.names = ["x", "y"]
     proposal.map_to_unit_hypercube = False
 
-    with patch(
-        "nessai.proposal.flowproposal.base.CombinedReparameterisation",
-        return_value=dummy_cmb_rc,
-    ), pytest.raises(RuntimeError) as excinfo:
+    with (
+        patch(
+            "nessai.proposal.flowproposal.base.CombinedReparameterisation",
+            return_value=dummy_cmb_rc,
+        ),
+        pytest.raises(RuntimeError) as excinfo,
+    ):
         BaseFlowProposal.configure_reparameterisations(
             proposal,
             {"x": {"reparameterisation": "default", "parameters": ["y"]}},
@@ -219,12 +224,15 @@ def test_configure_reparameterisations_prime_prior_unit_hypercube(
     proposal.model.names = ["x", "y"]
     proposal.map_to_unit_hypercube = True
 
-    with patch(
-        "nessai.proposal.flowproposal.base.CombinedReparameterisation",
-        return_value=dummy_cmb_rc,
-    ), pytest.raises(
-        RuntimeError,
-        match="x prime prior does not support map to unit hypercube",
+    with (
+        patch(
+            "nessai.proposal.flowproposal.base.CombinedReparameterisation",
+            return_value=dummy_cmb_rc,
+        ),
+        pytest.raises(
+            RuntimeError,
+            match="x prime prior does not support map to unit hypercube",
+        ),
     ):
         BaseFlowProposal.configure_reparameterisations(
             proposal,

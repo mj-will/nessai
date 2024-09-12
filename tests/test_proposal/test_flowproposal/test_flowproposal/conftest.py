@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-import pytest
 from unittest.mock import create_autospec
+
+import pytest
 
 from nessai.proposal.flowproposal import FlowProposal
 

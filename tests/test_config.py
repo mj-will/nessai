@@ -1,7 +1,8 @@
 """Tests for the config module"""
 
-from nessai.config import LivepointsConfig
 import numpy as np
+
+from nessai.config import LivepointsConfig
 
 
 def test_livepoint_config_reset_properties():

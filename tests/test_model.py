@@ -2,13 +2,15 @@
 """
 Tests for `nessai.model`
 """
+
 import datetime
 import logging
+from unittest.mock import MagicMock, call, create_autospec, patch
+
 import numpy as np
 import numpy.lib.recfunctions as rfn
 import pytest
 from scipy.stats import norm
-from unittest.mock import MagicMock, call, create_autospec, patch
 
 from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
@@ -259,7 +261,6 @@ def test_vectorised_likelihood_setter(model):
 @pytest.mark.parametrize("check_value", [True, False])
 @pytest.mark.parametrize("allow_vectorised", [True, False])
 def test_vectorised_log_prior(model, check_value, allow_vectorised):
-
     model._vectorised_prior = None
     model.allow_vectorised_prior = allow_vectorised
 
@@ -283,7 +284,6 @@ def test_vectorised_prior_setter(model):
 def test_vectorised_log_prior_unit_hypercube(
     model, check_value, allow_vectorised
 ):
-
     model._vectorised_prior_unit_hypercube = None
     model.allow_vectorised_prior = allow_vectorised
 
@@ -930,9 +930,12 @@ def test_configure_pool_n_pool(model):
     """Test configuring the pool when n_pool is specified"""
     n_pool = 1
     pool = MagicMock()
-    with patch("multiprocessing.Pool", return_value=pool) as mock_pool, patch(
-        "nessai.utils.multiprocessing.check_multiprocessing_start_method"
-    ) as mock_check:
+    with (
+        patch("multiprocessing.Pool", return_value=pool) as mock_pool,
+        patch(
+            "nessai.utils.multiprocessing.check_multiprocessing_start_method"
+        ) as mock_check,
+    ):
         Model.configure_pool(model, n_pool=n_pool)
     assert model.pool is pool
 
@@ -1148,11 +1151,14 @@ def test_view_dtype(model):
     )
     expected = np.dtype([(n, "f8") for n in model.names])
 
-    with patch(
-        "nessai.model._unstructured_view_dtype", return_value=expected
-    ) as mock, patch(
-        "nessai.model.empty_structured_array", return_value=array
-    ) as empty_mock:
+    with (
+        patch(
+            "nessai.model._unstructured_view_dtype", return_value=expected
+        ) as mock,
+        patch(
+            "nessai.model.empty_structured_array", return_value=array
+        ) as empty_mock,
+    ):
         dtype = Model._view_dtype.__get__(model)
 
     empty_mock.assert_called_once_with(0, model.names)
@@ -1304,9 +1310,12 @@ def test_n_pool(integration_model, mp_context, pickleable):
         if method != "fork":
             pytest.xfail(f"start method {method} requires a pickleable model")
 
-    with patch("multiprocessing.Pool", mp_context.Pool), patch(
-        "nessai.utils.multiprocessing.multiprocessing.get_start_method",
-        mp_context.get_start_method,
+    with (
+        patch("multiprocessing.Pool", mp_context.Pool),
+        patch(
+            "nessai.utils.multiprocessing.multiprocessing.get_start_method",
+            mp_context.get_start_method,
+        ),
     ):
         integration_model.configure_pool(n_pool=1)
     assert integration_model.n_pool == 1

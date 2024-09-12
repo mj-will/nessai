@@ -2,6 +2,7 @@
 """
 Tests for the stats related utilities.
 """
+
 import numpy as np
 import pytest
 

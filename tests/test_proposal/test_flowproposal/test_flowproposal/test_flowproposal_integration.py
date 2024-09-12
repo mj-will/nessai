@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """End-to-end test of the populate method"""
+
 import numpy as np
 import pytest
 import torch
 
-from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
+from nessai.proposal import FlowProposal
 from nessai.utils.testing import assert_structured_arrays_equal
 
 torch.set_num_threads(1)

@@ -2,6 +2,7 @@
 """
 Augmented version of FlowProposal.
 """
+
 import logging
 
 import numpy as np
@@ -9,8 +10,8 @@ from scipy import stats
 from scipy.special import logsumexp
 
 from .. import config
-from .flowproposal import FlowProposal
 from ..livepoint import numpy_array_to_live_points
+from .flowproposal import FlowProposal
 
 logger = logging.getLogger(__name__)
 

@@ -2,15 +2,16 @@
 """
 Testing the plotting functions.
 """
+
 import os
+from unittest.mock import MagicMock, patch
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
-from unittest.mock import MagicMock, patch
 
-from nessai import plot
-from nessai import config
+from nessai import config, plot
 from nessai.livepoint import numpy_array_to_live_points
 
 
@@ -48,9 +49,11 @@ def test_nessai_style_enabled(line_styles):
     def func(a, b):
         return a + b
 
-    with patch("nessai.plot.config.plotting.disable_style", False), patch(
-        "seaborn.axes_style"
-    ) as mock_style, patch("matplotlib.rc_context") as mock_rc:
+    with (
+        patch("nessai.plot.config.plotting.disable_style", False),
+        patch("seaborn.axes_style") as mock_style,
+        patch("matplotlib.rc_context") as mock_rc,
+    ):
         out = plot.nessai_style(line_styles=line_styles)(func)(1, 2)
     assert out == 3
     mock_style.assert_called_with(None)
@@ -71,9 +74,10 @@ def test_nessai_style_disabled():
     def func(a, b):
         return a + b
 
-    with patch("nessai.plot.config.plotting.disable_style", True), patch(
-        "seaborn.axes_style"
-    ) as mock_style:
+    with (
+        patch("nessai.plot.config.plotting.disable_style", True),
+        patch("seaborn.axes_style") as mock_style,
+    ):
         out = plot.nessai_style(func)(1, 2)
     assert out == 3
     mock_style.assert_not_called()

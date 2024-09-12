@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 """Tests related to plots in FlowProposal"""
+
 import os
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
 import torch
-from unittest.mock import MagicMock, patch
 
-from nessai.proposal import FlowProposal
 from nessai.livepoint import numpy_array_to_live_points
+from nessai.proposal import FlowProposal
 
 
 @pytest.mark.parametrize("plot", [False, "all"])

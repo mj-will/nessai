@@ -2,16 +2,17 @@
 """
 Plotting utilities.
 """
+
 import functools
 import logging
 from typing import List, Optional
 
-from cycler import cycler
 import matplotlib as mpl
-from matplotlib import pyplot as plt
 import numpy as np
-import seaborn as sns
 import pandas as pd
+import seaborn as sns
+from cycler import cycler
+from matplotlib import pyplot as plt
 
 from . import config
 from .livepoint import live_points_to_array
@@ -53,8 +54,9 @@ def nessai_style(line_styles=True):
             d = {
                 "axes.prop_cycle": c,
             }
-            with sns.axes_style(config.plotting.sns_style), mpl.rc_context(
-                {**_rcparams, **d}
+            with (
+                sns.axes_style(config.plotting.sns_style),
+                mpl.rc_context({**_rcparams, **d}),
             ):
                 return func(*args, **kwargs)
 
@@ -232,7 +234,6 @@ def plot_1d_comparison(
         axs = [axs]
 
     for i, f in enumerate(parameters):
-
         finite_points = []
         include = []
         for j, lp in enumerate(live_points):
@@ -336,6 +337,7 @@ def plot_indices(
         Colourmap to use when :code:`plot_breakdown=True`.
     """
     from scipy import stats
+
     from .utils.indices import compute_indices_ks_test
 
     indices = np.asarray(indices)

@@ -7,10 +7,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from nessai import config
 import nessai.livepoint as lp
+from nessai import config
 from nessai.utils.testing import assert_structured_arrays_equal
-
 
 EXTRA_PARAMS_DTYPE = [
     (nsp, d)

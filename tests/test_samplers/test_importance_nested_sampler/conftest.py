@@ -1,15 +1,16 @@
 from unittest.mock import create_autospec
 
+import numpy as np
 import pytest
+from scipy.special import logsumexp
+
 from nessai.evidence import _INSIntegralState
+from nessai.model import Model
 from nessai.proposal.importance import ImportanceFlowProposal
 from nessai.samplers.importancesampler import (
     ImportanceNestedSampler,
     OrderedSamples,
 )
-from nessai.model import Model
-import numpy as np
-from scipy.special import logsumexp
 
 
 @pytest.fixture(scope="module", params=[False, True])

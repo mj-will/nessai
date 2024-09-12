@@ -2,12 +2,12 @@
 """
 Implementation of Neural Spline Flows.
 """
+
 import logging
 
 import torch.nn.functional as F
-
-from glasflow.nflows.distributions import StandardNormal
 from glasflow.nflows import transforms
+from glasflow.nflows.distributions import StandardNormal
 from glasflow.nflows.nn.nets import ResidualNet
 from glasflow.nflows.utils import create_alternating_binary_mask
 
@@ -76,7 +76,6 @@ class NeuralSplineFlow(NFlow):
         distribution=None,
         **kwargs,
     ):
-
         if features <= 1:
             raise ValueError(
                 "Coupling based Neural Spline flow requires at least 2 "

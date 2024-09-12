@@ -2,10 +2,11 @@
 """
 Test the null reparameterisation
 """
+
 import numpy as np
 
-from nessai.reparameterisations import NullReparameterisation
 from nessai.livepoint import empty_structured_array, numpy_array_to_live_points
+from nessai.reparameterisations import NullReparameterisation
 from nessai.utils.testing import (
     assert_structured_arrays_equal as assert_array_equal,
 )

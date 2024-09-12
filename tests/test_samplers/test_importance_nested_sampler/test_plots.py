@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
-from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 import numpy as np
 import pytest
+
+from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 
 
 @pytest.fixture(autouse=True)

@@ -2,6 +2,7 @@
 """
 Null reparameterisation.
 """
+
 import logging
 
 from .base import Reparameterisation

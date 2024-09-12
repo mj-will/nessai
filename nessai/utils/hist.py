@@ -2,6 +2,7 @@
 """
 Utilities related to histogramming.
 """
+
 import numpy as np
 
 

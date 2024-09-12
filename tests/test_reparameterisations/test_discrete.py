@@ -1,7 +1,8 @@
+import numpy as np
+
 from nessai.livepoint import dict_to_live_points, empty_structured_array
 from nessai.reparameterisations.discrete import Dequantise
 from nessai.utils.testing import assert_structured_arrays_equal
-import numpy as np
 
 
 def test_dequantise_init():

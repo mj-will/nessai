@@ -1,7 +1,8 @@
 """Test the general configuration for ImportanceFlowProposal"""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from nessai.livepoint import (
     add_extra_parameters_to_live_points,
@@ -61,11 +62,14 @@ def test_initialise(ifp):
     ifp.flow_config = flow_config
     ifp.training_config = training_config
     flow = MagicMock()
-    with patch(
-        "nessai.proposal.importance.Proposal.initialise",
-    ) as mock_init, patch(
-        "nessai.proposal.importance.ImportanceFlowModel", return_value=flow
-    ) as mock_flow:
+    with (
+        patch(
+            "nessai.proposal.importance.Proposal.initialise",
+        ) as mock_init,
+        patch(
+            "nessai.proposal.importance.ImportanceFlowModel", return_value=flow
+        ) as mock_flow,
+    ):
         IFP.initialise(ifp)
     ifp._check_fields.assert_called_once()
     ifp.verify_rescaling.assert_called_once()
@@ -81,11 +85,14 @@ def test_already_initialised(ifp):
     """Assert functions are not called"""
     ifp.initialised = True
 
-    with patch(
-        "nessai.proposal.importance.Proposal.initialise",
-    ) as mock_init, patch(
-        "nessai.proposal.importance.ImportanceFlowModel",
-    ) as mock_flow:
+    with (
+        patch(
+            "nessai.proposal.importance.Proposal.initialise",
+        ) as mock_init,
+        patch(
+            "nessai.proposal.importance.ImportanceFlowModel",
+        ) as mock_flow,
+    ):
         IFP.initialise(ifp)
     mock_init.assert_not_called()
     mock_flow.assert_not_called()

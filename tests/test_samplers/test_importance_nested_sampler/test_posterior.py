@@ -1,9 +1,12 @@
+from unittest.mock import MagicMock
+
+from nessai.evidence import _INSIntegralState
 from nessai.samplers.importancesampler import (
     ImportanceNestedSampler as INS,
+)
+from nessai.samplers.importancesampler import (
     OrderedSamples,
 )
-from nessai.evidence import _INSIntegralState
-from unittest.mock import MagicMock
 
 
 def test_log_posterior_weights_property(ins):

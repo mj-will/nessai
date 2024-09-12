@@ -2,13 +2,13 @@
 """
 Utilities related to optimisation.
 """
+
 import logging
 from typing import Optional
 
 import numpy as np
 from scipy.optimize import minimize
 from scipy.special import logsumexp
-
 
 logger = logging.getLogger(__name__)
 

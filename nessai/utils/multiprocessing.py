@@ -2,12 +2,14 @@
 """
 Utilities related to multiprocessing.
 """
+
 import logging
 import multiprocessing
 
 import numpy as np
-from nessai.utils.structures import array_split_chunksize
+
 from nessai.config import livepoints
+from nessai.utils.structures import array_split_chunksize
 
 _model = None
 logger = logging.getLogger(__name__)

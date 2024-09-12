@@ -6,6 +6,7 @@ Functions and objects related to reparametersiations for use in the
 See the documentation for an in-depth description of how to use these
 functions and classes.
 """
+
 from .angle import Angle, AnglePair, ToCartesian
 from .base import Reparameterisation
 from .combined import CombinedReparameterisation
@@ -13,7 +14,6 @@ from .discrete import Dequantise
 from .null import NullReparameterisation
 from .rescale import Rescale, RescaleToBounds, ScaleAndShift
 from .utils import get_reparameterisation
-
 
 default_reparameterisations = {
     "default": (RescaleToBounds, None),

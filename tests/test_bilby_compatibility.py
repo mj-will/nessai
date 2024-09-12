@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Test compatibility with bilby"""
+
 import numpy as np
 import pytest
 

@@ -4,14 +4,13 @@ This is the default proposal used by nessai.
 """
 
 import datetime
-from functools import partial
 import logging
+from functools import partial
 
 import numpy as np
 from scipy.special import logsumexp
 
 from ... import config
-from .base import BaseFlowProposal
 from ...livepoint import (
     empty_structured_array,
     numpy_array_to_live_points,
@@ -22,7 +21,7 @@ from ...utils import (
 )
 from ...utils.sampling import NDimensionalTruncatedGaussian
 from ...utils.structures import get_subset_arrays
-
+from .base import BaseFlowProposal
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +91,6 @@ class FlowProposal(BaseFlowProposal):
         compute_radius_with_all=False,
         **kwargs,
     ):
-
         super().__init__(
             model,
             poolsize=poolsize,
@@ -481,7 +479,6 @@ class FlowProposal(BaseFlowProposal):
             log_w = self.compute_weights(x, log_q)
 
             if self.accumulate_weights:
-
                 samples = np.concatenate([samples, x])
                 log_weights = np.concatenate([log_weights, log_w])
                 log_constant = max(np.nanmax(log_w), log_constant)

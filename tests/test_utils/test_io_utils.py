@@ -2,13 +2,15 @@
 """
 Test io utilities.
 """
-import os
+
 import json
+import os
+import pickle
+from unittest.mock import call, create_autospec, mock_open, patch
+
 import h5py
 import numpy as np
-import pickle
 import pytest
-from unittest.mock import call, create_autospec, mock_open, patch
 
 from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
@@ -91,9 +93,10 @@ def test_save_to_json():
     expected_kwargs = dict(indent=4, cls=NessaiJSONEncoder, test=True)
     mop = mock_open()
     filename = "test.json"
-    with patch("builtins.open", mop, create=True), patch(
-        "json.dump"
-    ) as mock_dump:
+    with (
+        patch("builtins.open", mop, create=True),
+        patch("json.dump") as mock_dump,
+    ):
         save_to_json(d, filename, test=True)
     fp = mop()
     mock_dump.assert_called_once_with(d, fp, **expected_kwargs)
@@ -115,9 +118,11 @@ def test_safe_file_dump():
     """Test safe file dump."""
     m = mock_open()
     data = np.array([1, 2])
-    with patch("builtins.open", m) as mo, patch("pickle.dump") as md, patch(
-        "shutil.move"
-    ) as msm:
+    with (
+        patch("builtins.open", m) as mo,
+        patch("pickle.dump") as md,
+        patch("shutil.move") as msm,
+    ):
         safe_file_dump(data, "test.pkl", pickle, save_existing=False)
     mo.assert_called_once_with("test.pkl.temp", "wb")
     np.testing.assert_array_equal(md.call_args_list[0][0][0], data)
@@ -130,9 +135,12 @@ def test_safe_file_dump_save_existing():
 
     m = mock_open()
     data = np.array([1, 2])
-    with patch("os.path.exists", return_value=True) as mpe, patch(
-        "builtins.open", m
-    ) as mo, patch("pickle.dump") as md, patch("shutil.move") as msm:
+    with (
+        patch("os.path.exists", return_value=True) as mpe,
+        patch("builtins.open", m) as mo,
+        patch("pickle.dump") as md,
+        patch("shutil.move") as msm,
+    ):
         safe_file_dump(data, "test.pkl", pickle, save_existing=True)
     mpe.assert_called_once_with("test.pkl")
     mo.assert_called_once_with("test.pkl.temp", "wb")
@@ -207,9 +215,10 @@ def test_save_dict_to_hdf5(data_dict):
     """Assert the correct arguments are specified"""
     f = mock_open()
     filename = "result.h5"
-    with patch("h5py.File", f) as mock_file, patch(
-        "nessai.utils.io.add_dict_to_hdf5_file"
-    ) as mock_add:
+    with (
+        patch("h5py.File", f) as mock_file,
+        patch("nessai.utils.io.add_dict_to_hdf5_file") as mock_add,
+    ):
         save_dict_to_hdf5(data_dict, filename)
     mock_file.assert_called_once_with(filename, "w")
     mock_add.assert_called_once_with(f(), "/", data_dict)
