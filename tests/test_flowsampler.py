@@ -113,7 +113,10 @@ def test_check_resume_files_do_not_exist(flow_sampler, tmp_path):
 
 @pytest.mark.parametrize("resume", [False, True])
 @pytest.mark.parametrize("use_ins", [False, True])
-def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
+@pytest.mark.parametrize("specify_output", [False, True])
+def test_init_no_resume_file(
+    flow_sampler, tmp_path, resume, use_ins, specify_output
+):
     """Test the init method when there is no run to resume from"""
 
     integration_model = MagicMock()
@@ -139,11 +142,12 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
             f"nessai.flowsampler.{sampler_class}", return_value="ns"
         ) as mock,
         patch("nessai.flowsampler.configure_threads") as mock_threads,
+        patch("os.getcwd", return_value=output) as mock_getcwd,
     ):
         FlowSampler.__init__(
             flow_sampler,
             integration_model,
-            output=output,
+            output=output if specify_output else None,
             resume=resume,
             exit_code=exit_code,
             pytorch_threads=pytorch_threads,
@@ -168,6 +172,9 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
     assert flow_sampler.ns == "ns"
 
     flow_sampler.save_kwargs.assert_called_once_with(kwargs)
+
+    if not specify_output:
+        mock_getcwd.assert_called_once()
 
 
 def test_resume_from_resume_data(flow_sampler, model, tmp_path):
