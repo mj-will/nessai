@@ -172,7 +172,7 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
 
 def test_resume_from_resume_data(flow_sampler, model, tmp_path):
     """Test for resume from data"""
-    output = tmp_path / "test"
+    output = str(tmp_path / "test")
     data = object()
     flow_sampler.check_resume = MagicMock(return_value=True)
     flow_sampler._resume_from_data = MagicMock()
@@ -183,6 +183,7 @@ def test_resume_from_resume_data(flow_sampler, model, tmp_path):
         NestedSampler,
         resume_data=data,
         model=model,
+        output=os.path.join(output, ""),
         weights_path=None,
         flow_config=None,
         checkpoint_callback=None,
@@ -191,7 +192,7 @@ def test_resume_from_resume_data(flow_sampler, model, tmp_path):
 
 def test_resume_from_resume_file(flow_sampler, model, tmp_path):
     """Test for resume from data"""
-    output = tmp_path / "test"
+    output = str(tmp_path / "test")
     resume_file = "resume.pkl"
     flow_sampler.check_resume = MagicMock(return_value=True)
     flow_sampler._resume_from_file = MagicMock()
@@ -207,6 +208,7 @@ def test_resume_from_resume_file(flow_sampler, model, tmp_path):
         NestedSampler,
         resume_file=resume_file,
         model=model,
+        output=os.path.join(output, ""),
         weights_path=None,
         flow_config=None,
         checkpoint_callback=None,
@@ -381,6 +383,7 @@ def test_init_resume(tmp_path, test_old, error):
     mock_resume.assert_called_with(
         expected_rf,
         integration_model,
+        output=os.path.join(output, ""),
         flow_config=flow_config,
         weights_path=weights_file,
         checkpoint_callback=None,

@@ -428,21 +428,30 @@ def test_close_pool(sampler):
     sampler.model.close_pool.assert_called_once_with(code=2)
 
 
-def test_resume_from_pickled_sampler(model):
+@pytest.mark.parametrize("output", [None, "orig", "new"])
+def test_resume_from_pickled_sampler(model, output):
     """Test the resume from pickled sampler method"""
     obj = MagicMock()
     obj.model = None
+    obj.output = "orig"
     obj._previous_likelihood_evaluations = 3
     obj._previous_likelihood_evaluation_time = 4.0
 
     model.likelihood_evaluations = 1
     model.likelihood_evaluation_time = datetime.timedelta(seconds=2)
 
-    out = BaseNestedSampler.resume_from_pickled_sampler(obj, model)
+    out = BaseNestedSampler.resume_from_pickled_sampler(
+        obj, model, output=output
+    )
 
     assert out.model == model
     assert out.model.likelihood_evaluations == 4
     assert out.model.likelihood_evaluation_time.total_seconds() == 6
+
+    if output == "new":
+        obj.update_output.assert_called_once_with("new")
+    else:
+        obj.update_output.assert_not_called()
 
 
 def test_resume(model):
@@ -458,11 +467,11 @@ def test_resume(model):
             return_value=pickle_out,
         ) as mock_resume,
     ):
-        out = BaseNestedSampler.resume("test.pkl", model)
+        out = BaseNestedSampler.resume("test.pkl", model, output="test")
 
     assert out is pickle_out
     mock_pickle.assert_called_once()
-    mock_resume.assert_called_once_with(obj, model)
+    mock_resume.assert_called_once_with(obj, model, output="test")
 
 
 def test_get_result_dictionary(sampler):
@@ -516,3 +525,12 @@ def test_update_history(sampler):
     BaseNestedSampler.update_history(sampler)
     assert sampler.history["likelihood_evaluations"] == [10, 20]
     assert sampler.history["sampling_time"] == [1, 2]
+
+
+def test_update_output(sampler, tmp_path):
+    sampler.output = tmp_path / "orig"
+    sampler.resume_file = sampler.output / "resume.pkl"
+    new_output = tmp_path / "new"
+    BaseNestedSampler.update_output(sampler, new_output)
+    assert sampler.output == new_output
+    assert sampler.resume_file == str(new_output / "resume.pkl")

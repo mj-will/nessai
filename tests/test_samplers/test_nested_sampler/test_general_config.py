@@ -87,6 +87,29 @@ def test_setup_output(sampler, tmpdir, plot):
         assert os.path.exists(os.path.join(path, "diagnostics"))
 
 
+@pytest.mark.parametrize("plot", [False, True])
+@pytest.mark.parametrize("has_proposal", [False, True])
+def test_update_output(sampler, tmp_path, plot, has_proposal):
+    output = tmp_path / "new"
+    sampler.plot = plot
+    if has_proposal:
+        sampler._flow_proposal = MagicMock()
+        sampler._flow_proposal.output = tmp_path / "orig" / "proposal"
+    else:
+        sampler._flow_proposal = None
+    with patch("nessai.samplers.base.BaseNestedSampler.update_output") as mock:
+        NestedSampler.update_output(sampler, output)
+
+    mock.assert_called_once_with(output)
+    if has_proposal:
+        sampler._flow_proposal.update_output.assert_called_once_with(
+            os.path.join(output, "proposal", "")
+        )
+
+    if plot:
+        assert os.path.exists(os.path.join(output, "diagnostics"))
+
+
 def test_configure_max_iteration(sampler):
     """Test to make sure the maximum iteration is set correctly"""
     NestedSampler.configure_max_iteration(sampler, 10)
