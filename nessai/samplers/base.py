@@ -357,13 +357,12 @@ class BaseNestedSampler(ABC):
         model.likelihood_evaluation_time += datetime.timedelta(
             seconds=sampler._previous_likelihood_evaluation_time
         )
-        if output is not None:
-            if output != sampler.output:
-                logger.info(
-                    f"Overwriting output from {sampler.output} to {output}"
-                )
-                os.makedirs(output, exist_ok=True)
-                sampler.update_output(output)
+        if output is not None and output != sampler.output:
+            logger.info(
+                f"Overwriting output from {sampler.output} to {output}"
+            )
+            os.makedirs(output, exist_ok=True)
+            sampler.update_output(output)
         sampler.model = model
         sampler.resumed = True
         sampler.checkpoint_callback = checkpoint_callback
