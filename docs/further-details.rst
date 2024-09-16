@@ -112,6 +112,12 @@ priority over the resume file.
 This will be passed to the :python:`resume_from_pickled_sampler` of the
 corresponding sampler class.
 
+.. note::
+
+    If the output directory has been moved, make sure to change the
+    :code`output` argument when calling :code:`FlowSampler`. The sampler
+    will then automatically update the relevant paths.
+
 
 Checkpoint callbacks
 --------------------

@@ -5,6 +5,7 @@ Base object for all proposal classes.
 
 import datetime
 import logging
+import os
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -52,6 +53,24 @@ class Proposal(ABC):
         Initialise the proposal
         """
         self.initialised = True
+
+    def update_output(self, output: str) -> None:
+        """
+        Update the output directory.
+
+        Only updates the output if the proposal has an output attribute.
+
+        Parameters
+        ----------
+        output: str
+            Path to the output directory
+        """
+        if hasattr(self, "output"):
+            logger.debug(f"Updating output directory to {output}")
+            self.output = output
+            os.makedirs(self.output, exist_ok=True)
+        else:
+            logger.debug("No output directory to update")
 
     def evaluate_likelihoods(self):
         """Evaluate the likelihoods for the pool of live points."""

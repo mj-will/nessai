@@ -113,7 +113,10 @@ def test_check_resume_files_do_not_exist(flow_sampler, tmp_path):
 
 @pytest.mark.parametrize("resume", [False, True])
 @pytest.mark.parametrize("use_ins", [False, True])
-def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
+@pytest.mark.parametrize("specify_output", [False, True])
+def test_init_no_resume_file(
+    flow_sampler, tmp_path, resume, use_ins, specify_output
+):
     """Test the init method when there is no run to resume from"""
 
     integration_model = MagicMock()
@@ -139,11 +142,12 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
             f"nessai.flowsampler.{sampler_class}", return_value="ns"
         ) as mock,
         patch("nessai.flowsampler.configure_threads") as mock_threads,
+        patch("os.getcwd", return_value=output) as mock_getcwd,
     ):
         FlowSampler.__init__(
             flow_sampler,
             integration_model,
-            output=output,
+            output=output if specify_output else None,
             resume=resume,
             exit_code=exit_code,
             pytorch_threads=pytorch_threads,
@@ -169,10 +173,13 @@ def test_init_no_resume_file(flow_sampler, tmp_path, resume, use_ins):
 
     flow_sampler.save_kwargs.assert_called_once_with(kwargs)
 
+    if not specify_output:
+        mock_getcwd.assert_called_once()
+
 
 def test_resume_from_resume_data(flow_sampler, model, tmp_path):
     """Test for resume from data"""
-    output = tmp_path / "test"
+    output = str(tmp_path / "test")
     data = object()
     flow_sampler.check_resume = MagicMock(return_value=True)
     flow_sampler._resume_from_data = MagicMock()
@@ -183,6 +190,7 @@ def test_resume_from_resume_data(flow_sampler, model, tmp_path):
         NestedSampler,
         resume_data=data,
         model=model,
+        output=os.path.join(output, ""),
         weights_path=None,
         flow_config=None,
         checkpoint_callback=None,
@@ -191,7 +199,7 @@ def test_resume_from_resume_data(flow_sampler, model, tmp_path):
 
 def test_resume_from_resume_file(flow_sampler, model, tmp_path):
     """Test for resume from data"""
-    output = tmp_path / "test"
+    output = str(tmp_path / "test")
     resume_file = "resume.pkl"
     flow_sampler.check_resume = MagicMock(return_value=True)
     flow_sampler._resume_from_file = MagicMock()
@@ -207,6 +215,7 @@ def test_resume_from_resume_file(flow_sampler, model, tmp_path):
         NestedSampler,
         resume_file=resume_file,
         model=model,
+        output=os.path.join(output, ""),
         weights_path=None,
         flow_config=None,
         checkpoint_callback=None,
@@ -381,6 +390,7 @@ def test_init_resume(tmp_path, test_old, error):
     mock_resume.assert_called_with(
         expected_rf,
         integration_model,
+        output=os.path.join(output, ""),
         flow_config=flow_config,
         weights_path=weights_file,
         checkpoint_callback=None,

@@ -4,6 +4,7 @@ Test the base proposal class.
 """
 
 import logging
+import os
 import pickle
 from unittest.mock import MagicMock, Mock, create_autospec
 
@@ -60,6 +61,19 @@ def test_initialise(proposal):
     """Test the initialise method"""
     Proposal.initialise(proposal)
     assert proposal.initialised is True
+
+
+def test_update_output(proposal, tmp_path):
+    tmp_path = tmp_path / "test"
+    proposal.output = tmp_path / "orig"
+    Proposal.update_output(proposal, tmp_path)
+    assert proposal.output == tmp_path
+    assert os.path.exists(tmp_path)
+
+
+def test_update_output_no_output(proposal):
+    Proposal.update_output(proposal, "test")
+    assert not hasattr(proposal, "output")
 
 
 def test_evaluate_likelihoods(proposal):

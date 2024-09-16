@@ -5,6 +5,7 @@ Integration tests for running the sampler with different configurations.
 
 import logging
 import os
+import shutil
 from unittest.mock import patch
 
 import numpy as np
@@ -438,6 +439,50 @@ def test_resume_reparameterisation_values(tmpdir, model, flow_config):
     assert fp.ns.iteration == 21
     assert os.path.exists(
         os.path.join(output, "nested_sampler_resume.pkl.old")
+    )
+
+
+@pytest.mark.slow_integration_test
+def test_sampling_resume_move_files(model, flow_config, tmp_path):
+    """
+    Test resuming the sampler after moving the resume files.
+    """
+    output = tmp_path / "resume"
+    fp = FlowSampler(
+        model,
+        output=output,
+        resume=True,
+        nlive=100,
+        plot=False,
+        flow_config=flow_config,
+        training_frequency=10,
+        maximum_uninformed=9,
+        checkpoint_on_iteration=True,
+        checkpoint_interval=5,
+        seed=1234,
+        max_iteration=11,
+        poolsize=10,
+    )
+    fp.run()
+
+    assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
+    new_output = tmp_path / "new_resume"
+
+    shutil.move(output, new_output)
+    assert not os.path.exists(output)
+
+    fp = FlowSampler(
+        model,
+        output=new_output,
+        resume=True,
+        flow_config=flow_config,
+    )
+    assert fp.ns.iteration == 11
+    fp.ns.max_iteration = 21
+    fp.run()
+    assert fp.ns.iteration == 21
+    assert os.path.exists(
+        os.path.join(new_output, "nested_sampler_resume.pkl.old")
     )
 
 

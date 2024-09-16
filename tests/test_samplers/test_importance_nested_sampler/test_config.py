@@ -1,6 +1,7 @@
 """Test configuration of INS"""
 
-from unittest.mock import MagicMock
+import os
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -81,3 +82,21 @@ def check_configuration_okay(ins):
     ins.nlive = 100
     ins.min_remove = 1
     assert INS.check_configuration(ins) is True
+
+
+@pytest.mark.parametrize("has_proposal", [False, True])
+def test_update_output(ins, tmp_path, has_proposal):
+    output = tmp_path / "new"
+    if has_proposal:
+        ins.proposal = MagicMock()
+        ins.proposal.output = tmp_path / "orig" / "levels"
+    else:
+        ins.proposal = None
+    with patch("nessai.samplers.base.BaseNestedSampler.update_output") as mock:
+        INS.update_output(ins, output)
+
+    mock.assert_called_once_with(output)
+    if has_proposal:
+        ins.proposal.update_output.assert_called_once_with(
+            os.path.join(output, "levels", "")
+        )
