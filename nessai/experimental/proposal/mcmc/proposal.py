@@ -34,8 +34,8 @@ class MCMCFlowProposal(BaseFlowProposal):
         self._plot_chain = plot_chain
         super().__init__(model, **kwargs)
 
-    def initialise(self):
-        super().initialise()
+    def initialise(self, resumed: bool = False):
+        super().initialise(resumed=resumed)
         StepClass = KNOWN_STEPS.get(self.step_type)
         self.step = StepClass(dims=self.rescaled_dims)
 
