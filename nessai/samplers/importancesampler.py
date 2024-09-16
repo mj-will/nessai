@@ -723,7 +723,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         if self.proposal is not None:
             # ImportanceFlowProposal uses a subdirectory
             subdir = os.path.basename(os.path.normpath(self.proposal.output))
-            self.proposal.update_output(os.path.join(self.output, subdir, ""))
+            self.proposal.update_output(os.path.join(output, subdir, ""))
 
     def configure_iterations(
         self,
