@@ -85,7 +85,7 @@ class FlowSampler:
     def __init__(
         self,
         model,
-        output=os.getcwd(),
+        output=None,
         importance_nested_sampler=False,
         resume=True,
         resume_file="nested_sampler_resume.pkl",
@@ -145,6 +145,8 @@ class FlowSampler:
             logger.debug("Overriding `parallelise_prior` in the model")
             model.parallelise_prior = parallelise_prior
 
+        if output is None:
+            output = os.getcwd()
         self.output = os.path.join(output, "")
         os.makedirs(self.output, exist_ok=True)
         self.save_kwargs(kwargs)
@@ -160,6 +162,7 @@ class FlowSampler:
                     SamplerClass,
                     resume_data=resume_data,
                     model=model,
+                    output=self.output,
                     weights_path=weights_path,
                     flow_config=kwargs.get("flow_config"),
                     checkpoint_callback=kwargs.get("checkpoint_callback"),
@@ -168,6 +171,7 @@ class FlowSampler:
                 self.ns = self._resume_from_file(
                     SamplerClass,
                     model=model,
+                    output=self.output,
                     resume_file=resume_file,
                     weights_path=weights_path,
                     flow_config=kwargs.get("flow_config"),
