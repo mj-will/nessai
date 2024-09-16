@@ -499,6 +499,26 @@ class NestedSampler(BaseNestedSampler):
         if self.plot:
             os.makedirs(os.path.join(output, "diagnostics"), exist_ok=True)
 
+    def update_output(self, output: str) -> None:
+        """Update the output directory.
+
+        Also creates a "diagnostics" directory for plotting.
+
+        Parameters
+        ----------
+        output : str
+            Path to the output directory.
+        """
+        super().update_output(output)
+        if self.plot:
+            os.makedirs(os.path.join(output, "diagnostics"), exist_ok=True)
+        if self._flow_proposal is not None:
+            # FlowProposal uses a subdirectory
+            subdir = os.path.basename(
+                os.path.normpath(self._flow_proposal.output)
+            )
+            self._flow_proposal.update_output(os.path.join(output, subdir, ""))
+
     def configure_flow_reset(
         self, reset_weights, reset_permutations, reset_flow
     ):

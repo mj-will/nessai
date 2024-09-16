@@ -168,6 +168,18 @@ class BaseNestedSampler(ABC):
         self.output = output
         self.resume_file = resume_file
 
+    def update_output(self, output: str) -> None:
+        """Update the output directory and resume file.
+
+        Parameters
+        ----------
+        output: str
+            Path to the output directory
+        """
+        self.output = output
+        resume_file = os.path.split(self.resume_file)[1]
+        self.resume_file = os.path.join(output, resume_file)
+
     def configure_random_seed(self, seed: Optional[int]):
         """Initialise the random seed.
 
@@ -316,6 +328,7 @@ class BaseNestedSampler(ABC):
         cls,
         sampler: Any,
         model: Model,
+        output: Optional[str] = None,
         checkpoint_callback: Optional[Callable] = None,
     ):
         """Resume from pickle data.
@@ -326,6 +339,9 @@ class BaseNestedSampler(ABC):
             Pickle data
         model : :obj:`nessai.model.Model`
             User-defined model
+        output : Optional[str]
+            New output directory. If not specified, the output directory will
+            be the same as the previous run.
         checkpoint_callback : Optional[Callable]
             Checkpoint callback function. If not specified, the default method
             will be used.
@@ -341,13 +357,26 @@ class BaseNestedSampler(ABC):
         model.likelihood_evaluation_time += datetime.timedelta(
             seconds=sampler._previous_likelihood_evaluation_time
         )
+        if output is not None:
+            if output != sampler.output:
+                logger.info(
+                    f"Overwriting output from {sampler.output} to {output}"
+                )
+                os.makedirs(output, exist_ok=True)
+                sampler.update_output(output)
         sampler.model = model
         sampler.resumed = True
         sampler.checkpoint_callback = checkpoint_callback
         return sampler
 
     @classmethod
-    def resume(cls, filename: str, model: Model, **kwargs):
+    def resume(
+        cls,
+        filename: str,
+        model: Model,
+        output: Optional[str] = None,
+        **kwargs,
+    ):
         """Resumes the interrupted state from a checkpoint pickle file.
 
         Parameters
@@ -356,6 +385,9 @@ class BaseNestedSampler(ABC):
             Pickle file to resume from
         model : :obj:`nessai.model.Model`
             User-defined model
+        output : Optional[str]
+            New output directory. If not specified, the output directory will
+            be the same as the previous run.
 
         Returns
         -------
@@ -365,7 +397,9 @@ class BaseNestedSampler(ABC):
         logger.info(f"Resuming {cls.__name__} from {filename}")
         with open(filename, "rb") as f:
             sampler = pickle.load(f)
-        return cls.resume_from_pickled_sampler(sampler, model, **kwargs)
+        return cls.resume_from_pickled_sampler(
+            sampler, model, output=output, **kwargs
+        )
 
     @abstractmethod
     def nested_sampling_loop(self):
