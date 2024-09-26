@@ -127,7 +127,10 @@ def test_get_reparameterisation_invalid_input():
 
 def test_get_reparameterisation_defaults():
     """Test using an updated defaults dictionary."""
-    defaults = {"default": ("Class", {"x": 2})}
+    from nessai.reparameterisations import ReparameterisationDict
+
+    defaults = ReparameterisationDict()
+    defaults.add_reparameterisation("default", "Class", {"x": 2})
     cls, kwargs = get_reparameterisation("default", defaults=defaults)
     assert cls == "Class"
     assert kwargs == {"x": 2}
