@@ -11,6 +11,7 @@ from ..priors import log_uniform_prior
 from ..reparameterisations import (
     AnglePair,
     Reparameterisation,
+    ReparameterisationDict,
     RescaleToBounds,
     default_reparameterisations,
     get_reparameterisation,
@@ -210,31 +211,54 @@ class DeltaPhaseReparameterisation(Reparameterisation):
         return x, x_prime, log_j
 
 
-default_gw = {
-    "distance": (
-        DistanceReparameterisation,
-        {
-            "boundary_inversion": True,
-            "detect_edges": True,
-            "inversion_type": "duplicate",
-        },
-    ),
-    "time": (RescaleToBounds, {"offset": True, "update_bounds": True}),
-    "sky-ra-dec": (AnglePair, {"convention": "ra-dec"}),
-    "sky-az-zen": (AnglePair, {"convention": "az-zen"}),
-    "mass_ratio": (
-        RescaleToBounds,
-        {
-            "detect_edges": True,
-            "boundary_inversion": True,
-            "inversion_type": "duplicate",
-            "update_bounds": True,
-        },
-    ),
-    "mass": (RescaleToBounds, {"update_bounds": True}),
-    "delta_phase": (DeltaPhaseReparameterisation, {}),
-    "delta-phase": (DeltaPhaseReparameterisation, {}),
-}
+default_gw = ReparameterisationDict()
 
+default_gw.add_reparameterisation(
+    "distance",
+    DistanceReparameterisation,
+    {
+        "boundary_inversion": True,
+        "detect_edges": True,
+        "inversion_type": "duplicate",
+    },
+)
+default_gw.add_reparameterisation(
+    "time",
+    RescaleToBounds,
+    {"offset": True, "update_bounds": True},
+)
+default_gw.add_reparameterisation(
+    "sky-ra-dec",
+    AnglePair,
+    {"convention": "ra-dec"},
+)
+default_gw.add_reparameterisation(
+    "sky-az-zen",
+    AnglePair,
+    {"convention": "az-zen"},
+)
+default_gw.add_reparameterisation(
+    "mass_ratio",
+    RescaleToBounds,
+    {
+        "detect_edges": True,
+        "boundary_inversion": True,
+        "inversion_type": "duplicate",
+        "update_bounds": True,
+    },
+)
+default_gw.add_reparameterisation(
+    "mass",
+    RescaleToBounds,
+    {"update_bounds": True},
+)
+default_gw.add_reparameterisation(
+    "delta_phase",
+    DeltaPhaseReparameterisation,
+)
+default_gw.add_reparameterisation(
+    "delta-phase",
+    DeltaPhaseReparameterisation,
+)
 
 default_gw.update(default_reparameterisations)
