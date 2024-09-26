@@ -61,7 +61,7 @@ class ReparameterisationDict(dict):
         entry_points = get_entry_points(group)
         for ep in entry_points.values():
             reparam = ep.load()
-            if reparam is not isinstance(KnownReparameterisation):
+            if not isinstance(reparam, KnownReparameterisation):
                 raise RuntimeError(
                     f"Invalid external reparameterisation: {reparam}"
                 )
@@ -229,7 +229,6 @@ default_reparameterisations.add_reparameterisation(
 default_reparameterisations.add_reparameterisation(
     None, NullReparameterisation
 )
-
 
 default_reparameterisations.add_external_reparameterisations(
     "nessai.reparameterisations"
