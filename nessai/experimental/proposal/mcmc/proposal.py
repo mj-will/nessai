@@ -144,6 +144,14 @@ class MCMCFlowProposal(BaseFlowProposal):
             z_chain[i] = z_current
             if self.n_accept is not None and n_accept.mean() > self.n_accept:
                 break
+        else:
+            if self.n_accept is not None:
+                logger.warning(
+                    (
+                        f"Reached max steps ({self.n_steps}) with "
+                        f"n_accept={self.n_accept}!"
+                    )
+                )
 
         z_new_history = np.array(z_new_history)
         self.step.update_stats(
