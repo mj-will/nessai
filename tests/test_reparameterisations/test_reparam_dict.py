@@ -62,3 +62,54 @@ def test_reparameterisation_dict_add_external_reparam():
     mock_get_entry_points.assert_called_once_with("nessai.reparameterisations")
 
     assert external_reparam == reparam_dict["external_reparam"]
+
+
+def test_reparameterisation_dict_add_external_reparam_invalid_type():
+    reparam_dict = ReparameterisationDict()
+    # Mock class
+    external_reparam = ("external_reparam", "class", {"key": "value"})
+
+    # Mock what is normally returned by the entry point before they are loaded
+    EntryPointClass = MagicMock(spec=["load"])
+    EntryPointClass.load = MagicMock(return_value=external_reparam)
+
+    # Always return the version that needs to be loaded
+    with (
+        patch(
+            "nessai.reparameterisations.get_entry_points",
+            return_value={"external_class": EntryPointClass},
+        ),
+        pytest.raises(
+            RuntimeError, match="Invalid external reparameterisation"
+        ),
+    ):
+        reparam_dict.add_external_reparameterisations(
+            "nessai.reparameterisations"
+        )
+
+
+def test_reparameterisation_dict_add_external_reparam_name_conflict():
+    reparam_dict = ReparameterisationDict()
+    reparam_dict.add_reparameterisation("default", "class", {"key": "value"})
+    # Mock class
+    external_reparam = KnownReparameterisation(
+        "default", "class", {"key": "value"}
+    )
+
+    # Mock what is normally returned by the entry point before they are loaded
+    EntryPointClass = MagicMock(spec=["load"])
+    EntryPointClass.load = MagicMock(return_value=external_reparam)
+
+    # Always return the version that needs to be loaded
+    with (
+        patch(
+            "nessai.reparameterisations.get_entry_points",
+            return_value={"external_class": EntryPointClass},
+        ),
+        pytest.raises(
+            ValueError, match="Reparameterisation default already exists"
+        ),
+    ):
+        reparam_dict.add_external_reparameterisations(
+            "nessai.reparameterisations"
+        )
