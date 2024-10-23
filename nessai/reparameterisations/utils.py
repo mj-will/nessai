@@ -3,6 +3,8 @@
 Utilities for handling the reparameterisations.
 """
 
+import copy
+
 from .base import Reparameterisation
 from .null import NullReparameterisation
 
@@ -30,18 +32,16 @@ def get_reparameterisation(reparameterisation, defaults=None):
         from . import default_reparameterisations
 
         defaults = default_reparameterisations
+
     if isinstance(reparameterisation, str):
-        rc, kwargs = defaults.get(reparameterisation, (None, None))
-        if rc is None:
+        reparam = defaults.get(reparameterisation, None)
+        if reparam is None:
             raise ValueError(
-                f"Unknown reparameterisation: {reparameterisation}"
+                f"Unknown reparameterisation: {reparameterisation}. "
+                f"Known reparameterisations are: {list(defaults.keys())}."
             )
         else:
-            if kwargs is None:
-                kwargs = {}
-            else:
-                kwargs = kwargs.copy()
-            return rc, kwargs
+            return reparam.class_fn, copy.deepcopy(reparam.keyword_arguments)
     elif reparameterisation is None:
         return NullReparameterisation, {}
     elif isinstance(reparameterisation, type) and issubclass(
