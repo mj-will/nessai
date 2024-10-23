@@ -83,11 +83,13 @@ def check_proposal_kwargs(ProposalClass, kwargs, strict=False):
 def available_base_flow_proposal_classes():
     from ..experimental.gw.proposal import ClusteringGWFlowProposal
     from ..experimental.proposal.clustering import ClusteringFlowProposal
+    from ..experimental.proposal.mcmc import MCMCFlowProposal
     from ..gw.proposal import AugmentedGWFlowProposal, GWFlowProposal
     from .augmented import AugmentedFlowProposal
     from .flowproposal import FlowProposal
 
     base_proposals = {
+        "mcmcflowproposal": MCMCFlowProposal,
         "clusteringgwflowproposal": ClusteringGWFlowProposal,
         "augmentedgwflowproposal": AugmentedGWFlowProposal,
         "gwflowproposal": GWFlowProposal,
