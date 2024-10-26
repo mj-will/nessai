@@ -53,7 +53,7 @@ def test_reparameterisation_dict_add_external_reparam():
 
     # Always return the version that needs to be loaded
     with patch(
-        "nessai.reparameterisations.get_entry_points",
+        "nessai.reparameterisations.utils.get_entry_points",
         return_value={"external_class": EntryPointClass},
     ) as mock_get_entry_points:
         reparam_dict.add_external_reparameterisations(
@@ -76,7 +76,7 @@ def test_reparameterisation_dict_add_external_reparam_invalid_type():
     # Always return the version that needs to be loaded
     with (
         patch(
-            "nessai.reparameterisations.get_entry_points",
+            "nessai.reparameterisations.utils.get_entry_points",
             return_value={"external_class": EntryPointClass},
         ),
         pytest.raises(
@@ -103,7 +103,7 @@ def test_reparameterisation_dict_add_external_reparam_name_conflict():
     # Always return the version that needs to be loaded
     with (
         patch(
-            "nessai.reparameterisations.get_entry_points",
+            "nessai.reparameterisations.utils.get_entry_points",
             return_value={"external_class": EntryPointClass},
         ),
         pytest.raises(
