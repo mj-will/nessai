@@ -155,7 +155,7 @@ class MCMCFlowProposal(BaseFlowProposal):
                     )
                 )
 
-        keep = (n_accept > 0)
+        keep = n_accept > 0
         logger.debug(f"Replacing {n_walkers - keep.sum()} walkers")
         x_current = x_current[keep]
 
