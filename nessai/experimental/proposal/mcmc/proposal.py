@@ -143,8 +143,10 @@ class MCMCFlowProposal(BaseFlowProposal):
             n_reject += 1 - accept
             z_chain[i] = z_current
             if self.n_accept is not None and n_accept.mean() > self.n_accept:
+                n_steps = i
                 break
         else:
+            n_steps = self.n_steps
             if self.n_accept is not None:
                 logger.warning(
                     (
@@ -153,15 +155,23 @@ class MCMCFlowProposal(BaseFlowProposal):
                     )
                 )
 
+        keep = n_accept > 0
+        logger.debug(f"Replacing {n_walkers - keep.sum()} walkers")
+        x_current = x_current[keep]
+
         z_new_history = np.array(z_new_history)
+        z_chain = z_chain[:n_steps]
         self.step.update_stats(
             n_accept=n_accept.mean(),
             n_reject=n_reject.mean(),
         )
 
-        self.samples = self.convert_to_samples(x_current)
-
         self.population_time += datetime.datetime.now() - st
+        if len(x_current) == 0:
+            logger.warning("No samples accepted!")
+            return
+
+        self.samples = self.convert_to_samples(x_current)
         if self._plot_chain and plot:
             self.plot_chain(z_chain)
         if self._plot_pool and plot:
