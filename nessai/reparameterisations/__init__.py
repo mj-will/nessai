@@ -16,6 +16,7 @@ from .discrete import Dequantise
 from .null import NullReparameterisation
 from .rescale import Rescale, RescaleToBounds, ScaleAndShift
 from .utils import (
+    KnownReparameterisation,
     ReparameterisationDict,
     get_reparameterisation,
 )
@@ -190,6 +191,7 @@ __all__ = [
     "AnglePair",
     "CombinedReparameterisation",
     "Dequantise",
+    "KnownReparameterisation",
     "NullReparameterisation",
     "Reparameterisation",
     "Rescale",
