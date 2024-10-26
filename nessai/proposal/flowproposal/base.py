@@ -95,6 +95,7 @@ class BaseFlowProposal(RejectionProposal):
     behaviour to change without changing the keyword arguments.
     """
     _FlowModelClass = FlowModel
+    alt_dist = None
 
     def __init__(
         self,
