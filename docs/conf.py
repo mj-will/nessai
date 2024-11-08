@@ -15,7 +15,7 @@ import sys
 
 import nessai
 
-sys.path.insert(0, os.path.abspath("../nessai/"))
+sys.path.insert(0, os.path.abspath("../src/nessai/"))
 
 # -- Project information -----------------------------------------------------
 
