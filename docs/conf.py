@@ -65,7 +65,7 @@ html_static_path = []
 
 # -- Configure autoapi -------------------------------------------------------
 autoapi_type = "python"
-autoapi_dirs = ["../nessai/"]
+autoapi_dirs = ["../src/nessai/"]
 autoapi_add_toctree_entry = False
 autoapi_options = ["members", "show-inheritance", "show-module-summary"]
 
