@@ -5,4 +5,4 @@ coverage:
         target: 90%
         threshold: 1%
   ignore:
-    - "nessai/experimental"
+    - "src/nessai/experimental"
