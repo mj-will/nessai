@@ -26,12 +26,14 @@ class MCMCFlowProposal(BaseFlowProposal):
         n_accept=None,
         step_type: str = "gaussian",
         plot_chain: bool = False,
+        enforce_likelihood_threshold: bool = False,
         **kwargs,
     ):
         self.n_steps = n_steps
         self.n_accept = n_accept
         self.step_type = step_type
         self._plot_chain = plot_chain
+        self.enforce_likelihood_threshold = enforce_likelihood_threshold
         super().__init__(model, **kwargs)
 
     def initialise(self, resumed: bool = False):
@@ -120,25 +122,28 @@ class MCMCFlowProposal(BaseFlowProposal):
                 log_p = self.log_prior(x_new)
             finite_prior = np.isfinite(log_p)
 
+            # Jacobian should include flow and step
             log_j_new = log_j_step + log_j_flow
-
-            # Only evaluate function where log-prior is finite
-            # Default is NaN, so will not pass threshold.
-            x_new["logL"][finite_prior] = (
-                self.model.batch_evaluate_log_likelihood(
-                    x_new[finite_prior],
-                    unit_hypercube=self.map_to_unit_hypercube,
-                )
-            )
-            logl_accept = x_new["logL"] > log_l_threshold
+            # Calculate acceptance
             log_factor = log_p + log_j_new - log_p_current - log_j_current
             log_u = np.log(self.rng.random(n_walkers))
-
-            accept = (log_factor > log_u) & finite_prior & logl_accept
+            accept = (log_factor > log_u) & finite_prior
+            # Only evaluate function where log-prior is finite
+            # Default is NaN, so will not pass threshold.
+            if self.enforce_likelihood_threshold:
+                x_new["logL"][finite_prior] = (
+                    self.model.batch_evaluate_log_likelihood(
+                        x_new[finite_prior],
+                        unit_hypercube=self.map_to_unit_hypercube,
+                    )
+                )
+                logl_accept = x_new["logL"] > log_l_threshold
+                accept &= logl_accept
 
             x_current[accept] = x_new[accept]
             z_current[accept] = z_new[accept]
-            log_j_current[accept] = log_j_new[accept]
+            # Only include the log-jacobian for the flow
+            log_j_current[accept] = log_j_flow[accept]
             n_accept += accept
             n_reject += 1 - accept
             z_chain[i] = z_current
@@ -158,6 +163,10 @@ class MCMCFlowProposal(BaseFlowProposal):
         keep = n_accept > 0
         logger.debug(f"Replacing {n_walkers - keep.sum()} walkers")
         x_current = x_current[keep]
+
+        x_current["logL"] = self.model.batch_evaluate_log_likelihood(
+            x_current, unit_hypercube=self.map_to_unit_hypercube
+        )
 
         z_new_history = np.array(z_new_history)
         z_chain = z_chain[:n_steps]
