@@ -1,7 +1,7 @@
 import logging
 import math
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -81,12 +81,30 @@ def _get_nondiagonal_pairs(n: int) -> np.ndarray:
 
 
 class DifferentialEvolutionStep(Step):
+    """Differential evolution step for MCMC proposal.
+
+    Based on the differential evolution proposal from CPnest and the dynesty-
+    specific implementation in bilby.
+
+    Parameters
+    ----------
+    dims : int
+        The number of dimensions in the parameter space.
+    ensemble : np.ndarray, optional
+        The ensemble of live points. Default is None.
+    mix_fraction : float, optional
+        The fraction of the ensemble to mix. Default is 0.5.
+    sigma : float, optional
+        The standard deviation of the error term added to the steps.
+        Default is 1e-5.
+    """
+
     def __init__(
         self,
         dims: int,
         ensemble: Optional[np.ndarray] = None,
         mix_fraction: float = 0.5,
-        sigma: float = 1e-4,
+        sigma: float = 1e-5,
     ) -> None:
         self.pairs = None
         self.n_pairs = None
@@ -117,7 +135,40 @@ class DifferentialEvolutionStep(Step):
         return z_new, np.zeros(nc)
 
 
+class StretchStep(Step):
+    """Stretch step for MCMC proposal.
+
+    Based on the stretch move proposal from Goodman & Weare (2010), as
+    implemented in :code:`cpnest` and :code:`LALInference`.
+
+    Parameters
+    ----------
+    dims : int
+        The number of dimensions in the parameter space.
+    scale : float, optional
+        The scale factor for the stretch move. Default is 2.0.
+    ensemble : np.ndarray, optional
+        The ensemble of live points. Default is None.
+    """
+
+    def __init__(
+        self, dims: int, scale: float = 2.0, ensemble: np.ndarray = None
+    ):
+        super().__init__(dims, ensemble)
+        self.scale = scale
+
+    def step(self, z: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        nc = z.shape[0]
+        indices = np.random.choice(len(self.ensemble), size=nc, replace=True)
+        a = self.ensemble[indices]
+        x = np.random.uniform(-1, 1, size=nc) * np.log(self.scale)
+        scale = np.exp(x)
+        z_new = a + (z - a) * scale[:, None]
+        return z_new, x * self.dims
+
+
 KNOWN_STEPS = dict(
     gaussian=GaussianStep,
     diff=DifferentialEvolutionStep,
+    stretch=StretchStep,
 )
