@@ -689,7 +689,7 @@ class ImportanceFlowProposal(Proposal):
             logger.debug(f"Drawing {m} samples from the {id}th proposal.")
             if id == -1:
                 prime_samples[count : (count + m)] = self.to_prime(
-                    self.rng.random(m, self.model.dims)
+                    self.rng.random((m, self.model.dims))
                 )[0]
             else:
                 prime_samples[count : (count + m)] = self.flow.sample_ith(
