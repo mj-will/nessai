@@ -26,7 +26,9 @@ Importantly the structured arrays used for live points can also contain multiple
 .. code-block:: python
 
     >>> from nessai.livepoint import numpy_array_to_live_points
-    >>> x = np.random.rand(10, 2)    # 10 live points with 2 parameters
+    >>> import numpy as np
+    >>> rng = np.random.default_rng()
+    >>> x = rng.random((10, 2))    # 10 live points with 2 parameters
     >>> print(x)
     [[0.72451217 0.1788154 ]
      [0.31549832 0.55898106]
