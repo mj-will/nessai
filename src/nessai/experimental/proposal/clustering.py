@@ -65,7 +65,7 @@ class ClusteringFlowProposal(FlowProposal):
         fig.savefig(os.path.join(output, "training_clusters"))
         plt.close(fig)
 
-        z_gen = np.random.randn(self.training_data.size, self.dims)
+        z_gen = self.rng.standard_normal((self.training_data.size, self.dims))
 
         fig = plt.figure()
         plt.hist(np.sqrt(np.sum(z_training_data**2, axis=1)), "auto")

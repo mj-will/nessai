@@ -115,7 +115,7 @@ class AugmentedFlowProposal(FlowProposal):
                 x_prime[an] = np.zeros(x_prime.size)
         elif generate_augment == "gaussian":
             for an in self.augment_parameters:
-                x_prime[an] = np.random.randn(x_prime.size)
+                x_prime[an] = self.rng.standard_normal(x_prime.size)
         else:
             raise RuntimeError("Unknown method for generating augment samples")
 
@@ -153,7 +153,7 @@ class AugmentedFlowProposal(FlowProposal):
         """
         x_prime = np.repeat(x_prime, self.n_marg, axis=0)
 
-        x_prime[:, -self.augment_dims :] = np.random.randn(
+        x_prime[:, -self.augment_dims :] = self.rng.standard_normal(
             x_prime.shape[0], self.augment_dims
         )
 

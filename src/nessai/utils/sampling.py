@@ -3,9 +3,13 @@
 Utilities related to drawing samples.
 """
 
+import logging
+
 import numpy as np
 from scipy import stats
 from scipy.special import gammaincinv
+
+logger = logging.getLogger(__name__)
 
 
 def compute_radius(n, q=0.95):
@@ -29,7 +33,7 @@ def compute_radius(n, q=0.95):
     return stats.chi.ppf(q, n)
 
 
-def draw_surface_nsphere(dims, r=1, N=1000):
+def draw_surface_nsphere(dims, r=1, N=1000, rng=None):
     """
     Draw N points uniformly from  n-1 sphere of radius r using Marsaglia's
     algorithm. E.g for 3 dimensions returns points on a 'regular' sphere.
@@ -50,13 +54,16 @@ def draw_surface_nsphere(dims, r=1, N=1000):
     ndarray
         Array of samples with shape (N, dims)
     """
-    x = np.random.randn(N, dims)
+    if rng is None:
+        logger.debug("No rng specified, using the default rng.")
+        rng = np.random.default_rng()
+    x = rng.standard_normal((N, dims))
     R = np.sqrt(np.sum(x**2.0, axis=1))[:, np.newaxis]
     z = x / R
     return r * z
 
 
-def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
+def draw_nsphere(dims, r=1, N=1000, fuzz=1.0, rng=None):
     """
     Draw N points uniformly within an n-sphere of radius r
 
@@ -76,13 +83,16 @@ def draw_nsphere(dims, r=1, N=1000, fuzz=1.0):
     ndarray
         Array of samples with shape (N, dims)
     """
-    x = draw_surface_nsphere(dims, r=1, N=N)
-    R = np.random.uniform(0, 1, (N, 1))
+    if rng is None:
+        logger.debug("No rng specified, using the default rng.")
+        rng = np.random.default_rng()
+    x = draw_surface_nsphere(dims, r=1, N=N, rng=rng)
+    R = rng.random((N, 1))
     z = R ** (1 / dims) * x
     return fuzz * r * z
 
 
-def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
+def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0, rng=None):
     """
     Draw from a uniform distribution on [0, 1].
 
@@ -105,10 +115,13 @@ def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0):
     ndarraay
         Array of samples with shape (N, dims)
     """
-    return np.random.uniform(0, 1, (N, dims))
+    if rng is None:
+        logger.debug("No rng specified, using the default rng.")
+        rng = np.random.default_rng()
+    return rng.random((N, dims))
 
 
-def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
+def draw_gaussian(dims, r=1, N=1000, fuzz=1.0, rng=None):
     """
     Wrapper for numpy.random.randn that deals with extra input parameters
     r and fuzz
@@ -129,10 +142,13 @@ def draw_gaussian(dims, r=1, N=1000, fuzz=1.0):
     ndarray
         Array of samples with shape (N, dims)
     """
-    return np.random.randn(N, dims)
+    if rng is None:
+        logger.debug("No rng specified, using the default rng.")
+        rng = np.random.default_rng()
+    return rng.standard_normal((N, dims))
 
 
-def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1):
+def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1, rng=None):
     """
     Draw N points from a truncated gaussian with a given a radius
 
@@ -152,11 +168,14 @@ def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1):
     ndarray
         Array of samples with shape (N, dims)
     """
+    if rng is None:
+        logger.debug("No rng specified, using the default rng.")
+        rng = np.random.default_rng()
     sigma = np.sqrt(var)
     u_max = stats.chi.cdf(r * fuzz / sigma, df=dims)
-    u = np.random.uniform(0, u_max, N)
+    u = rng.uniform(0, u_max, N)
     p = sigma * stats.chi.ppf(u, df=dims)
-    x = np.random.randn(p.size, dims)
+    x = rng.standard_normal((p.size, dims))
     points = (p * x.T / np.sqrt(np.sum(x**2.0, axis=1))).T
     return points
 
@@ -179,12 +198,16 @@ class NDimensionalTruncatedGaussian:
         dims: int,
         radius: float,
         fuzz: float = 1.0,
+        rng: np.random.Generator = None,
     ) -> None:
         self.dims = dims
         self.radius = radius
         self.fuzz = fuzz
         self.chi = stats.chi(df=self.dims)
-
+        if rng is None:
+            logger.debug("No rng specified, using the default rng.")
+            rng = np.random.default_rng()
+        self.rng = rng
         self.u_max = self.chi.cdf(self.radius * self.fuzz)
 
     def sample(self, N: int) -> np.ndarray:
@@ -200,9 +223,9 @@ class NDimensionalTruncatedGaussian:
         numpy.ndarray
             Array of samples of shape [n, dims].
         """
-        u = self.u_max * np.random.rand(N)
+        u = self.u_max * self.rng.random(N)
         # Inverse CDF of a chi-distribution
         p = np.sqrt(2 * gammaincinv(0.5 * self.dims, u))
-        x = np.random.randn(self.dims, N)
+        x = self.rng.standard_normal((self.dims, N))
         points = (p * x / np.sqrt(np.sum(x**2.0, axis=0))).T
         return points

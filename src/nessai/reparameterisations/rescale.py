@@ -172,10 +172,13 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
         estimate_shift=False,
         pre_rescaling=None,
         post_rescaling=None,
+        rng=None,
     ):
         if scale is None and not estimate_scale:
             raise RuntimeError("Must specify a scale or enable estimate_scale")
-        super().__init__(parameters=parameters, prior_bounds=prior_bounds)
+        super().__init__(
+            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+        )
 
         self.estimate_scale = estimate_scale
         self.estimate_shift = estimate_shift
@@ -365,8 +368,11 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         update_bounds=True,
         pre_rescaling=None,
         post_rescaling=None,
+        rng=None,
     ):
-        super().__init__(parameters=parameters, prior_bounds=prior_bounds)
+        super().__init__(
+            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+        )
 
         self.bounds = None
         self._edges = None
@@ -552,7 +558,7 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
                 log_j = np.concatenate([log_j, log_j])
             else:
                 logger.debug("Inverting with splitting")
-                inv = np.random.choice(
+                inv = self.rng.choice(
                     x_prime.size, x_prime.size // 2, replace=False
                 )
                 x_prime[pp][inv] *= -1

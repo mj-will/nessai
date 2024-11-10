@@ -21,8 +21,10 @@ class NullReparameterisation(Reparameterisation):
         Prior bounds for parameters. Unused for this reparameterisation.
     """
 
-    def __init__(self, parameters=None, prior_bounds=None):
-        super().__init__(parameters=parameters, prior_bounds=prior_bounds)
+    def __init__(self, parameters=None, prior_bounds=None, rng=None):
+        super().__init__(
+            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+        )
         self.prime_parameters = self.parameters
         logger.debug(f"Initialised reparameterisation: {self.name}")
 

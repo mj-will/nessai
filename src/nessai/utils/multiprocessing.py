@@ -223,10 +223,10 @@ def check_vectorised_function(func, x, dtype=None, atol=1e-15, rtol=1e-15):
     if len(x) <= 1:
         raise ValueError("Input has length <= 1")
 
-    target = np.array([func(xx) for xx in x], dtype=dtype)
+    target = np.array([func(xx) for xx in x], dtype=dtype).flatten()
 
     try:
-        batch = func(x).astype(dtype)
+        batch = func(x).astype(dtype).flatten()
     except (TypeError, ValueError, AttributeError):
         logger.debug("Assuming function is not vectorised")
         return False

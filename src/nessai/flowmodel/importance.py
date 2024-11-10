@@ -31,11 +31,13 @@ class ImportanceFlowModel(FlowModel):
         flow_config: dict = None,
         training_config: dict = None,
         output: str = None,
+        rng: Optional[np.random.Generator] = None,
     ):
         super().__init__(
             flow_config=flow_config,
             training_config=training_config,
             output=output,
+            rng=rng,
         )
         self.weights_files = []
         self.models = torch.nn.ModuleList()

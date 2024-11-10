@@ -346,6 +346,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         n_initial: Optional[int] = None,
         output: Optional[str] = None,
         seed: Optional[int] = None,
+        rng: Optional[np.random.Generator] = None,
         checkpointing: bool = True,
         checkpoint_interval: int = 600,
         checkpoint_on_iteration: bool = False,
@@ -394,6 +395,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             nlive,
             output=output,
             seed=seed,
+            rng=rng,
             checkpointing=checkpointing,
             checkpoint_interval=checkpoint_interval,
             checkpoint_on_iteration=checkpoint_on_iteration,
@@ -1310,7 +1312,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         log_evidence_errors = np.empty(n_batches)
         proposal = self.proposal
         for i in range(n_batches):
-            new_counts = np.random.multinomial(
+            new_counts = self.rng.multinomial(
                 orig_n_total,
                 weights,
             )
@@ -1348,7 +1350,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             cc = 0
             for it, c, nc in zip(its, counts, new_counts):
                 assert c >= nc
-                idx = np.random.choice(
+                idx = self.rng.choice(
                     np.arange(cc, cc + c), size=nc, replace=False
                 )
                 idx_keep[idx] = True

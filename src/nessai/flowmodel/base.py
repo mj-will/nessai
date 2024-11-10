@@ -51,10 +51,15 @@ class FlowModel:
         flow_config: Union[dict, None] = None,
         training_config: Union[dict, None] = None,
         output: Union[str, None] = None,
+        rng: Optional[np.random.Generator] = None,
     ) -> None:
         if output is None:
             output = os.getcwd()
         self.model = None
+        if rng is None:
+            logger.debug("No rng specified, using the default rng.")
+            rng = np.random.default_rng()
+        self.rng = rng
         self.initialised = False
         self.output = output
         os.makedirs(self.output, exist_ok=True)
@@ -271,7 +276,7 @@ class FlowModel:
         if weights is not None and conditional is not None:
             raise RuntimeError("weights and conditional inputs not supported")
 
-        idx = np.random.permutation(samples.shape[0])
+        idx = self.rng.permutation(samples.shape[0])
         samples = samples[idx]
         if weights is not None:
             if not np.isfinite(weights).all():

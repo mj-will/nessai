@@ -6,6 +6,7 @@ Object for defining the use-defined model.
 import datetime
 import logging
 from abc import ABC, abstractmethod
+from typing import Optional
 
 import numpy as np
 
@@ -113,6 +114,23 @@ class Model(ABC):
     _pool_configured = False
     n_pool = None
     _discrete_parameters = None
+    rng = None
+
+    def set_rng(self, rng: Optional[np.random.Generator] = None):
+        """Set the random number generator.
+
+        Parameters
+        ----------
+        rng : np.random.Generator, optional
+            Random number generator. If not provided, a new generator is
+            created.
+        """
+        if rng is None:
+            logger.debug("No rng specified, using the default rng.")
+            rng = np.random.default_rng()
+        if self.rng is not None:
+            raise RuntimeError("Random number generator already set!")
+        self.rng = rng
 
     @property
     def names(self):
@@ -416,10 +434,12 @@ class Model(ABC):
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
+        if not self.rng:
+            raise RuntimeError("Random number generator not set!")
         logP = -np.inf
         while logP == -np.inf:
             p = parameters_to_live_point(
-                np.random.uniform(
+                self.rng.uniform(
                     self.lower_bounds, self.upper_bounds, self.dims
                 ),
                 self.names,
@@ -443,11 +463,13 @@ class Model(ABC):
             Numpy structured array with fields for each parameter
             and log-prior (logP) and log-likelihood (logL)
         """
+        if not self.rng:
+            raise RuntimeError("Random number generator not set!")
         new_points = empty_structured_array(N, names=self.names)
         n = 0
         while n < N:
             p = numpy_array_to_live_points(
-                np.random.uniform(
+                self.rng.uniform(
                     self.lower_bounds, self.upper_bounds, [N, self.dims]
                 ),
                 self.names,
@@ -547,8 +569,10 @@ class Model(ABC):
         numpy.ndarray
             Structured array of samples
         """
+        if not self.rng:
+            raise RuntimeError("Random number generator not set!")
         return numpy_array_to_live_points(
-            np.random.rand(n, self.dims),
+            self.rng.random((n, self.dims)),
             names=self.names,
         )
 
@@ -748,6 +772,9 @@ class Model(ABC):
                 f"`bounds` is not set to a valid value: {self.bounds}"
             )
 
+        if not self.rng:
+            raise RuntimeError("Random number generator not set!")
+
         if self.dims == 1:
             raise OneDimensionalModelError(
                 "model is one-dimensional. "
@@ -769,7 +796,7 @@ class Model(ABC):
             counter = 0
             while (logP == -np.inf) or (logP == np.inf):
                 x = numpy_array_to_live_points(
-                    np.random.uniform(
+                    self.rng.uniform(
                         self.lower_bounds, self.upper_bounds, [1, self.dims]
                     ),
                     self.names,

@@ -17,7 +17,9 @@ class ClusteringFlowModel(FlowModel):
     n_clusters: int = None
     cluster_weights: np.ndarray = None
 
-    def __init__(self, flow_config=None, training_config=None, output=None):
+    def __init__(
+        self, flow_config=None, training_config=None, output=None, rng=None
+    ):
         try:
             import faiss
 
@@ -32,6 +34,7 @@ class ClusteringFlowModel(FlowModel):
             flow_config=flow_config,
             training_config=training_config,
             output=output,
+            rng=rng,
         )
 
     def setup_from_input_dict(
@@ -96,7 +99,7 @@ class ClusteringFlowModel(FlowModel):
 
     def sample_cluster_labels(self, n: int) -> np.ndarray:
         """Sample n random cluster labels"""
-        return np.random.choice(
+        return self.rng.choice(
             self.n_clusters, size=(n, 1), p=self.cluster_weights
         )
 

@@ -38,6 +38,7 @@ class Dequantise(RescaleToBounds):
         rescale_bounds=None,
         update_bounds=False,
         post_rescaling=None,
+        rng=None,
     ):
         super().__init__(
             parameters=parameters,
@@ -50,6 +51,7 @@ class Dequantise(RescaleToBounds):
             update_bounds=update_bounds,
             pre_rescaling=None,
             post_rescaling=post_rescaling,
+            rng=rng,
         )
 
         self.has_pre_rescaling = True
@@ -62,11 +64,9 @@ class Dequantise(RescaleToBounds):
             p: [b[0], b[1] + 1] for p, b in self.prior_bounds.items()
         }
 
-    @staticmethod
-    def pre_rescaling(x):
+    def pre_rescaling(self, x):
         n = len(x)
-        return x + np.random.rand(n), np.zeros(n)
+        return x + self.rng.random(n), np.zeros(n)
 
-    @staticmethod
-    def pre_rescaling_inv(x):
+    def pre_rescaling_inv(self, x):
         return np.floor(x), np.zeros(len(x))

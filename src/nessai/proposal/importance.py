@@ -39,6 +39,8 @@ class ImportanceFlowProposal(Proposal):
     ----------
     model : :obj:`nessai.model.Model`
         User-defined model.
+    rng : :obj:`numpy.random.Generator`, optional
+        Random number generator. If not provided, a new generator is created.
     output : str
         Output directory.
     flow_config : dict
@@ -67,6 +69,7 @@ class ImportanceFlowProposal(Proposal):
         self,
         model: Model,
         output: str,
+        rng: Optional[np.random.Generator] = None,
         flow_config: dict = None,
         training_config: dict = None,
         reparameterisation: str = "logit",
@@ -79,6 +82,10 @@ class ImportanceFlowProposal(Proposal):
         self._initialised = False
 
         self.model = model
+        if rng is None:
+            logger.debug("No rng specified, using the default rng.")
+            rng = np.random.default_rng()
+        self.rng = rng
         self.output = output
         self.flow_config = flow_config
         self.training_config = training_config
@@ -662,7 +669,7 @@ class ImportanceFlowProposal(Proposal):
                     "Size of weights does not match the number of levels"
                 )
             logger.debug(f"Proposal weights: {weights}")
-            counts = np.random.multinomial(n, weights)
+            counts = self.rng.multinomial(n, weights)
         else:
             counts = np.array(counts, dtype=int)
             weights = counts / counts.sum()
@@ -682,7 +689,7 @@ class ImportanceFlowProposal(Proposal):
             logger.debug(f"Drawing {m} samples from the {id}th proposal.")
             if id == -1:
                 prime_samples[count : (count + m)] = self.to_prime(
-                    np.random.rand(m, self.model.dims)
+                    self.rng.random(m, self.model.dims)
                 )[0]
             else:
                 prime_samples[count : (count + m)] = self.flow.sample_ith(
