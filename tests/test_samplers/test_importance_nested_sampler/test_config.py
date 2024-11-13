@@ -12,6 +12,8 @@ from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
 
 @pytest.mark.parametrize("save_log_q", [False, True])
 def test_init(ins, model, save_log_q):
+    ins.rng = None
+    model.rng = None
     ins.add_fields = MagicMock()
     INS.__init__(ins, model, save_log_q=save_log_q, draw_iid_live=True)
     ins.add_fields.assert_called_once()

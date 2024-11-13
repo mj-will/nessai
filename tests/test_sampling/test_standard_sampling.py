@@ -54,13 +54,14 @@ def test_sampling_with_reparameterisation(
     assert fp.ns.proposal.training_count == 1
 
 
-def test_sampling_regex_reparams(model, flow_config, tmp_path):
+@pytest.mark.integration_test
+def test_sampling_regex_reparams(integration_model, flow_config, tmp_path):
     """Test using regex to specify reparameterisations"""
-    model._names = ["x_0", "x_1"]
-    model._bounds = {"x_0": [-5, 5], "x_1": [-5, 5]}
+    integration_model._names = ["x_0", "x_1"]
+    integration_model._bounds = {"x_0": [-5, 5], "x_1": [-5, 5]}
 
     fs = FlowSampler(
-        model,
+        integration_model,
         nlive=100,
         output=tmp_path / "test_regex",
         flow_config=flow_config,
@@ -194,13 +195,13 @@ def test_sampling_with_n_pool(
 
 
 @pytest.mark.slow_integration_test
-def test_sampling_resume(model, flow_config, tmpdir):
+def test_sampling_resume(integration_model, flow_config, tmpdir):
     """
     Test resuming the sampler.
     """
     output = str(tmpdir.mkdir("resume"))
     fp = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         nlive=100,
@@ -217,8 +218,10 @@ def test_sampling_resume(model, flow_config, tmpdir):
     fp.run()
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
+    integration_model.rng = None
+
     fp = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         flow_config=flow_config,
@@ -339,7 +342,9 @@ def test_sampling_resume_no_max_uninformed(
 
 
 @pytest.mark.slow_integration_test
-def test_resume_fallback_reparameterisation(tmpdir, model, flow_config):
+def test_resume_fallback_reparameterisation(
+    tmpdir, integration_model, flow_config
+):
     """
     Test resuming the sampler with the default reparameterisations disabled
     and the fallback set.
@@ -350,7 +355,7 @@ def test_resume_fallback_reparameterisation(tmpdir, model, flow_config):
 
     output = str(tmpdir.mkdir("resume"))
     fp = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         nlive=100,
@@ -373,8 +378,10 @@ def test_resume_fallback_reparameterisation(tmpdir, model, flow_config):
     assert isinstance(reparam, ScaleAndShift)
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
+    integration_model.rng = None
+
     fp = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         flow_config=flow_config,
@@ -391,7 +398,9 @@ def test_resume_fallback_reparameterisation(tmpdir, model, flow_config):
 
 
 @pytest.mark.slow_integration_test
-def test_resume_reparameterisation_values(tmpdir, model, flow_config):
+def test_resume_reparameterisation_values(
+    tmpdir, integration_model, flow_config
+):
     """
     Assert the scale and shift values are correct.
     """
@@ -399,7 +408,7 @@ def test_resume_reparameterisation_values(tmpdir, model, flow_config):
 
     output = str(tmpdir.mkdir("resume"))
     fp = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         nlive=100,
@@ -423,8 +432,10 @@ def test_resume_reparameterisation_values(tmpdir, model, flow_config):
     original_shift = reparam.shift
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
+    integration_model.rng = None
+
     fp = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         flow_config=flow_config,
@@ -443,13 +454,13 @@ def test_resume_reparameterisation_values(tmpdir, model, flow_config):
 
 
 @pytest.mark.slow_integration_test
-def test_sampling_resume_move_files(model, flow_config, tmp_path):
+def test_sampling_resume_move_files(integration_model, flow_config, tmp_path):
     """
     Test resuming the sampler after moving the resume files.
     """
     output = tmp_path / "resume"
     fp = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         nlive=100,
@@ -471,8 +482,10 @@ def test_sampling_resume_move_files(model, flow_config, tmp_path):
     shutil.move(output, new_output)
     assert not os.path.exists(output)
 
+    integration_model.rng = None
+
     fp = FlowSampler(
-        model,
+        integration_model,
         output=new_output,
         resume=True,
         flow_config=flow_config,

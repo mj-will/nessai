@@ -287,7 +287,7 @@ def test_plot_1d_comparison_colours(colours, live_points, live_points_1):
     plt.close()
 
 
-def test_plot_1d_comparison_more_colours(model):
+def test_plot_1d_comparison_more_colours(model, rng):
     """Test generating a 1d comparirson when comparing more than 10 sets
     of live points.
 

@@ -44,6 +44,7 @@ def test_initialise(tmpdir, proposal):
         flow_config=proposal.flow_config,
         training_config=proposal.training_config,
         output=proposal.output,
+        rng=proposal.rng,
     )
     proposal.flow.initialise.assert_called_once()
     assert proposal.populated is False

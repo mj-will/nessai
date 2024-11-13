@@ -653,7 +653,13 @@ def test_run(flow_sampler, use_ins):
 @patch("nessai.plot.plot_live_points")
 @patch("nessai.plot.plot_indices")
 def test_run_standard(
-    mock_plot_indices, mock_plot_post, mock_draw_post, flow_sampler, save, plot
+    mock_plot_indices,
+    mock_plot_post,
+    mock_draw_post,
+    flow_sampler,
+    save,
+    plot,
+    rng,
 ):
     """Test the run method"""
     nlive = 10
@@ -662,6 +668,7 @@ def test_run_standard(
     log_w = np.array([-0.1, -0.2, -0.3])
     insertion_indices = [1, 2, 3]
     output = os.getcwd()
+    flow_sampler.rng = rng
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.nlive = nlive
     flow_sampler.ns.insertion_indices = insertion_indices
@@ -681,7 +688,7 @@ def test_run_standard(
 
     flow_sampler.ns.initialise.assert_called_once()
     mock_draw_post.assert_called_once_with(
-        nested_samples, log_w=log_w, method="rejection_sampling"
+        nested_samples, log_w=log_w, method="rejection_sampling", rng=rng
     )
     if save:
         flow_sampler.save_results.assert_called_once_with(
@@ -737,9 +744,10 @@ def test_run_close_pool_standard(flow_sampler, close_pool):
 
 
 @pytest.mark.parametrize("method", (None, "multinomial_resampling"))
-def test_run_posterior_sampling_method_standard(flow_sampler, method):
+def test_run_posterior_sampling_method_standard(flow_sampler, method, rng):
     """Assert posterior sampling method is passed correctly"""
     log_w = np.random.rand(100)
+    flow_sampler.rng = rng
     flow_sampler.ns = MagicMock()
     flow_sampler.ns.nested_sampling_loop = MagicMock(return_value=("lZ", "ns"))
     flow_sampler.ns.state = MagicMock(spec=_NSIntegralState)
@@ -755,7 +763,7 @@ def test_run_posterior_sampling_method_standard(flow_sampler, method):
 
     if method is None:
         method = "rejection_sampling"
-    mock.assert_called_once_with("ns", log_w=log_w, method=method)
+    mock.assert_called_once_with("ns", log_w=log_w, method=method, rng=rng)
 
 
 def test_run_standard_plots_disabled(flow_sampler):
@@ -1153,6 +1161,8 @@ def test_resume_from_data_integration(
 
     pickled_sampler = pickle.dumps(fs.ns)
     resume_data = pickle.loads(pickled_sampler)
+
+    integration_model.rng = None
 
     fs_resume = FlowSampler(
         integration_model,

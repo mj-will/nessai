@@ -7,7 +7,6 @@ import time
 import numpy as np
 import pytest
 import torch
-from numpy.random import seed
 from scipy.stats import norm
 
 from nessai.livepoint import (
@@ -17,14 +16,18 @@ from nessai.livepoint import (
 from nessai.model import Model
 from nessai.utils.testing import IntegrationTestModel
 
-seed(170817)
 torch.manual_seed(170817)
 
 _requires_dependency_cache = dict()
 
 
 @pytest.fixture()
-def model():
+def rng():
+    return np.random.default_rng(170817)
+
+
+@pytest.fixture()
+def model(rng):
     class TestModel(Model):
         def __init__(self):
             self.bounds = {"x": [-5, 5], "y": [-5, 5]}
@@ -54,12 +57,15 @@ def model():
                 x_out[n] = np.ptp(self.bounds[n]) * x[n] + self.bounds[n][0]
             return x_out
 
-    return TestModel()
+    m = TestModel()
+    m.set_rng(rng)
+    return m
 
 
-@pytest.fixture()
-def integration_model():
-    return IntegrationTestModel()
+@pytest.fixture(scope="function")
+def integration_model(rng):
+    model = IntegrationTestModel()
+    return model
 
 
 @pytest.fixture()

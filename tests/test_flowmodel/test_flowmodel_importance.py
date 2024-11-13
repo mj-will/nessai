@@ -14,15 +14,15 @@ from nessai.flowmodel.importance import ImportanceFlowModel as IFM
 
 
 @pytest.fixture()
-def ifm():
-    return create_autospec(IFM)
+def ifm(rng):
+    return create_autospec(IFM, rng=rng)
 
 
 class DummyFlow(torch.nn.Module):
     pass
 
 
-def test_init(ifm):
+def test_init(ifm, rng):
     training_config = dict(patience=20)
     flow_config = dict(n_neurons=4)
     output = "test"
@@ -32,9 +32,13 @@ def test_init(ifm):
             output=output,
             flow_config=flow_config,
             training_config=training_config,
+            rng=rng,
         )
     mock_init.assert_called_once_with(
-        flow_config=flow_config, training_config=training_config, output=output
+        flow_config=flow_config,
+        training_config=training_config,
+        output=output,
+        rng=rng,
     )
     assert ifm.weights_files == []
     assert len(ifm.models) == 0

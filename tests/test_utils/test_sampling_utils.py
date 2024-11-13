@@ -20,6 +20,11 @@ from nessai.utils.sampling import (
 )
 
 
+@pytest.fixture
+def mock_rng():
+    return create_autospec(np.random.Generator)
+
+
 def test_compute_radius():
     """Assert compute radius calls the correct function"""
     with patch("scipy.stats.chi.ppf") as mock:
@@ -76,21 +81,33 @@ def test_draw_nball(ndims, radius):
     np.testing.assert_array_less(np.sqrt(np.sum(out**2, axis=-1)), radius)
 
 
-def test_draw_uniform():
+def test_draw_uniform(mock_rng):
     """Assert the underlying numpy function is called correctly."""
     expected = np.array([0.5, 1])
-    with patch("numpy.random.uniform", return_value=expected) as mock:
+    mock_rng.random = create_autospec(
+        np.random.Generator.uniform, return_value=expected
+    )
+    with patch(
+        "numpy.random.default_rng", return_value=mock_rng
+    ) as mock_default_rng:
         out = draw_uniform(2, r=1, N=100, fuzz=2)
-    mock.assert_called_once_with(0, 1, (100, 2))
+    mock_default_rng.assert_called_once()
+    mock_rng.random.assert_called_once_with((100, 2))
     np.testing.assert_array_equal(out, expected)
 
 
-def test_draw_gaussian():
+def test_draw_gaussian(mock_rng):
     """Assert the underlying numpy function is called correctly."""
     expected = np.array([1, 2])
-    with patch("numpy.random.randn", return_value=expected) as mock:
+    mock_rng.standard_normal = create_autospec(
+        np.random.Generator.standard_normal, return_value=expected
+    )
+    with patch(
+        "numpy.random.default_rng", return_value=mock_rng
+    ) as mock_default_rng:
         out = draw_gaussian(2, r=1, N=100, fuzz=2)
-    mock.assert_called_once_with(100, 2)
+    mock_default_rng.assert_called_once()
+    mock_rng.standard_normal.assert_called_once_with((100, 2))
     np.testing.assert_array_equal(out, expected)
 
 
@@ -116,6 +133,24 @@ def test_draw_truncated_gaussian_1d(r, var, fuzz):
     )
     _, p = stats.kstest(np.squeeze(s), d.cdf)
     assert p >= 0.05
+
+
+@pytest.mark.parametrize(
+    "fn",
+    [
+        draw_gaussian,
+        draw_nsphere,
+        draw_surface_nsphere,
+        draw_truncated_gaussian,
+        draw_uniform,
+    ],
+)
+def test_draw_functions_rng(fn, rng):
+    """Assert the rng is used if provided"""
+    # default rng should not be called
+    with patch("numpy.random.default_rng") as mock_default_rng:
+        fn(2, r=1, N=100, rng=rng)
+    mock_default_rng.assert_not_called()
 
 
 @pytest.mark.parametrize("dims", [1, 2, 4, 8, 16, 32, 64])

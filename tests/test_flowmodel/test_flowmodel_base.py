@@ -37,18 +37,18 @@ def conditional(request, n_samples):
 
 
 @pytest.fixture()
-def model():
-    m = create_autospec(FlowModel)
+def model(rng):
+    m = create_autospec(FlowModel, rng=rng)
     m.numpy_array_to_tensor = torch.tensor
     m.model = MagicMock()
     return m
 
 
 @pytest.fixture(scope="function")
-def flow_model(flow_config, data_dim, tmpdir):
+def flow_model(flow_config, data_dim, tmpdir, rng):
     flow_config["n_inputs"] = data_dim
     output = str(tmpdir.mkdir("flowmodel"))
-    return FlowModel(flow_config, output=output)
+    return FlowModel(flow_config, output=output, rng=rng)
 
 
 def test_init_no_config(tmp_path):
@@ -224,7 +224,7 @@ def test_prep_data_dataloader(flow_model, data_dim, val_size, batch_size):
     assert len(train) * train_batch.shape[0] + val_batch.shape[0] == n
 
 
-def test_prep_data_conditional(data_dim):
+def test_prep_data_conditional(data_dim, rng):
     n = 200
     batch_size = 100
     x = np.random.randn(n, data_dim)
@@ -232,6 +232,7 @@ def test_prep_data_conditional(data_dim):
     fm = create_autospec(FlowModel)
     fm.initialised = True
     fm.check_batch_size = MagicMock(return_value=batch_size)
+    fm.rng = rng
     train_loader, val_loader, bs = FlowModel.prep_data(
         fm, x, 0.1, batch_size, conditional=c
     )

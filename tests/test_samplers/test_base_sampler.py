@@ -1,26 +1,29 @@
 # -*- coding: utf-8 -*-
 """Test the base nested sampler"""
 
+import copy
 import datetime
 import os
 import pickle
 import time
 from unittest.mock import MagicMock, create_autospec, patch
 
+import numpy as np
 import pytest
 
 from nessai.samplers.base import BaseNestedSampler
 
 
 @pytest.fixture
-def sampler():
+def sampler(rng):
     obj = create_autospec(BaseNestedSampler)
     obj.model = MagicMock()
+    obj.rng = rng
     return obj
 
 
 @pytest.mark.parametrize("checkpoint_on_iteration", [False, True])
-def test_init(sampler, checkpoint_on_iteration):
+def test_init(sampler, checkpoint_on_iteration, rng):
     """Assert the init sets the correct attributes and calls the correct
     methods.
     """
@@ -39,7 +42,7 @@ def test_init(sampler, checkpoint_on_iteration):
     n_pool = 2
     pool = MagicMock()
 
-    sampler.configure_random_seed = MagicMock()
+    sampler.configure_rng = MagicMock()
     sampler.configure_output = MagicMock()
     sampler.configure_periodic_logging = MagicMock()
 
@@ -49,6 +52,7 @@ def test_init(sampler, checkpoint_on_iteration):
         nlive,
         output=output,
         seed=seed,
+        rng=rng,
         checkpointing=checkpointing,
         checkpoint_interval=checkpoint_interval,
         checkpoint_on_iteration=checkpoint_on_iteration,
@@ -63,7 +67,7 @@ def test_init(sampler, checkpoint_on_iteration):
     model.verify_model.assert_called_once()
     model.configure_pool.assert_called_once_with(pool=pool, n_pool=n_pool)
 
-    sampler.configure_random_seed.assert_called_once_with(seed)
+    sampler.configure_rng.assert_called_once_with(seed, rng)
     sampler.configure_output.assert_called_once_with(
         output, resume_file=resume_file
     )
@@ -129,35 +133,72 @@ def test_posterior_effective_sample_suze(sampler):
         BaseNestedSampler.posterior_effective_sample_size.__get__(sampler)
 
 
-@patch("numpy.random.seed")
-@patch("torch.manual_seed")
-def test_set_random_seed(mock1, mock2, sampler):
+def test_set_random_seed(sampler, rng):
     """Test the correct functions are called when setting the random seed"""
-    BaseNestedSampler.configure_random_seed(sampler, 150914)
-    mock1.assert_called_once_with(150914)
-    mock2.assert_called_once_with(seed=150914)
+    with (
+        patch("numpy.random.default_rng", return_value=rng) as mock_rng,
+        patch("torch.manual_seed") as mock_torch_seed,
+    ):
+        BaseNestedSampler.configure_rng(sampler, 150914, None)
+    mock_rng.assert_called_once_with(150914)
+    mock_torch_seed.assert_called_once_with(150914)
     assert sampler.seed == 150914
+    assert sampler.rng is rng
 
 
-@patch("numpy.random.seed")
-@patch("torch.manual_seed")
-@patch("numpy.random.randint", return_value=10)
-def test_no_random_seed(mock_int, mock1, mock2, sampler):
-    """Assert a random seed is set if seed=None"""
-    BaseNestedSampler.configure_random_seed(sampler, None)
-    mock_int.assert_called_once()
-    mock1.assert_called_once_with(10)
-    mock2.assert_called_once_with(seed=10)
-    assert sampler.seed == 10
+def test_no_random_seed_or_rng(sampler, rng):
+    """Test behaviour when no seed or rng is provided"""
+    with (
+        patch("random.randint", return_value=42) as mock_randint,
+        patch(
+            "numpy.random.default_rng", return_value=rng
+        ) as mock_default_rng,
+        patch("torch.manual_seed") as mock_torch_seed,
+    ):
+        BaseNestedSampler.configure_rng(sampler, None, None)
+    mock_randint.assert_called_once()
+    mock_default_rng.assert_called_once_with(42)
+    mock_torch_seed.assert_called_once_with(42)
+    assert sampler.seed == 42
+    assert sampler.rng is rng
 
 
-@patch("numpy.random.seed")
-@patch("torch.manual_seed")
-def test_no_random_seed_numpy(mock1, mock2, sampler):
-    """Assert a random seed is set if seed=None"""
-    BaseNestedSampler.configure_random_seed(sampler, None)
-    mock1.assert_called_once()
-    mock2.assert_called_once()
+def test_random_seed_rng_only(sampler):
+    """Test behaviour when no seed or rng is provided"""
+    rng = MagicMock()
+    rng.integers = MagicMock(return_value=42)
+    with (
+        patch("numpy.random.default_rng") as mock_default_rng,
+        patch("torch.manual_seed") as mock_torch_seed,
+    ):
+        BaseNestedSampler.configure_rng(sampler, rng=rng)
+    mock_default_rng.assert_not_called()
+    rng.integers.assert_called_once()
+    mock_torch_seed.assert_called_once_with(42)
+    assert sampler.seed == 42
+
+
+@pytest.mark.integration_test
+def test_configure_rng_rng_integration(sampler):
+    rng = np.random.default_rng(42)
+    BaseNestedSampler.configure_rng(sampler, rng=rng)
+    orig_seed = copy.copy(sampler.seed)
+    rng = np.random.default_rng(42)
+    BaseNestedSampler.configure_rng(sampler, rng=rng)
+    assert sampler.seed == orig_seed
+
+
+@pytest.mark.integration_test
+def configure_rng_no_rng_integration(sampler):
+    """Ensure a run without a seed can be reproduced using the seed that
+    is generated.
+    """
+    BaseNestedSampler.configure_rng(sampler)
+    orig_seed = copy.copy(sampler.seed)
+    x = sampler.rng.integers(0, 100)
+    BaseNestedSampler.configure_rng(sampler, seed=orig_seed)
+    x_re = sampler.rng.integers(0, 100)
+    assert x == x_re
 
 
 def test_configure_output(sampler, tmpdir):

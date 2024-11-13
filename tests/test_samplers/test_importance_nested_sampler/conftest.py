@@ -19,12 +19,13 @@ def iid(request):
 
 
 @pytest.fixture
-def ins():
+def ins(rng):
     obj = create_autospec(ImportanceNestedSampler)
     obj.model = create_autospec(Model)
     obj.training_samples = create_autospec(OrderedSamples)
     obj.training_samples.state = create_autospec(_INSIntegralState)
     obj.iid_samples = None
+    obj.rng = rng
     return obj
 
 

@@ -12,9 +12,10 @@ def map_to_unit_hypercube(request):
 
 
 @pytest.fixture()
-def proposal():
+def proposal(rng):
     proposal = create_autospec(FlowProposal)
     proposal._initialised = False
     proposal.accumulate_weights = False
     proposal.map_to_unit_hypercube = False
+    proposal.rng = rng
     return proposal
