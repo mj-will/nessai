@@ -9,6 +9,7 @@ import random
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional, Union
+from warnings import warn
 
 import numpy as np
 import torch
@@ -88,7 +89,7 @@ class BaseNestedSampler(ABC):
 
         self.info_enabled = logger.isEnabledFor(logging.INFO)
         self.debug_enabled = logger.isEnabledFor(logging.DEBUG)
-        self.configure_random_seed(seed, rng)
+        self.configure_rng(seed, rng)
         model.set_rng(self.rng)
         model.verify_model()
         self.n_pool = n_pool
@@ -183,15 +184,19 @@ class BaseNestedSampler(ABC):
         resume_file = os.path.split(self.resume_file)[1]
         self.resume_file = os.path.join(output, resume_file)
 
-    def configure_random_seed(
-        self, seed: Optional[int], rng: Optional[np.random.Generator]
+    def configure_rng(
+        self,
+        seed: Optional[int] = None,
+        rng: Optional[np.random.Generator] = None,
     ):
-        """Initialise the random seed.
+        """Configure the random number generation.
 
         If a seed is not specified, a random seed is generated using the
         specified random number generator, or the default numpy random number
         if not specified. In the latter case, the seed is then used to seed
         the new numpy random number generator.
+
+        ..versionadded:: 0.14.0
 
         Parameters
         ----------
@@ -216,6 +221,25 @@ class BaseNestedSampler(ABC):
             rng = np.random.default_rng(self.seed)
         self.rng = rng
         torch.manual_seed(self.seed)
+
+    def configure_random_seed(self, seed: Optional[int] = None) -> None:
+        """Initialise the random seed
+
+        ..deprecated:: 0.14.0
+            Deprecated in favour of
+            :py:meth:`~nessai.samplers.base.BaseNestedSampler.configure_rng`.
+
+        Parameters
+        ----------
+        seed : Optional[int]
+            The random seed. If not specified, a random seed is generated.
+        """
+        msg = (
+            "`configure_random_seed` is deprecated and will be removed in a "
+            "future release. Use `configure_rng` instead."
+        )
+        warn(msg, FutureWarning)
+        self.configure_rng(seed=seed)
 
     def configure_periodic_logging(self, logging_interval, log_on_iteration):
         """Configure the periodic logging.
