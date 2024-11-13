@@ -433,13 +433,14 @@ def test_new_point_log_prob(model):
 
 
 @pytest.mark.integration_test
-def test_new_point_integration(integration_model):
+def test_new_point_integration(integration_model, rng):
     """
     Test the default method for generating a new point with the bounds.
 
     Uses the model defined in `conftest.py` with bounds [-5, 5] for
     x and y.
     """
+    integration_model.set_rng(rng)
     new_point = integration_model.new_point()
     log_q = integration_model.new_point_log_prob(new_point)
     assert (new_point["x_0"] < 5) & (new_point["x_0"] > -5)
@@ -448,13 +449,14 @@ def test_new_point_integration(integration_model):
 
 
 @pytest.mark.integration_test
-def test_new_point_multiple_integration(integration_model):
+def test_new_point_multiple_integration(integration_model, rng):
     """
     Test drawing multiple new points from the model
 
     Uses the model defined in `conftest.py` with bounds [-5, 5] for
     x_0 and x_1.
     """
+    integration_model.set_rng(rng)
     new_points = integration_model.new_point(N=100)
     log_q = integration_model.new_point_log_prob(new_points)
     assert new_points.size == 100
@@ -1258,12 +1260,14 @@ def test_pool(integration_model, mp_context, pickleable, init, rng):
 @pytest.mark.requires("ray")
 @pytest.mark.integration_test
 @pytest.mark.flaky(reruns=3)
-def test_pool_ray(integration_model):
+def test_pool_ray(integration_model, rng):
     """Integration test for evaluating the likelihood with a pool from ray.
 
     This will break if the class for integration_model is defined globally.
     """
     from ray.util.multiprocessing import Pool
+
+    integration_model.set_rng(rng)
 
     # Cannot pickle lambda functions
     integration_model.fn = lambda x: x
@@ -1321,8 +1325,9 @@ def test_pool_multiprocess(integration_model, rng):
 
 @pytest.mark.integration_test
 @pytest.mark.parametrize("pickleable", [False, True])
-def test_n_pool(integration_model, mp_context, pickleable):
+def test_n_pool(integration_model, mp_context, pickleable, rng):
     """Integration test for evaluating the likelihood with n_pool"""
+    integration_model.set_rng(rng)
     if not pickleable:
         # Cannot pickle lambda functions
         integration_model.fn = lambda x: x
@@ -1362,8 +1367,9 @@ def test_unstructured_view_integration(integration_model, live_points):
 
 
 @pytest.mark.integration_test
-def test_in_bounds_integration_values(integration_model):
+def test_in_bounds_integration_values(integration_model, rng):
     """Assert the correct booleans are returned"""
+    integration_model.set_rng(rng)
     x = integration_model.new_point(3)
     names = integration_model.names
     x[names[0]][0] = integration_model.bounds[names[0]][1] + 1.0
@@ -1376,10 +1382,12 @@ def test_in_bounds_integration_values(integration_model):
 
 @pytest.mark.parametrize("n", [1, 10])
 @pytest.mark.integration_test
-def test_in_bounds_integration_n_samples(integration_model, n):
+def test_in_bounds_integration_n_samples(integration_model, n, rng):
     """Assert single and multiple samples work"""
+    integration_model.set_rng(rng)
     x = numpy_array_to_live_points(
-        np.random.randn(n, integration_model.dims), integration_model.names
+        rng.standard_normal((n, integration_model.dims)),
+        integration_model.names,
     )
     flags = integration_model.in_bounds(x)
     assert len(flags) == n
