@@ -15,6 +15,7 @@ from scipy.stats import norm
 from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.model import Model, OneDimensionalModelError
+from nessai.utils.errors import RNGNotSetError, RNGSetError
 from nessai.utils.multiprocessing import (
     initialise_pool_variables,
     log_likelihood_wrapper,
@@ -56,12 +57,16 @@ def model():
 
 
 @pytest.fixture
-def live_point(integration_model):
+def live_point(integration_model, rng):
+    if integration_model.rng is None:
+        integration_model.set_rng(rng)
     return integration_model.new_point()
 
 
 @pytest.fixture
-def live_points(integration_model):
+def live_points(integration_model, rng):
+    if integration_model.rng is None:
+        integration_model.set_rng(rng)
     return integration_model.new_point(10)
 
 
@@ -341,7 +346,7 @@ def test_new_point_single(model):
     model._single_new_point.assert_called_once()
 
 
-def test_single_new_point(model):
+def test_single_new_point(model, rng):
     """Test the method that draw one point within the prior bounds"""
     model.names = ["x", "y"]
     model.bounds = {"x": [-1, 1], "y": [-2, 2]}
@@ -349,6 +354,7 @@ def test_single_new_point(model):
     model.upper_bounds = np.array([1, 2])
     model.log_prior = MagicMock(return_value=0)
     model.dims = 2
+    model.rng = rng
     x = Model._single_new_point(model)
     assert (x["x"] >= -1) & (x["x"] <= 1)
     assert (x["y"] >= -2) & (x["y"] <= 2)
@@ -361,7 +367,7 @@ def test_new_point_multiple(model):
     model._multiple_new_points.assert_called_once_with(10)
 
 
-def test_multiple_new_points(model):
+def test_multiple_new_points(model, rng):
     """Test the method that draws multiple points within the prior bounds"""
     n = 10
     model.names = ["x", "y"]
@@ -370,13 +376,14 @@ def test_multiple_new_points(model):
     model.upper_bounds = np.array([1, 2])
     model.log_prior = MagicMock(return_value=np.zeros(10))
     model.dims = 2
+    model.rng = rng
     x = Model._multiple_new_points(model, N=n)
     assert x.size == n
     assert ((x["x"] >= -1) & (x["x"] <= 1)).all()
     assert ((x["y"] >= -2) & (x["y"] <= 2)).all()
 
 
-def test_multiple_new_points_reject(model):
+def test_multiple_new_points_reject(model, rng):
     """Assert the correct number of points are returned in some are rejected"""
     n = 3
     model.names = ["x", "y"]
@@ -386,6 +393,7 @@ def test_multiple_new_points_reject(model):
     model.log_prior = MagicMock(
         side_effect=2 * [np.array([-np.inf, 0.0, 0.0])]
     )
+    model.rng = rng
     model.dims = 2
     x = Model._multiple_new_points(model, N=n)
     assert x.size == n
@@ -393,7 +401,7 @@ def test_multiple_new_points_reject(model):
     assert ((x["y"] >= -2) & (x["y"] <= 2)).all()
 
 
-def test_multiple_new_points_reject_batch(model):
+def test_multiple_new_points_reject_batch(model, rng):
     """Assert rejecting an entire batch does not raise an error"""
     n = 3
     model.names = ["x", "y"]
@@ -407,6 +415,7 @@ def test_multiple_new_points_reject_batch(model):
         ]
     )
     model.dims = 2
+    model.rng = rng
     x = Model._multiple_new_points(model, N=n)
     assert x.size == n
     assert ((x["x"] >= -1) & (x["x"] <= 1)).all()
@@ -425,13 +434,14 @@ def test_new_point_log_prob(model):
 
 
 @pytest.mark.integration_test
-def test_new_point_integration(integration_model):
+def test_new_point_integration(integration_model, rng):
     """
     Test the default method for generating a new point with the bounds.
 
     Uses the model defined in `conftest.py` with bounds [-5, 5] for
     x and y.
     """
+    integration_model.set_rng(rng)
     new_point = integration_model.new_point()
     log_q = integration_model.new_point_log_prob(new_point)
     assert (new_point["x_0"] < 5) & (new_point["x_0"] > -5)
@@ -440,13 +450,14 @@ def test_new_point_integration(integration_model):
 
 
 @pytest.mark.integration_test
-def test_new_point_multiple_integration(integration_model):
+def test_new_point_multiple_integration(integration_model, rng):
     """
     Test drawing multiple new points from the model
 
     Uses the model defined in `conftest.py` with bounds [-5, 5] for
     x_0 and x_1.
     """
+    integration_model.set_rng(rng)
     new_points = integration_model.new_point(N=100)
     log_q = integration_model.new_point_log_prob(new_points)
     assert new_points.size == 100
@@ -570,7 +581,7 @@ def test_model_1d_error():
     )
 
 
-def test_verify_new_point():
+def test_verify_new_point(rng):
     """
     Test `Model.verify_model` and ensure a model with an ill-defined
     prior function raises the correct error
@@ -581,6 +592,7 @@ def test_verify_new_point():
             return -np.inf
 
     model = BrokenModel()
+    model.set_rng(rng)
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
@@ -589,7 +601,7 @@ def test_verify_new_point():
 
 
 @pytest.mark.parametrize("log_p", [np.inf, -np.inf])
-def test_verify_log_prior_finite(log_p):
+def test_verify_log_prior_finite(log_p, rng):
     """
     Test `Model.verify_model` and ensure a model with a log-prior that
     only returns inf function raises the correct error
@@ -600,12 +612,13 @@ def test_verify_log_prior_finite(log_p):
             return log_p
 
     model = BrokenModel()
+    model.rng = rng
 
     with pytest.raises(RuntimeError):
         model.verify_model()
 
 
-def test_verify_log_prior_none():
+def test_verify_log_prior_none(rng):
     """
     Test `Model.verify_model` and ensure a model with a log-prior that
     only returns None raises an error.
@@ -616,6 +629,7 @@ def test_verify_log_prior_none():
             return None
 
     model = BrokenModel()
+    model.set_rng(rng)
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
@@ -623,7 +637,7 @@ def test_verify_log_prior_none():
     assert "Log-prior" in str(excinfo.value)
 
 
-def test_verify_log_likelihood_none():
+def test_verify_log_likelihood_none(rng):
     """
     Test `Model.verify_model` and ensure a model with a log-likelihood that
     only returns None raises an error.
@@ -634,6 +648,7 @@ def test_verify_log_likelihood_none():
             return None
 
     model = BrokenModel()
+    model.set_rng(rng)
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
@@ -742,7 +757,7 @@ def test_verify_invalid_bounds_type():
     assert "`bounds` must be a dictionary" in str(excinfo.value)
 
 
-def test_verify_incomplete_bounds():
+def test_verify_incomplete_bounds(rng):
     """
     Test `Model.verify_model` and ensure a model without bounds
     function raises the correct error
@@ -755,12 +770,13 @@ def test_verify_incomplete_bounds():
             self.names = ["x", "y"]
 
     model = TestModel()
+    model.rng = rng
 
     with pytest.raises(RuntimeError):
         model.verify_model()
 
 
-def test_verify_model_1d():
+def test_verify_model_1d(rng):
     """Assert an error is raised if the model is one dimensional."""
 
     class TestModel(EmptyModel):
@@ -768,6 +784,7 @@ def test_verify_model_1d():
         bounds = {"x": [-5, 5]}
 
     model = TestModel()
+    model.set_rng(rng)
 
     with pytest.raises(OneDimensionalModelError) as excinfo:
         model.verify_model()
@@ -777,7 +794,7 @@ def test_verify_model_1d():
 
 
 @pytest.mark.parametrize("value", [np.log(True), np.float16(5.0)])
-def test_verify_float16(caplog, value):
+def test_verify_float16(caplog, value, rng):
     """
     Test `Model.verify_model` and ensure that a critical warning is raised
     if a float16 array is returned by the prior.
@@ -788,24 +805,26 @@ def test_verify_float16(caplog, value):
             return value
 
     model = BrokenModel()
+    model.set_rng(rng)
 
     model.verify_model()
 
     assert "float16 precision" in caplog.text
 
 
-def test_verify_no_float16(caplog):
+def test_verify_no_float16(caplog, rng):
     """
     Test `Model.verify_model` and ensure that a critical warning is not raised
     if array return by log_prior is not dtype float16.
     """
     model = BasicModel()
+    model.set_rng(rng)
     out = model.verify_model()
     assert out is True
     assert "float16 precision" not in caplog.text
 
 
-def test_unbounded_priors_wo_new_point():
+def test_unbounded_priors_wo_new_point(rng):
     """Test `Model.verify_model` with unbounded priors"""
 
     class TestModel(Model):
@@ -820,13 +839,14 @@ def test_unbounded_priors_wo_new_point():
             return np.ones(x.size)
 
     model = TestModel()
+    model.set_rng(rng)
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
 
     assert "Could not draw a new point" in str(excinfo.value)
 
 
-def test_unbounded_priors_w_new_point():
+def test_unbounded_priors_w_new_point(rng):
     """Test `Model.verify_model` with unbounded priors"""
 
     class TestModel(Model):
@@ -850,10 +870,11 @@ def test_unbounded_priors_w_new_point():
             return np.ones(x.size)
 
     model = TestModel()
+    model.set_rng(rng)
     model.verify_model()
 
 
-def test_verify_model_likelihood_repeated_calls():
+def test_verify_model_likelihood_repeated_calls(rng):
     """Assert that an error is raised if repeated calls with the likelihood
     return different values.
     """
@@ -867,13 +888,14 @@ def test_verify_model_likelihood_repeated_calls():
             return self.count
 
     model = BrokenModel()
+    model.set_rng(rng)
 
     with pytest.raises(RuntimeError) as excinfo:
         model.verify_model()
     assert "Repeated calls" in str(excinfo.value)
 
 
-def test_verify_model_likelihood_repeated_calls_allowed(caplog):
+def test_verify_model_likelihood_repeated_calls_allowed(caplog, rng):
     """Assert allow multi valued likelihood prevents an error from being
     raised.
     """
@@ -885,6 +907,7 @@ def test_verify_model_likelihood_repeated_calls_allowed(caplog):
             return np.random.rand()
 
     model = MultiValuedModel()
+    model.set_rng(rng)
     model.verify_model()
     assert "Multi-valued likelihood is allowed." in str(caplog.text)
 
@@ -1167,9 +1190,9 @@ def test_view_dtype(model):
     assert dtype == expected
 
 
-def test_unstructured_view(model, live_points):
+def test_unstructured_view(model, live_points, rng):
     """Assert the underlying function is called with the correct inputs"""
-    out = np.random.randn(live_points.size, 2)
+    out = rng.standard_normal((live_points.size, 2))
     dtype = np.dtype([("x", "f8"), ("y", "f8")])
     model._view_dtype = dtype
     with patch("nessai.model.unstructured_view", return_value=out) as mock:
@@ -1191,8 +1214,9 @@ def test_get_state(model):
 @pytest.mark.integration_test
 @pytest.mark.parametrize("pickleable", [False, True])
 @pytest.mark.parametrize("init", ["before", "after", "function"])
-def test_pool(integration_model, mp_context, pickleable, init):
+def test_pool(integration_model, mp_context, pickleable, init, rng):
     """Integration test for evaluating the likelihood with a pool"""
+    integration_model.rng = rng
     method = mp_context.get_start_method()
 
     if not pickleable:
@@ -1239,12 +1263,14 @@ def test_pool(integration_model, mp_context, pickleable, init):
 @pytest.mark.requires("ray")
 @pytest.mark.integration_test
 @pytest.mark.flaky(reruns=3)
-def test_pool_ray(integration_model):
+def test_pool_ray(integration_model, rng):
     """Integration test for evaluating the likelihood with a pool from ray.
 
     This will break if the class for integration_model is defined globally.
     """
     from ray.util.multiprocessing import Pool
+
+    integration_model.set_rng(rng)
 
     # Cannot pickle lambda functions
     integration_model.fn = lambda x: x
@@ -1270,12 +1296,13 @@ def test_pool_ray(integration_model):
 
 
 @pytest.mark.requires("multiprocess")
-def test_pool_multiprocess(integration_model):
+def test_pool_multiprocess(integration_model, rng):
     """Integration test for evaluating the likelihood with a pool from
     multiprocess.
     """
     import multiprocess as mp
 
+    integration_model.rng = rng
     integration_model.fn = lambda x: x
     pool = mp.Pool(
         1,
@@ -1301,8 +1328,9 @@ def test_pool_multiprocess(integration_model):
 
 @pytest.mark.integration_test
 @pytest.mark.parametrize("pickleable", [False, True])
-def test_n_pool(integration_model, mp_context, pickleable):
+def test_n_pool(integration_model, mp_context, pickleable, rng):
     """Integration test for evaluating the likelihood with n_pool"""
+    integration_model.set_rng(rng)
     if not pickleable:
         # Cannot pickle lambda functions
         integration_model.fn = lambda x: x
@@ -1342,8 +1370,9 @@ def test_unstructured_view_integration(integration_model, live_points):
 
 
 @pytest.mark.integration_test
-def test_in_bounds_integration_values(integration_model):
+def test_in_bounds_integration_values(integration_model, rng):
     """Assert the correct booleans are returned"""
+    integration_model.set_rng(rng)
     x = integration_model.new_point(3)
     names = integration_model.names
     x[names[0]][0] = integration_model.bounds[names[0]][1] + 1.0
@@ -1356,10 +1385,60 @@ def test_in_bounds_integration_values(integration_model):
 
 @pytest.mark.parametrize("n", [1, 10])
 @pytest.mark.integration_test
-def test_in_bounds_integration_n_samples(integration_model, n):
+def test_in_bounds_integration_n_samples(integration_model, n, rng):
     """Assert single and multiple samples work"""
+    integration_model.set_rng(rng)
     x = numpy_array_to_live_points(
-        np.random.randn(n, integration_model.dims), integration_model.names
+        rng.standard_normal((n, integration_model.dims)),
+        integration_model.names,
     )
     flags = integration_model.in_bounds(x)
     assert len(flags) == n
+
+
+def test_rng_not_set_single(model):
+    model.rng = None
+    with pytest.raises(RNGNotSetError):
+        Model._single_new_point(model)
+
+
+def test_rng_not_set_multiple(model):
+    model.rng = None
+    with pytest.raises(RNGNotSetError):
+        Model._multiple_new_points(model, 10)
+
+
+def test_rng_not_set_verify_model(model):
+    model.rng = None
+    model.names = ["x", "y"]
+    model.bounds = {"x": [-1, 1], "y": [-2, 2]}
+    with pytest.raises(RNGNotSetError):
+        Model.verify_model(model)
+
+
+def test_rng_not_set_sample_unit_hypercube(model):
+    model.rng = None
+    with pytest.raises(RNGNotSetError):
+        Model.sample_unit_hypercube(model)
+
+
+def test_set_rng(model, rng):
+    model.rng = None
+    Model.set_rng(model, rng)
+    assert model.rng is rng
+
+
+def test_set_rng_not_specified(model, rng):
+    model.rng = None
+    with patch(
+        "numpy.random.default_rng", return_value=rng
+    ) as mock_default_rng:
+        Model.set_rng(model)
+    mock_default_rng.assert_called_once()
+    assert model.rng is rng
+
+
+def test_set_rng_already_set(model, rng):
+    model.rng = rng
+    with pytest.raises(RNGSetError):
+        Model.set_rng(model, rng)

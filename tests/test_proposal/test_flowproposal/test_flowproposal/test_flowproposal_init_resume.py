@@ -158,6 +158,7 @@ def test_reset_integration(tmpdir, model, latent_prior):
     ignore = [
         "population_time",
         "_reparameterisation",
+        "rng",
     ]
 
     d1 = proposal.__getstate__()

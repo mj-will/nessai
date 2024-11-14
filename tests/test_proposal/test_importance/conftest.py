@@ -13,8 +13,8 @@ NSAMPLES = 10
 
 
 @pytest.fixture()
-def ifp():
-    obj = create_autospec(ImportanceFlowProposal)
+def ifp(rng):
+    obj = create_autospec(ImportanceFlowProposal, rng=rng)
     obj.model = MagicMock(spec=Model)
     return obj
 

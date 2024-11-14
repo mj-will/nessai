@@ -5,9 +5,11 @@ import datetime
 import logging
 import os
 import pickle
+import random
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional, Union
+from warnings import warn
 
 import numpy as np
 import torch
@@ -71,6 +73,7 @@ class BaseNestedSampler(ABC):
         nlive: int,
         output: str = None,
         seed: int = None,
+        rng: Optional[np.random.Generator] = None,
         checkpointing: bool = True,
         checkpoint_interval: int = 600,
         checkpoint_on_iteration: bool = False,
@@ -86,6 +89,8 @@ class BaseNestedSampler(ABC):
 
         self.info_enabled = logger.isEnabledFor(logging.INFO)
         self.debug_enabled = logger.isEnabledFor(logging.DEBUG)
+        self.configure_rng(seed, rng)
+        model.set_rng(self.rng)
         model.verify_model()
         self.n_pool = n_pool
         self.model = model
@@ -107,7 +112,6 @@ class BaseNestedSampler(ABC):
         self.finalised = False
         self.resumed = False
 
-        self.configure_random_seed(seed)
         self.configure_output(output, resume_file=resume_file)
         self.configure_periodic_logging(logging_interval, log_on_iteration)
 
@@ -180,21 +184,62 @@ class BaseNestedSampler(ABC):
         resume_file = os.path.split(self.resume_file)[1]
         self.resume_file = os.path.join(output, resume_file)
 
-    def configure_random_seed(self, seed: Optional[int]):
-        """Initialise the random seed.
+    def configure_rng(
+        self,
+        seed: Optional[int] = None,
+        rng: Optional[np.random.Generator] = None,
+    ):
+        """Configure the random number generation.
+
+        If a seed is not specified, a random seed is generated using the
+        specified random number generator, or the default numpy random number
+        if not specified. In the latter case, the seed is then used to seed
+        the new numpy random number generator.
+
+        ..versionadded:: 0.14.0
+
+        Parameters
+        ----------
+        seed : Optional[int]
+            The random seed. If not specified, a random seed is generated.
+        rng: Optional[np.random.Generator]
+            Random number generator. If not specified, the default numpy
+            random number generator is used with the specified seed.
+        """
+        if seed is None:
+            logger.debug("Seed not specified, generating random seed")
+            if rng is None:
+                seed = random.randint(0, min(np.iinfo(int).max, 2**32 - 1))
+            else:
+                seed = rng.integers(0, min(np.iinfo(int).max, 2**32 - 1))
+        logger.debug(f"Setting random seed to {seed}")
+        self.seed = seed
+        if rng is None:
+            logger.debug(
+                f"No rng specified, using the default rng with seed={seed}."
+            )
+            rng = np.random.default_rng(self.seed)
+        self.rng = rng
+        torch.manual_seed(self.seed)
+
+    def configure_random_seed(self, seed: Optional[int] = None) -> None:
+        """Initialise the random seed
+
+        ..deprecated:: 0.14.0
+            Deprecated in favour of
+            :py:meth:`~nessai.samplers.base.BaseNestedSampler.configure_rng`.
 
         Parameters
         ----------
         seed : Optional[int]
             The random seed. If not specified, a random seed is generated.
         """
-        if seed is None:
-            logger.debug("Seed not specified, generating random seed")
-            seed = np.random.randint(0, min(np.iinfo(int).max, 2**32 - 1))
-        logger.debug(f"Setting random seed to {seed}")
-        self.seed = seed
-        np.random.seed(seed=self.seed)
-        torch.manual_seed(self.seed)
+        msg = (
+            "`configure_random_seed` is deprecated and will be removed in a "
+            "future release. Use `configure_rng` instead."
+        )
+        warn(msg, FutureWarning)
+        self.configure_rng(seed=seed)
 
     def configure_periodic_logging(self, logging_interval, log_on_iteration):
         """Configure the periodic logging.

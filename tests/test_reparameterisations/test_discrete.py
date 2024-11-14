@@ -1,8 +1,16 @@
+from unittest.mock import create_autospec
+
 import numpy as np
+import pytest
 
 from nessai.livepoint import dict_to_live_points, empty_structured_array
 from nessai.reparameterisations.discrete import Dequantise
 from nessai.utils.testing import assert_structured_arrays_equal
+
+
+@pytest.fixture
+def reparam(rng):
+    return create_autospec(Dequantise, rng=rng)
 
 
 def test_dequantise_init():
@@ -15,17 +23,17 @@ def test_dequantise_init():
     assert reparam.bounds["a"][1] == 11
 
 
-def test_pre_rescaling():
+def test_pre_rescaling(reparam):
     x = np.array([0, 0, 0, 1, 1, 1])
-    out, log_j = Dequantise.pre_rescaling(x)
+    out, log_j = Dequantise.pre_rescaling(reparam, x)
     assert all((out[:3] > 0) & (out[:3] < 1))
     assert all((out[3:] > 1) & (out[3:] < 2))
     np.testing.assert_equal(log_j, 0.0)
 
 
-def test_pre_rescaling_inv():
+def test_pre_rescaling_inv(reparam):
     x = np.array([0.5, 1.1, 2.3])
-    out, log_j = Dequantise.pre_rescaling_inv(x)
+    out, log_j = Dequantise.pre_rescaling_inv(reparam, x)
     np.testing.assert_array_equal(out, np.array([0, 1, 2]))
     np.testing.assert_equal(log_j, 0.0)
 

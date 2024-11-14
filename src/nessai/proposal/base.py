@@ -7,6 +7,7 @@ import datetime
 import logging
 import os
 from abc import ABC, abstractmethod
+from typing import Optional
 
 import numpy as np
 
@@ -21,10 +22,16 @@ class Proposal(ABC):
     ----------
     model: obj
         User-defined model
+    rng: np.random.Generator, optional
+        Random number generator. If not provided, a new generator is created.
     """
 
-    def __init__(self, model):
+    def __init__(self, model, rng: Optional[np.random.Generator] = None):
         self.model = model
+        if rng is None:
+            logger.debug("No rng specified, using the default rng.")
+            rng = np.random.default_rng()
+        self.rng = rng
         self.populated = True
         self._initialised = False
         self.training_count = 0

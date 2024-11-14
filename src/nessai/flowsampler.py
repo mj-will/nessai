@@ -289,6 +289,11 @@ class FlowSampler:
         else:
             return self._nested_samples
 
+    @property
+    def rng(self):
+        """Return the random number generator"""
+        return self.ns.rng
+
     def run(
         self,
         plot=True,
@@ -390,6 +395,7 @@ class FlowSampler:
             self._nested_samples,
             log_w=self.ns.state.log_posterior_weights,
             method=posterior_sampling_method,
+            rng=self.rng,
         )
         logger.info(
             f"Returned {self.posterior_samples.size} " "posterior samples"

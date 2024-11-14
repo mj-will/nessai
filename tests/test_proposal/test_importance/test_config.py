@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from nessai.livepoint import (
@@ -11,12 +12,21 @@ from nessai.livepoint import (
 from nessai.proposal.importance import ImportanceFlowProposal as IFP
 
 
-def test_init(ifp, model, tmp_path):
+@pytest.mark.parametrize("rng", [None, np.random.RandomState()])
+def test_init(ifp, model, tmp_path, rng):
     """Test the init method"""
     output = tmp_path / "test"
-    initial_draws = 1000
-    IFP.__init__(ifp, model, output, initial_draws)
+    mock_rng = MagicMock
+    with patch(
+        "numpy.random.default_rng", return_value=mock_rng
+    ) as mock_default_rng:
+        IFP.__init__(ifp, model=model, output=output, rng=rng)
     assert ifp._weights[-1] == 1
+    if rng is None:
+        mock_default_rng.assert_called_once_with()
+        assert ifp.rng is mock_rng
+    else:
+        assert ifp.rng is rng
 
 
 @pytest.mark.usefixtures("ins_parameters")

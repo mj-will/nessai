@@ -22,8 +22,8 @@ rtol = 1e-15
 
 
 @pytest.fixture
-def reparam():
-    return create_autospec(RescaleToBounds)
+def reparam(rng):
+    return create_autospec(RescaleToBounds, rng=rng)
 
 
 @pytest.fixture()
@@ -677,9 +677,10 @@ def test_apply_inversion_split(reparam):
     x_prime = numpy_array_to_live_points(x_val, ["x_prime"])
     x = numpy_array_to_live_points(np.array([3, 4]), ["x"])
     log_j = np.zeros(2)
+    reparam.rng = MagicMock()
+    reparam.rng.choice.return_value = np.array([1])
 
     with (
-        patch("numpy.random.choice", return_value=np.array([1])) as rnd,
         patch(
             "nessai.reparameterisations.rescale.rescale_zero_to_one",
             side_effect=lambda x, *args: (x, np.array([5, 6])),
@@ -695,7 +696,7 @@ def test_apply_inversion_split(reparam):
             False,
         )
 
-    rnd.assert_called_once_with(2, 1, replace=False)
+    reparam.rng.choice.assert_called_once_with(2, 1, replace=False)
     assert f.call_args_list[0][0][1] == 0.0
     assert f.call_args_list[0][0][2] == 5.0
     # Output should be x_val minus offset

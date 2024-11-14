@@ -14,8 +14,8 @@ from nessai.proposal import AnalyticProposal
 
 
 @pytest.fixture
-def proposal():
-    return create_autospec(AnalyticProposal)
+def proposal(rng):
+    return create_autospec(AnalyticProposal, rng=rng)
 
 
 def test_init(proposal):
@@ -35,7 +35,7 @@ def test_poolsize(proposal):
 
 
 @pytest.mark.parametrize("N", [None, 5])
-def test_populate(proposal, N):
+def test_populate(proposal, N, rng):
     """Test the populate process"""
     poolsize = 10
     if N is None:
@@ -46,7 +46,7 @@ def test_populate(proposal, N):
     else:
         samples = numpy_array_to_live_points(np.arange(N)[:, np.newaxis], "x")
         log_p = np.arange(N, 2 * N)
-    log_l = np.random.rand(samples.size)
+    log_l = rng.random(samples.size)
     proposal.poolsize = poolsize
     proposal.model = Mock()
     proposal.model.new_point = Mock(return_value=samples)

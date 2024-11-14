@@ -67,3 +67,13 @@ def test_get_region_sampler_proposal_class_warning():
         match=r"`get_region_sampler_proposal_class` is deprecated",
     ):
         get_region_sampler_proposal_class(None)
+
+
+def test_configure_random_seed_warning():
+    from nessai.samplers.base import BaseNestedSampler
+
+    sampler = create_autospec(BaseNestedSampler)
+    with pytest.warns(
+        FutureWarning, match=r"`configure_random_seed` is deprecated"
+    ):
+        BaseNestedSampler.configure_random_seed(sampler, seed=0)

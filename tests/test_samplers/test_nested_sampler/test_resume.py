@@ -12,10 +12,10 @@ from nessai.samplers.nestedsampler import NestedSampler
 
 
 @pytest.fixture
-def complete_sampler(model, tmpdir):
+def complete_sampler(integration_model, tmpdir):
     """Complete instance of NestedSampler"""
     output = tmpdir.mkdir("output")
-    ns = NestedSampler(model, output=output, poolsize=10)
+    ns = NestedSampler(integration_model, output=output, poolsize=10)
     ns.initialise()
     return ns
 

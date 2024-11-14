@@ -13,9 +13,10 @@ from nessai.utils.testing import (
 
 @pytest.mark.parametrize("n", [1, 10])
 @pytest.mark.parametrize("dims", [2, 4])
-def test_integration_test_model(n, dims):
+def test_integration_test_model(n, dims, rng):
     """Assert the model is valid"""
     model = IntegrationTestModel(dims)
+    model.set_rng(rng)
     model.verify_model()
     x = model.new_point(n)
     log_p = model.log_prior(x)

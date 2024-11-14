@@ -288,16 +288,19 @@ class FlowProposal(BaseFlowProposal):
                 self.dims,
                 self.r,
                 fuzz=self.fuzz,
+                rng=self.rng,
             )
             self._draw_func = self._populate_dist.sample
         elif self.latent_prior == "flow":
             self._draw_func = lambda N: self.flow.sample_latent_distribution(N)
         else:
+            assert self.rng is not None
             self._draw_func = partial(
                 self._draw_latent_prior,
                 dims=self.dims,
                 r=self.r,
                 fuzz=self.fuzz,
+                rng=self.rng,
             )
 
     def draw_latent_prior(self, n):
@@ -495,7 +498,7 @@ class FlowProposal(BaseFlowProposal):
                 # points. In the case where we don't, we continue drawing
                 # samples
                 if log_n_expected >= log_n:
-                    log_u = np.log(np.random.rand(len(log_weights)))
+                    log_u = np.log(self.rng.random(len(log_weights)))
                     accept = (log_weights - log_constant) > log_u
                     n_accepted = np.sum(accept)
                 if n_proposed > max_samples:
@@ -504,7 +507,7 @@ class FlowProposal(BaseFlowProposal):
 
             else:
                 log_w -= log_w.max()
-                log_u = np.log(np.random.rand(len(log_w)))
+                log_u = np.log(self.rng.random(len(log_w)))
                 accept = log_w > log_u
                 n_accept_batch = accept.sum()
                 m = min(n_samples - n_accepted, n_accept_batch)
@@ -514,7 +517,7 @@ class FlowProposal(BaseFlowProposal):
 
         if self.accumulate_weights:
             if accept is None or len(accept) != len(samples):
-                log_u = np.log(np.random.rand(len(log_weights)))
+                log_u = np.log(self.rng.random(len(log_weights)))
                 accept = (log_weights - log_constant) > log_u
             logger.debug("Total number of samples: %s", samples.size)
             n_accepted = np.sum(accept)
@@ -538,7 +541,7 @@ class FlowProposal(BaseFlowProposal):
             )
             logger.debug(f"Current acceptance {self.acceptance[-1]}")
 
-        self.indices = np.random.permutation(self.samples.size).tolist()
+        self.indices = self.rng.permutation(self.samples.size).tolist()
         self.population_acceptance = n_accepted / n_proposed
         self.populated_count += 1
         self.populated = True

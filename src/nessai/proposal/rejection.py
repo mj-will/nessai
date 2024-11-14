@@ -108,10 +108,10 @@ class RejectionProposal(AnalyticProposal):
         x = self.draw_proposal(N=N)
         log_w, x["logP"] = self.compute_weights(x, return_log_prior=True)
         log_w -= np.nanmax(log_w)
-        log_u = np.log(np.random.rand(N))
+        log_u = np.log(self.rng.random(N))
         indices = np.where((log_w - log_u) >= 0)[0]
         self.samples = x[indices]
-        self.indices = np.random.permutation(self.samples.shape[0]).tolist()
+        self.indices = self.rng.permutation(self.samples.shape[0]).tolist()
         self.population_acceptance = self.samples.size / N
         self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
             self.samples

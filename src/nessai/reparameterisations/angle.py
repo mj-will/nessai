@@ -45,9 +45,16 @@ class Angle(Reparameterisation):
     requires_bounded_prior = True
 
     def __init__(
-        self, parameters=None, prior_bounds=None, scale=1.0, prior=None
+        self,
+        parameters=None,
+        prior_bounds=None,
+        scale=1.0,
+        prior=None,
+        rng=None,
     ):
-        super().__init__(parameters=parameters, prior_bounds=prior_bounds)
+        super().__init__(
+            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+        )
 
         if len(self.parameters) == 1:
             self.parameters.append(self.parameters[0] + "_radial")
@@ -212,7 +219,7 @@ class ToCartesian(Angle):
             x_prime = np.concatenate([x_prime, x_prime])
             log_j = np.concatenate([log_j, log_j])
         elif self.mode == "split":
-            neg = np.random.choice(angle.size, angle.size // 2, replace=False)
+            neg = self.rng.choice(angle.size, angle.size // 2, replace=False)
             angle[neg] *= -1
 
         angle *= self.scale

@@ -12,7 +12,7 @@ def cfm():
 
 
 @pytest.mark.requires("faiss")
-def test_init(cfm, tmp_path, caplog):
+def test_init(cfm, tmp_path, caplog, rng):
     caplog.set_level("DEBUG")
     flow_config = {}
     training_config = {}
@@ -25,10 +25,14 @@ def test_init(cfm, tmp_path, caplog):
             flow_config=flow_config,
             training_config=training_config,
             output=output,
+            rng=rng,
         )
 
     mock_parent_init.assert_called_once_with(
-        flow_config=flow_config, training_config=training_config, output=output
+        flow_config=flow_config,
+        training_config=training_config,
+        output=output,
+        rng=rng,
     )
     assert "faiss version" in str(caplog.text)
 

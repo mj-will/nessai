@@ -14,8 +14,8 @@ from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture
-def reparam():
-    return create_autospec(ToCartesian)
+def reparam(rng):
+    return create_autospec(ToCartesian, rng=rng)
 
 
 @pytest.fixture

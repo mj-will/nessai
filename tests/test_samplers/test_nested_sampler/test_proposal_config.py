@@ -111,9 +111,10 @@ def test_uninformed_proposal_class(sampler):
         sampler, TestProposal, False, None, None
     )
     assert isinstance(sampler._uninformed_proposal, TestProposal)
+    assert sampler._uninformed_proposal.rng is sampler.rng
 
 
-def test_configure_flow_proposal(sampler):
+def test_configure_flow_proposal(sampler, rng):
     fake_class = MagicMock()
     fake_class.__name__ = "fake_class"
     flow_config = dict(patience=10)
@@ -145,6 +146,7 @@ def test_configure_flow_proposal(sampler):
         flow_config=flow_config,
         output=os.path.join(sampler.output, "proposal", ""),
         plot=False,
+        rng=rng,
         **expected_kwargs,
     )
 

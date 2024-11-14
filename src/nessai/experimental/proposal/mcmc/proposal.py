@@ -37,7 +37,7 @@ class MCMCFlowProposal(BaseFlowProposal):
     def initialise(self, resumed: bool = False):
         super().initialise(resumed=resumed)
         StepClass = KNOWN_STEPS.get(self.step_type)
-        self.step = StepClass(dims=self.rescaled_dims)
+        self.step = StepClass(dims=self.rescaled_dims, rng=self.rng)
 
     def plot_chain(self, chains):
         nsteps, nchains, ndims = chains.shape
@@ -77,7 +77,7 @@ class MCMCFlowProposal(BaseFlowProposal):
             self.prime_parameters,
             copy=True,
         )
-        np.random.shuffle(x_prime_array)
+        self.rng.shuffle(x_prime_array)
         z_ensemble, _ = self.flow.forward_and_log_prob(x_prime_array)
 
         self.step.update_ensemble(z_ensemble)
@@ -132,7 +132,7 @@ class MCMCFlowProposal(BaseFlowProposal):
             )
             logl_accept = x_new["logL"] > log_l_threshold
             log_factor = log_p + log_j_new - log_p_current - log_j_current
-            log_u = np.log(np.random.rand(n_walkers))
+            log_u = np.log(self.rng.random(n_walkers))
 
             accept = (log_factor > log_u) & finite_prior & logl_accept
 
@@ -180,7 +180,7 @@ class MCMCFlowProposal(BaseFlowProposal):
             n_accept.mean() + n_reject.mean()
         )
         logger.debug(f"MCMC acceptance: {self.population_acceptance}")
-        self.indices = np.random.permutation(self.samples.size).tolist()
+        self.indices = self.rng.permutation(self.samples.size).tolist()
         self.populated_count += 1
         self.populated = True
         self._checked_population = False

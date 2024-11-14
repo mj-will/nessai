@@ -83,6 +83,7 @@ def draw_posterior_samples(
     method="rejection_sampling",
     return_indices=False,
     expectation="logt",
+    rng=None,
 ):
     """Draw posterior samples given the nested samples.
 
@@ -113,6 +114,8 @@ def draw_posterior_samples(
         Method used to compute the expectation value for the shrinkage t.
         Choose between log <t> or <log t>. Defaults to <log t>. Only used when
         :code:`log_w` is not specified.
+    rng : numpy.random.Generator, optional
+        Random number generator.
 
     Returns
     -------
@@ -127,6 +130,9 @@ def draw_posterior_samples(
     ValueError
         If the chosen method is not a valid method.
     """
+    if rng is None:
+        logger.debug("No rng specified, using the default rng.")
+        rng = np.random.default_rng()
     nested_samples = np.asarray(nested_samples)
     if log_w is None:
         _, log_w = compute_weights(
@@ -145,7 +151,7 @@ def draw_posterior_samples(
         log_w = log_w - np.max(log_w)
         n_expected = np.exp(logsumexp(log_w))
         logger.info(f"Expect {n_expected} samples from rejection sampling")
-        log_u = np.log(np.random.rand(nested_samples.size))
+        log_u = np.log(rng.random(nested_samples.size))
         indices = np.where(log_w > log_u)[0]
         samples = nested_samples[indices]
     elif method in ["importance_sampling", "multinomial_resampling"]:
@@ -153,7 +159,7 @@ def draw_posterior_samples(
         if n is None:
             n = int(ess)
         log_w = log_w - logsumexp(log_w)
-        indices = np.random.choice(
+        indices = rng.choice(
             nested_samples.size, size=n, p=np.exp(log_w), replace=True
         )
         samples = nested_samples[indices]

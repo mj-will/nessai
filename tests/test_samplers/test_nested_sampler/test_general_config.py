@@ -133,3 +133,19 @@ def test_training_frequency_on_empty(sampler, f):
     """Test the values that should give 'train on empty'"""
     NestedSampler.configure_training_frequency(sampler, f)
     assert sampler.training_frequency == np.inf
+
+
+def test_initialise_history(sampler):
+    sampler.history = None
+
+    def fn():
+        sampler.history = {"acceptance": []}
+
+    with patch(
+        "nessai.samplers.nestedsampler.BaseNestedSampler.initialise_history",
+        side_effect=fn,
+    ) as mock_parent:
+        NestedSampler.initialise_history(sampler)
+
+    mock_parent.assert_called_once()
+    assert "rolling_p" in sampler.history

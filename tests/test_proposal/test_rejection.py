@@ -14,8 +14,8 @@ from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture
-def proposal():
-    return create_autospec(RejectionProposal)
+def proposal(rng):
+    return create_autospec(RejectionProposal, rng=rng)
 
 
 def test_init(proposal):
@@ -77,20 +77,20 @@ def test_compute_weights(proposal, return_log_prior):
 
 
 @pytest.mark.parametrize("N", [None, 4])
-def test_populate(proposal, N):
+def test_populate(proposal, N, rng):
     """Test the populate method"""
     poolsize = 8
     if N is None:
         log_w = np.arange(poolsize)
     else:
         log_w = np.arange(N)
-    x = numpy_array_to_live_points(np.random.randn(log_w.size, 1), ["x"])
+    x = numpy_array_to_live_points(rng.standard_normal((log_w.size, 1)), ["x"])
     u = np.exp(log_w.copy() + 1)
     # These points will have log_u ~ -inf so corresponding samples will be
     # accepted.
     u[::2] = 1e-10
     samples = x[::2]
-    log_l = np.log(np.random.rand(samples.size))
+    log_l = np.log(rng.random(samples.size))
     log_prior = np.zeros(len(x))
     samples["logL"] = log_l
     proposal.poolsize = poolsize
@@ -101,10 +101,13 @@ def test_populate(proposal, N):
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
     )
+    proposal.rng = MagicMock()
+    proposal.rng.random = MagicMock(return_value=u)
+    proposal.rng.permutation = rng.permutation
 
-    with patch("numpy.random.rand", return_value=u):
-        RejectionProposal.populate(proposal, N=N)
+    RejectionProposal.populate(proposal, N=N)
 
+    proposal.rng.random.assert_called_once_with(len(u))
     assert proposal.population_acceptance == 0.5
     assert proposal.populated is True
     assert_structured_arrays_equal(proposal.samples, samples)

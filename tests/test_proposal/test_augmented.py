@@ -11,14 +11,14 @@ from nessai.proposal import AugmentedFlowProposal
 
 
 @pytest.fixture
-def proposal():
-    return create_autospec(AugmentedFlowProposal)
+def proposal(rng):
+    return create_autospec(AugmentedFlowProposal, rng=rng)
 
 
 @pytest.fixture
-def x():
+def x(rng):
     _x = np.concatenate(
-        [np.random.rand(10, 2), np.random.randn(10, 2)], axis=1
+        [rng.standard_normal((10, 2)), rng.standard_normal((10, 2))], axis=1
     )
     return numpy_array_to_live_points(_x, ["x", "y", "e_1", "e_2"])
 
@@ -58,13 +58,14 @@ def test_set_rescaling(mock, proposal):
 
 
 @pytest.mark.parametrize("generate", ["zeroes", "gaussian"])
-@patch("numpy.random.randn", return_value=np.ones(10))
 @patch("numpy.zeros", return_value=np.ones(10))
-def test_rescaling(mock_zeros, mock_randn, proposal, x, generate):
+def test_rescaling(mock_zeros, proposal, x, generate):
     """Test the rescaling method"""
     proposal._base_rescale = MagicMock(return_value=[x, np.ones(x.size)])
     proposal.augment_parameters = ["e_1"]
     proposal.augment_dims = 1
+    proposal.rng = MagicMock()
+    proposal.rng.standard_normal = MagicMock(return_value=np.arange(10))
 
     AugmentedFlowProposal._augmented_rescale(
         proposal, x, generate_augment=generate, test=True
@@ -77,20 +78,19 @@ def test_rescaling(mock_zeros, mock_randn, proposal, x, generate):
     if generate == "zeroes":
         mock_zeros.assert_called_once_with(x.size)
     else:
-        mock_randn.assert_called_once_with(x.size)
+        proposal.rng.standard_normal.assert_called_once_with(x.size)
 
 
 @pytest.mark.parametrize("compute_radius", [False, True])
-@patch("numpy.random.randn", return_value=np.arange(10))
 @patch("numpy.zeros", return_value=np.ones(10))
-def test_rescaling_generate_none(
-    mock_zeros, mock_randn, proposal, x, compute_radius
-):
+def test_rescaling_generate_none(mock_zeros, proposal, x, compute_radius):
     """Test the rescaling method with generate_augment=None"""
     proposal._base_rescale = MagicMock(return_value=[x, np.ones(x.size)])
     proposal.augment_parameters = ["e_1"]
     proposal.augment_dims = 1
     proposal.generate_augment = "zeros"
+    proposal.rng = MagicMock()
+    proposal.rng.standard_normal = MagicMock(return_value=np.arange(10))
 
     AugmentedFlowProposal._augmented_rescale(
         proposal,
@@ -105,7 +105,7 @@ def test_rescaling_generate_none(
     )
 
     if not compute_radius:
-        mock_randn.assert_called_once_with(x.size)
+        proposal.rng.standard_normal.assert_called_once_with(x.size)
     else:
         mock_zeros.assert_called_once_with(x.size)
 
@@ -162,13 +162,13 @@ def test_prime_log_prior(mock_prior, proposal, x):
     assert log_p == 2
 
 
-def test_marginalise_augment(proposal):
+def test_marginalise_augment(proposal, rng):
     """Test the marginalise augment function"""
     proposal.n_marg = 5
     proposal.augment_dims = 2
-    x = np.concatenate([np.random.randn(3, 2), np.zeros((3, 2))], axis=1)
-    z = np.random.randn(15, 4)
-    log_prob = np.random.randn(15)
+    x = np.concatenate([rng.standard_normal((3, 2)), np.zeros((3, 2))], axis=1)
+    z = rng.standard_normal((15, 4))
+    log_prob = rng.standard_normal(15)
     proposal.flow = MagicMock()
     proposal.flow.forward_and_log_prob = MagicMock(return_value=[z, log_prob])
     log_prob_out = AugmentedFlowProposal._marginalise_augment(proposal, x)
@@ -178,12 +178,12 @@ def test_marginalise_augment(proposal):
 
 @pytest.mark.parametrize("log_p", [np.ones(2), np.array([-1, np.inf])])
 @pytest.mark.parametrize("marg", [False, True])
-def test_backward_pass(proposal, model, log_p, marg):
+def test_backward_pass(proposal, model, log_p, marg, rng):
     """Test the backward pass method"""
     n = 2
     acc = int(np.isfinite(log_p).sum())
-    x = np.random.randn(n, model.dims)
-    z = np.random.randn(n, model.dims)
+    x = rng.standard_normal((n, model.dims))
+    z = rng.standard_normal((n, model.dims))
     proposal._marginalise_augment = MagicMock(return_value=log_p)
     proposal.inverse_rescale = MagicMock(
         side_effect=lambda a: (a, np.ones(a.size))

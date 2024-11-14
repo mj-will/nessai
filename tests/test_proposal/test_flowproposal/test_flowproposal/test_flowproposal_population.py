@@ -14,18 +14,18 @@ from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture()
-def z():
-    return np.random.randn(2, 2)
+def z(rng):
+    return rng.standard_normal((2, 2))
 
 
 @pytest.fixture()
-def x(z):
-    return numpy_array_to_live_points(np.random.randn(*z.shape), ["x", "y"])
+def x(z, rng):
+    return numpy_array_to_live_points(rng.standard_normal(z.shape), ["x", "y"])
 
 
 @pytest.fixture()
-def log_q(x):
-    return np.random.randn(x.size)
+def log_q(x, rng):
+    return rng.standard_normal(x.size)
 
 
 def test_get_alt_distribution_truncated_gaussian(proposal):
@@ -94,7 +94,7 @@ def test_prep_latent_prior_truncated(proposal):
     ) as mock_dist:
         FlowProposal.prep_latent_prior(proposal)
 
-    mock_dist.assert_called_once_with(2, 3.0, fuzz=1.2)
+    mock_dist.assert_called_once_with(2, 3.0, fuzz=1.2, rng=proposal.rng)
 
     assert proposal._populate_dist is dist
     assert proposal._draw_func is dist.sample
@@ -107,7 +107,7 @@ def test_prep_latent_prior_other(proposal):
     proposal.r = 3.0
     proposal.fuzz = 1.2
 
-    def draw(dims, N=None, r=None, fuzz=None):
+    def draw(dims, N=None, r=None, fuzz=None, rng=None):
         return np.zeros((N, dims))
 
     proposal._draw_latent_prior = draw
@@ -118,7 +118,9 @@ def test_prep_latent_prior_other(proposal):
     ) as mock_partial:
         FlowProposal.prep_latent_prior(proposal)
 
-    mock_partial.assert_called_once_with(draw, dims=2, r=3.0, fuzz=1.2)
+    mock_partial.assert_called_once_with(
+        draw, dims=2, r=3.0, fuzz=1.2, rng=proposal.rng
+    )
 
     assert proposal._draw_func(N=10).shape == (10, 2)
 
@@ -147,7 +149,14 @@ def test_draw_latent_prior(proposal):
     [(0.5, None), (None, 1.5), (None, None)],
 )
 def test_populate_accumulate_weights(
-    proposal, check_acceptance, indices, r, min_radius, max_radius, wait
+    proposal,
+    check_acceptance,
+    indices,
+    r,
+    min_radius,
+    max_radius,
+    wait,
+    rng,
 ):
     """Test the main populate method"""
     n_dims = 2
@@ -157,21 +166,27 @@ def test_populate_accumulate_weights(
     worst_point = np.array(
         [[1, 2, 3]], dtype=[("x", "f8"), ("y", "f8"), ("logL", "f8")]
     )
-    worst_z = np.random.randn(1, n_dims)
+    worst_z = rng.standard_normal((1, n_dims))
     z = [
-        np.random.randn(drawsize, n_dims),
-        np.random.randn(drawsize, n_dims),
-        np.random.randn(drawsize, n_dims),
+        rng.standard_normal((drawsize, n_dims)),
+        rng.standard_normal((drawsize, n_dims)),
+        rng.standard_normal((drawsize, n_dims)),
     ]
     x = [
-        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
-        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
-        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
     ]
     log_q = [
-        np.log(np.random.rand(drawsize)),
-        np.log(np.random.rand(drawsize)),
-        np.log(np.random.rand(drawsize)),
+        np.log(rng.random(drawsize)),
+        np.log(rng.random(drawsize)),
+        np.log(rng.random(drawsize)),
     ]
     log_w = [
         np.log(np.concatenate([np.ones(drawsize - 1), np.zeros(1)])),
@@ -181,8 +196,8 @@ def test_populate_accumulate_weights(
     # Control rejection sampling using log_w
     rand_u = 0.5 * np.ones(3 * drawsize)
 
-    log_l = np.random.rand(poolsize)
-    log_p = np.random.rand(poolsize)
+    log_l = rng.random(poolsize)
+    log_p = rng.random(poolsize)
 
     r_flow = 1.0
 
@@ -228,6 +243,9 @@ def test_populate_accumulate_weights(
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
     )
+    proposal.rng = MagicMock()
+    proposal.rng.random = MagicMock(return_value=rand_u)
+    proposal.rng.permutation = rng.permutation
 
     def convert_to_samples(samples, plot):
         samples["logP"] = log_p
@@ -244,7 +262,6 @@ def test_populate_accumulate_weights(
             "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
             return_value=x_empty,
         ) as mock_empty,
-        patch("numpy.random.rand", return_value=rand_u) as mock_rand,
     ):
         FlowProposal.populate(
             proposal, worst_point, n_samples=poolsize, plot=True, r=r
@@ -254,7 +271,7 @@ def test_populate_accumulate_weights(
         0,
         dtype=proposal.population_dtype,
     )
-    mock_rand.assert_called_once_with(3 * drawsize)
+    proposal.rng.random.assert_called_once_with(3 * drawsize)
 
     if r is None:
         proposal.forward_pass.assert_called_once_with(
@@ -320,7 +337,14 @@ def test_populate_accumulate_weights(
     [(0.5, None), (None, 1.5), (None, None)],
 )
 def test_populate_not_accumulate_weights(
-    proposal, check_acceptance, indices, r, min_radius, max_radius, wait
+    proposal,
+    check_acceptance,
+    indices,
+    r,
+    min_radius,
+    max_radius,
+    wait,
+    rng,
 ):
     """Test the main populate method"""
     n_dims = 2
@@ -330,21 +354,27 @@ def test_populate_not_accumulate_weights(
     worst_point = np.array(
         [[1, 2, 3]], dtype=[("x", "f8"), ("y", "f8"), ("logL", "f8")]
     )
-    worst_z = np.random.randn(1, n_dims)
+    worst_z = rng.standard_normal((1, n_dims))
     z = [
-        np.random.randn(drawsize, n_dims),
-        np.random.randn(drawsize, n_dims),
-        np.random.randn(drawsize, n_dims),
+        rng.standard_normal((drawsize, n_dims)),
+        rng.standard_normal((drawsize, n_dims)),
+        rng.standard_normal((drawsize, n_dims)),
     ]
     x = [
-        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
-        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
-        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
     ]
     log_q = [
-        np.log(np.random.rand(drawsize)),
-        np.log(np.random.rand(drawsize)),
-        np.log(np.random.rand(drawsize)),
+        np.log(rng.random(drawsize)),
+        np.log(rng.random(drawsize)),
+        np.log(rng.random(drawsize)),
     ]
     log_w = [
         np.log(np.concatenate([np.ones(drawsize - 1), np.zeros(1)])),
@@ -358,8 +388,8 @@ def test_populate_not_accumulate_weights(
         0.5 * np.ones(drawsize),
     ]
 
-    log_l = np.random.rand(poolsize)
-    log_p = np.random.rand(poolsize)
+    log_l = rng.random(poolsize)
+    log_p = rng.random(poolsize)
 
     r_flow = 1.0
 
@@ -405,6 +435,9 @@ def test_populate_not_accumulate_weights(
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
     )
+    proposal.rng = MagicMock()
+    proposal.rng.random = MagicMock(side_effect=rand_u)
+    proposal.rng.permutation = rng.permutation
 
     def convert_to_samples(samples, plot):
         samples["logP"] = log_p
@@ -421,7 +454,6 @@ def test_populate_not_accumulate_weights(
             "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
             return_value=x_empty,
         ) as mock_empty,
-        patch("numpy.random.rand", side_effect=rand_u) as mock_rand,
     ):
         FlowProposal.populate(
             proposal, worst_point, n_samples=poolsize, plot=True, r=r
@@ -431,7 +463,7 @@ def test_populate_not_accumulate_weights(
         poolsize,
         dtype=proposal.population_dtype,
     )
-    mock_rand.assert_has_calls(3 * [call(drawsize)])
+    proposal.rng.random.assert_has_calls(3 * [call(drawsize)])
 
     if r is None:
         proposal.forward_pass.assert_called_once_with(
@@ -497,7 +529,7 @@ def test_populate_not_initialised(proposal):
     assert "Proposal has not been initialised. " in str(excinfo.value)
 
 
-def test_populate_truncate_log_q(proposal):
+def test_populate_truncate_log_q(proposal, rng):
     n_dims = 2
     nlive = 8
     poolsize = 8
@@ -508,14 +540,20 @@ def test_populate_truncate_log_q(proposal):
         [[1, 2, 3]], dtype=[("x", "f8"), ("y", "f8"), ("logL", "f8")]
     )
     z = [
-        np.random.randn(drawsize, n_dims),
-        np.random.randn(drawsize, n_dims),
-        np.random.randn(drawsize, n_dims),
+        rng.standard_normal((drawsize, n_dims)),
+        rng.standard_normal((drawsize, n_dims)),
+        rng.standard_normal((drawsize, n_dims)),
     ]
     x = [
-        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
-        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
-        numpy_array_to_live_points(np.random.randn(drawsize, n_dims), names),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
     ]
     log_q = [
         np.zeros(drawsize),
@@ -533,7 +571,7 @@ def test_populate_truncate_log_q(proposal):
     # Control rejection sampling using log_w
     rand_u = 0.5 * np.ones(3 * (drawsize - 1))
 
-    log_l = np.random.rand(poolsize)
+    log_l = rng.random(poolsize)
 
     proposal.population_time = datetime.timedelta()
     proposal.initialised = True
@@ -578,6 +616,9 @@ def test_populate_truncate_log_q(proposal):
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
     )
+    proposal.rng = MagicMock()
+    proposal.rng.random = MagicMock(return_value=rand_u)
+    proposal.rng.permutation = rng.permutation
 
     proposal.convert_to_samples = MagicMock(
         side_effect=lambda *args, **kwargs: args[0]
@@ -589,7 +630,6 @@ def test_populate_truncate_log_q(proposal):
             "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
             return_value=x_empty,
         ) as mock_empty,
-        patch("numpy.random.rand", return_value=rand_u) as mock_rand,
     ):
         FlowProposal.populate(
             proposal, worst_point, n_samples=poolsize, plot=False
@@ -599,7 +639,7 @@ def test_populate_truncate_log_q(proposal):
         0,
         dtype=proposal.population_dtype,
     )
-    mock_rand.assert_called_once_with(3 * drawsize - 3)
+    proposal.rng.random.assert_called_once_with(3 * drawsize - 3)
 
     assert proposal.population_acceptance == (9 / 15)
 

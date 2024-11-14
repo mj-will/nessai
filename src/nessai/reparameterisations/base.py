@@ -31,7 +31,11 @@ class Reparameterisation:
     prime_prior_bounds = None
     one_to_one = True
 
-    def __init__(self, parameters=None, prior_bounds=None):
+    def __init__(self, parameters=None, prior_bounds=None, rng=None):
+        if rng is None:
+            logger.debug("No rng specified, using the default rng.")
+            rng = np.random.default_rng()
+        self.rng = rng
         if not isinstance(parameters, (str, list)):
             raise TypeError("Parameters must be a str or list.")
 

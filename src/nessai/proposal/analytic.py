@@ -5,8 +5,6 @@ Proposal method for initial sampling when priors can be sampled analytically.
 
 import datetime
 
-import numpy as np
-
 from .base import Proposal
 
 
@@ -56,7 +54,7 @@ class AnalyticProposal(Proposal):
         self.samples["logP"] = self.model.batch_evaluate_log_prior(
             self.samples
         )
-        self.indices = np.random.permutation(self.samples.shape[0]).tolist()
+        self.indices = self.rng.permutation(self.samples.shape[0]).tolist()
         self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
             self.samples
         )

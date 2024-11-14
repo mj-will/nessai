@@ -171,6 +171,7 @@ class NestedSampler(BaseNestedSampler):
         log_on_iteration=True,
         resume_file=None,
         seed=None,
+        rng=None,
         pool=None,
         close_pool=False,
         n_pool=None,
@@ -204,6 +205,7 @@ class NestedSampler(BaseNestedSampler):
             nlive,
             output=output,
             seed=seed,
+            rng=rng,
             checkpointing=checkpointing,
             checkpoint_interval=checkpoint_interval,
             checkpoint_on_iteration=checkpoint_on_iteration,
@@ -438,7 +440,9 @@ class NestedSampler(BaseNestedSampler):
 
         logger.debug(f"Using uninformed proposal: {uninformed_proposal}")
         logger.debug(f"Parsing kwargs to uninformed proposal: {kwargs}")
-        self._uninformed_proposal = uninformed_proposal(self.model, **kwargs)
+        self._uninformed_proposal = uninformed_proposal(
+            self.model, rng=self.rng, **kwargs
+        )
 
     def configure_flow_proposal(
         self, flow_proposal_class, flow_config, proposal_plots, **kwargs
@@ -474,6 +478,7 @@ class NestedSampler(BaseNestedSampler):
         logger.info(f"Passing kwargs to {ProposalClass.__name__}: {kwargs}")
         self._flow_proposal = ProposalClass(
             self.model,
+            rng=self.rng,
             flow_config=flow_config,
             output=proposal_output,
             plot=proposal_plots,

@@ -12,8 +12,8 @@ def map_to_unit_hypercube(request):
 
 
 @pytest.fixture()
-def proposal():
-    proposal = create_autospec(BaseFlowProposal)
+def proposal(rng):
+    proposal = create_autospec(BaseFlowProposal, rng=rng)
     proposal._initialised = False
     proposal.map_to_unit_hypercube = False
     return proposal

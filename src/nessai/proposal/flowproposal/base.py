@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from abc import abstractmethod
+from typing import Optional
 from warnings import warn
 
 import matplotlib.pyplot as plt
@@ -100,6 +101,7 @@ class BaseFlowProposal(RejectionProposal):
     def __init__(
         self,
         model,
+        rng: Optional[np.random.Generator] = None,
         flow_config=None,
         training_config=None,
         output=None,
@@ -116,7 +118,7 @@ class BaseFlowProposal(RejectionProposal):
         reverse_reparameterisations=False,
         map_to_unit_hypercube=False,
     ):
-        super().__init__(model)
+        super().__init__(model, rng=rng)
 
         self._x_dtype = None
         self._x_prime_dtype = None
@@ -351,6 +353,7 @@ class BaseFlowProposal(RejectionProposal):
             flow_config=self.flow_config,
             training_config=self.training_config,
             output=self.output,
+            rng=self.rng,
         )
         self.flow.initialise()
         self.populated = False
