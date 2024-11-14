@@ -1408,6 +1408,20 @@ def test_rng_not_set_multiple(model):
         Model._multiple_new_points(model, 10)
 
 
+def test_rng_not_set_verify_model(model):
+    model.rng = None
+    model.names = ["x", "y"]
+    model.bounds = {"x": [-1, 1], "y": [-2, 2]}
+    with pytest.raises(RNGNotSetError):
+        Model.verify_model(model)
+
+
+def test_rng_not_set_sample_unit_hypercube(model):
+    model.rng = None
+    with pytest.raises(RNGNotSetError):
+        Model.sample_unit_hypercube(model)
+
+
 def test_set_rng(model, rng):
     model.rng = None
     Model.set_rng(model, rng)
