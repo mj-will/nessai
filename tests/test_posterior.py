@@ -125,7 +125,7 @@ def test_draw_posterior_unknown_method(ns):
 
 
 @pytest.mark.slow_integration_test
-def test_compute_weights_vs_log_posterior_weights(model, tmp_path):
+def test_compute_weights_vs_log_posterior_weights(integration_model, tmp_path):
     """Test the two different methods for computing posterior weights and
     assert they return the sames value.
 
@@ -136,7 +136,11 @@ def test_compute_weights_vs_log_posterior_weights(model, tmp_path):
     output = tmp_path / "posterior_comparison"
     output.mkdir()
     fs = FlowSampler(
-        model, output=output, nlive=100, checkpointing=False, plot=False
+        integration_model,
+        output=output,
+        nlive=100,
+        checkpointing=False,
+        plot=False,
     )
     fs.run(save=False, plot=False)
 

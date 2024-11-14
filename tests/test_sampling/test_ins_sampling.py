@@ -12,11 +12,11 @@ from nessai.flowsampler import FlowSampler
 @pytest.mark.slow_integration_test
 @pytest.mark.flaky(reruns=3)
 @pytest.mark.parametrize("save_log_q", [False, True])
-def test_ins_resume(tmp_path, model, flow_config, save_log_q):
+def test_ins_resume(tmp_path, integration_model, flow_config, save_log_q):
     """Assert the INS sampler resumes correctly"""
     output = tmp_path / "test_ins_resume"
     fp = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         nlive=500,
@@ -34,8 +34,10 @@ def test_ins_resume(tmp_path, model, flow_config, save_log_q):
     assert fp.ns.iteration == 2
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
+    integration_model.rng = None
+
     fp = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         flow_config=flow_config,
@@ -50,7 +52,7 @@ def test_ins_resume(tmp_path, model, flow_config, save_log_q):
 
 
 @pytest.mark.slow_integration_test
-def test_ins_checkpoint_callback(tmp_path, model, flow_config):
+def test_ins_checkpoint_callback(tmp_path, integration_model, flow_config):
     output = tmp_path / "test_ins_checkpoint_callback"
 
     filename = os.path.join(output, "test.pkl")
@@ -61,7 +63,7 @@ def test_ins_checkpoint_callback(tmp_path, model, flow_config):
             pickle.dump(state, f)
 
     fs = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         nlive=500,
@@ -87,8 +89,10 @@ def test_ins_checkpoint_callback(tmp_path, model, flow_config):
 
     resume_data.test_variable = "abc"
 
+    integration_model.rng = None
+
     fs = FlowSampler(
-        model,
+        integration_model,
         output=output,
         resume=True,
         nlive=500,
