@@ -134,7 +134,7 @@ class Angle(Reparameterisation):
         )
 
         if self.chi:
-            r = self.chi.rvs(size=x.size)
+            r = self.chi.rvs(size=x.size, random_state=self.rng)
         else:
             r, x, x_prime, log_j = self._rescale_radial(
                 x, x_prime, log_j, **kwargs
@@ -485,7 +485,7 @@ class AnglePair(Reparameterisation):
         Convert the spherical polar angles to Cartesian coordinates
         """
         if self.chi:
-            r = self.chi.rvs(size=x.size)
+            r = self.chi.rvs(size=x.size, random_state=self.rng)
         else:
             r = x[self.radial]
         if any(r < 0):
