@@ -15,6 +15,7 @@ from scipy.stats import norm
 from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.model import Model, OneDimensionalModelError
+from nessai.utils.errors import RNGNotSetError, RNGSetError
 from nessai.utils.multiprocessing import (
     initialise_pool_variables,
     log_likelihood_wrapper,
@@ -600,7 +601,7 @@ def test_verify_new_point(rng):
 
 
 @pytest.mark.parametrize("log_p", [np.inf, -np.inf])
-def test_verify_log_prior_finite(log_p):
+def test_verify_log_prior_finite(log_p, rng):
     """
     Test `Model.verify_model` and ensure a model with a log-prior that
     only returns inf function raises the correct error
@@ -611,6 +612,7 @@ def test_verify_log_prior_finite(log_p):
             return log_p
 
     model = BrokenModel()
+    model.rng = rng
 
     with pytest.raises(RuntimeError):
         model.verify_model()
@@ -755,7 +757,7 @@ def test_verify_invalid_bounds_type():
     assert "`bounds` must be a dictionary" in str(excinfo.value)
 
 
-def test_verify_incomplete_bounds():
+def test_verify_incomplete_bounds(rng):
     """
     Test `Model.verify_model` and ensure a model without bounds
     function raises the correct error
@@ -768,6 +770,7 @@ def test_verify_incomplete_bounds():
             self.names = ["x", "y"]
 
     model = TestModel()
+    model.rng = rng
 
     with pytest.raises(RuntimeError):
         model.verify_model()
@@ -1391,3 +1394,37 @@ def test_in_bounds_integration_n_samples(integration_model, n, rng):
     )
     flags = integration_model.in_bounds(x)
     assert len(flags) == n
+
+
+def test_rng_not_set_single(model):
+    model.rng = None
+    with pytest.raises(RNGNotSetError):
+        Model._single_new_point(model)
+
+
+def test_rng_not_set_multiple(model):
+    model.rng = None
+    with pytest.raises(RNGNotSetError):
+        Model._multiple_new_points(model, 10)
+
+
+def test_set_rng(model, rng):
+    model.rng = None
+    Model.set_rng(model, rng)
+    assert model.rng is rng
+
+
+def test_set_rng_not_specified(model, rng):
+    model.rng = None
+    with patch(
+        "numpy.random.default_rng", return_value=rng
+    ) as mock_default_rng:
+        Model.set_rng(model)
+    mock_default_rng.assert_called_once()
+    assert model.rng is rng
+
+
+def test_set_rng_already_set(model, rng):
+    model.rng = rng
+    with pytest.raises(RNGSetError):
+        Model.set_rng(model, rng)

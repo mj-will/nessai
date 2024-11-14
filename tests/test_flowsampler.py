@@ -624,6 +624,12 @@ def test_log_evidence_error(flow_sampler):
     assert FlowSampler.log_evidence_error.__get__(flow_sampler) is out
 
 
+def test_rng(flow_sampler, rng):
+    """Test rng property"""
+    flow_sampler.ns.rng = rng
+    assert FlowSampler.rng.__get__(flow_sampler) is rng
+
+
 @pytest.mark.parametrize("use_ins", [False, True])
 def test_run(flow_sampler, use_ins):
     flow_sampler.importance_nested_sampler = use_ins
