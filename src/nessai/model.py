@@ -18,6 +18,7 @@ from .livepoint import (
     parameters_to_live_point,
     unstructured_view,
 )
+from .utils.errors import RNGNotSetError, RNGSetError
 from .utils.multiprocessing import (
     batch_evaluate_function,
     check_vectorised_function,
@@ -129,7 +130,7 @@ class Model(ABC):
             logger.debug("No rng specified, using the default rng.")
             rng = np.random.default_rng()
         if self.rng is not None:
-            raise RuntimeError("Random number generator already set!")
+            raise RNGSetError()
         self.rng = rng
 
     @property
@@ -435,7 +436,7 @@ class Model(ABC):
             and log-prior (logP) and log-likelihood (logL)
         """
         if not self.rng:
-            raise RuntimeError("Random number generator not set!")
+            raise RNGNotSetError()
         logP = -np.inf
         while logP == -np.inf:
             p = parameters_to_live_point(
@@ -464,7 +465,7 @@ class Model(ABC):
             and log-prior (logP) and log-likelihood (logL)
         """
         if not self.rng:
-            raise RuntimeError("Random number generator not set!")
+            raise RNGNotSetError()
         new_points = empty_structured_array(N, names=self.names)
         n = 0
         while n < N:
@@ -570,7 +571,7 @@ class Model(ABC):
             Structured array of samples
         """
         if not self.rng:
-            raise RuntimeError("Random number generator not set!")
+            raise RNGNotSetError()
         return numpy_array_to_live_points(
             self.rng.random((n, self.dims)),
             names=self.names,
@@ -773,7 +774,7 @@ class Model(ABC):
             )
 
         if not self.rng:
-            raise RuntimeError("Random number generator not set!")
+            raise RNGNotSetError()
 
         if self.dims == 1:
             raise OneDimensionalModelError(
