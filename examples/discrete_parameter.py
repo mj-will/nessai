@@ -13,6 +13,9 @@ from nessai.utils import setup_logger
 output = "./outdir/discrete_example/"
 logger = setup_logger(output=output, log_level="INFO")
 
+# Set the random number generator
+rng = np.random.default_rng(1234)
+
 
 # Define the model class, this model has two signal models and a discrete
 # variable that determines which is used for the computing the log-likelihood
@@ -32,9 +35,9 @@ class MultiModelLikelihood(Model):
         # Redefine the new point method so that it correctly samples the
         # discrete parameter
         x = empty_structured_array(N, self.names)
-        x["m"] = np.random.uniform(*self.bounds["m"], size=N)
-        x["c"] = np.random.uniform(*self.bounds["c"], size=N)
-        x["model"] = np.random.choice([0, 1], size=N)
+        x["m"] = rng.uniform(*self.bounds["m"], size=N)
+        x["c"] = rng.uniform(*self.bounds["c"], size=N)
+        x["model"] = rng.choice([0, 1], size=N)
         return x
 
     def new_point_log_prob(self, x):
@@ -77,7 +80,7 @@ class MultiModelLikelihood(Model):
 # Generate some fake data.
 # We use the straight line model for this example.
 x_data = np.linspace(0, 10, 100)
-y_data = 2.5 * x_data + 1.4 + np.random.randn(len(x_data))
+y_data = 2.5 * x_data + 1.4 + rng.standard_normal(len(x_data))
 
 # Define the sampler and specify the 'dequantise' reparameterisation for the
 # discrete parameter.

@@ -12,6 +12,7 @@ from nessai.utils import setup_logger
 
 output = "./outdir/unbounded_prior/"
 logger = setup_logger(output=output)
+rng = np.random.default_rng(1234)
 
 # We define the model as usual but also need to redefine `new_point` since by
 # default this tries to draw from within the prior bounds which will fail if
@@ -53,10 +54,8 @@ class GaussianModel(Model):
         # There are various ways to create live points in nessai, such as
         # from dictionaries and numpy arrays. See nessai.livepoint for options
         d = {
-            "x": np.random.uniform(
-                self.bounds["x"][0], self.bounds["x"][1], N
-            ),
-            "y": norm(scale=5).rvs(size=N),
+            "x": rng.uniform(self.bounds["x"][0], self.bounds["x"][1], N),
+            "y": norm(scale=5).rvs(size=N, random_state=rng),
         }
         return dict_to_live_points(d)
 

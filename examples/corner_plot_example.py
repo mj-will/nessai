@@ -24,7 +24,8 @@ logger = setup_logger(output=output)
 truth = {"mu": 1.7, "sigma": 0.7}
 bounds = {"mu": [-3, 3], "sigma": [0.01, 3]}
 n_points = 1000
-data = np.random.normal(truth["mu"], truth["sigma"], size=n_points)
+rng = np.random.default_rng(1234)
+data = rng.normal(truth["mu"], truth["sigma"], size=n_points)
 
 
 class GaussianLikelihood(Model):

@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 
 """
-Example of running nessai with bilby on a gravitational- wave likelihood. This
-example should take ~5 minutes to run.
+Example of running nessai with bilby on a gravitational wave likelihood. This
+examples includes all 15 parameters for CBC and should take around 2 hours to
+run.
 
 Based on the Bilby example: https://git.ligo.org/lscsoft/bilby
 """
@@ -10,14 +11,14 @@ Based on the Bilby example: https://git.ligo.org/lscsoft/bilby
 import bilby
 
 outdir = "./outdir/"
-label = "basic_gw_example"
+label = "ins_gw_example_full"
 
 bilby.core.utils.setup_logger(outdir=outdir, label=label)
 
 duration = 4.0
 sampling_frequency = 2048.0
 
-bilby.core.utils.random.seed(170817)
+bilby.core.utils.random.seed(151226)
 
 # Use an injection that is similar to GW150914
 injection_parameters = dict(
@@ -74,36 +75,38 @@ priors["geocent_time"] = bilby.core.prior.Uniform(
     unit="$s$",
 )
 
-# Only sample a subset of the parameters
-for key in [
-    "a_1",
-    "a_2",
-    "tilt_1",
-    "tilt_2",
-    "phi_12",
-    "phi_jl",
-    "luminosity_distance",
-    "psi",
-    "geocent_time",
-    "ra",
-    "dec",
-]:
-    priors[key] = injection_parameters[key]
-
 # Initialise the likelihood
+# nessai supports the marginalisation included in bilby
 likelihood = bilby.gw.likelihood.GravitationalWaveTransient(
     interferometers=ifos,
     waveform_generator=waveform_generator,
-    phase_marginalization=True,
     priors=priors,
+    phase_marginalization=True,
+    distance_marginalization=False,
 )
+priors["chirp_mass"].maximum = 40
+
+# for key in [
+#     "a_1",
+#     "a_2",
+#     "tilt_1",
+#     "tilt_2",
+#     "phi_12",
+#     "phi_jl",
+#     # "luminosity_distance",
+#     "psi",
+#     "geocent_time",
+#     "ra",
+#     "dec",
+# ]:
+#     priors[key] = injection_parameters[key]
+
 
 # Run sampler
 
 # The `flow_class` should be set to `GWFlowProposal` for GW PE. This includes
 # specific default reparameterisations for certain parameters. For example,
-# it knows that theta_jn is an angle.
-# See the documentation for more details.
+# it knows that theta_jn is angle with a sine prior.
 
 result = bilby.core.sampler.run_sampler(
     likelihood=likelihood,
@@ -112,12 +115,26 @@ result = bilby.core.sampler.run_sampler(
     injection_parameters=injection_parameters,
     label=label,
     conversion_function=bilby.gw.conversion.generate_all_bbh_parameters,
-    flow_class="GWFlowProposal",
-    sampler="nessai",
+    sampler="inessai",
     resume=False,
     plot=True,
+    nlive=8000,
+    min_samples=1000,
     seed=150914,
-    analytic_priors=True,  # Bilby priors can be sampled from directly
+    flow_config=dict(
+        n_blocks=6,
+        n_neurons=32,
+        batch_norm_between_layers=True,
+    ),
+    reset_flow=4,
+    n_pool=8,
+    threshold_kwargs=dict(q=0.66),
+    draw_iid_live=True,
+    rebalance_interval=1,
+    stopping_criterion=["ratio", "fractional_error"],
+    check_criteria="all",
+    tolerance=[-1, 0.1],
+    min_iteration=5,
 )
 
 # Produce corner plots

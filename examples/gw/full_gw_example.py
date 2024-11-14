@@ -9,7 +9,6 @@ Based on the Bilby example: https://git.ligo.org/lscsoft/bilby
 """
 
 import bilby
-import numpy as np
 
 outdir = "./outdir/"
 label = "full_gw_example"
@@ -19,7 +18,7 @@ bilby.core.utils.setup_logger(outdir=outdir, label=label)
 duration = 4.0
 sampling_frequency = 2048.0
 
-np.random.seed(151226)
+bilby.core.utils.random.seed(151226)
 
 # Use an injection that is similar to GW150914
 injection_parameters = dict(
