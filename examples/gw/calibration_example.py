@@ -9,7 +9,6 @@ Adapted from the example included in bilby.
 """
 
 import bilby
-import numpy as np
 
 # Standard configuration using bilby
 duration = 4.0
@@ -19,7 +18,7 @@ outdir = "./outdir/"
 label = "calibration_example"
 bilby.core.utils.setup_logger(outdir=outdir, label=label)
 
-np.random.seed(150914)
+bilby.core.utils.random.seed(150914)
 
 # Injection parameters for a GW150914-like BBH.
 injection_parameters = dict(
