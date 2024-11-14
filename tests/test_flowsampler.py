@@ -626,6 +626,7 @@ def test_log_evidence_error(flow_sampler):
 
 def test_rng(flow_sampler, rng):
     """Test rng property"""
+    flow_sampler.ns = MagicMock()
     flow_sampler.ns.rng = rng
     assert FlowSampler.rng.__get__(flow_sampler) is rng
 
