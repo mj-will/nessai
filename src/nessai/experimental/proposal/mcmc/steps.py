@@ -10,10 +10,14 @@ logger = logging.getLogger(__name__)
 
 class Step:
     def __init__(
-        self, dims: int, ensemble: Optional[np.ndarray] = None
+        self,
+        dims: int,
+        ensemble: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
     ) -> None:
         self.dims = dims
         self.update_ensemble(ensemble)
+        self.rng = rng or np.random.default_rng()
 
     def step(self, z):
         raise NotImplementedError
@@ -34,11 +38,12 @@ class GaussianStep(Step):
         self,
         dims: int,
         ensemble: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         scale: Optional[float] = None,
         update_scale: bool = True,
         target_acceptance: float = 0.5,
     ) -> None:
-        super().__init__(dims=dims, ensemble=ensemble)
+        super().__init__(dims=dims, ensemble=ensemble, rng=rng)
         if scale is None:
             self.scale = 2 / self.dims**0.5
         else:
@@ -47,7 +52,7 @@ class GaussianStep(Step):
         self.target_acceptance = target_acceptance
 
     def step(self, z):
-        return np.random.normal(z, scale=self.scale, size=z.shape), np.zeros(
+        return self.rng.normal(z, scale=self.scale, size=z.shape), np.zeros(
             z.shape[0]
         )
 
@@ -103,13 +108,14 @@ class DifferentialEvolutionStep(Step):
         self,
         dims: int,
         ensemble: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         mix_fraction: float = 0.5,
         sigma: float = 1e-5,
     ) -> None:
         self.pairs = None
         self.n_pairs = None
 
-        super().__init__(dims=dims, ensemble=ensemble)
+        super().__init__(dims=dims, ensemble=ensemble, rng=rng)
 
         self.g0 = 2.38 / np.sqrt(2 * self.dims)
         self.mix_fraction = mix_fraction
@@ -123,14 +129,14 @@ class DifferentialEvolutionStep(Step):
 
     def step(self, z):
         nc = z.shape[0]
-        indices = np.random.choice(self.n_pairs, size=nc, replace=True)
+        indices = self.rng.choice(self.n_pairs, size=nc, replace=True)
         diffs = np.diff(self.ensemble[self.pairs[indices]], axis=1).squeeze(
             axis=1
         )
-        mix = np.random.rand(nc) < self.mix_fraction
+        mix = self.rng.random(nc) < self.mix_fraction
         scale = np.ones((nc, 1))
         scale[mix, :] = self.g0
-        error = self.sigma * np.random.randn(nc, self.dims)
+        error = self.sigma * self.rng.standard_normal((nc, self.dims))
         z_new = z + scale * diffs + error
         return z_new, np.zeros(nc)
 
@@ -152,16 +158,20 @@ class StretchStep(Step):
     """
 
     def __init__(
-        self, dims: int, scale: float = 2.0, ensemble: np.ndarray = None
+        self,
+        dims: int,
+        ensemble: np.ndarray = None,
+        rng: Optional[np.random.Generator] = None,
+        scale: float = 2.0,
     ):
-        super().__init__(dims, ensemble)
+        super().__init__(dims=dims, ensemble=ensemble, rng=rng)
         self.scale = scale
 
     def step(self, z: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         nc = z.shape[0]
-        indices = np.random.choice(len(self.ensemble), size=nc, replace=True)
+        indices = self.rng.choice(len(self.ensemble), size=nc, replace=True)
         a = self.ensemble[indices]
-        x = np.random.uniform(-1, 1, size=nc) * np.log(self.scale)
+        x = self.rng.uniform(-1, 1, size=nc) * np.log(self.scale)
         scale = np.exp(x)
         z_new = a + (z - a) * scale[:, None]
         return z_new, x * self.dims
