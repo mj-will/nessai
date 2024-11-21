@@ -28,7 +28,7 @@ class MCMCFlowProposal(BaseFlowProposal):
         step_kwargs: dict = None,
         plot_chain: bool = False,
         plot_history: bool = False,
-        enforce_likelihood_threshold: bool = False,
+        enforce_likelihood_threshold: bool = True,
         ensemble_fraction: float = 0.5,
         **kwargs,
     ):
