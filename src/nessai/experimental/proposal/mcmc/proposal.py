@@ -57,9 +57,7 @@ class MCMCFlowProposal(BaseFlowProposal):
             f"Using step type: {StepClass} with kwargs: {self.step_kwargs}"
         )
         self.step = StepClass(
-            dims=self.rescaled_dims,
-            rng=self.rng,
-            **self.step_kwargs
+            dims=self.rescaled_dims, rng=self.rng, **self.step_kwargs
         )
 
     def plot_chain(self, chains):
