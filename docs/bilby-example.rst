@@ -7,7 +7,7 @@ The following example mirrors the :doc:`Gaussian example<gaussian-example>` but 
 
 .. note::
 
-    As of ``bilby`` v2.3.0, the recommended way to use ``nessai`` is via the ``nessai-bilby` plugin, see :ref:`nessai-bilby`.
+    As of ``bilby`` v2.3.0, the recommended way to use ``nessai`` is via the ``nessai-bilby`` plugin, see :ref:`nessai-bilby`.
 
 Code
 ====
