@@ -2,4 +2,4 @@ sphinx
 numpydoc
 sphinx-autoapi
 sphinx_tabs
-sphinx-books-theme
+sphinx-book-theme
