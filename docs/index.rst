@@ -1,13 +1,4 @@
-.. nessai documentation master file, created by
-   sphinx-quickstart on Wed Sep 16 13:23:34 2020.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
-Welcome to nessai's documentation!
-========================================
-
-======
-Nessai
+nessai
 ======
 
 ``nessai`` (/ˈnɛsi/): Nested Sampling with Artificial Intelligence
@@ -20,7 +11,7 @@ For questions or other support, please either use our `gitter room <https://app.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Contents:
+   :caption: User guide
 
    installation
    running-the-sampler
@@ -37,12 +28,11 @@ For questions or other support, please either use our `gitter room <https://app.
 
 .. toctree::
    :maxdepth: 1
-   :caption: Examples:
+   :caption: Examples
 
    gaussian-example
    bilby-example
 
-=============
 Citing nessai
 =============
 
