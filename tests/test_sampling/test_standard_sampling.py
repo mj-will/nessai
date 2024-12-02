@@ -218,10 +218,11 @@ def test_sampling_resume(integration_model, flow_config, tmpdir):
     fp.run()
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
-    integration_model.rng = None
+    # Use a new instance of the integration model to emulate a new run
+    new_integration_model = IntegrationTestModel()
 
     fp = FlowSampler(
-        integration_model,
+        new_integration_model,
         output=output,
         resume=True,
         flow_config=flow_config,
@@ -272,6 +273,8 @@ def test_sampling_resume_w_pool(
     # Make sure the pool is already closed
     integration_model.close_pool()
 
+    new_integration_model = IntegrationTestModel()
+
     with (
         patch("multiprocessing.Pool", mp_context.Pool),
         patch(
@@ -280,7 +283,7 @@ def test_sampling_resume_w_pool(
         ),
     ):
         fp = FlowSampler(
-            integration_model,
+            new_integration_model,
             output=output,
             resume=True,
             flow_config=flow_config,
@@ -326,8 +329,13 @@ def test_sampling_resume_no_max_uninformed(
     fp.run()
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
+    new_integration_model = IntegrationTestModel()
+
     fp = FlowSampler(
-        integration_model, output=output, resume=True, flow_config=flow_config
+        new_integration_model,
+        output=output,
+        resume=True,
+        flow_config=flow_config,
     )
     assert fp.ns.iteration == 11
     fp.ns.maximum_uninformed = np.inf
@@ -378,10 +386,10 @@ def test_resume_fallback_reparameterisation(
     assert isinstance(reparam, ScaleAndShift)
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
-    integration_model.rng = None
+    new_integration_model = IntegrationTestModel()
 
     fp = FlowSampler(
-        integration_model,
+        new_integration_model,
         output=output,
         resume=True,
         flow_config=flow_config,
@@ -432,10 +440,10 @@ def test_resume_reparameterisation_values(
     original_shift = reparam.shift
     assert os.path.exists(os.path.join(output, "nested_sampler_resume.pkl"))
 
-    integration_model.rng = None
+    new_integration_model = IntegrationTestModel()
 
     fp = FlowSampler(
-        integration_model,
+        new_integration_model,
         output=output,
         resume=True,
         flow_config=flow_config,
@@ -482,10 +490,10 @@ def test_sampling_resume_move_files(integration_model, flow_config, tmp_path):
     shutil.move(output, new_output)
     assert not os.path.exists(output)
 
-    integration_model.rng = None
+    new_integration_model = IntegrationTestModel()
 
     fp = FlowSampler(
-        integration_model,
+        new_integration_model,
         output=new_output,
         resume=True,
         flow_config=flow_config,
@@ -618,8 +626,10 @@ def test_sampling_resume_finalised(integration_model, tmp_path):
     assert fs.ns.live_points is None
     assert os.path.exists(fs.ns.resume_file)
 
+    new_integration_model = IntegrationTestModel()
+
     fs = FlowSampler(
-        integration_model,
+        new_integration_model,
         output=output,
         nlive=100,
         plot=False,
@@ -787,8 +797,10 @@ def test_sampling_with_checkpoint_callback(integration_model, tmp_path):
     with open(checkpoint_file, "rb") as f:
         resume_data = pickle.load(f)
 
+    new_integration_model = IntegrationTestModel()
+
     fs = FlowSampler(
-        integration_model,
+        new_integration_model,
         output=output,
         nlive=100,
         plot=False,
