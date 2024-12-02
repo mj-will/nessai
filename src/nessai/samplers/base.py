@@ -396,6 +396,7 @@ class BaseNestedSampler(ABC):
         Instance of BaseNestedSampler
         """
         logger.info(f"Resuming instance of {cls.__name__}")
+        model.set_rng(sampler.rng)
         model.likelihood_evaluations += (
             sampler._previous_likelihood_evaluations
         )
