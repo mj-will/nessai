@@ -68,6 +68,33 @@ def nessai_style(line_styles=True):
         return decorator
 
 
+def sanitise_array(
+    a: np.ndarray, /, a_min: float | None = None, a_max: float | None = None
+):
+    """Sanitise an array for plotting.
+
+    If :code:`x_min` is not specified, it is set to the value in
+    :code:`nessai.config.plotting.clip_min`.
+
+    Parameters
+    ----------
+    x : array_like
+        Array to sanitise.
+    x_min : float, optional
+        Minimum value to clip the data to.
+    xmax : float, optional
+        Maximum value to clip the data to.
+
+    Returns
+    -------
+    np.ndarray
+        Sanitised array.
+    """
+    if a_min is None:
+        a_min = config.plotting.clip_min
+    return np.clip(a, a_min, a_max)
+
+
 @nessai_style()
 def plot_live_points(
     live_points, filename=None, bounds=None, c=None, **kwargs
