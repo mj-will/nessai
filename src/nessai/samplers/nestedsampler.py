@@ -19,7 +19,7 @@ from matplotlib.lines import Line2D
 from .. import config
 from ..evidence import _NSIntegralState
 from ..livepoint import empty_structured_array
-from ..plot import nessai_style, plot_indices, plot_trace
+from ..plot import nessai_style, plot_indices, plot_trace, sanitise_array
 from ..proposal.utils import (
     check_proposal_kwargs,
     get_flow_proposal_class,
@@ -1004,10 +1004,38 @@ class NestedSampler(BaseNestedSampler):
         for a in ax:
             a.axvline(self.iteration, c="#ff9900", ls="-.")
 
-        ax[0].plot(it, self.history["min_log_likelihood"], label="Min log L")
-        ax[0].plot(it, self.history["max_log_likelihood"], label="Max log L")
+        ax[0].plot(
+            it,
+            sanitise_array(self.history["min_log_likelihood"]),
+            label="Min log L",
+        )
+        ax[0].plot(
+            it,
+            sanitise_array(self.history["max_log_likelihood"]),
+            label="Max log L",
+        )
         ax[0].set_ylabel(r"$\log L$")
         ax[0].legend(frameon=False)
+
+        ax_logl_diff = plt.twinx(ax[0])
+        logl_diff = sanitise_array(
+            np.array(self.history["max_log_likelihood"])
+            - np.array(self.history["min_log_likelihood"]),
+        )
+        ax_logl_diff.plot(
+            it,
+            logl_diff,
+            c="C2",
+            ls=config.plotting.line_styles[2],
+            label=r"$\Delta \log L$ ",
+        )
+        ax_logl_diff.set_yscale("log")
+        ax_logl_diff.set_ylabel(r"$\Delta \log L$")
+        handles, labels = ax[0].get_legend_handles_labels()
+        handles_diff, labels_diff = ax_logl_diff.get_legend_handles_labels()
+        ax[0].legend(
+            handles + handles_diff, labels + labels_diff, frameon=False
+        )
 
         logX_its = np.arange(len(self.state.log_vols))
         ax[1].plot(logX_its, self.state.log_vols, label="log X")
@@ -1054,7 +1082,7 @@ class NestedSampler(BaseNestedSampler):
             handles + handles_time, labels + labels_time, frameon=False
         )
 
-        ax[3].plot(it, self.history["logZ"], label="logZ")
+        ax[3].plot(it, sanitise_array(self.history["logZ"]), label="logZ")
         ax[3].set_ylabel(r"$\log Z$")
         ax[3].legend(frameon=False)
 
