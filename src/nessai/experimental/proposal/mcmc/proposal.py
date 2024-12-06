@@ -25,19 +25,40 @@ class MCMCFlowProposal(BaseFlowProposal):
         n_steps=10,
         n_accept=None,
         step_type: str = "gaussian",
+        step_kwargs: dict = None,
         plot_chain: bool = False,
+        plot_history: bool = False,
+        enforce_likelihood_threshold: bool = True,
+        ensemble_fraction: float = 0.5,
         **kwargs,
     ):
         self.n_steps = n_steps
         self.n_accept = n_accept
         self.step_type = step_type
         self._plot_chain = plot_chain
+        self._plot_history = plot_history
+        self.enforce_likelihood_threshold = enforce_likelihood_threshold
+        self.ensemble_fraction = ensemble_fraction
+        self.mcmc_history = {
+            "acceptance": [],
+            "n_steps": [],
+        }
+        self.step_kwargs = step_kwargs or {}
         super().__init__(model, **kwargs)
 
     def initialise(self, resumed: bool = False):
+        """Initialise the proposal.
+
+        This includes setting up the MCMC step.
+        """
         super().initialise(resumed=resumed)
         StepClass = KNOWN_STEPS.get(self.step_type)
-        self.step = StepClass(dims=self.rescaled_dims, rng=self.rng)
+        logger.debug(
+            f"Using step type: {StepClass} with kwargs: {self.step_kwargs}"
+        )
+        self.step = StepClass(
+            dims=self.rescaled_dims, rng=self.rng, **self.step_kwargs
+        )
 
     def plot_chain(self, chains):
         nsteps, nchains, ndims = chains.shape
@@ -49,6 +70,22 @@ class MCMCFlowProposal(BaseFlowProposal):
         fig.savefig(
             os.path.join(self.output, f"chain_{self.populated_count}.png")
         )
+        plt.close(fig)
+
+    def plot_history(self):
+        """Plot the history of MCMC acceptance and number of steps.
+
+        This is useful for diagnosing the performance of the MCMC proposal over
+        the course of the run.
+        """
+        fig, axs = plt.subplots(2, 1, sharex=True)
+        axs[0].plot(self.mcmc_history["acceptance"])
+        axs[0].set_ylabel("Acceptance")
+        axs[1].plot(self.mcmc_history["n_steps"])
+        axs[1].set_ylabel("Number of steps")
+        axs[-1].set_xlabel("Iteration")
+        plt.tight_layout()
+        fig.savefig(os.path.join(self.output, "mcmc_history.png"))
         plt.close(fig)
 
     def x_prime_log_prior(self, x):
@@ -80,13 +117,14 @@ class MCMCFlowProposal(BaseFlowProposal):
         self.rng.shuffle(x_prime_array)
         z_ensemble, _ = self.flow.forward_and_log_prob(x_prime_array)
 
-        self.step.update_ensemble(z_ensemble)
+        ensemble_size = int(self.ensemble_fraction * self.training_data.size)
+        self.step.update_ensemble(z_ensemble[:ensemble_size])
 
         poolsize = n_samples if n_samples is not None else self.poolsize
-        n_walkers = min(poolsize, self.training_data.size)
+        n_walkers = min(poolsize, self.training_data.size - ensemble_size)
 
         # Initial points
-        z_current = z_ensemble[:n_walkers]
+        z_current = z_ensemble[ensemble_size : (ensemble_size + n_walkers)]
         x_current, log_j_current = self.backward_pass(
             z_current, return_unit_hypercube=self.map_to_unit_hypercube
         )
@@ -120,25 +158,28 @@ class MCMCFlowProposal(BaseFlowProposal):
                 log_p = self.log_prior(x_new)
             finite_prior = np.isfinite(log_p)
 
+            # Jacobian should include flow and step
             log_j_new = log_j_step + log_j_flow
-
-            # Only evaluate function where log-prior is finite
-            # Default is NaN, so will not pass threshold.
-            x_new["logL"][finite_prior] = (
-                self.model.batch_evaluate_log_likelihood(
-                    x_new[finite_prior],
-                    unit_hypercube=self.map_to_unit_hypercube,
-                )
-            )
-            logl_accept = x_new["logL"] > log_l_threshold
+            # Calculate acceptance
             log_factor = log_p + log_j_new - log_p_current - log_j_current
             log_u = np.log(self.rng.random(n_walkers))
-
-            accept = (log_factor > log_u) & finite_prior & logl_accept
+            accept = (log_factor > log_u) & finite_prior
+            # Only evaluate function where log-prior is finite
+            # Default is NaN, so will not pass threshold.
+            if self.enforce_likelihood_threshold:
+                x_new["logL"][finite_prior] = (
+                    self.model.batch_evaluate_log_likelihood(
+                        x_new[finite_prior],
+                        unit_hypercube=self.map_to_unit_hypercube,
+                    )
+                )
+                logl_accept = x_new["logL"] > log_l_threshold
+                accept &= logl_accept
 
             x_current[accept] = x_new[accept]
             z_current[accept] = z_new[accept]
-            log_j_current[accept] = log_j_new[accept]
+            # Only include the log-jacobian for the flow
+            log_j_current[accept] = log_j_flow[accept]
             n_accept += accept
             n_reject += 1 - accept
             z_chain[i] = z_current
@@ -159,6 +200,10 @@ class MCMCFlowProposal(BaseFlowProposal):
         logger.debug(f"Replacing {n_walkers - keep.sum()} walkers")
         x_current = x_current[keep]
 
+        x_current["logL"] = self.model.batch_evaluate_log_likelihood(
+            x_current, unit_hypercube=self.map_to_unit_hypercube
+        )
+
         z_new_history = np.array(z_new_history)
         z_chain = z_chain[:n_steps]
         self.step.update_stats(
@@ -176,9 +221,15 @@ class MCMCFlowProposal(BaseFlowProposal):
             self.plot_chain(z_chain)
         if self._plot_pool and plot:
             self.plot_pool(self.samples)
-        self.population_acceptance = n_accept.mean() / (
-            n_accept.mean() + n_reject.mean()
-        )
+
+        acceptance = n_accept.mean() / (n_accept.mean() + n_reject.mean())
+        self.mcmc_history["acceptance"].append(acceptance)
+        self.mcmc_history["n_steps"].append(n_steps)
+        if self._plot_history and plot:
+            self.plot_history()
+
+        self.population_acceptance = self.mcmc_history["acceptance"][-1]
+
         logger.debug(f"MCMC acceptance: {self.population_acceptance}")
         self.indices = self.rng.permutation(self.samples.size).tolist()
         self.populated_count += 1

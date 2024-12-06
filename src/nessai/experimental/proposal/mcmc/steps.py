@@ -1,7 +1,7 @@
 import logging
 import math
 from functools import lru_cache
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -10,10 +10,14 @@ logger = logging.getLogger(__name__)
 
 class Step:
     def __init__(
-        self, dims: int, ensemble: Optional[np.ndarray] = None
+        self,
+        dims: int,
+        ensemble: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
     ) -> None:
         self.dims = dims
         self.update_ensemble(ensemble)
+        self.rng = rng or np.random.default_rng()
 
     def step(self, z):
         raise NotImplementedError
@@ -34,11 +38,12 @@ class GaussianStep(Step):
         self,
         dims: int,
         ensemble: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         scale: Optional[float] = None,
         update_scale: bool = True,
         target_acceptance: float = 0.5,
     ) -> None:
-        super().__init__(dims=dims, ensemble=ensemble)
+        super().__init__(dims=dims, ensemble=ensemble, rng=rng)
         if scale is None:
             self.scale = 2 / self.dims**0.5
         else:
@@ -47,7 +52,7 @@ class GaussianStep(Step):
         self.target_acceptance = target_acceptance
 
     def step(self, z):
-        return np.random.normal(z, scale=self.scale, size=z.shape), np.zeros(
+        return self.rng.normal(z, scale=self.scale, size=z.shape), np.zeros(
             z.shape[0]
         )
 
@@ -81,17 +86,36 @@ def _get_nondiagonal_pairs(n: int) -> np.ndarray:
 
 
 class DifferentialEvolutionStep(Step):
+    """Differential evolution step for MCMC proposal.
+
+    Based on the differential evolution proposal from CPnest and the dynesty-
+    specific implementation in bilby.
+
+    Parameters
+    ----------
+    dims : int
+        The number of dimensions in the parameter space.
+    ensemble : np.ndarray, optional
+        The ensemble of live points. Default is None.
+    mix_fraction : float, optional
+        The fraction of the ensemble to mix. Default is 0.5.
+    sigma : float, optional
+        The standard deviation of the error term added to the steps.
+        Default is 1e-5.
+    """
+
     def __init__(
         self,
         dims: int,
         ensemble: Optional[np.ndarray] = None,
+        rng: Optional[np.random.Generator] = None,
         mix_fraction: float = 0.5,
-        sigma: float = 1e-4,
+        sigma: float = 1e-5,
     ) -> None:
         self.pairs = None
         self.n_pairs = None
 
-        super().__init__(dims=dims, ensemble=ensemble)
+        super().__init__(dims=dims, ensemble=ensemble, rng=rng)
 
         self.g0 = 2.38 / np.sqrt(2 * self.dims)
         self.mix_fraction = mix_fraction
@@ -105,19 +129,56 @@ class DifferentialEvolutionStep(Step):
 
     def step(self, z):
         nc = z.shape[0]
-        indices = np.random.choice(self.n_pairs, size=nc, replace=True)
+        indices = self.rng.choice(self.n_pairs, size=nc, replace=True)
         diffs = np.diff(self.ensemble[self.pairs[indices]], axis=1).squeeze(
             axis=1
         )
-        mix = np.random.rand(nc) < self.mix_fraction
+        mix = self.rng.random(nc) < self.mix_fraction
         scale = np.ones((nc, 1))
         scale[mix, :] = self.g0
-        error = self.sigma * np.random.randn(nc, self.dims)
+        error = self.sigma * self.rng.standard_normal((nc, self.dims))
         z_new = z + scale * diffs + error
         return z_new, np.zeros(nc)
+
+
+class StretchStep(Step):
+    """Stretch step for MCMC proposal.
+
+    Based on the stretch move proposal from Goodman & Weare (2010), as
+    implemented in :code:`cpnest` and :code:`LALInference`.
+
+    Parameters
+    ----------
+    dims : int
+        The number of dimensions in the parameter space.
+    scale : float, optional
+        The scale factor for the stretch move. Default is 2.0.
+    ensemble : np.ndarray, optional
+        The ensemble of live points. Default is None.
+    """
+
+    def __init__(
+        self,
+        dims: int,
+        ensemble: np.ndarray = None,
+        rng: Optional[np.random.Generator] = None,
+        scale: float = 2.0,
+    ):
+        super().__init__(dims=dims, ensemble=ensemble, rng=rng)
+        self.scale = scale
+
+    def step(self, z: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        nc = z.shape[0]
+        indices = self.rng.choice(len(self.ensemble), size=nc, replace=True)
+        a = self.ensemble[indices]
+        x = self.rng.uniform(-1, 1, size=nc) * np.log(self.scale)
+        scale = np.exp(x)
+        z_new = a + (z - a) * scale[:, None]
+        return z_new, x * self.dims
 
 
 KNOWN_STEPS = dict(
     gaussian=GaussianStep,
     diff=DifferentialEvolutionStep,
+    stretch=StretchStep,
 )
