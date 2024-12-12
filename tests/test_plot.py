@@ -540,6 +540,13 @@ def test_corner_plot_w_include_and_labels(live_points):
 
 
 @pytest.mark.parametrize("truths", [[1], {"x": 1, "y": 1}])
+@pytest.mark.xfail(
+    raises=TypeError,
+    reason=(
+        "Test fails due to an upstream bug in corner. "
+        "See https://github.com/dfm/corner.py/issues/285."
+    ),
+)
 def test_corner_plot_w_include_and_truths(live_points, truths):
     """Test the parameter is included and the truths do not raise an error"""
     fig = plot.corner_plot(live_points, include=["x"], truths=truths)
