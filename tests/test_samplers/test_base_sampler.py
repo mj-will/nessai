@@ -470,14 +470,17 @@ def test_close_pool(sampler):
 
 
 @pytest.mark.parametrize("output", [None, "orig", "new"])
-def test_resume_from_pickled_sampler(model, output):
+def test_resume_from_pickled_sampler(model, output, rng):
     """Test the resume from pickled sampler method"""
     obj = MagicMock()
     obj.model = None
     obj.output = "orig"
+    obj.rng = rng
     obj._previous_likelihood_evaluations = 3
     obj._previous_likelihood_evaluation_time = 4.0
 
+    model.rng = None
+    model.set_rng = MagicMock()
     model.likelihood_evaluations = 1
     model.likelihood_evaluation_time = datetime.timedelta(seconds=2)
 
@@ -488,6 +491,7 @@ def test_resume_from_pickled_sampler(model, output):
     assert out.model == model
     assert out.model.likelihood_evaluations == 4
     assert out.model.likelihood_evaluation_time.total_seconds() == 6
+    model.set_rng.assert_called_once_with(rng)
 
     if output == "new":
         obj.update_output.assert_called_once_with("new")
