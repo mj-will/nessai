@@ -69,7 +69,10 @@ def nessai_style(line_styles=True):
 
 
 def sanitise_array(
-    a: np.ndarray, /, a_min: float | None = None, a_max: float | None = None
+    a: np.ndarray,
+    /,
+    a_min: Optional[float] = None,
+    a_max: Optional[float] = None,
 ):
     """Sanitise an array for plotting.
 
