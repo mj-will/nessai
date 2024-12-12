@@ -144,6 +144,12 @@ class PlottingConfig(_BaseConfig):
     Based on the default DPI in matplotlib of 100, so this will give a maximum
     size of 5000 pixels.
     """
+    clip_min: float = -1e10
+    """Minimum value to clip data to for plotting.
+
+    This is used to avoid issues with plots where the dynamic range is too
+    large for matplotlib to handle.
+    """
 
 
 @dataclass
