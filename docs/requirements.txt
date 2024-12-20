@@ -3,3 +3,5 @@ numpydoc
 sphinx-autoapi
 sphinx_tabs
 sphinx-book-theme
+nessai
+nessai-models
