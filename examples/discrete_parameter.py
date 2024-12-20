@@ -7,11 +7,11 @@ import numpy as np
 from nessai.flowsampler import FlowSampler
 from nessai.livepoint import empty_structured_array
 from nessai.model import Model
-from nessai.utils import setup_logger
+from nessai.utils import configure_logger
 
 # Configure the output directory and logger
 output = "./outdir/discrete_example/"
-logger = setup_logger(output=output, log_level="INFO")
+logger = configure_logger(output=output, log_level="INFO")
 
 # Set the random number generator
 rng = np.random.default_rng(1234)

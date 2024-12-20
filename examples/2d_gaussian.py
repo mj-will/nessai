@@ -7,13 +7,13 @@ from scipy.stats import norm
 
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model
-from nessai.utils import setup_logger
+from nessai.utils import configure_logger
 
 # Setup the logger - credit to the Bilby team for this neat function!
 # see: https://git.ligo.org/lscsoft/bilby
 
 output = "./outdir/2d_gaussian_example/"
-logger = setup_logger(output=output)
+logger = configure_logger(output=output)
 
 # Define the model, in this case we use a simple 2D gaussian
 # The model must contain names for each of the parameters and their bounds

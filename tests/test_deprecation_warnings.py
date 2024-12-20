@@ -77,3 +77,11 @@ def test_configure_random_seed_warning():
         FutureWarning, match=r"`configure_random_seed` is deprecated"
     ):
         BaseNestedSampler.configure_random_seed(sampler, seed=0)
+
+
+@pytest.mark.reset_logger
+def test_setup_logger_deprecation():
+    from nessai.utils.logging import setup_logger
+
+    with pytest.warns(FutureWarning, match=r"deprecated"):
+        setup_logger(label=None)

@@ -14,10 +14,10 @@ import numpy as np
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.plot import corner_plot
-from nessai.utils import setup_logger
+from nessai.utils import configure_logger
 
 output = "./outdir/corner_plot_example/"
-logger = setup_logger(output=output)
+logger = configure_logger(output=output)
 
 
 # Generate the data

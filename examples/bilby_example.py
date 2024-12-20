@@ -13,7 +13,7 @@ outdir = "./outdir/"
 label = "bilby_example"
 
 # Setup the bilby logger this will also configure the nessai logger.
-bilby.core.utils.setup_logger(outdir=outdir, label=label)
+bilby.core.utils.configure_logger(outdir=outdir, label=label)
 
 # Define a likelihood using Bilby
 

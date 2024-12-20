@@ -12,7 +12,7 @@ import bilby
 outdir = "./outdir/"
 label = "basic_gw_example"
 
-bilby.core.utils.setup_logger(outdir=outdir, label=label)
+bilby.core.utils.configure_logger(outdir=outdir, label=label)
 
 duration = 4.0
 sampling_frequency = 2048.0
