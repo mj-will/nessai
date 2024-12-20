@@ -122,17 +122,24 @@ def test_rescaling_generate_unknown(proposal, x):
 
 
 @pytest.mark.parametrize("marg", [False, True])
-@patch("scipy.stats.norm.logpdf")
-def test_augmented_prior(mock, marg, proposal, x):
+def test_augmented_prior(marg, proposal, x):
     """Test the augmented prior with and without marginalistion"""
+    log_prob = np.ones(len(x))
     proposal.marginalise_augment = marg
+    proposal.augment_dist = MagicMock()
+    proposal.augment_dist.logpdf = MagicMock(return_value=log_prob)
     proposal.augment_parameters = ["e_1", "e_2"]
-    log_prior = AugmentedFlowProposal.augmented_prior(proposal, x)
+    out = AugmentedFlowProposal.augmented_prior(proposal, x)
     if marg:
-        assert log_prior == 0
+        np.testing.assert_array_equal(np.zeros(len(x)), out)
+        proposal.augment_dist.logpdf.assert_not_called()
     else:
-        np.testing.assert_array_equal(x["e_1"], mock.call_args_list[0][0][0])
-        np.testing.assert_array_equal(x["e_2"], mock.call_args_list[1][0][0])
+        assert out is log_prob
+        proposal.augment_dist.logpdf.assert_called_once()
+        np.testing.assert_array_equal(
+            np.array([x["e_1"], x["e_2"]]).T,
+            proposal.augment_dist.logpdf.call_args_list[0][0][0],
+        )
 
 
 @patch("nessai.proposal.flowproposal.FlowProposal.log_prior", return_value=1)
@@ -186,11 +193,13 @@ def test_backward_pass(proposal, model, log_p, marg, rng):
     z = rng.standard_normal((n, model.dims))
     proposal._marginalise_augment = MagicMock(return_value=log_p)
     proposal.inverse_rescale = MagicMock(
-        side_effect=lambda a: (a, np.ones(a.size))
+        side_effect=lambda a, return_unit_hypercube: (a, np.ones(a.size))
     )
     proposal.prime_parameters = model.names
     proposal.alt_dist = None
-    proposal.check_prior_bounds = MagicMock(side_effect=lambda a, b: (a, b))
+    proposal.check_prior_bounds = MagicMock(
+        side_effect=lambda a, b, c: (a, b, c)
+    )
     proposal.flow = MagicMock()
     proposal.flow.sample_and_log_prob = MagicMock(return_value=[x, log_p])
 
