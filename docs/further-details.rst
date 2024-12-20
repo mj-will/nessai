@@ -151,10 +151,3 @@ via :py:class:`~nessai.flowsampler.FlowSampler`.
 .. warning::
     The checkpoint callback is not included in the output of :python:`__getstate__`
     and must be specified when resuming the sampler via :py:class:`~nessai.flowsampler.FlowSampler`.
-
-
-Detailed explanation of outputs
-===============================
-
-.. note::
-    This section has not been completed yet
