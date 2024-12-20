@@ -80,7 +80,14 @@ def test_configure_random_seed_warning():
 
 
 def test_setup_logger_deprecation():
+    import logging
+
     from nessai.utils.logging import setup_logger
 
     with pytest.warns(FutureWarning, match=r"deprecated"):
-        setup_logger()
+        setup_logger(label=None)
+
+    # Reset the logger
+    logger = logging.getLogger("nessai")
+    logger.handlers = []
+    logger.addHandler(logging.NullHandler())
