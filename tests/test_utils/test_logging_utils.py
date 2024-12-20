@@ -44,13 +44,13 @@ def test_configure_logger_with_label(tmp_path, output):
     if output:
         output = tmp_path / output
         output.mkdir()
-    logger = configure_logger(label="test", output=output)
+    with patch("os.getcwd", return_value=tmp_path):
+        logger = configure_logger(label="test", output=output)
     if output is None:
-        output = os.getcwd()
+        output = tmp_path
     log_path = os.path.join(output, "test.log")
     assert os.path.exists(log_path)
     assert any([isinstance(h, logging.FileHandler) for h in logger.handlers])
-    os.remove(log_path)
 
 
 @pytest.mark.reset_logger
