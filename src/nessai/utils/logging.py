@@ -64,6 +64,17 @@ def configure_logger(
     logger = logging.getLogger("nessai")
     logger.setLevel(level)
 
+    if include_logger_name:
+        formatter = logging.Formatter(
+            "%(asctime)s %(name)s %(levelname)-8s: %(message)s",
+            datefmt="%m-%d %H:%M",
+        )
+    else:
+        formatter = logging.Formatter(
+            "%(asctime)s nessai %(levelname)-8s: %(message)s",
+            datefmt="%m-%d %H:%M",
+        )
+
     if (
         any([isinstance(h, logging.StreamHandler) for h in logger.handlers])
         is False
@@ -78,17 +89,6 @@ def configure_logger(
                     f"Unknown stream: {stream}. Choose from: [stderr, stdout]"
                 )
         stream_handler = logging.StreamHandler(stream)
-
-        if include_logger_name:
-            formatter = logging.Formatter(
-                "%(asctime)s %(name)s %(levelname)-8s: %(message)s",
-                datefmt="%m-%d %H:%M",
-            )
-        else:
-            formatter = logging.Formatter(
-                "%(asctime)s nessai %(levelname)-8s: %(message)s",
-                datefmt="%m-%d %H:%M",
-            )
 
         stream_handler.setFormatter(formatter)
         stream_handler.setLevel(level)
@@ -108,11 +108,7 @@ def configure_logger(
             if filehandler_kwargs is None:
                 filehandler_kwargs = {}
             file_handler = logging.FileHandler(log_file, **filehandler_kwargs)
-            file_handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s %(levelname)-8s: %(message)s", datefmt="%H:%M"
-                )
-            )
+            file_handler.setFormatter(formatter)
 
             file_handler.setLevel(level)
             logger.addHandler(file_handler)
