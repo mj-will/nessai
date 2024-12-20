@@ -15,6 +15,7 @@ For questions or other support, please either use our `gitter room <https://app.
 
    installation
    running-the-sampler
+   outputs
    sampler-configuration
    importance-nested-sampling
    reparameterisations
