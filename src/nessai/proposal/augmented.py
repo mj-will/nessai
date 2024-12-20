@@ -240,7 +240,7 @@ class AugmentedFlowProposal(FlowProposal):
                 f"Error: {e}"
             )
             if return_z:
-                return np.array([]), np.array([]), np.array
+                return np.array([]), np.array([]), np.array([])
             else:
                 return np.array([]), np.array([])
 
