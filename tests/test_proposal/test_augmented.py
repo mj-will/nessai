@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, create_autospec, patch
 import numpy as np
 import pytest
 
-from nessai.livepoint import numpy_array_to_live_points
+from nessai.livepoint import empty_structured_array, numpy_array_to_live_points
 from nessai.proposal import AugmentedFlowProposal
 
 
@@ -21,6 +21,14 @@ def x(rng):
         [rng.standard_normal((10, 2)), rng.standard_normal((10, 2))], axis=1
     )
     return numpy_array_to_live_points(_x, ["x", "y", "e_1", "e_2"])
+
+
+@pytest.fixture
+def x_prime(rng):
+    _x = np.concatenate(
+        [rng.standard_normal((10, 2)), rng.standard_normal((10, 2))], axis=1
+    )
+    return numpy_array_to_live_points(_x, ["x_prime", "y_prime", "e_1", "e_2"])
 
 
 def test_init(model):
@@ -121,6 +129,34 @@ def test_rescaling_generate_unknown(proposal, x):
     assert "Unknown method" in str(excinfo.value)
 
 
+def test_inverse_rescale(proposal, x_prime):
+    proposal.augment_parameters = ["e_1", "e_2"]
+    x = empty_structured_array(len(x_prime), ["x", "y", "e_1", "e_2"])
+    x["x"] = x_prime["x_prime"].copy()
+    x["y"] = x_prime["y_prime"].copy()
+    proposal._base_inverse_rescale = MagicMock(
+        return_value=[x, np.ones(x.size)]
+    )
+    x, log_J = AugmentedFlowProposal._augmented_inverse_rescale(
+        proposal, x_prime
+    )
+    proposal._base_inverse_rescale.assert_called_once_with(
+        x_prime, return_unit_hypercube=False
+    )
+    np.testing.assert_array_equal(x["e_1"], x_prime["e_1"])
+    np.testing.assert_array_equal(x["e_2"], x_prime["e_2"])
+
+
+def test_inverse_rescale_hypercube_error(proposal, x_prime):
+    with pytest.raises(
+        RuntimeError,
+        match="Inverse rescaling with augmented parameters is not supported",
+    ):
+        AugmentedFlowProposal._augmented_inverse_rescale(
+            proposal, x_prime, True
+        )
+
+
 @pytest.mark.parametrize("marg", [False, True])
 def test_augmented_prior(marg, proposal, x):
     """Test the augmented prior with and without marginalistion"""
@@ -185,7 +221,8 @@ def test_marginalise_augment(proposal, rng):
 
 @pytest.mark.parametrize("log_p", [np.ones(2), np.array([-1, np.inf])])
 @pytest.mark.parametrize("marg", [False, True])
-def test_backward_pass(proposal, model, log_p, marg, rng):
+@pytest.mark.parametrize("return_z", [False, True])
+def test_backward_pass(proposal, model, log_p, marg, rng, return_z):
     """Test the backward pass method"""
     n = 2
     acc = int(np.isfinite(log_p).sum())
@@ -205,15 +242,34 @@ def test_backward_pass(proposal, model, log_p, marg, rng):
 
     proposal.marginalise_augment = marg
 
-    x_out, log_p = AugmentedFlowProposal.backward_pass(proposal, z)
+    out = AugmentedFlowProposal.backward_pass(proposal, z, return_z=return_z)
 
-    assert len(x_out) == acc
+    if return_z:
+        assert len(out) == 3
+    else:
+        assert len(out) == 2
+
+    assert len(out[0]) == acc
     proposal.inverse_rescale.assert_called_once()
     proposal.flow.sample_and_log_prob.assert_called_once_with(
         z=z, alt_dist=None
     )
 
     assert proposal._marginalise_augment.called is marg
+
+
+@pytest.mark.parametrize("return_z", [False, True])
+def test_backward_pass_assertion_error(proposal, return_z):
+    proposal.flow = MagicMock()
+    proposal.flow.sample_and_log_prob = MagicMock(side_effect=AssertionError)
+    z = np.ones((10, 2))
+    out = AugmentedFlowProposal.backward_pass(proposal, z, return_z=return_z)
+    if return_z:
+        assert len(out) == 3
+    else:
+        assert len(out) == 2
+    for a in out:
+        assert len(a) == 0
 
 
 @pytest.mark.integration_test
