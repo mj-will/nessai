@@ -15,7 +15,7 @@ from .io import (
     save_live_points,
     save_to_json,
 )
-from .logging import configure_logger
+from .logging import configure_logger, setup_logger
 from .rescaling import (
     configure_edge_detection,
     detect_edge,
@@ -80,6 +80,7 @@ __all__ = [
     "save_dict_to_hdf5",
     "save_live_points",
     "save_to_json",
+    "setup_logger",
     "sigmoid",
     "spatial",
     "structures",
