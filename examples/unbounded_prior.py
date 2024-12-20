@@ -8,10 +8,10 @@ from scipy.stats import norm
 from nessai.flowsampler import FlowSampler
 from nessai.livepoint import dict_to_live_points
 from nessai.model import Model
-from nessai.utils import setup_logger
+from nessai.utils import configure_logger
 
 output = "./outdir/unbounded_prior/"
-logger = setup_logger(output=output)
+logger = configure_logger(output=output)
 rng = np.random.default_rng(1234)
 
 # We define the model as usual but also need to redefine `new_point` since by

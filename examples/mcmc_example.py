@@ -6,10 +6,10 @@ import numpy as np
 
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model
-from nessai.utils import setup_logger
+from nessai.utils import configure_logger
 
-output = "./outdir/mcmc_example/"
-logger = setup_logger(output=output)
+output = "./outdir/mcmc_example_cvm_8d_flow_act/"
+logger = configure_logger(output=output)
 
 
 class RosenbrockModel(Model):
@@ -52,12 +52,16 @@ fs = FlowSampler(
     resume=False,
     seed=1234,
     flow_proposal_class="mcmcflowproposal",
-    n_accept=10,
-    n_steps=500,
-    reset_flow=4,
+    plot_history=True,
+    plot_chain=False,
+    step_type="diff",
+    enforce_likelihood_threshold=True,
+    # constant_volume_fraction=0.98,
+    n_steps=5000,
+    reset_flow=16,
     flow_config=dict(
         n_neurons=32,
-        n_blocks=6,
+        n_blocks=8,
         n_layers=2,
         batch_norm_between_layers=True,
         linear_transform=None,

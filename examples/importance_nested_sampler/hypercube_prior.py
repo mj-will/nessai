@@ -11,10 +11,10 @@ from scipy.stats import norm, truncnorm
 from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.plot import corner_plot
-from nessai.utils import setup_logger
+from nessai.utils import configure_logger
 
 output = os.path.join("outdir", "ins_non_uniform_prior")
-logger = setup_logger(output=output)
+logger = configure_logger(output=output)
 
 
 class ModelWithNonUniformPrior(Model):
