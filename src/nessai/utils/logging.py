@@ -132,6 +132,6 @@ def setup_logger(*args, **kwargs):
 
     warnings.warn(
         "setup_logger is deprecated, use configure_logger instead",
-        DeprecationWarning,
+        FutureWarning,
     )
     return configure_logger(*args, **kwargs)
