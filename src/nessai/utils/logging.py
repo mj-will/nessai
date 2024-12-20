@@ -103,7 +103,7 @@ def configure_logger(
                 if not os.path.exists(output):
                     os.makedirs(output, exist_ok=True)
             else:
-                output = "."
+                output = os.getcwd()
             log_file = os.path.join(output, f"{label}.log")
             if filehandler_kwargs is None:
                 filehandler_kwargs = {}
