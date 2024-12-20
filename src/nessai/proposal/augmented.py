@@ -6,11 +6,13 @@ Augmented version of FlowProposal.
 import logging
 
 import numpy as np
+import numpy.lib.recfunctions as rfn
 from scipy import stats
 from scipy.special import logsumexp
 
 from .. import config
 from ..livepoint import numpy_array_to_live_points
+from ..utils.structures import get_subset_arrays
 from .flowproposal import FlowProposal
 
 logger = logging.getLogger(__name__)
@@ -65,13 +67,18 @@ class AugmentedFlowProposal(FlowProposal):
         # Cannot use super().rescale because rescale is changed in
         # set rescaling.
         self._base_rescale = self.rescale
+        self._base_inverse_rescale = self.inverse_rescale
         self.rescale = self._augmented_rescale
+        self.inverse_rescale = self._augmented_inverse_rescale
         self.augment_parameters = [f"e_{i}" for i in range(self.augment_dims)]
         self.parameters += self.augment_parameters
         self.prime_parameters += self.augment_parameters
         logger.info(f"augmented x space parameters: {self.parameters}")
         logger.info(
             f"Augmented x prime space parameters: {self.prime_parameters}"
+        )
+        self.augment_dist = stats.multivariate_normal(
+            np.zeros(self.augment_dims), np.eye(self.augment_dims)
         )
 
     def update_flow_config(self):
@@ -121,17 +128,41 @@ class AugmentedFlowProposal(FlowProposal):
 
         return x_prime, log_J
 
+    def _augmented_inverse_rescale(self, x_prime, return_unit_hypercube=False):
+        """Inverse rescale with augment parameters.
+
+        Parameters
+        ----------
+        x_prime : array
+            Structured array in X prime space with augment parameters in the
+            fields.
+        return_unit_hypercube : bool, optional
+            Return the unit hypercube values. Not currently supported
+        """
+        if return_unit_hypercube:
+            raise NotImplementedError(
+                "Inverse rescaling with augmented parameters is not supported"
+            )
+        x, log_J = self._base_inverse_rescale(
+            x_prime, return_unit_hypercube=return_unit_hypercube
+        )
+
+        # Augment parameters are not rescaled
+        for an in self.augment_parameters:
+            x[an] = x_prime[an].copy()
+        return x, log_J
+
     def augmented_prior(self, x):
         """
         Log Gaussian for augmented variables.
 
         If self.marginalise_augment is True, log_prior is 0.
         """
-        log_p = 0.0
-        if not self.marginalise_augment:
-            for n in self.augment_parameters:
-                log_p += stats.norm.logpdf(x[n])
-        return log_p
+        if self.marginalise_augment:
+            return np.zeros(len(x))
+        else:
+            x_aug = rfn.structured_to_unstructured(x[self.augment_parameters])
+            return self.augment_dist.logpdf(x_aug)
 
     def log_prior(self, x):
         """
@@ -167,16 +198,29 @@ class AugmentedFlowProposal(FlowProposal):
             (log_prob - log_prob_e).reshape(-1, self.n_marg), axis=1
         )
 
-    def backward_pass(self, z, rescale=True):
+    def backward_pass(
+        self,
+        z,
+        rescale=True,
+        discard_nans=True,
+        return_unit_hypercube=False,
+        return_z=False,
+    ):
         """
-        A backwards pass from the model (latent -> real)
+        A backwards pass from the model (latent -> real).
 
         Parameters
         ----------
         z : array_like
-            Structured array of points in the latent space
+            Structured array of points in the latent space.
         rescale : bool, optional (True)
-            Apply inverse rescaling function
+            Apply inverse rescaling function.
+        discard_nans : bool, optional (True)
+            Discard samples with NaN log probability.
+        return_unit_hypercube : bool, optional (False)
+            Return samples in the unit hypercube.
+        return_z : bool, optional (False)
+            Return the latent samples.
 
         Returns
         -------
@@ -190,22 +234,37 @@ class AugmentedFlowProposal(FlowProposal):
             x, log_prob = self.flow.sample_and_log_prob(
                 z=z, alt_dist=self.alt_dist
             )
-        except AssertionError:
-            return np.array([]), np.array([])
+        except AssertionError as e:
+            logger.warning(
+                "Assertion error raised when sampling from the flow."
+                f"Error: {e}"
+            )
+            if return_z:
+                return np.array([]), np.array([]), np.array
+            else:
+                return np.array([]), np.array([])
 
         if self.marginalise_augment:
             log_prob = self._marginalise_augment(x)
 
-        valid = np.isfinite(log_prob)
-        x, log_prob = x[valid], log_prob[valid]
+        if discard_nans:
+            valid = np.isfinite(log_prob)
+            x, log_prob, z = get_subset_arrays(valid, x, log_prob, z)
+
         x = numpy_array_to_live_points(
             x.astype(config.livepoints.default_float_dtype),
             self.prime_parameters,
         )
         # Apply rescaling in rescale=True
         if rescale:
-            x, log_J = self.inverse_rescale(x)
+            x, log_J = self.inverse_rescale(
+                x, return_unit_hypercube=return_unit_hypercube
+            )
             # Include Jacobian for the rescaling
             log_prob -= log_J
-            x, log_prob = self.check_prior_bounds(x, log_prob)
-        return x, log_prob
+            if not return_unit_hypercube:
+                x, log_prob, z = self.check_prior_bounds(x, log_prob, z)
+        if return_z:
+            return x, log_prob, z
+        else:
+            return x, log_prob
