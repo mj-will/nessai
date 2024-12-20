@@ -1,5 +1,6 @@
 """General configuration for the test suite"""
 
+import logging
 import multiprocessing
 import sys
 import time
@@ -136,6 +137,10 @@ def pytest_configure(config):
         "bilby_compatibility: mark test as a bilby compatibility test, these "
         "tests will be skipped unless the command line option is specified.",
     )
+    config.addinivalue_line(
+        "markers",
+        "reset_logger: reset the logger after the test",
+    )
 
 
 def pytest_addoption(parser):
@@ -181,3 +186,25 @@ def pytest_runtest_setup(item):
     for mark in item.iter_markers(name="skip_on_windows"):
         if sys.platform == "win32":
             pytest.skip("Test does not run on Windows")
+
+
+def pytest_runtest_teardown(item):
+    if "reset_logger" in item.keywords:
+        logger = logging.getLogger("nessai")
+        logger.setLevel(logging.NOTSET)
+        logger.propagate = True
+        logger.disabled = False
+        logger.filters.clear()
+        handlers = logger.handlers.copy()
+        for handler in handlers:
+            # Copied from `logging.shutdown`.
+            try:
+                handler.acquire()
+                handler.flush()
+                handler.close()
+            except (OSError, ValueError):
+                pass
+            finally:
+                handler.release()
+            logger.removeHandler(handler)
+        logger.addHandler(logging.NullHandler())
