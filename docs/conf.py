@@ -39,6 +39,8 @@ extensions = [
     "sphinx.ext.inheritance_diagram",
     "sphinx_tabs.tabs",
     "autoapi.extension",
+    "IPython.sphinxext.ipython_console_highlighting",
+    "IPython.sphinxext.ipython_directive",
 ]
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
