@@ -8,18 +8,25 @@ import os
 import sys
 
 
-def setup_logger(
+def configure_logger(
     output=None,
     label="nessai",
     log_level="INFO",
     filehandler_kwargs=None,
+    include_logger_name=False,
     stream=None,
 ):
     """
-    Setup the logger.
+    Configure the logger.
 
     Based on the implementation in Bilby:
-    https://git.ligo.org/lscsoft/bilby/-/blob/master/bilby/core/utils/log.py
+    https://github.com/bilby-dev/bilby/blob/main/bilby/core/utils/log.py
+
+    .. versionchanged:: 0.14.0
+        Renamed :code:`setup_logger` to :code:`configure_logger`.
+
+    .. versionadded:: 0.14.0
+        Added :code:`include_logger_name` argument.
 
     Parameters
     ----------
@@ -32,6 +39,9 @@ def setup_logger(
     filehandler_kwargs : dict, optional
         Keyword arguments for configuring the FileHandler. See logging
         documentation for details.
+    include_logger_name : bool, optional
+        If true, include the logger name in the log output. If false, only
+        the name will be replaced with 'nessai'.
     stream : str, file-object, optional
         Stream passes to :code:`logging.StreamHandler` to set the stream. See
         logging documentation for more details.
@@ -68,12 +78,19 @@ def setup_logger(
                     f"Unknown stream: {stream}. Choose from: [stderr, stdout]"
                 )
         stream_handler = logging.StreamHandler(stream)
-        stream_handler.setFormatter(
-            logging.Formatter(
+
+        if include_logger_name:
+            formatter = logging.Formatter(
                 "%(asctime)s %(name)s %(levelname)-8s: %(message)s",
                 datefmt="%m-%d %H:%M",
             )
-        )
+        else:
+            formatter = logging.Formatter(
+                "%(asctime)s nessai %(levelname)-8s: %(message)s",
+                datefmt="%m-%d %H:%M",
+            )
+
+        stream_handler.setFormatter(formatter)
         stream_handler.setLevel(level)
         logger.addHandler(stream_handler)
 
@@ -106,3 +123,19 @@ def setup_logger(
     logger.info(f"Running Nessai version {version}")
 
     return logger
+
+
+def setup_logger(*args, **kwargs):
+    """
+    Wrapper for configure_logger to maintain backwards compatibility.
+
+    .. deprecated:: 0.14.0
+        Use :func:`configure_logger` instead.
+    """
+    import warnings
+
+    warnings.warn(
+        "setup_logger is deprecated, use configure_logger instead",
+        DeprecationWarning,
+    )
+    return configure_logger(*args, **kwargs)
