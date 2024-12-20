@@ -1,7 +1,20 @@
 import os
+import subprocess
 import sys
 
 import nessai
+
+# -- Run pre-build steps script ----------------------------------------------
+
+
+def run_external_script(script_path):
+    """Run a script to generate plots."""
+    script_path = os.path.abspath(script_path)
+    subprocess.run(["python", script_path], check=True)
+
+
+# Generate plots from an example run
+run_external_script("scripts/example_run.py")
 
 # -- Path setup --------------------------------------------------------------
 
