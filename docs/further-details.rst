@@ -5,7 +5,8 @@ Further details
 Using live points
 =================
 
-Live points in ``nessai`` are stored in numpy structured arrays. These are array have fields which can be accessed like the values of dictionaries but they can also be indexed. ``nessai`` include various functions for constructing live point arrays and also converting these arrays to other common python formats, see mod:`nessai.livepoint`
+Live points in ``nessai`` are stored in numpy structured arrays. These are array have fields which can be accessed like the values of dictionaries but they can also be indexed.
+``nessai`` include various functions for constructing live point arrays and also converting these arrays to other common python formats, see :py:mod:`nessai.livepoint`
 
 Here's an example of constructing a live point:
 
