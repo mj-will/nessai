@@ -15,6 +15,7 @@ For questions or other support, please either use our `gitter room <https://app.
 
    installation
    running-the-sampler
+   outputs
    sampler-configuration
    importance-nested-sampling
    reparameterisations
@@ -72,6 +73,10 @@ If you find ``nessai`` useful in your work please cite the DOI for this code and
       archivePrefix = "arXiv",
       primaryClass = "astro-ph.IM",
       reportNumber = "LIGO-P2200283",
-      month = "2",
+      doi = "10.1088/2632-2153/acd5aa",
+      journal = "Mach. Learn. Sci. Tech.",
+      volume = "4",
+      number = "3",
+      pages = "035011",
       year = "2023"
    }

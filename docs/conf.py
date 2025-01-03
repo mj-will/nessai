@@ -1,7 +1,20 @@
 import os
+import subprocess
 import sys
 
 import nessai
+
+# -- Run pre-build steps script ----------------------------------------------
+
+
+def run_external_script(script_path):
+    """Run a script to generate plots."""
+    script_path = os.path.abspath(script_path)
+    subprocess.run(["python", script_path], check=True)
+
+
+# Generate plots from an example run
+run_external_script("scripts/example_run.py")
 
 # -- Path setup --------------------------------------------------------------
 
@@ -26,6 +39,8 @@ extensions = [
     "sphinx.ext.inheritance_diagram",
     "sphinx_tabs.tabs",
     "autoapi.extension",
+    "IPython.sphinxext.ipython_console_highlighting",
+    "IPython.sphinxext.ipython_directive",
 ]
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]

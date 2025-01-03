@@ -63,7 +63,7 @@ Once the sampler has converged the results and other automatically generated plo
 * two resume files (``.pkl``) used for resuming the sampler.
 * ``config.json``: the exact configuration used for the sampler.
 
-For a more detail explanation of outputs and examples, see :ref:`here<Detailed explanation of outputs>`
+For a more detail explanation of outputs and examples, see :ref:`here<understanding the outputs>`
 
 
 Complete examples
