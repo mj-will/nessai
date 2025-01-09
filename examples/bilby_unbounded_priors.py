@@ -10,7 +10,7 @@ outdir = "./outdir/"
 label = "bilby_unbounded_priors"
 
 # Setup the bilby logger
-bilby.core.utils.configure_logger(outdir=outdir, label=label)
+bilby.core.utils.setup_logger(outdir=outdir, label=label)
 
 # Define a likelihood using Bilby
 
