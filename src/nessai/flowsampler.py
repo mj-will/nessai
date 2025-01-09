@@ -246,11 +246,9 @@ class FlowSampler:
                 )
             except RuntimeError as e:
                 logger.error(
-                    "Could not load old resume " f"file from: {self.output}"
+                    f"Could not load old resume file from: {self.output}"
                 )
-                raise RuntimeError(
-                    "Could not resume sampler " f"with error: {e}"
-                )
+                raise RuntimeError(f"Could not resume sampler with error: {e}")
         return ns
 
     def _resume_from_data(
@@ -398,7 +396,7 @@ class FlowSampler:
             rng=self.rng,
         )
         logger.info(
-            f"Returned {self.posterior_samples.size} " "posterior samples"
+            f"Returned {self.posterior_samples.size} posterior samples"
         )
 
         if save:

@@ -162,7 +162,7 @@ def test_augmented_reparameterisation_prime_prior(augmented_proposal):
     augmented_proposal._reparameterisation = MagicMock()
 
     with patch(
-        "nessai.proposal.flowproposal.FlowProposal." "x_prime_log_prior"
+        "nessai.proposal.flowproposal.FlowProposal.x_prime_log_prior"
     ) as mock:
         AugmentedGWFlowProposal.x_prime_log_prior(augmented_proposal, 1)
 

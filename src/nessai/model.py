@@ -825,11 +825,11 @@ class Model(ABC):
 
         if self.log_prior(x) is None:
             raise RuntimeError(
-                "Log-prior function did not return " "a prior value"
+                "Log-prior function did not return a prior value"
             )
         if self.log_likelihood(x) is None:
             raise RuntimeError(
-                "Log-likelihood function did not return " "a likelihood value"
+                "Log-likelihood function did not return a likelihood value"
             )
 
         if self.allow_multi_valued_likelihood:

@@ -30,7 +30,7 @@ def logsubexp(x, y):
     """
     if np.any(x < y):
         raise RuntimeError(
-            "cannot take log of negative number " f"{str(x)!s} - {str(y)!s}"
+            f"cannot take log of negative number {str(x)!s} - {str(y)!s}"
         )
 
     return x + np.log1p(-np.exp(y - x))
@@ -237,8 +237,7 @@ class _NSIntegralState(_BaseNSIntegralState):
         fig = plt.figure()
         plt.plot(self.log_vols, self.logLs)
         plt.title(
-            f"log Z={self.logZ:.2f} "
-            f"H={self.info[-1] * np.log2(np.e):.2f} bits"
+            f"log Z={self.logZ:.2f} H={self.info[-1] * np.log2(np.e):.2f} bits"
         )
         plt.grid(which="both")
         plt.xlabel("log prior-volume")

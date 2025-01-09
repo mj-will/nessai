@@ -155,7 +155,7 @@ class RealNVP(NFlow):
                 )
             if dropout_probability:
                 logger.warning(
-                    "Dropout not supported for MLP, " "will be ignored"
+                    "Dropout not supported for MLP, will be ignored"
                 )
             hidden_features = num_blocks_per_layer * [hidden_features]
 
@@ -169,7 +169,7 @@ class RealNVP(NFlow):
 
         else:
             raise ValueError(
-                f"Unknown nn type: {net}. " "Choose from: {resnet, mlp}."
+                f"Unknown nn type: {net}. Choose from: {{resnet, mlp}}."
             )
 
         layers = []
