@@ -1156,8 +1156,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             unit_hypercube=True,
         )
         logger.debug(
-            "Min. log-likelihood of new samples: "
-            f"{np.min(new_points['logL'])}"
+            f"Min. log-likelihood of new samples: {np.min(new_points['logL'])}"
         )
         if not np.isfinite(new_points["logL"]).all():
             logger.warning("Log-likelihood contains infs")
@@ -1221,7 +1220,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self._current_proposal_entropy = differential_entropy(-log_q[:, -1])
 
         logger.debug(
-            "New samples ESS: " f"{effective_sample_size(new_samples['logW'])}"
+            f"New samples ESS: {effective_sample_size(new_samples['logW'])}"
         )
 
         if self.plot and self.plot_pool:

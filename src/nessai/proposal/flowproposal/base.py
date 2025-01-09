@@ -422,8 +422,7 @@ class BaseFlowProposal(RejectionProposal):
         for k, cfg in _reparameterisations.items():
             if k in self.model.names:
                 logger.debug(
-                    f"Found parameter {k} in model, "
-                    "assuming it is a parameter"
+                    f"Found parameter {k} in model, assuming it is a parameter"
                 )
                 if isinstance(cfg, str) or cfg is None:
                     rc, default_config = self.get_reparameterisation(cfg)
@@ -575,10 +574,7 @@ class BaseFlowProposal(RejectionProposal):
     @property
     def rescaled_names(self):
         warn(
-            (
-                "`rescaled_names` is deprecated, use `prime_parameters` "
-                "instead"
-            ),
+            ("`rescaled_names` is deprecated, use `prime_parameters` instead"),
             FutureWarning,
         )
         return self.prime_parameters
