@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0]
+
+**Note:** this version includes several changes that mean runs performed using
+previous versions cannot be resumed using this version.
+
 ### Added
 
 - Add experimental support for discrete parameters (https://github.com/mj-will/nessai/pull/401)
@@ -14,20 +19,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support reparameterisations that are not one-to-one (https://github.com/mj-will/nessai/pull/418)
 - Support user-defined for flow proposal classes via the `nessai.proposals` entry point (https://github.com/mj-will/nessai/pull/411)
 - Add an `inverse` method to `FlowModel` (https://github.com/mj-will/nessai/pull/419)
+- Add support for using numpy random generators as inputs to samplers and other classes (https://github.com/mj-will/nessai/pull/435)
+- Add `include_logger_name` to `configure_logger` (https://github.com/mj-will/nessai/pull/445)
+- Add delta logL to the state plot produced by the standard sampler (https://github.com/mj-will/nessai/pull/442)
+- Support resuming the sampler from a different directory to which it was run (https://github.com/mj-will/nessai/pull/429)
 
 ### Changed
 
 - Rework progress bar to no longer use tqdm (https://github.com/mj-will/nessai/pull/422)
 - `nessai.proposal.flowproposal.FlowProposal` submodule has been refactored into two classes (https://github.com/mj-will/nessai/pull/419)
-- `N` has been renamed to `n_samples` in `FlowProposal.populate`
+- `N` has been renamed to `n_samples` in `FlowProposal.populate` (https://github.com/mj-will/nessai/pull/419)
+- Use new numpy random number generation for all RNG (https://github.com/mj-will/nessai/pull/435, https://github.com/mj-will/nessai/pull/437, https://github.com/mj-will/nessai/pull/441, )
+- Change logging output to only include the name of the base logger (`nessai`) (https://github.com/mj-will/nessai/pull/445)
+- Renamed `setup_logger` to `configure_logger` (https://github.com/mj-will/nessai/pull/445)
+- Tweaks to experimental `MCMCFlowproposal` (https://github.com/mj-will/nessai/pull/432, https://github.com/mj-will/nessai/pull/438)
 
 ### Fixed
 
 - Fix outputs of `FlowProposal.backwards_pass` when `discard_nans` and `return_z` are both `True` (https://github.com/mj-will/nessai/pull/419)
+- Fix `AugmentedFlowProposal` (https://github.com/mj-will/nessai/issues/421)
 
 ### Deprecated
 
 - The `flow_class` argument for `NestedSampler` is deprecated in favour of `flow_proposal_class` (https://github.com/mj-will/nessai/pull/411)
+- `setup_logger` is now deprecated in favour of `configure_logger` (https://github.com/mj-will/nessai/pull/445)
 
 ### Removed
 
@@ -693,7 +708,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.13.2...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/mj-will/nessai/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/mj-will/nessai/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/mj-will/nessai/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/mj-will/nessai/compare/v0.12.0...v0.13.0
