@@ -6,7 +6,7 @@ channels:
 dependencies:
   - numpy
   - pandas
-  - scipy>=0.16, <1.14    # tmp fix for a bilby issue
+  - scipy>=0.16
   - matplotlib>=2.0
   - seaborn
   - pytorch>=1.11.0
