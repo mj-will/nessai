@@ -72,6 +72,10 @@ class FlowProposal(BaseFlowProposal):
         samples. This is translated to a value for ``fuzz``.
     truncate_log_q : bool, optional
         Truncate proposals using minimum log-probability of the training data.
+    enforce_likelihood_threshold : bool
+        If True, enforce the likelihood threshold when performing rejection
+        sampling. If false, the likelihood is not checked when populating the
+        proposal.
     """
 
     def __init__(
@@ -89,6 +93,7 @@ class FlowProposal(BaseFlowProposal):
         min_radius=False,
         max_radius=50.0,
         compute_radius_with_all=False,
+        enforce_likelihood_threshold=False,
         **kwargs,
     ):
         super().__init__(
@@ -111,6 +116,7 @@ class FlowProposal(BaseFlowProposal):
         self.truncate_log_q = truncate_log_q
         self.constant_volume_mode = constant_volume_mode
         self.volume_fraction = volume_fraction
+        self.enforce_likelihood_threshold = enforce_likelihood_threshold
 
         self.compute_radius_with_all = compute_radius_with_all
         self.configure_fixed_radius(fixed_radius)
@@ -459,6 +465,7 @@ class FlowProposal(BaseFlowProposal):
         log_constant = -np.inf
         n_accepted = 0
         accept = None
+        likelihood_threshold = worst_point["logL"]
 
         while n_accepted < n_samples:
             z = self.draw_latent_prior(self.drawsize)
@@ -476,8 +483,22 @@ class FlowProposal(BaseFlowProposal):
                     self.drawsize - above_min_log_q.sum(),
                 )
                 x, log_q = get_subset_arrays(above_min_log_q, x, log_q)
-            # Handle case where all samples are below min_log_q
+
+            if self.enforce_likelihood_threshold:
+                x["logL"] = self.model.batch_evaluate_log_likelihood(x)
+                above_threshold = x["logL"] > likelihood_threshold
+                x, log_q = get_subset_arrays(above_threshold, x, log_q)
+                logger.debug(
+                    "Accepting %s / %s samples above logL threshold",
+                    len(x),
+                    self.drawsize,
+                )
+            # Handle case where all samples have been discarded
             if not len(x):
+                logger.warning(
+                    "All samples were discard before performing rejection "
+                    "sampling."
+                )
                 continue
             log_w = self.compute_weights(x, log_q)
 
@@ -532,9 +553,10 @@ class FlowProposal(BaseFlowProposal):
 
         self.population_time += datetime.datetime.now() - st
         logger.debug("Evaluating log-likelihoods")
-        self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
-            self.samples
-        )
+        if not self.enforce_likelihood_threshold:
+            self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
+                self.samples
+            )
         if self.check_acceptance:
             self.acceptance.append(
                 self.compute_acceptance(worst_point["logL"])
