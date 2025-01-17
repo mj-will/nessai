@@ -438,7 +438,11 @@ class FlowProposal(BaseFlowProposal):
             min_log_q = None
 
         logger.debug(f"Populating proposal with latent radius: {r:.5}")
-        self.r = r
+        # Radius is not used for the flow or Gaussian latent priors
+        if self.latent_prior in ["flow", "gaussian"]:
+            self.r = np.nan
+        else:
+            self.r = r
 
         self.alt_dist = self.get_alt_distribution()
 
