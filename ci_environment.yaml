@@ -1,6 +1,5 @@
 name: nessai-ci
 channels:
-  - pytorch
   - conda-forge
 dependencies:
   - numpy
@@ -8,8 +7,7 @@ dependencies:
   - scipy>=0.16
   - matplotlib>=2.0
   - seaborn
-  - pytorch>=1.11.0
-  - cpuonly
+  - pytorch-cpu>=2.0
   - glasflow
   - h5py
   - corner
