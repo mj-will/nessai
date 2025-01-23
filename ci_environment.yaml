@@ -21,8 +21,6 @@ dependencies:
   - pytest-timeout
   - pytest-rerunfailures
   - pytest-integration
-  - python<3.13:
-    - faiss-cpu>=1.7.3,!=1.7.4    # conda release for 1.7.4 is broken
   - pip
   - pip:
     - nflows
