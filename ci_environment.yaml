@@ -1,22 +1,18 @@
 name: nessai-ci
 channels:
-  - default
-  - pytorch
   - conda-forge
 dependencies:
   - numpy
   - pandas
-  - scipy>=0.16, <1.14    # tmp fix for a bilby issue
+  - scipy>=0.16
   - matplotlib>=2.0
   - seaborn
-  - pytorch>=1.11.0
-  - cpuonly
+  - pytorch-cpu>=2.0
   - glasflow
   - h5py
   - corner
   - bilby
   - astropy
-  - faiss-cpu>=1.7.3,!=1.7.4    # conda release for 1.7.4 is broken
   - multiprocess
   - pytest
   - pytest-cov
@@ -25,5 +21,4 @@ dependencies:
   - pytest-integration
   - pip
   - pip:
-    - nflows
     - ray[default] ; (sys_platform != 'win32' and python_version < '3.12') or (sys_platform == 'win32' and python_version < '3.12')
