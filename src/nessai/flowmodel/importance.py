@@ -160,7 +160,7 @@ class ImportanceFlowModel(FlowModel):
         for wf in self.weights_files:
             new_flow = configure_model(self.flow_config)
             new_flow.device = self.device
-            new_flow.load_state_dict(torch.load(wf))
+            new_flow.load_state_dict(torch.load(wf, weights_only=True))
             self.models.append(new_flow)
         self.models.eval()
 
