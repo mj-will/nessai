@@ -83,6 +83,7 @@ class FlowProposal(BaseFlowProposal):
         model,
         poolsize=None,
         latent_prior="truncated_gaussian",
+        latent_temperature=None,
         constant_volume_mode=True,
         volume_fraction=0.95,
         fuzz=1.0,
@@ -111,6 +112,7 @@ class FlowProposal(BaseFlowProposal):
             fuzz,
             expansion_fraction,
             latent_prior,
+            latent_temperature,
         )
 
         self.truncate_log_q = truncate_log_q
@@ -131,6 +133,7 @@ class FlowProposal(BaseFlowProposal):
         fuzz,
         expansion_fraction,
         latent_prior,
+        latent_temperature,
     ):
         """
         Configure settings related to population
@@ -142,6 +145,11 @@ class FlowProposal(BaseFlowProposal):
         self.fuzz = fuzz
         self.expansion_fraction = expansion_fraction
         self.latent_prior = latent_prior
+        if latent_temperature is not None and latent_prior != "gaussian":
+            raise ValueError(
+                "Latent temperature can only be used with a Gaussian latent prior"
+            )
+        self.latent_temperature = latent_temperature
 
     def configure_latent_prior(self):
         """Configure the latent prior"""
@@ -300,13 +308,18 @@ class FlowProposal(BaseFlowProposal):
         elif self.latent_prior == "flow":
             self._draw_func = lambda N: self.flow.sample_latent_distribution(N)
         else:
-            assert self.rng is not None
-            self._draw_func = partial(
-                self._draw_latent_prior,
+            draw_kwargs = dict(
                 dims=self.dims,
                 r=self.r,
                 fuzz=self.fuzz,
                 rng=self.rng,
+            )
+            if self.latent_temperature is not None:
+                draw_kwargs["temperature"] = self.latent_temperature
+            assert self.rng is not None
+            self._draw_func = partial(
+                self._draw_latent_prior,
+                **draw_kwargs,
             )
 
     def draw_latent_prior(self, n):
