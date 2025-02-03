@@ -100,7 +100,7 @@ The importance nested sampler returns:
 Examples
 ========
 
-For basic examples, see the `examples directory <https://github.com/mj-will/nessai/tree/inessai-docs/examples/importance_nested_sampler>`_.
+For basic examples, see the `examples directory <https://github.com/mj-will/nessai/tree/main/examples/importance_nested_sampler>`_.
 
 
 Gravitational-wave inference
