@@ -726,7 +726,7 @@ class FlowModel:
         # TODO: these two methods are basically the same
         if not self.initialised:
             self.initialise()
-        self.model.load_state_dict(torch.load(weights_file))
+        self.model.load_state_dict(torch.load(weights_file, weights_only=True))
         self.model.eval()
         self.weights_file = weights_file
 

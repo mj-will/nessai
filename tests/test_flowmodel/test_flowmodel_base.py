@@ -726,7 +726,7 @@ def test_load_weights(model, initialised):
         model.initialise.assert_not_called()
     else:
         model.initialise.assert_called_once()
-    mock_load.assert_called_once_with(weights_file)
+    mock_load.assert_called_once_with(weights_file, weights_only=True)
     model.model.load_state_dict.assert_called_once_with(d)
     model.model.eval.assert_called_once()
     assert model.weights_file == weights_file
