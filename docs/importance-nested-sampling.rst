@@ -106,4 +106,15 @@ For basic examples, see the `examples directory <https://github.com/mj-will/ness
 Gravitational-wave inference
 =============================
 
-The importance nested sampler is not currently supported in :code:`bilby` but will be in a future release.
+bilby
+-----
+
+The importance nested sampler is only supported in :code:`bilby` via the the
+:code:`nessai-bilby` plugin where it is called :code:`inessai`,
+see :ref:`nessai-bilby` for details.
+
+
+PyCBC inference
+---------------
+
+PyCBC inference does not currently support the importance nested sampler.
