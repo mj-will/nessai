@@ -133,7 +133,7 @@ class FlowProposal(BaseFlowProposal):
         fuzz,
         expansion_fraction,
         latent_prior,
-        latent_temperature,
+        latent_temperature=None,
     ):
         """
         Configure settings related to population
@@ -145,10 +145,13 @@ class FlowProposal(BaseFlowProposal):
         self.fuzz = fuzz
         self.expansion_fraction = expansion_fraction
         self.latent_prior = latent_prior
-        if latent_temperature is not None and latent_prior != "gaussian":
-            raise ValueError(
-                "Latent temperature can only be used with a Gaussian latent prior"
-            )
+        if latent_temperature is not None:
+            if latent_prior != "gaussian":
+                raise ValueError(
+                    "Latent temperature can only be used with a Gaussian latent prior"
+                )
+            else:
+                logger.warning("`latent_temperature` is experimental!")
         self.latent_temperature = latent_temperature
 
     def configure_latent_prior(self):
