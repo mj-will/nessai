@@ -103,11 +103,12 @@ def test_prep_latent_prior_truncated(proposal):
 def test_prep_latent_prior_other(proposal):
     """Assert partial acts as expected"""
     proposal.latent_prior = "gaussian"
+    proposal.latent_temperature = 0.9
     proposal.dims = 2
     proposal.r = 3.0
     proposal.fuzz = 1.2
 
-    def draw(dims, N=None, r=None, fuzz=None, rng=None):
+    def draw(dims, N=None, r=None, fuzz=None, rng=None, temperature=None):
         return np.zeros((N, dims))
 
     proposal._draw_latent_prior = draw
@@ -119,7 +120,7 @@ def test_prep_latent_prior_other(proposal):
         FlowProposal.prep_latent_prior(proposal)
 
     mock_partial.assert_called_once_with(
-        draw, dims=2, r=3.0, fuzz=1.2, rng=proposal.rng
+        draw, dims=2, r=3.0, fuzz=1.2, rng=proposal.rng, temperature=0.9
     )
 
     assert proposal._draw_func(N=10).shape == (10, 2)
@@ -237,6 +238,7 @@ def test_populate_accumulate_weights(
     proposal.get_alt_distribution = MagicMock(return_value=None)
     proposal.prep_latent_prior = MagicMock()
     proposal.draw_latent_prior = MagicMock(side_effect=z)
+    proposal.latent_prior = "truncated_gaussian"
     proposal.compute_weights = MagicMock(side_effect=log_w)
     proposal.compute_acceptance = MagicMock(return_value=0.8)
     proposal.model = MagicMock()
@@ -427,6 +429,7 @@ def test_populate_not_accumulate_weights(
     proposal.backward_pass = MagicMock(side_effect=zip(x, log_q))
     proposal.radius = MagicMock(return_value=r_flow)
     proposal.get_alt_distribution = MagicMock(return_value=None)
+    proposal.latent_prior = "truncated_gaussian"
     proposal.prep_latent_prior = MagicMock()
     proposal.draw_latent_prior = MagicMock(side_effect=z)
     proposal.compute_weights = MagicMock(side_effect=log_w)
@@ -595,6 +598,7 @@ def test_populate_truncate_log_q(proposal, rng):
         names=names,
     )
     proposal.accumulate_weights = True
+    proposal.latent_prior = "truncated_gaussian"
 
     log_q_live = np.zeros(nlive)
     log_q_live[-1] = -1.0
