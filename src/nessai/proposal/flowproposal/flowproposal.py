@@ -505,7 +505,9 @@ class FlowProposal(BaseFlowProposal):
                 x, log_q = get_subset_arrays(above_min_log_q, x, log_q)
 
             if self.enforce_likelihood_threshold:
-                x["logL"] = self.model.batch_evaluate_log_likelihood(x)
+                x["logL"] = self.model.batch_evaluate_log_likelihood(
+                    x, unit_hypercube=self.map_to_unit_hypercube
+                )
                 above_threshold = x["logL"] > likelihood_threshold
                 x, log_q = get_subset_arrays(above_threshold, x, log_q)
                 logger.debug(
