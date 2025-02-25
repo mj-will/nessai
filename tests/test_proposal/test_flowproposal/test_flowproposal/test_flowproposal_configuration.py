@@ -16,6 +16,25 @@ def test_config_drawsize_none(proposal):
     assert proposal.drawsize == 2000
 
 
+def test_configure_latent_temperature(proposal):
+    """Test the configuration of the latent temperature"""
+    FlowProposal.configure_population(
+        proposal, 1000, 1.0, 0.0, "gaussian", 0.9
+    )
+    assert proposal.latent_temperature == 0.9
+
+
+def test_configure_latent_temperature_invalid(proposal):
+    """Test the configuration of the latent temperature"""
+    with pytest.raises(
+        ValueError,
+        match="Latent temperature can only be used with a Gaussian latent",
+    ):
+        FlowProposal.configure_population(
+            proposal, 1000, 1.0, 0.0, "truncated_gaussian", 0.9
+        )
+
+
 @pytest.mark.parametrize("fixed_radius", [False, 5.0, 1])
 def test_config_fixed_radius(proposal, fixed_radius):
     """Test the configuration for a fixed radius"""
