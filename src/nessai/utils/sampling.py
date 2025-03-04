@@ -121,7 +121,7 @@ def draw_uniform(dims, r=(1,), N=1000, fuzz=1.0, rng=None):
     return rng.random((N, dims))
 
 
-def draw_gaussian(dims, r=1, N=1000, fuzz=1.0, rng=None):
+def draw_gaussian(dims, r=1, N=1000, fuzz=1.0, rng=None, temperature=1):
     """
     Wrapper for numpy.random.randn that deals with extra input parameters
     r and fuzz
@@ -145,7 +145,7 @@ def draw_gaussian(dims, r=1, N=1000, fuzz=1.0, rng=None):
     if rng is None:
         logger.debug("No rng specified, using the default rng.")
         rng = np.random.default_rng()
-    return rng.standard_normal((N, dims))
+    return np.sqrt(temperature) * rng.standard_normal((N, dims))
 
 
 def draw_truncated_gaussian(dims, r, N=1000, fuzz=1.0, var=1, rng=None):

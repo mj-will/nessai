@@ -16,6 +16,7 @@ def proposal(rng):
     proposal = create_autospec(FlowProposal)
     proposal._initialised = False
     proposal.accumulate_weights = False
+    proposal.enforce_likelihood_threshold = False
     proposal.map_to_unit_hypercube = False
     proposal.rng = rng
     return proposal

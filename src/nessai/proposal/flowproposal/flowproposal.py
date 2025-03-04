@@ -72,6 +72,10 @@ class FlowProposal(BaseFlowProposal):
         samples. This is translated to a value for ``fuzz``.
     truncate_log_q : bool, optional
         Truncate proposals using minimum log-probability of the training data.
+    enforce_likelihood_threshold : bool
+        If True, enforce the likelihood threshold when performing rejection
+        sampling. If false, the likelihood is not checked when populating the
+        proposal.
     """
 
     def __init__(
@@ -79,6 +83,7 @@ class FlowProposal(BaseFlowProposal):
         model,
         poolsize=None,
         latent_prior="truncated_gaussian",
+        latent_temperature=None,
         constant_volume_mode=True,
         volume_fraction=0.95,
         fuzz=1.0,
@@ -89,6 +94,7 @@ class FlowProposal(BaseFlowProposal):
         min_radius=False,
         max_radius=50.0,
         compute_radius_with_all=False,
+        enforce_likelihood_threshold=False,
         **kwargs,
     ):
         super().__init__(
@@ -106,11 +112,13 @@ class FlowProposal(BaseFlowProposal):
             fuzz,
             expansion_fraction,
             latent_prior,
+            latent_temperature,
         )
 
         self.truncate_log_q = truncate_log_q
         self.constant_volume_mode = constant_volume_mode
         self.volume_fraction = volume_fraction
+        self.enforce_likelihood_threshold = enforce_likelihood_threshold
 
         self.compute_radius_with_all = compute_radius_with_all
         self.configure_fixed_radius(fixed_radius)
@@ -125,6 +133,7 @@ class FlowProposal(BaseFlowProposal):
         fuzz,
         expansion_fraction,
         latent_prior,
+        latent_temperature=None,
     ):
         """
         Configure settings related to population
@@ -136,6 +145,14 @@ class FlowProposal(BaseFlowProposal):
         self.fuzz = fuzz
         self.expansion_fraction = expansion_fraction
         self.latent_prior = latent_prior
+        if latent_temperature is not None:
+            if latent_prior != "gaussian":
+                raise ValueError(
+                    "Latent temperature can only be used with a Gaussian latent prior"
+                )
+            else:
+                logger.warning("`latent_temperature` is experimental!")
+        self.latent_temperature = latent_temperature
 
     def configure_latent_prior(self):
         """Configure the latent prior"""
@@ -294,13 +311,18 @@ class FlowProposal(BaseFlowProposal):
         elif self.latent_prior == "flow":
             self._draw_func = lambda N: self.flow.sample_latent_distribution(N)
         else:
-            assert self.rng is not None
-            self._draw_func = partial(
-                self._draw_latent_prior,
+            draw_kwargs = dict(
                 dims=self.dims,
                 r=self.r,
                 fuzz=self.fuzz,
                 rng=self.rng,
+            )
+            if self.latent_temperature is not None:
+                draw_kwargs["temperature"] = self.latent_temperature
+            assert self.rng is not None
+            self._draw_func = partial(
+                self._draw_latent_prior,
+                **draw_kwargs,
             )
 
     def draw_latent_prior(self, n):
@@ -432,7 +454,11 @@ class FlowProposal(BaseFlowProposal):
             min_log_q = None
 
         logger.debug(f"Populating proposal with latent radius: {r:.5}")
-        self.r = r
+        # Radius is not used for the flow or Gaussian latent priors
+        if self.latent_prior in ["flow", "gaussian"]:
+            self.r = np.nan
+        else:
+            self.r = r
 
         self.alt_dist = self.get_alt_distribution()
 
@@ -459,6 +485,7 @@ class FlowProposal(BaseFlowProposal):
         log_constant = -np.inf
         n_accepted = 0
         accept = None
+        log_likelihood_threshold = worst_point["logL"]
 
         while n_accepted < n_samples:
             z = self.draw_latent_prior(self.drawsize)
@@ -476,8 +503,24 @@ class FlowProposal(BaseFlowProposal):
                     self.drawsize - above_min_log_q.sum(),
                 )
                 x, log_q = get_subset_arrays(above_min_log_q, x, log_q)
-            # Handle case where all samples are below min_log_q
+
+            if self.enforce_likelihood_threshold:
+                x["logL"] = self.model.batch_evaluate_log_likelihood(
+                    x, unit_hypercube=self.map_to_unit_hypercube
+                )
+                above_threshold = x["logL"] > log_likelihood_threshold
+                x, log_q = get_subset_arrays(above_threshold, x, log_q)
+                logger.debug(
+                    "Accepting %s / %s samples above logL threshold",
+                    len(x),
+                    self.drawsize,
+                )
+            # Handle case where all samples have been discarded
             if not len(x):
+                logger.warning(
+                    "All samples were discard before performing rejection "
+                    "sampling."
+                )
                 continue
             log_w = self.compute_weights(x, log_q)
 
@@ -532,9 +575,10 @@ class FlowProposal(BaseFlowProposal):
 
         self.population_time += datetime.datetime.now() - st
         logger.debug("Evaluating log-likelihoods")
-        self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
-            self.samples
-        )
+        if not self.enforce_likelihood_threshold:
+            self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
+                self.samples
+            )
         if self.check_acceptance:
             self.acceptance.append(
                 self.compute_acceptance(worst_point["logL"])
