@@ -485,7 +485,7 @@ class FlowProposal(BaseFlowProposal):
         log_constant = -np.inf
         n_accepted = 0
         accept = None
-        likelihood_threshold = worst_point["logL"]
+        log_likelihood_threshold = worst_point["logL"]
 
         while n_accepted < n_samples:
             z = self.draw_latent_prior(self.drawsize)
@@ -508,7 +508,7 @@ class FlowProposal(BaseFlowProposal):
                 x["logL"] = self.model.batch_evaluate_log_likelihood(
                     x, unit_hypercube=self.map_to_unit_hypercube
                 )
-                above_threshold = x["logL"] > likelihood_threshold
+                above_threshold = x["logL"] > log_likelihood_threshold
                 x, log_q = get_subset_arrays(above_threshold, x, log_q)
                 logger.debug(
                     "Accepting %s / %s samples above logL threshold",
