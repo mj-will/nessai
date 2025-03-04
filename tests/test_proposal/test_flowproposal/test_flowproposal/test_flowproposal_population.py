@@ -8,7 +8,11 @@ from unittest.mock import MagicMock, Mock, call, patch
 import numpy as np
 import pytest
 
-from nessai.livepoint import get_dtype, numpy_array_to_live_points
+from nessai.livepoint import (
+    get_dtype,
+    numpy_array_to_live_points,
+    parameters_to_live_point,
+)
 from nessai.proposal import FlowProposal
 from nessai.utils.testing import assert_structured_arrays_equal
 
@@ -338,6 +342,7 @@ def test_populate_accumulate_weights(
     "max_radius, min_radius",
     [(0.5, None), (None, 1.5), (None, None)],
 )
+@pytest.mark.parametrize("latent_prior", ["truncated_gaussian", "gaussian"])
 def test_populate_not_accumulate_weights(
     proposal,
     check_acceptance,
@@ -345,6 +350,7 @@ def test_populate_not_accumulate_weights(
     r,
     min_radius,
     max_radius,
+    latent_prior,
     wait,
     rng,
 ):
@@ -429,7 +435,7 @@ def test_populate_not_accumulate_weights(
     proposal.backward_pass = MagicMock(side_effect=zip(x, log_q))
     proposal.radius = MagicMock(return_value=r_flow)
     proposal.get_alt_distribution = MagicMock(return_value=None)
-    proposal.latent_prior = "truncated_gaussian"
+    proposal.latent_prior = latent_prior
     proposal.prep_latent_prior = MagicMock()
     proposal.draw_latent_prior = MagicMock(side_effect=z)
     proposal.compute_weights = MagicMock(side_effect=log_w)
@@ -475,10 +481,13 @@ def test_populate_not_accumulate_weights(
             compute_radius=True,
         )
         proposal.radius.assert_called_once_with(worst_z)
-    else:
+    elif latent_prior == "truncated_gaussian":
         assert proposal.r is r
 
-    assert proposal.r == r_out
+    if latent_prior == "truncated_gaussian":
+        assert proposal.r == r_out
+    else:
+        assert proposal.r is np.nan
 
     proposal.prep_latent_prior.assert_called_once()
 
@@ -666,3 +675,140 @@ def test_populate_truncate_log_q(proposal, rng):
     ):
         assert_structured_arrays_equal(actual_call[0][0], expected_call[0])
         np.testing.assert_array_equal(actual_call[0][1], expected_call[1])
+
+
+def test_populate_enforce_likelihood_threshold(proposal, rng):
+    n_dims = 2
+    nlive = 8
+    drawsize = 5
+    names = ["x", "y"]
+    r_flow = 2.0
+    worst_point = parameters_to_live_point([1, 2], names)
+    z = [
+        rng.standard_normal((drawsize, n_dims)),
+        rng.standard_normal((drawsize, n_dims)),
+        rng.standard_normal((drawsize, n_dims)),
+    ]
+    x = [
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
+        numpy_array_to_live_points(
+            rng.standard_normal((drawsize, n_dims)), names
+        ),
+    ]
+
+    log_l = [rng.random(drawsize) for _ in range(len(x))]
+
+    log_l_threshold = 0.0
+    log_l_accept_total = 0
+    while True:
+        log_l_accept = [sum(ll > log_l_threshold) for ll in log_l]
+        log_l_accept_total = sum(log_l_accept)
+        if log_l_accept_total > 5:
+            break
+        log_l_threshold -= 0.1
+
+    worst_point["logL"] = log_l_threshold
+    log_q = [
+        np.zeros(drawsize),
+        np.zeros(drawsize),
+        np.zeros(drawsize),
+    ]
+
+    # Reject one from each batch
+    log_w = [
+        np.log(np.concatenate([np.ones(naccept - 1), np.zeros(1)]))
+        for naccept in log_l_accept
+    ]
+    rand_u = [0.5 * np.ones(naccept) for naccept in log_l_accept]
+
+    poolsize = log_l_accept_total - 3
+    proposal.population_time = datetime.timedelta()
+    proposal.initialised = True
+    proposal.dims = n_dims
+    proposal.poolsize = poolsize
+    proposal.drawsize = drawsize
+    proposal.fuzz = 1.0
+    proposal.indices = None
+    proposal.acceptance = [0.7]
+    proposal.keep_samples = False
+    proposal.fixed_radius = None
+    proposal.max_radius = None
+    proposal.min_radius = None
+    proposal.compute_radius_with_all = False
+    proposal.check_acceptance = False
+    proposal._plot_pool = False
+    proposal.use_x_prime_prior = False
+    proposal.populated_count = 1
+    proposal.population_dtype = get_dtype(names)
+    proposal.truncate_log_q = False
+    proposal.training_data = numpy_array_to_live_points(
+        np.random.randn(nlive, n_dims),
+        names=names,
+    )
+    proposal.accumulate_weights = False
+    proposal.latent_prior = "truncated_gaussian"
+    proposal.enforce_likelihood_threshold = True
+    proposal.log_likelihood_threshold = log_l_threshold
+
+    log_q_live = np.zeros(nlive)
+
+    proposal.forward_pass = MagicMock(
+        return_value=(nlive * [None], log_q_live)
+    )
+    proposal.backward_pass = MagicMock(side_effect=zip(x, log_q))
+    proposal.compute_weights = MagicMock(side_effect=log_w)
+    proposal.radius = MagicMock(return_value=r_flow)
+    proposal.get_alt_distribution = MagicMock(return_value=None)
+    proposal.prep_latent_prior = MagicMock()
+    proposal.draw_latent_prior = MagicMock(side_effect=z)
+    proposal.compute_acceptance = MagicMock(return_value=0.8)
+    proposal.model = MagicMock()
+    proposal.model.batch_evaluate_log_likelihood = MagicMock(side_effect=log_l)
+    proposal.rng = MagicMock()
+    proposal.rng.random = MagicMock(side_effect=rand_u)
+    proposal.rng.permutation = rng.permutation
+
+    proposal.convert_to_samples = MagicMock(
+        side_effect=lambda *args, **kwargs: args[0]
+    )
+
+    x_empty = np.empty(poolsize, dtype=proposal.population_dtype)
+    with (
+        patch(
+            "nessai.proposal.flowproposal.flowproposal.empty_structured_array",
+            return_value=x_empty,
+        ) as mock_empty,
+    ):
+        FlowProposal.populate(
+            proposal, worst_point, n_samples=poolsize, plot=False
+        )
+
+    mock_empty.assert_called_once_with(
+        poolsize,
+        dtype=proposal.population_dtype,
+    )
+    proposal.rng.random.assert_has_calls(3 * [call(drawsize)])
+
+    assert proposal.population_acceptance == (poolsize / (len(x) * drawsize))
+
+    proposal.forward_pass.assert_called_once_with(
+        worst_point, rescale=True, compute_radius=True
+    )
+
+    backwards_calls = [
+        call(
+            zz,
+            rescale=True,
+            return_unit_hypercube=proposal.map_to_unit_hypercube,
+        )
+        for zz in z
+    ]
+    proposal.backward_pass.assert_has_calls(backwards_calls)
+
+    assert proposal.compute_weights.call_count == len(x)
+    assert proposal.model.batch_evaluate_log_likelihood.call_count == len(x)
