@@ -771,6 +771,16 @@ class NestedSampler(BaseNestedSampler):
                 logger.info(f"Populated {accepted} / {self.nlive} live points")
 
         self.live_points = np.sort(live_points, order="logL")
+
+        _, logl_counts = np.unique(
+            self.live_points["logL"], return_counts=True
+        )
+        if np.any(logl_counts > 1):
+            logger.warning(
+                "Initial live points contain repeated log-likelihood values! "
+                "This will likely lead to issues in the sampling process. "
+                "See the FAQs for more information."
+            )
         self.live_points["it"] = 0
 
     def initialise(self, live_points=True):
