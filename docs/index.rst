@@ -25,6 +25,7 @@ For questions or other support, please either use our `gitter room <https://app.
    discrete-parameters
    plugins
    further-details
+   faqs
    API reference </autoapi/nessai/index>
 
 .. toctree::
