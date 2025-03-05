@@ -65,6 +65,22 @@ def test_populate_live_points_none_returned(sampler):
     )
 
 
+def test_populate_live_points_repeated_values(sampler, rng, caplog):
+    """Assert that a warning is raised if repeated values are found"""
+    new_points = sampler.model.new_point(5)
+    new_points["logL"] = rng.random(len(new_points))
+    new_points["logP"] = 0.0
+    new_points["logL"][[1, 2]] = np.nan_to_num(-np.inf)
+    sampler.yield_sample = MagicMock(
+        return_value=iter(zip(np.ones(len(new_points)), new_points))
+    )
+    sampler.nlive = 5
+    with caplog.at_level("WARNING"):
+        NestedSampler.populate_live_points(sampler)
+
+    assert "repeated log-likelihood" in str(caplog.text)
+
+
 @pytest.mark.parametrize("rolling", [False, True])
 @patch(
     "nessai.samplers.nestedsampler.compute_indices_ks_test",
