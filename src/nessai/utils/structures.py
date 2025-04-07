@@ -105,4 +105,4 @@ def get_inverse_indices(n, indices):
     if indices.max() >= n:
         raise ValueError("Indices contain values that are out of range for n")
     inv = np.arange(n, dtype=int)
-    return inv[~np.in1d(inv, indices)]
+    return inv[~np.isin(inv, indices)]
