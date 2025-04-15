@@ -526,6 +526,9 @@ def test_sampling_with_infinite_prior_bounds(tmpdir):
             )
             return numpy_array_to_live_points(x, self.names)
 
+        def new_point_log_prob(self, x):
+            return self.log_prior(x)
+
         def log_prior(self, x):
             log_p = np.log(self.in_bounds(x))
             log_p += norm.logpdf(x["y"])
