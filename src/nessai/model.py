@@ -31,8 +31,21 @@ from .utils.multiprocessing import (
 logger = logging.getLogger(__name__)
 
 
-class OneDimensionalModelError(Exception):
-    """Exception raised when the model is one-dimensional"""
+class ModelError(Exception):
+    """Exception raised when the model is not configured correctly.
+
+    .. versionadded:: 0.15.0
+    """
+
+    pass
+
+
+class OneDimensionalModelError(ModelError):
+    """Exception raised when the model is one-dimensional.
+
+    .. versionchanged:: 0.15.0
+        Changed to inherit from ModelError.
+    """
 
     pass
 
@@ -805,8 +818,8 @@ class Model(ABC):
                 logP = self.log_prior(x)
                 counter += 1
                 if counter == 1000:
-                    raise RuntimeError(
-                        "Could not draw valid point from within the prior "
+                    raise ModelError(
+                        "Could not draw a valid point from within the prior "
                         "after 10000 tries, check the log prior function."
                     )
         else:
@@ -818,17 +831,15 @@ class Model(ABC):
                 x = self.new_point(1)
                 logP = self.log_prior(x)
             except Exception as e:
-                raise RuntimeError(
+                raise ModelError(
                     "Could not draw a new point and compute the log prior "
                     f"with error: {e}. \n Check the prior bounds."
                 )
 
         if self.log_prior(x) is None:
-            raise RuntimeError(
-                "Log-prior function did not return a prior value"
-            )
+            raise ModelError("Log-prior function did not return a prior value")
         if self.log_likelihood(x) is None:
-            raise RuntimeError(
+            raise ModelError(
                 "Log-likelihood function did not return a likelihood value"
             )
 
@@ -840,7 +851,7 @@ class Model(ABC):
         else:
             logl = np.array([self.log_likelihood(x) for _ in range(16)])
             if not all(logl == logl[0]):
-                raise RuntimeError(
+                raise ModelError(
                     "Repeated calls to the log-likelihood with the same "
                     "parameters return different values."
                 )
