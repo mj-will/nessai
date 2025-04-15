@@ -761,6 +761,32 @@ class Model(ABC):
         """
         return unstructured_view(x, dtype=self._view_dtype)
 
+    @classmethod
+    def check_new_point_methods(cls):
+        """Check if the new_point methods have been redefined.
+
+        .. versionadded:: 0.15.0
+
+        Raises
+        ------
+        ModelError
+            If the new_point methods have been redefined but not both.
+        """
+        if cls.new_point != Model.new_point:
+            logger.debug("`new_point` method has been redefined.")
+            if cls.new_point_log_prob == Model.new_point_log_prob:
+                raise ModelError(
+                    "`new_point` method has been redefined but "
+                    "`new_point_log_prob` has not."
+                )
+        if cls.new_point_log_prob != Model.new_point_log_prob:
+            logger.debug("`new_point_log_prob` method has been redefined.")
+            if cls.new_point == Model.new_point:
+                raise ModelError(
+                    "`new_point_log_prob` method has been redefined but "
+                    "`new_point` has not."
+                )
+
     def verify_model(self):
         """
         Verify that the model is correctly setup. This includes checking
@@ -797,6 +823,8 @@ class Model(ABC):
                 "proposals it uses. Consider using other methods instead of "
                 "nessai."
             )
+
+        self.check_new_point_methods()
 
         for n in self.names:
             if n not in self.bounds.keys():
