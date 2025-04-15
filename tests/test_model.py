@@ -14,7 +14,7 @@ from scipy.stats import norm
 
 from nessai import config
 from nessai.livepoint import numpy_array_to_live_points
-from nessai.model import Model, OneDimensionalModelError
+from nessai.model import Model, ModelError, OneDimensionalModelError
 from nessai.utils.errors import RNGNotSetError, RNGSetError
 from nessai.utils.multiprocessing import (
     initialise_pool_variables,
@@ -566,6 +566,68 @@ def test_missing_log_likelihood():
     assert "Can't instantiate abstract class TestModel" in str(excinfo.value)
 
 
+def test_check_new_point_methods_valid():
+    """Test the check_new_point_methods method work for a valid model"""
+
+    class TestModel(Model):
+        def __init__(self):
+            self.bounds = {"x": [-5, 5], "y": [-5, 5]}
+            self.names = ["x", "y"]
+
+        def log_prior(self, x):
+            return 0.0
+
+        def log_likelihood(self, x):
+            return 0.0
+
+    model = TestModel()
+    model.check_new_point_methods()
+
+
+def test_check_new_point_methods_invalid_new_point():
+    class TestModel(Model):
+        def __init__(self):
+            self.bounds = {"x": [-5, 5], "y": [-5, 5]}
+            self.names = ["x", "y"]
+
+        def log_prior(self, x):
+            return 0.0
+
+        def log_likelihood(self, x):
+            return 0.0
+
+        def new_point(self, N=1):
+            return 0.0
+
+    model = TestModel()
+    with pytest.raises(
+        ModelError, match="`new_point` method has been redefined"
+    ):
+        model.check_new_point_methods()
+
+
+def test_check_new_point_methods_invalid_new_point_log_prob():
+    class TestModel(Model):
+        def __init__(self):
+            self.bounds = {"x": [-5, 5], "y": [-5, 5]}
+            self.names = ["x", "y"]
+
+        def log_prior(self, x):
+            return 0.0
+
+        def log_likelihood(self, x):
+            return 0.0
+
+        def new_point_log_prob(self, x):
+            return 0.0
+
+    model = TestModel()
+    with pytest.raises(
+        ModelError, match="`new_point_log_prob` method has been redefined"
+    ):
+        model.check_new_point_methods()
+
+
 def test_model_1d_error():
     """Assert an error is raised if the model is one dimensional."""
 
@@ -594,10 +656,8 @@ def test_verify_new_point(rng):
     model = BrokenModel()
     model.set_rng(rng)
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(ModelError, match="valid point"):
         model.verify_model()
-
-    assert "valid point" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("log_p", [np.inf, -np.inf])
@@ -614,7 +674,7 @@ def test_verify_log_prior_finite(log_p, rng):
     model = BrokenModel()
     model.rng = rng
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(ModelError, match="Could not draw a valid point"):
         model.verify_model()
 
 
@@ -631,10 +691,8 @@ def test_verify_log_prior_none(rng):
     model = BrokenModel()
     model.set_rng(rng)
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(ModelError, match="Log-prior"):
         model.verify_model()
-
-    assert "Log-prior" in str(excinfo.value)
 
 
 def test_verify_log_likelihood_none(rng):
@@ -650,10 +708,8 @@ def test_verify_log_likelihood_none(rng):
     model = BrokenModel()
     model.set_rng(rng)
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(ModelError, match="Log-likelihood"):
         model.verify_model()
-
-    assert "Log-likelihood" in str(excinfo.value)
 
 
 def test_verify_no_names():
@@ -840,10 +896,8 @@ def test_unbounded_priors_wo_new_point(rng):
 
     model = TestModel()
     model.set_rng(rng)
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(ModelError, match="Could not draw a new point"):
         model.verify_model()
-
-    assert "Could not draw a new point" in str(excinfo.value)
 
 
 def test_unbounded_priors_w_new_point(rng):
@@ -862,6 +916,9 @@ def test_unbounded_priors_w_new_point(rng):
                 ),
                 self.names,
             )
+
+        def new_point_log_prob(self, x):
+            return self.log_prior(x)
 
         def log_prior(self, x):
             return -np.log(10) * np.ones(x.size) + norm.logpdf(x["y"])
@@ -890,9 +947,8 @@ def test_verify_model_likelihood_repeated_calls(rng):
     model = BrokenModel()
     model.set_rng(rng)
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(ModelError, match="Repeated calls"):
         model.verify_model()
-    assert "Repeated calls" in str(excinfo.value)
 
 
 def test_verify_model_likelihood_repeated_calls_allowed(caplog, rng):
