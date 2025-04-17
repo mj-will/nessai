@@ -24,6 +24,7 @@ from ..proposal.utils import (
     check_proposal_kwargs,
     get_flow_proposal_class,
 )
+from ..stopping_criteria import StoppingCriterionRegistry
 from ..utils import (
     compute_indices_ks_test,
     rolling_mean,
@@ -254,6 +255,10 @@ class NestedSampler(BaseNestedSampler):
             self.nlive,
             track_gradients=plot,
             expectation=shrinkage_expectation,
+        )
+
+        self.stopping_criterion = StoppingCriterionRegistry.get(
+            "dlogZ", tolerance=stopping
         )
 
         # Timing
@@ -815,7 +820,7 @@ class NestedSampler(BaseNestedSampler):
             self.populate_live_points()
             flags[2] = True
 
-        if self.condition > self.tolerance:
+        if self.stopping_criterion.is_met(self.condition):
             self.finalised = False
 
         self.initialise_history()
