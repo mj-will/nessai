@@ -126,12 +126,12 @@ def test_update_evidence_both(state, nested_samples, live_points):
 
 
 @pytest.mark.parametrize("ns_only, expected", [(True, 1.0), (False, 2.0)])
-def test_compute_evidence_ratio(state, ns_only, expected):
+def test_compute_log_evidence_ratio(state, ns_only, expected):
     """Assert the correct value is returned"""
     state.log_evidence_live_points = -1.0
     state.log_evidence_nested_samples = -2.0
     state.logZ = -3.0
-    assert INSState.compute_evidence_ratio(state, ns_only) == expected
+    assert INSState.compute_log_evidence_ratio(state, ns_only) == expected
 
 
 def test_compute_uncertainty_log(state):
