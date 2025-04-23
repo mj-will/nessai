@@ -443,12 +443,6 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.save_existing_checkpoint = save_existing_checkpoint
         self.save_log_q = save_log_q
 
-        self.log_dZ = np.inf
-        self.ratio = np.inf
-        self.ratio_ns = np.inf
-        self.ess = 0.0
-        self.Z_err = np.inf
-
         self._final_samples = None
         self.sample_counts = {}
 
@@ -644,6 +638,11 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         return self.combined_criterion.is_met(self.criterion)
 
+    @property
+    def stopping_criteria(self) -> List[str]:
+        """The stopping criteria used by the sampler"""
+        return self.combined_criterion.names
+
     @staticmethod
     def add_fields():
         """Add extra fields logW, logQ, logU"""
@@ -819,9 +818,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     pool_entropy=[],
                     samples_entropy=[],
                     proposal_entropy=[],
-                    stopping_criteria={
-                        k: [] for k in self.combined_criterion.names
-                    },
+                    stopping_criteria={k: [] for k in self.stopping_criteria},
                 )
             )
         else:
@@ -851,7 +848,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.model.likelihood_evaluations
         )
 
-        for name in self.combined_criterion.names:
+        for name in self.stopping_criteria:
             self.history["stopping_criteria"][name].append(
                 getattr(self.state, name, np.nan)
             )
