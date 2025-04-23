@@ -55,6 +55,8 @@ def test_initialise(ins):
 
 def test_initialise_history(ins):
     ins.history = None
+    ins.combined_criterion = MagicMock()
+    ins.combined_criterion.names = ["ratio", "ess"]
     INS.initialise_history(ins)
     assert ins.history is not None
 

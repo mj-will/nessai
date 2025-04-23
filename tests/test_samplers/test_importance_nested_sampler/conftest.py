@@ -71,6 +71,7 @@ def history(n_it):
     keys = [
         "logX",
         "logZ",
+        "logdZ",
         "min_log_likelihood",
         "max_log_likelihood",
         "median_logL",
