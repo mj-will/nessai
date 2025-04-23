@@ -6,6 +6,7 @@ Functions related to computing the evidence.
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional
+from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -378,8 +379,10 @@ class _INSIntegralState(_BaseNSIntegralState):
 
     def compute_log_evidence_ratio(self, ns_only: bool = False) -> float:
         """
-        Compute the log ratio of the evidence in the live points to the nested
-        samples.
+        Compute the log ratio of the evidence in the live points to total
+        (or nested) samples.
+
+        .. versionadded:: 0.15.0
 
         Parameters
         ----------
@@ -399,6 +402,23 @@ class _INSIntegralState(_BaseNSIntegralState):
             )
         else:
             return self.log_evidence_live_points - self.logZ
+
+    def compute_evidence_ratio(self, ns_only: bool = False) -> float:
+        """Compute the evidence ratio of the live points to the nested samples.
+
+        .. deprecated:: 0.15.0
+            Use :meth:`compute_log_evidence_ratio` instead.
+            This will be removed in a future version.
+        """
+
+        warn(
+            (
+                "compute_evidence_ratio is deprecated, "
+                "use compute_log_evidence_ratio instead"
+            ),
+            DeprecationWarning,
+        )
+        return self.compute_log_evidence_ratio(ns_only=ns_only)
 
     def compute_uncertainty(self, log_evidence: bool = True) -> float:
         """Compute the uncertainty on the current estimate of the evidence.
