@@ -216,8 +216,8 @@ class EvidenceError(StoppingCriterion):
         Comparison operator for the stopping criterion.
     """
 
-    def __init__(self, name: str, tolerance: float = 0.1):
-        super().__init__(name, tolerance, comparison="<=")
+    def __init__(self, tolerance: float = 0.1):
+        super().__init__("evidence_error", tolerance, comparison="<=")
 
 
 @StoppingCriterionRegistry.register("dlogZ", "difference_log_evidence")
