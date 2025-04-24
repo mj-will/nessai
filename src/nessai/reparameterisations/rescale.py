@@ -4,6 +4,7 @@ Reparameterisations that rescale the parameters.
 """
 
 import logging
+from warnings import warn
 
 import numpy as np
 
@@ -739,6 +740,12 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
 
     def x_prime_log_prior(self, x_prime):
         """Compute the prior in the prime space assuming a uniform prior"""
+        warn(
+            (
+                "Support for x-prime priors is deprecated and will be "
+                "removed in a future release. ",
+            ).FutureWarning,
+        )
         if self.has_prime_prior:
             log_p = 0
             for pp in self.prime_parameters:
