@@ -14,6 +14,7 @@ from nessai.livepoint import (
     parameters_to_live_point,
 )
 from nessai.samplers.nestedsampler import NestedSampler
+from nessai.stopping_criteria import StoppingCriterionRegistry
 from nessai.utils.testing import assert_structured_arrays_equal
 
 
@@ -59,10 +60,11 @@ def test_initialise(sampler):
     sampler.iteration = 0
     sampler.maximum_uninformed = 10
     sampler.condition = 1.0
-    sampler.tolerance = 0.1
+    sampler.stopping_criterion = MagicMock()
+    sampler.stopping_criterion.is_met.return_value = False
     sampler.initialised = False
     sampler.uninformed_sampling = True
-    sampler.finalised = False
+    sampler.finalised = None
 
     NestedSampler.initialise(sampler)
 
@@ -71,6 +73,7 @@ def test_initialise(sampler):
     sampler.populate_live_points.assert_called_once()
     assert sampler.initialised is True
     assert sampler.proposal is sampler._uninformed_proposal
+    assert sampler.finalised is False
 
 
 def test_initialise_resume(sampler):
@@ -88,7 +91,8 @@ def test_initialise_resume(sampler):
     sampler.iteration = 100
     sampler.maximum_uninformed = 10
     sampler.condition = 1.0
-    sampler.tolerance = 0.1
+    sampler.stopping_criterion = MagicMock()
+    sampler.stopping_criterion.is_met.return_value = False
     sampler.initialised = False
 
     NestedSampler.initialise(sampler)
@@ -98,6 +102,7 @@ def test_initialise_resume(sampler):
     sampler.populate_live_points.assert_not_called()
     assert sampler.initialised is False
     assert sampler.proposal is sampler._flow_proposal
+    assert sampler.finalised is False
 
 
 def test_log_state(sampler, caplog):
@@ -210,7 +215,9 @@ def test_nested_sampling_loop(sampler, config):
     sampler.prior_sampling = False
     sampler.initialised = False
     sampler.condition = config.get("condition", 0.5)
-    sampler.tolerance = config.get("tolerance", 0.1)
+    sampler.stopping_criterion = StoppingCriterionRegistry.get(
+        "dlogZ", tolerance=config.get("tolerance", 0.1)
+    )
     sampler._close_pool = config.get("close_pool", True)
     sampler.max_iteration = config.get("max_iteration")
     sampler.iteration = config.get("iteration", 0)

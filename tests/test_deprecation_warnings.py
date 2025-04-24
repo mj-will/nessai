@@ -85,3 +85,12 @@ def test_setup_logger_deprecation():
 
     with pytest.warns(FutureWarning, match=r"deprecated"):
         setup_logger(label=None)
+
+
+def test_compute_evidence_ratio_deprecation():
+    """Assert a warning is raised when compute_evidence_ratio is called"""
+    from nessai.evidence import _INSIntegralState
+
+    state = create_autospec(_INSIntegralState)
+    with pytest.deprecated_call():
+        _INSIntegralState.compute_evidence_ratio(state)

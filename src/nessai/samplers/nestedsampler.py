@@ -24,6 +24,7 @@ from ..proposal.utils import (
     check_proposal_kwargs,
     get_flow_proposal_class,
 )
+from ..stopping_criteria import StoppingCriterionRegistry
 from ..utils import (
     compute_indices_ks_test,
     rolling_mean,
@@ -244,7 +245,6 @@ class NestedSampler(BaseNestedSampler):
         self.final_ks_statistic = None
 
         self.resumed = False
-        self.tolerance = stopping
         self.condition = np.inf
         self.logLmin = -np.inf
         self.logLmax = -np.inf
@@ -254,6 +254,10 @@ class NestedSampler(BaseNestedSampler):
             self.nlive,
             track_gradients=plot,
             expectation=shrinkage_expectation,
+        )
+
+        self.stopping_criterion = StoppingCriterionRegistry.get(
+            "dlogZ", tolerance=stopping
         )
 
         # Timing
@@ -350,6 +354,11 @@ class NestedSampler(BaseNestedSampler):
         logLs = np.array(self.state.logLs)
         its = np.array(self.nested_samples)["it"]
         return logLs[its].flatten()
+
+    @property
+    def tolerance(self):
+        """Return the stopping criterion tolerance"""
+        return self.stopping_criterion.tolerance
 
     def configure_max_iteration(self, max_iteration):
         """Configure the maximum iteration.
@@ -815,7 +824,7 @@ class NestedSampler(BaseNestedSampler):
             self.populate_live_points()
             flags[2] = True
 
-        if self.condition > self.tolerance:
+        if not self.stopping_criterion.is_met(self.condition):
             self.finalised = False
 
         self.initialise_history()
@@ -1345,7 +1354,7 @@ class NestedSampler(BaseNestedSampler):
 
         logger.info("Starting nested sampling loop")
 
-        while self.condition > self.tolerance:
+        while not self.stopping_criterion.is_met(self.condition):
             self.check_state()
 
             self.consume_sample()
@@ -1357,11 +1366,16 @@ class NestedSampler(BaseNestedSampler):
             if self.iteration >= self.max_iteration:
                 logger.info("Reached max iteration")
                 break
-        logger.info(f"Stopping with dlogZ={self.condition:.3f}")
+        logger.info(
+            f"Stopping with {self.stopping_criterion.name}"
+            f"={self.condition:.3f}"
+        )
 
         # final adjustments
         # avoid repeating final adjustments if resuming a completed run.
-        if not self.finalised and (self.condition <= self.tolerance):
+        if not self.finalised and self.stopping_criterion.is_met(
+            self.condition
+        ):
             self.finalise()
 
         logger.info(

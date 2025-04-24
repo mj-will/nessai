@@ -6,6 +6,7 @@ Functions related to computing the evidence.
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional
+from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -94,7 +95,10 @@ class _BaseNSIntegralState(ABC):
             return 0
         log_p -= logsumexp(log_p)
         n = np.exp(-logsumexp(2 * log_p))
-        return n
+        return float(n)
+
+    ess = effective_n_posterior_samples
+    """Alias for effective_n_posterior_samples"""
 
 
 class _NSIntegralState(_BaseNSIntegralState):
@@ -270,6 +274,8 @@ class _INSIntegralState(_BaseNSIntegralState):
     def __init__(self) -> None:
         self._n_ns = 0
         self._n_lp = 0
+        self._n = 0
+        self._previous_logZ = -np.inf
         self._logZ = -np.inf
         self._weights_ns = None
         self._weights_lp = None
@@ -306,9 +312,19 @@ class _INSIntegralState(_BaseNSIntegralState):
         return logsumexp(self._weights_lp) - np.log(self._weights_lp.size)
 
     @property
-    def log_evidence_nested_samples(self):
+    def log_evidence_nested_samples(self) -> float:
         """Log-evidence in the nested samples"""
         return logsumexp(self._weights_ns) - np.log(self._weights_ns.size)
+
+    @property
+    def fractional_error(self) -> float:
+        """Fractional error on the evidence."""
+        return self.evidence_error / self.evidence
+
+    @property
+    def difference_log_evidence(self) -> float:
+        """(Absolute) difference in log evidence"""
+        return np.abs(self.logZ - self._previous_logZ)
 
     @property
     def log_posterior_weights(self) -> np.ndarray:
@@ -318,6 +334,16 @@ class _INSIntegralState(_BaseNSIntegralState):
         for these as well.
         """
         return self._weights - self.logZ
+
+    @property
+    def log_evidence_ratio(self) -> float:
+        """Log evidence ratio of the live points to all the samples."""
+        return float(self.compute_log_evidence_ratio(ns_only=False))
+
+    @property
+    def log_evidence_ratio_nested_samples(self) -> float:
+        """Log evidence ratio of the live points to the nested samples."""
+        return float(self.compute_log_evidence_ratio(ns_only=True))
 
     def update_evidence(
         self,
@@ -335,6 +361,7 @@ class _INSIntegralState(_BaseNSIntegralState):
             include both live points and nested samples. If not, the evidence
             will only include the nested samples.
         """
+        self._previous_logZ = self.log_evidence
         self._weights_ns = nested_samples["logL"] + nested_samples["logW"]
         if live_points is not None:
             self._weights_lp = live_points["logL"] + live_points["logW"]
@@ -350,10 +377,12 @@ class _INSIntegralState(_BaseNSIntegralState):
         self._logZ = logsumexp(self._weights)
         self._n = self._weights.size
 
-    def compute_evidence_ratio(self, ns_only: bool = False) -> float:
+    def compute_log_evidence_ratio(self, ns_only: bool = False) -> float:
         """
-        Compute the ratio of the evidence in the live points to the nested
-        samples.
+        Compute the log ratio of the evidence in the live points to total
+        (or nested) samples.
+
+        .. versionadded:: 0.15.0
 
         Parameters
         ----------
@@ -373,6 +402,23 @@ class _INSIntegralState(_BaseNSIntegralState):
             )
         else:
             return self.log_evidence_live_points - self.logZ
+
+    def compute_evidence_ratio(self, ns_only: bool = False) -> float:
+        """Compute the evidence ratio of the live points to the nested samples.
+
+        .. deprecated:: 0.15.0
+            Use :meth:`compute_log_evidence_ratio` instead.
+            This will be removed in a future version.
+        """
+
+        warn(
+            (
+                "compute_evidence_ratio is deprecated, "
+                "use compute_log_evidence_ratio instead"
+            ),
+            DeprecationWarning,
+        )
+        return self.compute_log_evidence_ratio(ns_only=ns_only)
 
     def compute_uncertainty(self, log_evidence: bool = True) -> float:
         """Compute the uncertainty on the current estimate of the evidence.

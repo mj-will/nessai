@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
@@ -21,7 +23,15 @@ def test_plot_state(ins, history, n_it):
         evidence=np.arange(-1, n_it),
         posterior=np.arange(-1, n_it),
     )
-    ins.stopping_criterion = ["ratio", "ess"]
+    ins.stopping_criteria = ["ratio", "ess"]
+    ins.combined_criterion = MagicMock()
+    ins.combined_criterion.names = ["ratio", "ess"]
+    ins.combined_criterion.criteria = [
+        MagicMock(tolerance=0.0),
+        MagicMock(tolerance=1000),
+    ]
+    ins.combined_criterion.criteria[0].name = "ratio"
+    ins.combined_criterion.criteria[1].name = "ess"
     ins.tolerance = [0.0, 1000]
     fig = INS.plot_state(ins)
     assert fig is not None
