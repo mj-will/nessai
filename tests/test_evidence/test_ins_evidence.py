@@ -94,6 +94,34 @@ def test_log_evidence_live_nested_samples(state):
     )
 
 
+def test_log_evidence_ratio(state):
+    """Check the correct value is returned"""
+    state.compute_log_evidence_ratio = MagicMock()
+    state.compute_log_evidence_ratio.return_value = 1.0
+    assert INSState.log_evidence_ratio.__get__(state) == 1.0
+    state.compute_log_evidence_ratio.assert_called_once_with(ns_only=False)
+
+
+def test_log_evidence_ratio_nested_samples(state):
+    """Check the correct value is returned"""
+    state.compute_log_evidence_ratio = MagicMock()
+    state.compute_log_evidence_ratio.return_value = 1.0
+    assert INSState.log_evidence_ratio_nested_samples.__get__(state) == 1.0
+    state.compute_log_evidence_ratio.assert_called_once_with(ns_only=True)
+
+
+def test_fractional_error(state):
+    state.evidence_error = 0.1
+    state.evidence = 2.0
+    assert INSState.fractional_error.__get__(state) == 0.05
+
+
+def test_difference_log_evidence(state):
+    state.logZ = 1.0
+    state._previous_logZ = -1.0
+    assert INSState.difference_log_evidence.__get__(state) == 2.0
+
+
 def test_log_posterior_weights(state):
     """Check the posterior weights are correct"""
     state._weights = np.array([1, 2, 3])

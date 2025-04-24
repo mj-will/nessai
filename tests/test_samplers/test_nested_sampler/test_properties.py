@@ -162,3 +162,9 @@ def test_birth_log_likelihoods(sampler):
     out = NestedSampler.birth_log_likelihoods.__get__(sampler)
 
     np.testing.assert_array_equal(out, expected)
+
+
+def test_tolerance(sampler):
+    sampler.stopping_criterion = MagicMock()
+    sampler.stopping_criterion.tolerance = 0.1
+    assert NestedSampler.tolerance.__get__(sampler) == 0.1

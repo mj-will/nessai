@@ -91,9 +91,8 @@ def history(n_it):
     ]
     d = {k: np.random.randn(n_it).tolist() for k in keys}
     d["stopping_criteria"] = dict(
-        log_dZ=np.arange(n_it),
-        ratio=np.arange(n_it),
-        ess=np.arange(n_it),
-        kl=np.arange(n_it),
+        log_dZ=np.arange(n_it).tolist(),
+        ratio=np.arange(n_it).tolist(),
+        ess=np.arange(n_it).tolist(),
     )
     return d
