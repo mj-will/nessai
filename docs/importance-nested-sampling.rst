@@ -51,8 +51,14 @@ We now highlight some key settings, for a complete list see the documentation fo
 Stopping criterion
 ------------------
 
-By default, the stopping criterion is the log-ratio of the evidence above the likelihood threshold and the current evidence, called :code:`ratio` in the code.
+By default, the stopping criterion is the log-ratio of the evidence above the likelihood threshold and the current evidence, called :code:`log_evidence_ratio` in the code.
 The default tolerance is :code:`tolerance=0.0` and should be suitable for most applications.
+
+The stopping criterion can be changed by passing a string or list of strings to the :code:`stopping_criterion` argument
+and the corresponding tolerance to :code:`tolerance` argument. When using multiple stopping criteria, the :code`check_criteria`
+argument can be used to specify whether all or any criteria should must be met (:code:`'all'` or :code:`'any'`).
+
+For a list of available stopping criteria, see :py:mod:`nessai.stopping_criteria`.
 
 Logging
 =======
@@ -61,17 +67,16 @@ By default the sampler will log every iteration and the log will look something 
 
 .. code-block:: console
 
-    07-01 08:46 nessai.samplers.importancesampler INFO    : Removing 1830/3000 samples to train next proposal
-    07-01 08:46 nessai.samplers.importancesampler INFO    : Log-likelihood threshold: -487.90392013926345
-    07-01 08:46 nessai.samplers.importancesampler INFO    : Training next proposal with 1170 samples
-    07-01 08:46 nessai.samplers.importancesampler INFO    : Drawing 2000 samples from the new proposal
-    07-01 08:46 nessai.samplers.importancesampler INFO    : Stopping criteria (['ratio']): [0.638027881338866] - Tolerance: [0.0]
-    07-01 08:46 nessai.samplers.importancesampler INFO    : Update 1 - log Z: -5.804 +/- 0.089 ESS: 123.7 logL min: -3874.530 logL median: -96.682 logL max: -0.015
+    04-24 11:53 nessai INFO    : Log-likelihood threshold: -400.3606743056573
+    04-24 11:53 nessai INFO    : Training next proposal with 1178 samples
+    04-24 11:53 nessai INFO    : Drawing 2000 new samples from the new proposal
+    04-24 11:53 nessai INFO    : Current n samples: 3143
+    04-24 11:53 nessai INFO    : Stopping criteria: {'log_evidence_ratio': 0.6465817114126242} - Tolerances: {'log_evidence_ratio': 0.0}
+    04-24 11:53 nessai INFO    : Update 1 - log Z: 0.085 +/- 0.085 ESS: 136.3 logL min: -4953.606 logL median: -81.045 logL max: -0.007
 
 From top to bottom this shows:
 
-* the number of samples discarded to train the next proposal (flow),
-* the corresponding log-likelihood threshold,
+* the current log-likelihood threshold,
 * the start of the training stage with n samples,
 * the number of samples being drawn from the new proposal,
 * the current values of all stopping criteria and the corresponding tolerance,
