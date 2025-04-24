@@ -546,7 +546,8 @@ class BaseFlowProposal(RejectionProposal):
                 (
                     "Support for x-prime priors is deprecated and will be "
                     "removed in a future release. ",
-                ).FutureWarning,
+                ),
+                FutureWarning,
             )
             self.use_x_prime_prior = True
             self.x_prime_log_prior = self._reparameterisation.x_prime_log_prior
@@ -561,7 +562,8 @@ class BaseFlowProposal(RejectionProposal):
                 raise RuntimeError(
                     "One or more reparameterisations require use of the x "
                     "prime prior but it cannot be enabled with the current "
-                    "settings."
+                    "settings. Note that the x prime prior is deprecated and "
+                    "will be removed in a future release."
                 )
 
         self._reparameterisation.check_order()
