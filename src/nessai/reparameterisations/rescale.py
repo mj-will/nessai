@@ -744,7 +744,8 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
             (
                 "Support for x-prime priors is deprecated and will be "
                 "removed in a future release. ",
-            ).FutureWarning,
+            ),
+            FutureWarning,
         )
         if self.has_prime_prior:
             log_p = 0

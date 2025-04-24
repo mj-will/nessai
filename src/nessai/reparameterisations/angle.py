@@ -4,6 +4,7 @@ Reparameterisations for handling angles.
 """
 
 import logging
+from warnings import warn
 
 import numpy as np
 from scipy import stats
@@ -182,6 +183,13 @@ class Angle(Reparameterisation):
 
     def x_prime_log_prior(self, x_prime):
         """Compute the prior in the prime space assuming a uniform prior"""
+        warn(
+            (
+                "Support for x-prime priors is deprecated and will be "
+                "removed in a future release. ",
+            ),
+            FutureWarning,
+        )
         if self.has_prime_prior:
             return self._prime_prior(
                 x_prime[self.prime_parameters[0]],
