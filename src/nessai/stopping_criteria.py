@@ -1,3 +1,8 @@
+"""Stopping criteria for nested sampling.
+
+This module defines various stopping criteria for nested sampling algorithms.
+"""
+
 import operator
 from dataclasses import dataclass
 from typing import Dict, Literal, Union
