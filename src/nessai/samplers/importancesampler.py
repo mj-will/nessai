@@ -839,7 +839,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         self.history["logX"].append(self.logX)
         self.history["gradients"].append(self.gradient)
         self.history["logZ"].append(self.state.logZ)
-        self.history["logdZ"].append(self.state.log_evidence_difference)
+        self.history["logdZ"].append(self.state.difference_log_evidence)
         self.history["n_post"].append(self.state.effective_n_posterior_samples)
         self.history["samples_entropy"].append(self.samples_entropy)
         self.history["proposal_entropy"].append(self.current_proposal_entropy)
