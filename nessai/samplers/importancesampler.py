@@ -245,13 +245,13 @@ class OrderedSamples:
 
         imp_post = {
             k: np.exp(v - logsumexp(np.fromiter(log_imp_post.values(), float)))
-            for k, v in log_imp_post
+            for k, v in log_imp_post.items()
         }
         imp_post_indv = {
             k: np.exp(
                 v - logsumexp(np.fromiter(log_imp_post_indv.values(), float))
             )
-            for k, v in log_imp_post_indv
+            for k, v in log_imp_post_indv.items()
         }
         return {
             "total": np.nan,
@@ -1929,9 +1929,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
             batch_size //= 2
 
         logger.debug(f"Batch size: {batch_size}")
-
+        starting_weights = self.compute_importance()["posterior_indv"]
+        qIDs = starting_weights.keys()
         if optimise_weights:
-            weights = self.compute_importance()["total"]
+            weights = np.array([starting_weights[k] for k in qIDs])
             if optimisation_method == "evidence":
                 pass
             elif optimisation_method == "kl":
@@ -1954,13 +1955,15 @@ class ImportanceNestedSampler(BaseNestedSampler):
             )
             batch_size = target_counts.sum()
             weights = target_counts / target_counts.sum()
+            weights = dict(zip(qIDs,weights))
         else:
             weights = np.fromiter(
                 self.proposal.unnormalised_weights.values(), float
             )
             weights /= weights.sum()
+            weights = dict(zip(qIDs,weights))
             target_counts = None
-
+        logger.debug(f'Optimised weights: {weights}')
         n_models = self.proposal.n_proposals
         samples = np.empty([0], dtype=self.proposal.dtype)
         log_q = np.empty([0, n_models])

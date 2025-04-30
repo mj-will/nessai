@@ -69,10 +69,10 @@ flow_config = dict(
 )
 
 fs = FlowSampler(
-    nessai_models.SlabSpike(dims=5,
-                            spike_scale = 1e-3,
+    nessai_models.SlabSpike(dims=3,
+                            spike_scale = 1e-2,
                             ),
-    nlive=5000,
+    nlive=1000,
     output=output,
     resume=False,
     seed=1234,
@@ -81,8 +81,8 @@ fs = FlowSampler(
     rebalance_interval=2,
     flow_config=flow_config,
     reset_flow=1,
-    plot=False
+    plot=True,
 )
 
 # And go!
-fs.run(redraw_samples=True, optimise_weights=True, optimisation_method="kl")
+fs.run(redraw_samples=False, optimise_weights=True, optimisation_method="kl")

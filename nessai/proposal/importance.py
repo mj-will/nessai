@@ -556,11 +556,11 @@ class ImportanceFlowProposal(Proposal):
         log_q : numpy.ndarray
             Array of log q for each flow.
         """
-        if self.qid not in self.weights or np.isnan(self.weights[self.qid]):
-            raise RuntimeError(
-                "Weight(s) missing or not set. "
-                f"Current weights: {self.weights}."
-            )
+        # if self.qid not in self.weights.keys() or np.isnan(self.weights[self.qid]):
+        #     raise RuntimeError(
+        #         f"Weight(s) missing or not set for proposal id {self.qid}. "
+        #         f"Current weights: {self.weights}."
+        #     )
         x, log_j = self.rescale(samples)
         return self.compute_log_Q(x, log_j=log_j)
 
@@ -628,7 +628,7 @@ class ImportanceFlowProposal(Proposal):
         samples["logW"] = samples["logU"] - log_Q
         return samples, log_q
 
-    def draw_from_flows(
+    def     draw_from_flows(
         self,
         n: int,
         weights=None,
