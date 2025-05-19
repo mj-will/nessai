@@ -173,7 +173,7 @@ def test_training_and_prob(model, tmp_path):
     for i in range(4):
         ifp.train(model.new_point(10), max_epochs=2)
         weights = {j - 1: 1 / (i + 2) for j in range(i + 2)}
-        ifp.update_proposal_weights(weights)
+        ifp.update_weights(weights)
         x, _ = ifp.draw(10)
     log_Q, log_q = ifp.compute_meta_proposal_samples(x)
 
