@@ -46,12 +46,26 @@ def non_sampling_parameters(request):
     return request.param
 
 
-@pytest.fixture(autouse=True, params=[[], ["logQ", "logW", "logU", "qID"]])
+@pytest.fixture(
+    autouse=True,
+    params=[
+        ([], None, None),
+        (
+            ["logQ", "logW", "logU", "qID"],
+            ["f8", "f8", "f8", "U8"],
+            [np.nan, np.nan, np.nan, "NULL"],
+        ),
+    ],
+)
 def extra_parameters(request):
     """Add (and remove) extra parameters for the tests."""
     # Before every test
     lp.reset_extra_live_points_parameters()
-    lp.add_extra_parameters_to_live_points(request.param)
+    lp.add_extra_parameters_to_live_points(
+        request.param[0],
+        dtypes=request.param[1],
+        default_values=request.param[2],
+    )
     global EXTRA_PARAMS_DTYPE
     EXTRA_PARAMS_DTYPE = [
         (nsp, d)
@@ -192,7 +206,10 @@ def test_empty_structured_array_names(non_sampling_parameters):
         config.livepoints.non_sampling_defaults,
     ):
         if non_sampling_parameters:
-            np.testing.assert_array_equal(array[nsp], v * np.ones(n))
+            if array[nsp].dtype != np.dtype("f8"):
+                assert (array[nsp] == v).all()
+            else:
+                np.testing.assert_array_equal(array[nsp], v * np.ones(n))
         else:
             assert nsp not in array.dtype.names
 
@@ -425,10 +442,10 @@ def test_multiple_live_points_to_dict(live_points):
     """
     Test conversion of multiple_live points to a dictionary
     """
-    d = {"x": [1, 4], "y": [2, 5], "z": [3, 6]}
+    d = {"x": np.array([1, 4]), "y": np.array([2, 5]), "z": np.array([3, 6])}
     d.update(
         {
-            k: 2 * [v]
+            k: np.array(2 * [v])
             for k, v in zip(
                 config.livepoints.non_sampling_parameters,
                 config.livepoints.non_sampling_defaults,
@@ -437,7 +454,15 @@ def test_multiple_live_points_to_dict(live_points):
     )
     d_out = lp.live_points_to_dict(live_points)
     assert list(d.keys()) == list(d_out.keys())
-    np.testing.assert_array_equal(list(d.values()), list(d_out.values()))
+    for k in d.keys():
+        if d[k].dtype != np.dtype("f8"):
+            assert (d[k] == d_out[k]).all()
+        else:
+            np.testing.assert_array_equal(d[k], d_out[k])
+    # np.testing.assert_array_equal(list(d.values()), list(d_out.values()))
+
+
+#
 
 
 def test_unstructured_view_dtype(live_points):
