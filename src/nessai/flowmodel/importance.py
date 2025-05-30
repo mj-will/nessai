@@ -93,7 +93,7 @@ class ImportanceFlowModel(FlowModel):
     def add_new_flow(self, reset=False):
         """Add a new flow"""
         logger.debug("Add a new flow")
-        if reset or self.models is None:
+        if reset or not self.models or self.model is None:
             new_flow = configure_model(self.flow_config)
         else:
             new_flow = copy.deepcopy(self.model)

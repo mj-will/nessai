@@ -594,8 +594,8 @@ class ImportanceFlowProposal(Proposal):
         log_q : numpy.ndarray
             Array of log q for each flow.
         """
-        if self._proposal_count not in self.weights or np.isnan(
-            self.weights[self._proposal_count]
+        if self.proposal_id not in self.weights or np.isnan(
+            self.weights[self.proposal_id]
         ):
             raise RuntimeError(
                 "Weight(s) missing or not set. "
