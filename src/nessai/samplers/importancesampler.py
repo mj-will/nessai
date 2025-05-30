@@ -656,7 +656,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     @staticmethod
     def add_fields():
-        """Add extra fields logW, logQ, logU"""
+        """Add extra fields logW, logQ, logU, qID"""
         add_extra_parameters_to_live_points(
             ["logW", "logQ", "logU", "qID"],
             ["f8", "f8", "f8", "U8"],
