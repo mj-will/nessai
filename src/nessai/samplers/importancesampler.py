@@ -660,7 +660,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         add_extra_parameters_to_live_points(
             ["logW", "logQ", "logU", "qID"],
             ["f8", "f8", "f8", "U8"],
-            default_values=[np.nan, np.nan, np.nan, "INVALID"],
+            default_values=[np.nan, np.nan, np.nan, "NULL"],
         )
 
     def configure_stopping_criterion(

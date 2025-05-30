@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 def add_extra_parameters_to_live_points(
     parameters,
-    dtypes=None,
     default_values=None,
+    dtypes=None,
 ):
     """Add extra parameters to the live points dtype.
 
