@@ -169,13 +169,13 @@ def test_training_and_prob(model, tmp_path):
         weighted_kl=False,
     )
     ifp.initialise()
-    weights = {-1: 1.0}
     for i in range(4):
         ifp.train(model.new_point(10), max_epochs=2)
-        weights = {j - 1: 1 / (i + 2) for j in range(i + 2)}
+        weights = {str(j - 1): 1 / (i + 2) for j in range(i + 2)}
         ifp.update_weights(weights)
         x, _ = ifp.draw(10)
     log_Q, log_q = ifp.compute_meta_proposal_samples(x)
 
     assert len(log_Q) == 10
-    assert log_q.shape == (10, 5)
+    assert log_q.shape == (10,)
+    assert log_q.dtype.names == tuple(weights.keys())

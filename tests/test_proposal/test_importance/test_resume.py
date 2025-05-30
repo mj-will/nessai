@@ -39,11 +39,10 @@ def test_getstate_integration(tmp_path, model):
         weighted_kl=False,
     )
     ifp.initialise()
-    weights = {-1: 1.0}
 
     for i in range(4):
         ifp.train(model.new_point(10), max_epochs=2)
-        weights = {j - 1: 1 / (i + 2) for j in range(i + 2)}
+        weights = {str(j - 1): 1 / (i + 2) for j in range(i + 2)}
         ifp.update_weights(weights)
         ifp.draw(10)
 
