@@ -13,6 +13,11 @@ from nessai.samplers.importancesampler import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_ins_parameters(reset_ins_parameters):
+    """Reset the INS parameters before each test."""
+
+
 @pytest.fixture(scope="module", params=[False, True])
 def iid(request):
     return request.param

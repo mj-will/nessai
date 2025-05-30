@@ -46,7 +46,7 @@ def non_sampling_parameters(request):
     return request.param
 
 
-@pytest.fixture(autouse=True, params=[[], ["logQ", "logW", "logU"]])
+@pytest.fixture(autouse=True, params=[[], ["logQ", "logW", "logU", "qID"]])
 def extra_parameters(request):
     """Add (and remove) extra parameters for the tests."""
     # Before every test
@@ -62,17 +62,18 @@ def extra_parameters(request):
     ]
 
     # Test happens here
-    yield
-
-    # Called after every test
-    lp.reset_extra_live_points_parameters()
-    EXTRA_PARAMS_DTYPE = [
-        (nsp, d)
-        for nsp, d in zip(
-            config.livepoints.non_sampling_parameters,
-            config.livepoints.non_sampling_dtype,
-        )
-    ]
+    try:
+        yield
+    finally:
+        # Called after every test
+        lp.reset_extra_live_points_parameters()
+        EXTRA_PARAMS_DTYPE = [
+            (nsp, d)
+            for nsp, d in zip(
+                config.livepoints.non_sampling_parameters,
+                config.livepoints.non_sampling_dtype,
+            )
+        ]
 
 
 @pytest.fixture(params=["f4", "f16"])
@@ -90,9 +91,10 @@ def change_dtype(request):
     current_dtype = config.livepoints.default_float_dtype
     config.livepoints.default_float_dtype = dtype
 
-    yield dtype
-
-    config.livepoints.default_float_dtype = current_dtype
+    try:
+        yield dtype
+    finally:
+        config.livepoints.default_float_dtype = current_dtype
 
 
 @pytest.fixture

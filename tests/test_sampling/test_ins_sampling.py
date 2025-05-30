@@ -9,6 +9,12 @@ import pytest
 from nessai.flowsampler import FlowSampler
 
 
+@pytest.fixture(autouse=True)
+@pytest.mark.usefixtures("reset_ins_parameters")
+def reset_ins_parameters():
+    """Reset the extra live points parameters before each test."""
+
+
 @pytest.mark.slow_integration_test
 @pytest.mark.flaky(reruns=3)
 @pytest.mark.parametrize("save_log_q", [False, True])
