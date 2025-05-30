@@ -310,7 +310,11 @@ class ImportanceFlowProposal(Proposal):
         ------
         RuntimeError
             If the weights do not sum to 1 after the update.
+        ValueError
+            If the keys in the weights dictionary are not strings.
         """
+        if any(not isinstance(k, str) for k in weights.keys()):
+            raise ValueError("Keys in weights must be strings")
         self._weights.update(weights)
         w_sum = np.sum(self.weights_array())
         if not np.isclose(w_sum, 1.0):
