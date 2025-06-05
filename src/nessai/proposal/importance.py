@@ -167,7 +167,7 @@ class ImportanceFlowProposal(Proposal):
         if "qID" not in config.livepoints.non_sampling_parameters:
             raise RuntimeError("qid field missing in non-sampling parameters.")
 
-    def weights_array(self, keys: list[str] | None = None) -> np.ndarray:
+    def weights_array(self, keys: Optional[list[str]] = None) -> np.ndarray:
         """Array of weights for each proposal"""
         if keys is None:
             keys = self.log_q_dtype.names
