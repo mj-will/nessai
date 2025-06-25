@@ -7,6 +7,7 @@ import copy
 import glob
 import logging
 import os
+import re
 from typing import Optional
 from warnings import warn
 
@@ -24,7 +25,7 @@ class ImportanceFlowModel(FlowModel):
     """Flow Model that contains multiple flows for importance sampler."""
 
     models: torch.nn.ModuleList = None
-    _resume_n_models: int = None
+    _resume_model_keys: list = None
 
     def __init__(
         self,
@@ -39,8 +40,10 @@ class ImportanceFlowModel(FlowModel):
             output=output,
             rng=rng,
         )
-        self.weights_files = []
-        self.models = torch.nn.ModuleList()
+        self.weights_files = {}
+        self.models = torch.nn.ModuleDict()
+        self._current_model = -1
+        self._model = None
 
     @property
     def model(self):
@@ -48,16 +51,29 @@ class ImportanceFlowModel(FlowModel):
 
         Returns None if the no models have been added.
         """
-        if self.models:
-            return self.models[-1]
-        else:
-            logger.warning("Model not defined yet!")
-            return None
+        return self._model
 
     @model.setter
     def model(self, model):
         if model is not None:
-            self.models.append(model)
+            raise ValueError("Cannot set model directly, use add_model()")
+        self._model = None
+
+    def add_model(self, model, key=None):
+        """Add a model to the dictionary of models.
+
+        Sets the current model to the new model.
+        """
+        if key is None:
+            self._current_model += 1
+            key = str(self._current_model)
+        else:
+            self._current_model = max(int(key), self._current_model)
+        self.models[key] = model
+
+    @property
+    def current_model_key(self):
+        return str(self._current_model)
 
     @property
     def n_models(self) -> int:
@@ -81,7 +97,7 @@ class ImportanceFlowModel(FlowModel):
     def add_new_flow(self, reset=False):
         """Add a new flow"""
         logger.debug("Add a new flow")
-        if reset or not self.models:
+        if reset or not self.models or self.model is None:
             new_flow = configure_model(self.flow_config)
         else:
             new_flow = copy.deepcopy(self.model)
@@ -95,10 +111,17 @@ class ImportanceFlowModel(FlowModel):
         )
         logger.debug(f"Inference device: {self.inference_device}")
         self.models.eval()
-        self.models.append(new_flow)
+        self.add_model(new_flow)
         self.reset_optimiser()
 
-    def log_prob_ith(self, x, i):
+    def remove_flow(self, i: str) -> None:
+        """Remove the i'th flow"""
+        logger.debug(f"Removing {i}'th flow")
+        model = self.models.pop(i)
+        if self.model is model:
+            self.model = None
+
+    def log_prob_ith(self, x: np.ndarray, i: str) -> np.ndarray:
         """Compute the log-prob for the ith flow"""
         x = (
             torch.from_numpy(x)
@@ -129,7 +152,7 @@ class ImportanceFlowModel(FlowModel):
         log_prob = log_prob.cpu().numpy().astype(np.float64)
         return log_prob
 
-    def sample_ith(self, i, N=1):
+    def sample_ith(self, i: str, N: int = 1):
         """Draw samples from the ith flow"""
         if self.models is None:
             raise RuntimeError("Models are not initialised yet!")
@@ -145,67 +168,72 @@ class ImportanceFlowModel(FlowModel):
     def save_weights(self, weights_file) -> None:
         """Save the weights file."""
         super().save_weights(weights_file)
-        self.weights_files.append(self.weights_file)
+        self.weights_files[self.current_model_key] = self.weights_file
 
     def load_all_weights(self) -> None:
         """Load all of the weights files for each flow.
 
         Resets any existing models.
         """
-        self.models = torch.nn.ModuleList()
+        self.models = torch.nn.ModuleDict()
         logger.debug(f"Loading weights from {self.weights_files}")
         self.device = torch.device(
             self.training_config.get("device_tag", "cpu")
         )
-        for wf in self.weights_files:
+        self._current_model = -1
+        for wf in self.weights_files.values():
             new_flow = configure_model(self.flow_config)
             new_flow.device = self.device
             new_flow.load_state_dict(torch.load(wf, weights_only=True))
-            self.models.append(new_flow)
+            self.add_model(new_flow)
         self.models.eval()
 
     def update_weights_path(
-        self, weights_path: str, n: Optional[int] = None
+        self, weights_path: str, keys: Optional[list[str]] = None
     ) -> None:
         """Update the weights path.
 
         Searches in the specified directory for weights files.
 
+        .. versionchanged:: 0.15.0
+            Replaced the :code:`n` parameter with :code:`keys` to specify
+            which models to load.
+
         Parameters
         ----------
         weights_path : str
             Path to the directory that contains the weights files.
-        n : Optional[int]
-            The number of files to load. If not specified, :code:`n_models` is
-            used instead. Must be specified when resuming since the models list
-            is not saved.
+        keys : list[str], optional
+            The keys (IDs) of the models to load.
         """
-        all_weights_files = glob.glob(
+        weights_files = {}
+        for wf in glob.glob(
             os.path.join(weights_path, "", "level_*", "model.pt")
-        )
-
-        if n is None:
-            if self.n_models:
-                n = self.n_models
-            else:
+        ):
+            # Extract the level number from the path
+            level = re.search(r"level_(\d+)", wf)
+            if level is None:
                 raise RuntimeError(
-                    "n is None and no models are defined, cannot update "
-                    "weights path."
+                    f"Cannot find level number in weights file: {wf}"
                 )
+            weights_files[level] = wf
 
-        logger.debug(f"Loading weights from: {all_weights_files}")
-        if len(all_weights_files) < n:
-            raise RuntimeError(
-                f"Cannot use weights from: {weights_path}. Not enough files."
+        if keys is None:
+            keys = weights_files.keys()
+        else:
+            keys = [str(k) for k in keys]
+
+        keys = set(keys)
+        known_keys = set(weights_files.keys())
+        if not keys.issubset(known_keys):
+            raise ValueError(
+                f"Keys {keys - known_keys} not found in weights files."
             )
-        elif len(all_weights_files) > n:
-            logger.warning(
-                "More weights files than expected. Some files will be skipped."
-            )
-        self.weights_files = [
-            os.path.join(weights_path, f"level_{i}", "model.pt")
-            for i in range(n)
-        ]
+
+        # Only keep the specified keys
+        self.weights_files = {
+            k: v for k, v in weights_files.items() if k in keys
+        }
 
     def resume(
         self,
@@ -224,7 +252,7 @@ class ImportanceFlowModel(FlowModel):
                 "Not weights path specified, looking in output directory"
             )
             weights_path = self.output
-        self.update_weights_path(weights_path, n=self._resume_n_models)
+        self.update_weights_path(weights_path, keys=self._resume_model_keys)
         self.load_all_weights()
         self.initialise()
 
@@ -232,9 +260,9 @@ class ImportanceFlowModel(FlowModel):
         d = self.__dict__
         # Avoid making a copy because models can be large and this doubles the
         # memory usage.
-        exclude = {"models", "_optimiser", "flow_config"}
+        exclude = {"models", "_optimiser", "flow_config", "_model"}
         state = {k: d[k] for k in d.keys() - exclude}
         state["initialised"] = False
         state["models"] = None
-        state["_resume_n_models"] = len(d["models"])
+        state["_resume_model_keys"] = list(d["models"].keys())
         return state

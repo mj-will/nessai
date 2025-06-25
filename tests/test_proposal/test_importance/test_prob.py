@@ -20,7 +20,7 @@ def ifp(ifp):
 def test_update_proposal_weights(ifp):
     ifp._weights = {-1: 0.5, 1: 0.5}
     weights = {-1: 1 / 3, 0: 1 / 3, 1: 1 / 3}
-    IFP.update_proposal_weights(ifp, weights)
+    IFP.update_weights(ifp, weights)
     assert ifp._weights == weights
 
 
@@ -28,7 +28,7 @@ def test_update_proposal_weights_vaild(ifp):
     ifp._weights = {-1: 0.5, 1: 0.5}
     weights = {-1: 0.33, 0: 0.33, 1: 0.33}
     with pytest.raises(RuntimeError, match="Weights must sum to 1!"):
-        IFP.update_proposal_weights(ifp, weights)
+        IFP.update_weights(ifp, weights)
 
 
 def test_initial_log_prob(ifp):
@@ -55,7 +55,7 @@ def test_compute_log_Q(ifp, x_prime):
 
     ifp.flow.log_prob_all = MagicMock(side_effect=log_prob_all)
 
-    log_Q, log_q = IFP.compute_log_Q(ifp, x_prime, log_j=log_j)
+    log_Q, log_q = IFP.log_prob_meta_proposal(ifp, x_prime, log_j=log_j)
 
     assert len(log_Q) == len(x_prime)
     assert log_q.shape == (len(x_prime), n_flows + 1)
@@ -73,7 +73,7 @@ def test_compute_log_Q_weights_not_set(ifp, x_prime):
     ifp.n_proposals = n_flows + 1
     log_j = np.log(np.random.rand(len(x_prime)))
     with pytest.raises(RuntimeError, match="Some weights are not set!"):
-        IFP.compute_log_Q(ifp, x_prime, log_j=log_j)
+        IFP.log_prob_meta_proposal(ifp, x_prime, log_j=log_j)
 
 
 def test_compute_log_Q_flow_training(ifp, x_prime):
@@ -92,7 +92,7 @@ def test_compute_log_Q_flow_training(ifp, x_prime):
     with pytest.raises(
         RuntimeError, match="One or more flows are in training mode"
     ):
-        IFP.compute_log_Q(ifp, x_prime, log_j=log_j)
+        IFP.log_prob_meta_proposal(ifp, x_prime, log_j=log_j)
 
 
 @pytest.mark.parametrize("p_it, q_it", [(None, None), (-1, 0), (3, 4)])
