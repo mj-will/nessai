@@ -186,7 +186,7 @@ class Angle(Reparameterisation):
         warn(
             (
                 "Support for x-prime priors is deprecated and will be "
-                "removed in a future release. ",
+                "removed in a future release. "
             ),
             FutureWarning,
         )
