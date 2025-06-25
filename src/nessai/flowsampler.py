@@ -5,6 +5,7 @@ Main code that handles running and checkpoiting the sampler.
 
 import logging
 import os
+import pickle
 import signal
 import sys
 from typing import Optional
@@ -221,7 +222,9 @@ class FlowSampler:
         flow_config,
         **kwargs,
     ):
-        logger.info(f"Trying to resume sampler from {resume_file}")
+        logger.info(
+            f"Trying to resume sampler from {os.path.join(self.output, resume_file)}"
+        )
         try:
             ns = SamplerClass.resume(
                 os.path.join(self.output, resume_file),
@@ -230,25 +233,42 @@ class FlowSampler:
                 flow_config=flow_config,
                 **kwargs,
             )
-        except (FileNotFoundError, RuntimeError) as e:
+        except (
+            FileNotFoundError,
+            RuntimeError,
+            TypeError,
+            pickle.UnpicklingError,
+        ) as e:
             logger.error(
-                f"Could not load resume file from: {self.output} "
-                f"with error {e}"
+                f"Could not load resume file from: {os.path.join(self.output, resume_file)} "
+                f"with error {type(e).__name__}: {e}"
             )
             try:
-                resume_file += ".old"
+                old_resume_file = resume_file + ".old"
+                logger.info(
+                    f"Trying to resume from {os.path.join(self.output, old_resume_file)}"
+                )
                 ns = SamplerClass.resume(
-                    os.path.join(self.output, resume_file),
+                    os.path.join(self.output, old_resume_file),
                     model,
                     weights_path=weights_path,
                     flow_config=flow_config,
                     **kwargs,
                 )
-            except RuntimeError as e:
+            except (
+                FileNotFoundError,
+                RuntimeError,
+                TypeError,
+                pickle.UnpicklingError,
+            ) as e_old:  # Catch same types for .old
                 logger.error(
-                    f"Could not load old resume file from: {self.output}"
+                    f"Could not load old resume file from: {old_resume_file} "
+                    f"with error: {type(e_old).__name__}: {e_old}"
                 )
-                raise RuntimeError(f"Could not resume sampler with error: {e}")
+                raise RuntimeError(
+                    f"Could not resume sampler from any file after multiple attempts. "
+                    f"Last error: {type(e_old).__name__}: {e_old}"
+                )
         return ns
 
     def _resume_from_data(

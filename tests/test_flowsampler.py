@@ -421,7 +421,8 @@ def test_resume_error_cannot_resume(flow_sampler, tmp_path):
         ),
         patch("nessai.flowsampler.configure_threads"),
         pytest.raises(
-            RuntimeError, match=r"Could not resume sampler with error:"
+            RuntimeError,
+            match=r"Could not resume sampler from any file after multiple attempts",
         ),
     ):
         FlowSampler._resume_from_file(
@@ -501,7 +502,8 @@ def test_init_cannot_resume_integration(tmp_path, integration_model):
             "nessai.flowsampler.NestedSampler.resume", side_effect=side_effect
         ),
         pytest.raises(
-            RuntimeError, match=r"Could not resume sampler with error"
+            RuntimeError,
+            match=r"Could not resume sampler from any file after multiple attempts",
         ),
     ):
         FlowSampler(
