@@ -7,6 +7,7 @@ import copy
 import glob
 import logging
 import os
+import re
 from typing import Optional
 from warnings import warn
 
@@ -24,7 +25,7 @@ class ImportanceFlowModel(FlowModel):
     """Flow Model that contains multiple flows for importance sampler."""
 
     models: torch.nn.ModuleList = None
-    _resume_n_models: int = None
+    _resume_model_keys: list = None
 
     def __init__(
         self,
@@ -58,14 +59,17 @@ class ImportanceFlowModel(FlowModel):
             raise ValueError("Cannot set model directly, use add_model()")
         self._model = None
 
-    def add_model(self, model):
+    def add_model(self, model, key=None):
         """Add a model to the dictionary of models.
 
         Sets the current model to the new model.
         """
-        self._current_model += 1
-        self.models[self.current_model_key] = model
-        self._model = model
+        if key is None:
+            self._current_model += 1
+            key = str(self._current_model)
+        else:
+            self._current_model = max(int(key), self._current_model)
+        self.models[key] = model
 
     @property
     def current_model_key(self):
@@ -185,46 +189,50 @@ class ImportanceFlowModel(FlowModel):
         self.models.eval()
 
     def update_weights_path(
-        self, weights_path: str, n: Optional[int] = None
+        self, weights_path: str, keys: Optional[list[str]] = None
     ) -> None:
         """Update the weights path.
 
         Searches in the specified directory for weights files.
 
+        .. versionchanged:: 0.15.0
+            Replaced the :code:`n` parameter with :code:`keys` to specify
+            which models to load.
+
         Parameters
         ----------
         weights_path : str
             Path to the directory that contains the weights files.
-        n : Optional[int]
-            The number of files to load. If not specified, :code:`n_models` is
-            used instead. Must be specified when resuming since the models list
-            is not saved.
+        keys : list[str], optional
+            The keys (IDs) of the models to load.
         """
-        all_weights_files = glob.glob(
+        weights_files = {}
+        for wf in glob.glob(
             os.path.join(weights_path, "", "level_*", "model.pt")
-        )
-
-        if n is None:
-            if self.n_models:
-                n = self.n_models
-            else:
+        ):
+            # Extract the level number from the path
+            level = re.search(r"level_(\d+)", wf)
+            if level is None:
                 raise RuntimeError(
-                    "n is None and no models are defined, cannot update "
-                    "weights path."
+                    f"Cannot find level number in weights file: {wf}"
                 )
+            weights_files[level] = wf
 
-        logger.debug(f"Loading weights from: {all_weights_files}")
-        if len(all_weights_files) < n:
-            raise RuntimeError(
-                f"Cannot use weights from: {weights_path}. Not enough files."
+        if keys is None:
+            keys = weights_files.keys()
+        else:
+            keys = [str(k) for k in keys]
+
+        keys = set(keys)
+        known_keys = set(weights_files.keys())
+        if not keys.issubset(known_keys):
+            raise ValueError(
+                f"Keys {keys - known_keys} not found in weights files."
             )
-        elif len(all_weights_files) > n:
-            logger.warning(
-                "More weights files than expected. Some files will be skipped."
-            )
+
+        # Only keep the specified keys
         self.weights_files = {
-            str(i): os.path.join(weights_path, f"level_{i}", "model.pt")
-            for i in range(n)
+            k: v for k, v in weights_files.items() if k in keys
         }
 
     def resume(
@@ -244,7 +252,7 @@ class ImportanceFlowModel(FlowModel):
                 "Not weights path specified, looking in output directory"
             )
             weights_path = self.output
-        self.update_weights_path(weights_path, n=self._resume_n_models)
+        self.update_weights_path(weights_path, keys=self._resume_model_keys)
         self.load_all_weights()
         self.initialise()
 
@@ -256,5 +264,5 @@ class ImportanceFlowModel(FlowModel):
         state = {k: d[k] for k in d.keys() - exclude}
         state["initialised"] = False
         state["models"] = None
-        state["_resume_n_models"] = len(d["models"])
+        state["_resume_model_keys"] = list(d["models"].keys())
         return state
