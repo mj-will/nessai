@@ -229,23 +229,34 @@ class OrderedSamples:
             Dictionary containing the total, posterior and evidence importance
             as a function of iteration.
         """
-        log_imp_post = -np.inf * np.ones(self.log_q.shape[1])
-        log_imp_z = -np.inf * np.ones(self.log_q.shape[1])
-        for i, it in enumerate(range(-1, self.log_q.shape[-1] - 1)):
-            sidx = np.where(self.samples["it"] == it)[0]
-            zidx = np.where(self.samples["it"] >= it)[0]
-            if len(sidx):
-                log_imp_post[i] = logsumexp(
-                    self.samples["logL"][sidx] + self.samples["logW"][sidx]
-                ) - np.log(len(sidx))
-            if len(zidx):
-                log_imp_z[i] = logsumexp(
-                    self.samples["logL"][zidx] + self.samples["logW"][zidx]
-                ) - np.log(len(zidx))
-        imp_z = np.exp(log_imp_z - logsumexp(log_imp_z))
-        imp_post = np.exp(log_imp_post - logsumexp(log_imp_post))
-        imp = (1 - importance_ratio) * imp_z + importance_ratio * imp_post
-        return {"total": imp, "posterior": imp_post, "evidence": imp_z}
+        qIDs = self.log_q.dtype.names
+        log_imp_post = {}
+        log_imp_post_indv = {}
+        for qID in qIDs:
+            idx = self.samples["qID"] == qID
+            log_imp_post[qID] = log_evidence_from_ins_samples(
+                self.samples[idx]
+            )
+            log_imp_post_indv[qID] = logsumexp(
+                self.samples["logL"] + self.samples["logU"] - self.log_q[qID]
+            ) - np.log(self.samples.size)
+
+        imp_post = {
+            k: np.exp(v - logsumexp(np.fromiter(log_imp_post.values(), float)))
+            for k, v in log_imp_post.items()
+        }
+        imp_post_indv = {
+            k: np.exp(
+                v - logsumexp(np.fromiter(log_imp_post_indv.values(), float))
+            )
+            for k, v in log_imp_post_indv.items()
+        }
+        return {
+            "total": np.nan,
+            "posterior": imp_post,
+            "posterior_indv": imp_post_indv,
+            "evidence": np.nan,
+        }
 
     def compute_evidence_ratio(
         self, threshold: Optional[float] = None
@@ -645,8 +656,12 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
     @staticmethod
     def add_fields():
-        """Add extra fields logW, logQ, logU"""
-        add_extra_parameters_to_live_points(["logW", "logQ", "logU"])
+        """Add extra fields logW, logQ, logU, qID"""
+        add_extra_parameters_to_live_points(
+            parameters=["logW", "logQ", "logU", "qID"],
+            dtypes=["f8", "f8", "f8", "U8"],
+            default_values=[np.nan, np.nan, np.nan, "NULL"],
+        )
 
     def configure_stopping_criterion(
         self,
@@ -764,7 +779,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.model.batch_evaluate_log_prior_unit_hypercube(live_points)
         )
         live_points["logW"] = live_points["logU"] - live_points["logQ"]
-        log_q = np.zeros([live_points.size, 1])
+        log_q = np.zeros(live_points.size, dtype=[("-1", "f8")])
 
         if self.draw_iid_live:
             live_points, iid_samples = (
@@ -772,13 +787,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 live_points[self.n_initial :],
             )
             log_q, iid_log_q = (
-                log_q[: self.n_initial, ...],
-                log_q[self.n_initial :, ...],
+                log_q[: self.n_initial],
+                log_q[self.n_initial :],
             )
             self.iid_samples.add_initial_samples(iid_samples, iid_log_q)
 
         self.training_samples.add_initial_samples(live_points, log_q)
-        self.sample_counts[-1] = self.n_initial
+        self.sample_counts["-1"] = self.n_initial
 
     def initialise(self) -> None:
         """Initialise the nested sampler.
@@ -1070,7 +1085,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
             n_train:
         ].copy()
         self.current_training_log_q = self.training_samples.log_q[
-            n_train:, :
+            n_train:
         ].copy()
 
         logger.info(
@@ -1085,7 +1100,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
 
         if self.replace_all:
-            weights = -np.exp(self.current_training_log_q[:, -1])
+            weights = -np.exp(self.current_training_log_q[self.proposal_id])
         elif self.weighted_kl:
             log_w = self.current_training_samples["logW"].copy()
             log_w -= logsumexp(log_w)
@@ -1093,12 +1108,13 @@ class ImportanceNestedSampler(BaseNestedSampler):
         else:
             weights = None
 
-        self.proposal.train(
+        proposal_id = self.proposal.train(
             self.current_training_samples,
             plot=self.plot_training_data,
             weights=weights,
         )
         self.training_time += datetime.datetime.now() - st
+        return proposal_id
 
     def draw_n_samples(self, n: int, **kwargs):
         """Draw n samples from the current proposal
@@ -1184,7 +1200,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
             self.compute_leakage(new_samples)
         )
 
-        self._current_proposal_entropy = differential_entropy(-log_q[:, -1])
+        self._current_proposal_entropy = differential_entropy(
+            -log_q[self.proposal_id]
+        )
 
         logger.debug(
             f"New samples ESS: {effective_sample_size(new_samples['logW'])}"
@@ -1204,7 +1222,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         )
 
         self.training_samples.samples["logQ"] = (
-            self.proposal.compute_meta_proposal_from_log_q(
+            self.proposal.log_prob_meta_proposal_from_log_q(
                 self.training_samples.log_q
             )
         )
@@ -1223,7 +1241,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                 self.iid_samples.samples, self.iid_samples.log_q
             )
             self.iid_samples.samples["logQ"] = (
-                self.proposal.compute_meta_proposal_from_log_q(
+                self.proposal.log_prob_meta_proposal_from_log_q(
                     self.iid_samples.log_q
                 )
             )
@@ -1433,7 +1451,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """Log the state of the sampler"""
         logger.info(
             f"Update {self.iteration} - "
-            f"log Z: {self.log_evidence_error:.3f} +/- "
+            f"log Z: {self.log_evidence:.3f} +/- "
             f"{self.log_evidence_error:.3f} "
             f"ESS: {self.state.ess:.1f} "
             f"logL min: {self.live_points_unit['logL'].min():.3f} "
@@ -1462,7 +1480,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         n_total = len(self.samples_unit)
         new_weights = {k: v / n_total for k, v in self.sample_counts.items()}
-        self.proposal.update_proposal_weights(new_weights)
+        self.proposal.update_weights(new_weights)
 
     def update_sample_counts(self) -> None:
         """Update the sample counts for each proposal based on the current
@@ -1472,28 +1490,27 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         See also: :code:`update_proposal_weights`.
         """
-        counts = np.bincount(
-            self.samples_unit["it"] + 1,
-            minlength=(self.proposal.n_proposals),
-        )
-        self.sample_counts = {it - 1: c for it, c in enumerate(counts)}
+        sample_counts = {}
+        for qid in self.proposal.weights.keys():
+            sample_counts[qid] = np.sum(self.samples_unit["qID"] == qid)
+        self.sample_counts = sample_counts
 
-    def add_new_proposal_weight(self, iteration: int, n_new: int) -> None:
+    def add_new_proposal_weight(self, proposal_id: str, n_new: int) -> None:
         """Set the weights for a new proposal.
 
         Samples cannot have been drawn from the proposal already.
         """
         if (
-            iteration in self.sample_counts
-            and self.sample_counts[iteration] != 0
+            proposal_id in self.sample_counts
+            and self.sample_counts[proposal_id] != 0
         ):
             raise RuntimeError(
-                f"Samples already drawn from proposal {iteration}"
+                f"Samples already drawn from proposal {proposal_id}"
             )
         n_total = len(self.samples_unit) + n_new
-        self.sample_counts[iteration] = n_new
+        self.sample_counts[proposal_id] = n_new
         new_weights = {k: v / n_total for k, v in self.sample_counts.items()}
-        self.proposal.update_proposal_weights(new_weights)
+        self.proposal.update_weights(new_weights)
 
     def nested_sampling_loop(self):
         """Main nested sampling loop."""
@@ -1523,14 +1540,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
             n_removed = self.remove_samples()
 
-            self.add_new_proposal()
+            self.proposal_id = self.add_new_proposal()
 
             if self.draw_constant or self.replace_all:
                 n_add = self.nlive
             else:
                 n_add = n_removed
 
-            self.add_new_proposal_weight(self.iteration, n_add)
+            self.add_new_proposal_weight(self.proposal_id, n_add)
 
             self.add_and_update_points(n_add)
 
@@ -1970,10 +1987,10 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         m += 1
 
-        ax[m].plot(its, self.importance["total"][1:], label="Total")
-        ax[m].plot(its, self.importance["posterior"][1:], label="Posterior")
-        ax[m].plot(its, self.importance["evidence"][1:], label="Evidence")
-        ax[m].legend()
+        # ax[m].plot(its, self.importance["total"][1:], label="Total")
+        # ax[m].plot(its, self.importance["posterior"][1:], label="Posterior")
+        # ax[m].plot(its, self.importance["evidence"][1:], label="Evidence")
+        # ax[m].legend()
         ax[m].set_ylabel("Level importance")
 
         m += 1

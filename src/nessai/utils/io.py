@@ -143,8 +143,22 @@ def encode_for_hdf5(value):
     Any
         Encoded value.
     """
+    import h5py
+
     if value is None:
         output = "__none__"
+    elif isinstance(value, np.ndarray):
+        if value.dtype.names is not None:
+            output = {
+                field: encode_for_hdf5(value[field])
+                for field in value.dtype.names
+            }
+        elif value.dtype.char == "U":
+            output = value.astype(
+                h5py.string_dtype(encoding="utf-8", length=None)
+            )
+        else:
+            output = value
     else:
         output = value
     return output
@@ -165,10 +179,11 @@ def add_dict_to_hdf5_file(hdf5_file, path, d):
         The dictionary to save.
     """
     for key, value in d.items():
-        if isinstance(value, dict):
-            add_dict_to_hdf5_file(hdf5_file, path + key + "/", value)
+        encoded_value = encode_for_hdf5(value)
+        if isinstance(encoded_value, dict):
+            add_dict_to_hdf5_file(hdf5_file, path + key + "/", encoded_value)
         else:
-            hdf5_file[path + key] = encode_for_hdf5(value)
+            hdf5_file[path + key] = encoded_value
 
 
 def save_dict_to_hdf5(d, filename):
