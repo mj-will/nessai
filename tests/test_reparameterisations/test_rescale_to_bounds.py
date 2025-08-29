@@ -1044,3 +1044,39 @@ def test_is_invertible_general_config(is_invertible, model, kwargs, decimal):
     default_kwargs.update(kwargs)
     reparam = RescaleToBounds(**default_kwargs)
     assert is_invertible(reparam, decimal=decimal)
+
+
+@pytest.mark.integration_test
+def test_is_invertible_dynamic_range(is_invertible, rng):
+    """Test the invertibility of the reparameterisation"""
+    bounds = {
+        "a_1": [
+            np.float64(1.1679062461797653e-15),
+            np.float64(943497510298152.8),
+        ]
+    }
+    reparam = RescaleToBounds(parameters=["a_1"], prior_bounds=bounds)
+
+    # Make a dummy model that samples from a log-uniform between the bounds
+    # using the new-point method
+
+    class MockModel:
+        def new_point(self, N):
+            a = np.exp(
+                rng.uniform(
+                    np.log(bounds["a_1"][0]),
+                    np.log(bounds["a_1"][1]),
+                    N,
+                )
+            )
+            return np.array(a, dtype=[("a_1", "f8")])
+
+    assert is_invertible(reparam, model=MockModel(), decimal=12) is False
+
+    reparam = RescaleToBounds(
+        parameters=["a_1"],
+        prior_bounds=bounds,
+        pre_rescaling="log",
+    )
+
+    assert is_invertible(reparam, model=MockModel(), decimal=12)
