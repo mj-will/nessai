@@ -1071,7 +1071,8 @@ def test_is_invertible_dynamic_range(is_invertible, rng):
             )
             return np.array(a, dtype=[("a_1", "f8")])
 
-    assert is_invertible(reparam, model=MockModel(), decimal=12) is False
+    with pytest.raises(AssertionError):
+        is_invertible(reparam, model=MockModel(), decimal=12)
 
     reparam = RescaleToBounds(
         parameters=["a_1"],
