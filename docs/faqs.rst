@@ -70,15 +70,11 @@ This can be done using the `reparameterisations` keyword argument when calling t
         model=model,
         ...,
         reparameterisations={
-            'x': {'reparameterisation': "default", "pre_rescaling": "log"}
+            'log-standardise': ["x"],
         }
     )
 
 
-``x`` should match the name of the parameter and `reparameterisation` should be a reparameterisation that supports pre-rescaling.
-This will apply a log transformation to the `x` parameter, before applying the default (``scaleandshift``).
+The list should contain the name of the parameter(s) which large dynamic ranges.
+This will apply a log transformation to the `x` parameter, before standardising the samples.
 See :ref:`Configuring reparameterisations<Configuring reparameterisations>` for more details.
-
-.. note::
-
-    Only the ``scaleandshift`` and ``rescaletobounds`` reparameterisations currently support pre-rescaling transformations.

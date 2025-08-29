@@ -41,7 +41,7 @@ Available reparameterisations
 There are a number of pre-configured reparameterisations included in ``nessai``:
 
 - ``default``: See ``scaleandshift`` (Changed in version `0.13.0`)
-- ``scaleandshift``/``z-score``: Standardize the parameter to have zero mean and unit variance.
+- ``standardise``/``z-score``: Standardise the parameter to have zero mean and unit variance. The mean and variance are estimated during sampling.
 - ``rescaletobounds``: Rescaling which rescale to [-1, 1] and has :code:`update_bounds=True`
 - ``inversion``:  ``rescaletobounds`` rescaling but with inversion and :code:`detect_edges` enabled for the parameter, uses :code:`split` inversion.
 - ``inversion-duplicate``: Same as :code:`inversion` but uses :code:`duplicate` inversion
