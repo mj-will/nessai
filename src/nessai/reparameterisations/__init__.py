@@ -86,6 +86,11 @@ default_reparameterisations.add_reparameterisation(
     {"estimate_scale": True, "estimate_shift": True},
 )
 default_reparameterisations.add_reparameterisation(
+    "standardize",
+    ScaleAndShift,
+    {"estimate_scale": True, "estimate_shift": True},
+)
+default_reparameterisations.add_reparameterisation(
     "z-score",
     ScaleAndShift,
     {"estimate_scale": True, "estimate_shift": True},
@@ -143,6 +148,16 @@ default_reparameterisations.add_reparameterisation(
         "estimate_shift": True,
         "pre_rescaling": "inv_gaussian_cdf",
     },
+)
+default_reparameterisations.add_reparameterisation(
+    "log-z-score",
+    ScaleAndShift,
+    {"estimate_scale": True, "estimate_shift": True, "pre_rescaling": "log"},
+)
+default_reparameterisations.add_reparameterisation(
+    "log-standardise",
+    ScaleAndShift,
+    {"estimate_scale": True, "estimate_shift": True, "pre_rescaling": "log"},
 )
 default_reparameterisations.add_reparameterisation("angle", Angle, {})
 default_reparameterisations.add_reparameterisation(
