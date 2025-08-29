@@ -40,9 +40,10 @@ Available reparameterisations
 
 There are a number of pre-configured reparameterisations included in ``nessai``:
 
-- ``default``: Default rescaling which rescales to [-1, 1] and has :code`update_bounds=True`
-- ``rescaletobounds``: Alias for default
-- ``inversion``:  Default rescaling but with inversion and :code:`detect_edges` enabled for the parameter, uses :code:`split` inversion.
+- ``default``: See ``scaleandshift`` (Changed in version `0.13.0`)
+- ``scaleandshift``/``z-score``: Standardize the parameter to have zero mean and unit variance.
+- ``rescaletobounds``: Rescaling which rescale to [-1, 1] and has :code:`update_bounds=True`
+- ``inversion``:  ``rescaletobounds`` rescaling but with inversion and :code:`detect_edges` enabled for the parameter, uses :code:`split` inversion.
 - ``inversion-duplicate``: Same as :code:`inversion` but uses :code:`duplicate` inversion
 - ``offset``: Equivalent to :code:`default` but includes an offset before rescaling. This is usual when dealing with parameters which have small prior ranges but are offset from zero by some large constant. For example time, which is typically of order :math:`10^{9}`
 - ``logit``: Parameters are rescaled to [0, 1] and a logit is applied. A sigmoid is used for the inverse. **Note:** :code:`update_bounds` is disabled by default.
