@@ -455,6 +455,9 @@ class BaseFlowProposal(RejectionProposal):
                 logger.debug(f"Assuming {k} is a reparameterisation")
                 try:
                     rc, default_config = self.get_reparameterisation(k)
+                    if isinstance(cfg, list):
+                        logger.debug("Assuming list of patterns")
+                        cfg = {"parameters": cfg}
                     default_config.update(cfg)
                     parameters = default_config.get("parameters")
 
