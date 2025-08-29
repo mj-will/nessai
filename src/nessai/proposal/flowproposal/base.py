@@ -654,7 +654,7 @@ class BaseFlowProposal(RejectionProposal):
                     elif not np.allclose(block, target, equal_nan=False):
                         msg = f"Rescaling is not invertible for {f}! "
                         if ratio > 1:
-                            msg = f"(block {count}) "
+                            msg += f"(block {count}) "
                         log_dynamic_range = (
                             np.log10(block).max() - np.log10(block).min()
                         )
