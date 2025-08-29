@@ -24,6 +24,7 @@ from ...livepoint import (
 from ...plot import nessai_style, plot_1d_comparison, plot_live_points
 from ...reparameterisations import (
     CombinedReparameterisation,
+    ReparameterisationError,
     get_reparameterisation,
 )
 from ...utils import (
@@ -648,10 +649,22 @@ class BaseFlowProposal(RejectionProposal):
                                 f" the rescaling (block {count})."
                             )
                     elif not np.allclose(block, target, equal_nan=False):
-                        raise RuntimeError(
-                            f"Rescaling is not invertible for {f} "
-                            f"(block {count})."
+                        msg = f"Rescaling is not invertible for {f}! "
+                        if ratio > 1:
+                            msg = f"(block {count}) "
+                        log_dynamic_range = (
+                            np.log10(block).max() - np.log10(block).min()
                         )
+                        if log_dynamic_range > 10:
+                            msg += (
+                                "This may be due to the large dynamic range "
+                                f"(log10 dynamic range={log_dynamic_range:.1f}, "
+                                f"min={block.min()}, "
+                                f"max={block.max()}). \n"
+                                "See https://nessai.readthedocs.io/en/latest/faqs.html#large-dynamic-ranges "
+                                "for a possible solution."
+                            )
+                        raise ReparameterisationError(msg)
                     else:
                         logger.debug(f"Block {count} is equal to the input")
             if not np.allclose(log_J, -log_J_inv):

@@ -15,6 +15,10 @@ from .null import NullReparameterisation
 logger = logging.getLogger(__name__)
 
 
+class ReparameterisationError(RuntimeError):
+    """Exception for reparameterisation errors"""
+
+
 @dataclass(frozen=True)
 class KnownReparameterisation:
     """Dataclass to store the reparameterisation class and keyword arguments"""

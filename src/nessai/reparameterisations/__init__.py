@@ -18,6 +18,7 @@ from .rescale import Rescale, RescaleToBounds, ScaleAndShift
 from .utils import (
     KnownReparameterisation,
     ReparameterisationDict,
+    ReparameterisationError,
     get_reparameterisation,
 )
 
@@ -194,6 +195,7 @@ __all__ = [
     "KnownReparameterisation",
     "NullReparameterisation",
     "Reparameterisation",
+    "ReparameterisationError",
     "Rescale",
     "RescaleToBounds",
     "ToCartesian",
