@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0]
+
+### Added
+
+- `Model.verify_model` now checks that both `new_point` and `new_point_log_prob` are defined if changed either is changed by the user (https://github.com/mj-will/nessai/pull/461)
+- A warning is now raised if the initial live points contain duplicate values (https://github.com/mj-will/nessai/pull/460)
+- Add `enforce_likelihood_threshold` to `FlowProposal` (https://github.com/mj-will/nessai/pull/452)
+
+### Changed
+
+- Improve error handling when resuming (https://github.com/mj-will/nessai/pull/465)
+- Improve error message when reparameterisations are not invertible (https://github.com/mj-will/nessai/pull/466)
+- Removed deprecated calls to `numpy.in1d` (https://github.com/mj-will/nessai/pull/460)
+- Specify `weights_only=True` in `torch.load` (https://github.com/mj-will/nessai/pull/455)
+- Standardize how stopping criteria are defined between different samplers (https://github.com/mj-will/nessai/pull/462)
+
+### Fixed
+
+- Fix ESS stopping criteria with `i-nessai` (https://github.com/mj-will/nessai/pull/462)
+
+### Deprecated
+
+- The `nessai.gw` submodule is deprecated in favour of [`nessai-gw`](https://github.com/mj-will/nessai-gw) and will removed in a future release (https://github.com/mj-will/nessai/pull/457)
+- Support for the untested 'prime-prior' feature in `FlowProposal` is deprecated and will be removed in a future release (https://github.com/mj-will/nessai/pull/463)
+
 ## [0.14.0]
 
 **Note:** this version includes several changes that mean runs performed using
@@ -708,7 +733,8 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/mj-will/nessai/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/mj-will/nessai/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/mj-will/nessai/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/mj-will/nessai/compare/v0.13.0...v0.13.1
