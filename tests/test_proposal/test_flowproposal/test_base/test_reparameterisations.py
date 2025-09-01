@@ -294,6 +294,26 @@ def test_configure_reparameterisations_dict_reparam(proposal):
     assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
 
 
+def test_configure_reparameterisations_dict_reparam_list(proposal):
+    """Test configuration for reparameterisations dictionary"""
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = get_reparameterisation
+    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
+    proposal.model.names = ["x", "y"]
+    proposal.fallback_reparameterisation = None
+    BaseFlowProposal.configure_reparameterisations(
+        proposal, {"default": ["x", "y"]}
+    )
+
+    proposal.add_default_reparameterisations.assert_not_called()
+    assert proposal.prime_parameters == ["x_prime", "y_prime"]
+    assert proposal._reparameterisation.parameters == ["x", "y"]
+    assert proposal._reparameterisation.prime_parameters == [
+        "x_prime",
+        "y_prime",
+    ]
+
+
 @pytest.mark.parametrize(
     "parameters",
     [
