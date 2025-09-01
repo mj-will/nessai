@@ -48,3 +48,33 @@ One common cause of this error is the use of :code:`numpy.nan_to_num` to convert
 :code:`-numpy.inf` values and treat them as invalid regions of the parameter space.
 It is therefore not recommended to use :code:`numpy.nan_to_num` in the
 log-likelihood function.
+
+
+Large dynamic range
+-------------------
+
+If you see an error such as:
+
+.. code-block:: text
+
+    Rescaling is not invertible for x! This may be due to the large dynamic range (log10 dynamic range=18.0, min=1.0377468396342845e-09, max=950413414.495942).
+
+This may an indication that the dynamic range of the parameter is too large for the default floating point precession (float64).
+In this case, it may be beneficial to apply a log transformation to the parameter before applying a reparameterisation such as :code:`scaleandshift` or :code:`rescaletobounds`.
+
+This can be done using the `reparameterisations` keyword argument when calling the sampler. For example:
+
+.. code-block:: python
+
+    fs = FlowSampler(
+        model=model,
+        ...,
+        reparameterisations={
+            'log-standardise': ["x"],
+        }
+    )
+
+
+The list should contain the name of the parameter(s) which large dynamic ranges.
+This will apply a log transformation to the `x` parameter, before standardising the samples.
+See :ref:`Configuring reparameterisations<Configuring reparameterisations>` for more details.

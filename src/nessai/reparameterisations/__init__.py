@@ -18,6 +18,7 @@ from .rescale import Rescale, RescaleToBounds, ScaleAndShift
 from .utils import (
     KnownReparameterisation,
     ReparameterisationDict,
+    ReparameterisationError,
     get_reparameterisation,
 )
 
@@ -85,6 +86,11 @@ default_reparameterisations.add_reparameterisation(
     {"estimate_scale": True, "estimate_shift": True},
 )
 default_reparameterisations.add_reparameterisation(
+    "standardize",
+    ScaleAndShift,
+    {"estimate_scale": True, "estimate_shift": True},
+)
+default_reparameterisations.add_reparameterisation(
     "z-score",
     ScaleAndShift,
     {"estimate_scale": True, "estimate_shift": True},
@@ -143,6 +149,16 @@ default_reparameterisations.add_reparameterisation(
         "pre_rescaling": "inv_gaussian_cdf",
     },
 )
+default_reparameterisations.add_reparameterisation(
+    "log-z-score",
+    ScaleAndShift,
+    {"estimate_scale": True, "estimate_shift": True, "pre_rescaling": "log"},
+)
+default_reparameterisations.add_reparameterisation(
+    "log-standardise",
+    ScaleAndShift,
+    {"estimate_scale": True, "estimate_shift": True, "pre_rescaling": "log"},
+)
 default_reparameterisations.add_reparameterisation("angle", Angle, {})
 default_reparameterisations.add_reparameterisation(
     "angle-pi", Angle, {"scale": 2.0, "prior": "uniform"}
@@ -194,6 +210,7 @@ __all__ = [
     "KnownReparameterisation",
     "NullReparameterisation",
     "Reparameterisation",
+    "ReparameterisationError",
     "Rescale",
     "RescaleToBounds",
     "ToCartesian",

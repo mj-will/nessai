@@ -10,6 +10,7 @@ from nessai.model import Model
 from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.reparameterisations import (
     NullReparameterisation,
+    ReparameterisationError,
     RescaleToBounds,
     get_reparameterisation,
 )
@@ -291,6 +292,26 @@ def test_configure_reparameterisations_dict_reparam(proposal):
     assert proposal.prime_parameters == ["x_prime", "y"]
     assert proposal._reparameterisation.parameters == ["x", "y"]
     assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
+
+
+def test_configure_reparameterisations_dict_reparam_list(proposal):
+    """Test configuration for reparameterisations dictionary"""
+    proposal.add_default_reparameterisations = MagicMock()
+    proposal.get_reparameterisation = get_reparameterisation
+    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
+    proposal.model.names = ["x", "y"]
+    proposal.fallback_reparameterisation = None
+    BaseFlowProposal.configure_reparameterisations(
+        proposal, {"default": ["x", "y"]}
+    )
+
+    proposal.add_default_reparameterisations.assert_not_called()
+    assert proposal.prime_parameters == ["x_prime", "y_prime"]
+    assert proposal._reparameterisation.parameters == ["x", "y"]
+    assert proposal._reparameterisation.prime_parameters == [
+        "x_prime",
+        "y_prime",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -625,9 +646,29 @@ def test_verify_rescaling_invertible_error(proposal, has_inversion):
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.one_to_one = True
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(
+        ReparameterisationError, match=r"Rescaling is not invertible .*"
+    ):
         BaseFlowProposal.verify_rescaling(proposal)
-    assert "Rescaling is not invertible for x" in str(excinfo.value)
+
+
+def test_verify_rescaling_invertible_error_dynamic_range(proposal):
+    """Assert an error is raised if the rescaling is not invertible"""
+    x = np.array([[1e-15], [1e15]], dtype=[("x", "f8")])
+    x_prime = x["x"] / 2
+    log_j = np.array([-2, -2])
+    x_out = x.copy()[::-1]
+    log_j_inv = np.array([2, 2])
+
+    proposal.model.new_point = MagicMock(return_value=x)
+    proposal.rescale = MagicMock(return_value=(x_prime, log_j))
+    proposal.inverse_rescale = MagicMock(return_value=(x_out, log_j_inv))
+    proposal.rescaling_set = True
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.one_to_one = True
+
+    with pytest.raises(ReparameterisationError, match=r"dynamic range"):
+        BaseFlowProposal.verify_rescaling(proposal)
 
 
 @pytest.mark.parametrize("has_inversion", [False, True])
