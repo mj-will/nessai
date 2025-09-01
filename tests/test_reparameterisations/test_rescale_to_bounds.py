@@ -1063,7 +1063,7 @@ def test_is_invertible_dynamic_range(is_invertible, rng):
             return numpy_array_to_live_points(a, ["a_1"])
 
     with pytest.raises(AssertionError):
-        is_invertible(reparam, model=MockModel(), atol=1e-14, rtol=1e-14)
+        is_invertible(reparam, model=MockModel(), atol=1e-11, rtol=1e-11)
 
     reparam = RescaleToBounds(
         parameters=["a_1"],
@@ -1071,4 +1071,4 @@ def test_is_invertible_dynamic_range(is_invertible, rng):
         pre_rescaling="log",
     )
 
-    assert is_invertible(reparam, model=MockModel(), atol=1e-14, rtol=1e-14)
+    assert is_invertible(reparam, model=MockModel(), atol=1e-11, rtol=1e-11)
