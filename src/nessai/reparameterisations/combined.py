@@ -38,16 +38,6 @@ class CombinedReparameterisation(dict):
             self.add_reparameterisations(reparameterisations)
 
     @property
-    def has_prime_prior(self):
-        """Boolean to check if prime prior can be enabled"""
-        return all(r.has_prime_prior for r in self.values())
-
-    @property
-    def requires_prime_prior(self):
-        """Boolean to check if any of the priors require the prime space"""
-        return any(r.requires_prime_prior for r in self.values())
-
-    @property
     def one_to_one(self):
         return all(r.one_to_one for r in self.values())
 

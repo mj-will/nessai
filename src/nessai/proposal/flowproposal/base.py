@@ -541,13 +541,6 @@ class BaseFlowProposal(RejectionProposal):
         else:
             self.should_update_reparameterisations = False
 
-        if self._reparameterisation.requires_prime_prior:
-            raise RuntimeError(
-                "The reparameterisation requires using the x-prime prior. "
-                "This no longer supported. Consider using the unit-hypercube "
-                "mapping instead."
-            )
-
         self._reparameterisation.check_order()
 
         self.parameters = self._reparameterisation.parameters
