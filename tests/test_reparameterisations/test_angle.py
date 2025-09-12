@@ -94,7 +94,6 @@ def test_angle_parameter(bounds, scale, expected_scale):
         assert reparam._zero_bound is True
     else:
         assert reparam._zero_bound is False
-    assert reparam.has_prime_prior is False
 
     assert reparam.angle == parameter
     assert reparam.radial == (parameter + "_radial")
@@ -116,37 +115,6 @@ def test_angle_too_many_parameters(reparam):
     assert "Too many parameters for Angle" in str(excinfo.value)
 
 
-def test_angle_prior_uniform():
-    """Assert the prior is correctly assigned for uniform prior"""
-    from nessai.priors import log_2d_cartesian_prior
-
-    reparam = Angle(
-        parameters="theta",
-        prior="uniform",
-        prior_bounds={"theta": [0, np.pi]},
-        scale=2.0,
-    )
-    assert reparam.prior == "uniform"
-    assert reparam.has_prime_prior is True
-    assert reparam._k == (2 * np.pi)
-    assert reparam._prime_prior is log_2d_cartesian_prior
-
-
-def test_angle_prior_sine():
-    """Assert the prior is correctly assigned for sine prior"""
-    from nessai.priors import log_2d_cartesian_prior_sine
-
-    reparam = Angle(
-        parameters="theta",
-        prior="sine",
-        prior_bounds={"theta": [0, np.pi]},
-    )
-    assert reparam.prior == "sine"
-    assert reparam.has_prime_prior is True
-    assert reparam._k == np.pi
-    assert reparam._prime_prior is log_2d_cartesian_prior_sine
-
-
 def test_log_prior(reparam):
     """Assert the log-prior calls the correct function"""
     reparam.chi = MagicMock()
@@ -155,36 +123,6 @@ def test_log_prior(reparam):
     x = {"theta": [1.0], "theta_radial": [0.5]}
     Angle.log_prior(reparam, x)
     reparam.chi.logpdf.assert_called_once_with([0.5])
-
-
-def test_x_prime_log_prior(reparam):
-    """ "Assert the underlying functions is called correctly"""
-    x_prime = numpy_array_to_live_points(np.array([[1.0, -1.0]]), ["x", "y"])
-
-    reparam._k = 0.5
-    reparam._prime_prior = MagicMock(return_value=0.5)
-    reparam.has_prior_prior = True
-    reparam.prime_parameters = ["x", "y"]
-
-    out = Angle.x_prime_log_prior(reparam, x_prime)
-
-    reparam._prime_prior.assert_called_once_with(
-        x_prime["x"],
-        x_prime["y"],
-        k=0.5,
-    )
-    assert out == 0.5
-
-
-def test_x_prime_log_prior_error(reparam):
-    """
-    Assert an error is raised when called the prime prior if is not enabled.
-    """
-    reparam.has_prime_prior = False
-    x = {"theta": [1.0], "theta_radial": [0.5]}
-    with pytest.raises(RuntimeError) as excinfo:
-        Angle.x_prime_log_prior(reparam, x)
-    assert "Prime prior" in str(excinfo.value)
 
 
 def test_both_parameters():
@@ -199,7 +137,6 @@ def test_both_parameters():
 
     assert reparam.chi is False
     assert reparam._zero_bound is True
-    assert reparam.has_prime_prior is False
 
     assert reparam.angle == parameters[0]
     assert reparam.radial == parameters[1]

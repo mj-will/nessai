@@ -1,7 +1,6 @@
 """Test methods related to computing weights"""
 
-import os
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock
 
 import numpy as np
 import pytest
@@ -57,13 +56,6 @@ def test_log_prior_w_reparameterisation(proposal, x):
     proposal.model.batch_evaluate_log_prior.assert_called_once_with(x)
 
 
-def test_prime_log_prior(proposal):
-    """Make sure the prime prior raises an error by default."""
-    with pytest.raises(RuntimeError) as excinfo:
-        BaseFlowProposal.x_prime_log_prior(proposal, 1.0)
-    assert "Prime prior is not implemented" in str(excinfo.value)
-
-
 def test_unit_hypercube_log_prior_wo_reparameterisation(proposal, x):
     log_prior = -np.ones(x.size)
     proposal._reparameterisation = None
@@ -112,7 +104,6 @@ def test_update_poolsize_scale(proposal, acceptance, scale):
 
 def test_compute_weights(proposal, x, log_q):
     """Test method for computing rejection sampling weights"""
-    proposal.use_x_prime_prior = False
     proposal.log_prior = MagicMock(return_value=-np.ones(x.size))
     log_w = BaseFlowProposal.compute_weights(proposal, x, log_q)
 
@@ -123,7 +114,6 @@ def test_compute_weights(proposal, x, log_q):
 
 def test_compute_weights_return_prior(proposal, x, log_q):
     """Assert prior is returned"""
-    proposal.use_x_prime_prior = False
     log_p = -np.ones(x.size)
     proposal.log_prior = MagicMock(return_value=log_p)
     log_w, log_p_out = BaseFlowProposal.compute_weights(
@@ -136,21 +126,7 @@ def test_compute_weights_return_prior(proposal, x, log_q):
     assert log_p_out is log_p
 
 
-def test_compute_weights_prime_prior(proposal, x, log_q):
-    """Test method for computing rejection sampling weights with the prime
-    prior.
-    """
-    proposal.use_x_prime_prior = True
-    proposal.x_prime_log_prior = MagicMock(return_value=-np.ones(x.size))
-    log_w = BaseFlowProposal.compute_weights(proposal, x, log_q)
-
-    proposal.x_prime_log_prior.assert_called_once_with(x)
-    out = -1 - log_q
-    np.testing.assert_array_equal(log_w, out)
-
-
 def test_compute_weights_unit_hypercube(proposal, x, log_q):
-    proposal.use_x_prime_prior = False
     proposal.map_to_unit_hypercube = True
     proposal.unit_hypercube_log_prior = MagicMock(
         return_value=-np.ones(x.size)
@@ -172,7 +148,6 @@ def test_compute_acceptance(proposal):
 def test_convert_to_samples(proposal):
     """Test convert to sample without the prime prior"""
     samples = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
-    proposal.use_x_prime_prior = False
     proposal.model = MagicMock()
     proposal.model.names = ["x"]
     proposal.model.batch_evaluate_log_prior = MagicMock(
@@ -183,38 +158,6 @@ def test_convert_to_samples(proposal):
         proposal, samples, plot=True
     )
 
-    assert out_samples.dtype.names == ("x",) + tuple(
-        config.livepoints.non_sampling_parameters
-    )
-
-
-@patch("nessai.proposal.flowproposal.base.plot_1d_comparison")
-def test_convert_to_samples_with_prime(mock_plot, proposal):
-    """Test convert to sample with the prime prior"""
-    samples = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
-    proposal.use_x_prime_prior = True
-    proposal.model = MagicMock()
-    proposal.model.names = ["x"]
-    proposal.model.batch_evaluate_log_prior = MagicMock(
-        return_value=np.ones(10)
-    )
-    proposal._plot_pool = True
-    proposal.training_data_prime = "data"
-    proposal.output = os.getcwd()
-    proposal.populated_count = 1
-    proposal.inverse_rescale = MagicMock(return_value=(samples, None))
-
-    out_samples = BaseFlowProposal.convert_to_samples(
-        proposal, samples, plot=True
-    )
-
-    mock_plot.assert_called_once_with(
-        "data",
-        samples,
-        labels=["live points", "pool"],
-        filename=os.path.join(os.getcwd(), "pool_prime_1.png"),
-    )
-    proposal.inverse_rescale.assert_called_once()
     assert out_samples.dtype.names == ("x",) + tuple(
         config.livepoints.non_sampling_parameters
     )
@@ -225,7 +168,6 @@ def test_convert_to_samples_unit_hypercube(proposal):
     samples = numpy_array_to_live_points(np.random.randn(10, 2), ["x", "y"])
     samples_hyper = samples.copy()
     samples["x"] /= 2
-    proposal.use_x_prime_prior = False
     proposal.map_to_unit_hypercube = True
     proposal.model = MagicMock()
     proposal.model.names = ["x"]

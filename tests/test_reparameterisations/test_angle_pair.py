@@ -107,7 +107,6 @@ def test_two_angles(angles):
 
     assert reparam.chi is not False
     assert hasattr(reparam.chi, "rvs")
-    assert reparam.has_prime_prior is False
 
     m = "_".join(parameters[:2])
     assert reparam.angles == parameters[:2]
@@ -333,20 +332,6 @@ def test_invalid_prior_bounds_inc():
     assert "Prior bounds for dec must be" in str(excinfo.value)
 
 
-def test_unknown_prior():
-    """Assert an unknown prior raises an error"""
-    with pytest.raises(ValueError) as excinfo:
-        AnglePair(
-            parameters=["az", "zen"],
-            prior_bounds={"az": [0.0, 2 * np.pi], "zen": [0.0, np.pi]},
-            convention="az-zen",
-            prior="uniform",
-        )
-    assert "Unknown prior: `uniform`. Choose from: ['isotropic', None]" in str(
-        excinfo.value
-    )
-
-
 def test_unknown_convention():
     """Assert an unknown convention raises an error"""
     with pytest.raises(ValueError) as excinfo:
@@ -407,29 +392,6 @@ def test_log_prior_has_prior():
     with pytest.raises(RuntimeError) as excinfo:
         AnglePair.log_prior(reparam, 1)
     assert "log_prior is not defined" in str(excinfo.value)
-
-
-def test_x_prime_log_prior():
-    """Test the x prime prior"""
-    reparam = create_autospec(AnglePair)
-    reparam.prime_parameters = ["x", "y", "z"]
-    reparam.has_prime_prior = True
-    x = parameters_to_live_point([1, 1, 1], reparam.prime_parameters)
-    # Should be -1.5 * log(2pi) - 1.5
-    expected = -1.5 * (1 + np.log(2 * np.pi))
-    out = AnglePair.x_prime_log_prior(reparam, x)
-    np.testing.assert_equal(out, expected)
-
-
-def test_prime_prior_error():
-    """Assert an error is raised if calling the prime prior and \
-        has prime prior is false.
-    """
-    reparam = create_autospec(AnglePair)
-    reparam.has_prime_prior = False
-    with pytest.raises(RuntimeError) as excinfo:
-        AnglePair.x_prime_log_prior(reparam, 1)
-    assert "x prime prior is not defined" in str(excinfo.value)
 
 
 def test_reparameterise_negative_radius(reparam):

@@ -223,14 +223,6 @@ def test_reset(reparam):
     reparam.set_bounds.assert_called_once_with(prior_bounds)
 
 
-def test_x_prime_log_prior_error(reparam):
-    """Assert an error is raised if the prime prior is not defined."""
-    reparam.has_prime_prior = False
-    with pytest.raises(RuntimeError) as excinfo:
-        RescaleToBounds.x_prime_log_prior(reparam, 0.1)
-    assert "Prime prior is not configured" in str(excinfo.value)
-
-
 @pytest.mark.parametrize("rescaling", ["log", "logit"])
 def test_post_rescaling_with_str(reparam, rescaling):
     """Assert that specifying a str works as intended.
@@ -243,7 +235,6 @@ def test_post_rescaling_with_str(reparam, rescaling):
 
     RescaleToBounds.configure_post_rescaling(reparam, rescaling)
     assert reparam.has_post_rescaling is True
-    assert reparam.has_prime_prior is False
     assert reparam.post_rescaling is rescaling_functions[rescaling][0]
     assert reparam.post_rescaling_inv is rescaling_functions[rescaling][1]
     assert reparam.rescale_bounds == {"x": [0, 1]}
@@ -276,7 +267,6 @@ def test_update_bounds(reparam):
     reparam.parameters = ["x", "y"]
     x = {"x": [-1, 0, 1], "y": [-2, 0, 2]}
     RescaleToBounds.update_bounds(reparam, x)
-    reparam.update_prime_prior_bounds.assert_called_once()
     reparam.pre_rescaling.assert_has_calls(
         [call(-1), call(1), call(-2), call(2)]
     )
@@ -601,7 +591,6 @@ def test_apply_inversion_detect_edge(reparam):
             reparam, x, x_prime, log_j, "x", "x_prime", False, test=True
         )
 
-    reparam.update_prime_prior_bounds.assert_called_once()
     mock_fn.assert_called_once_with(
         x_prime["x_prime"],
         test=True,
@@ -862,36 +851,6 @@ def test_boundary_inversion(
     reparam = reparameterisation({"boundary_inversion": boundary_inversion})
 
     assert is_invertible(reparam)
-
-
-@pytest.mark.integration_test
-def test_update_prime_prior_bounds_integration():
-    """Assert the prime prior bounds are correctly computed"""
-    rescaling = (
-        lambda x: (x / 2, np.zeros_like(x)),
-        lambda x: (2 * x, np.zeros_like(x)),
-    )
-    reparam = RescaleToBounds(
-        parameters=["x"],
-        prior_bounds=[1000, 1001],
-        prior="uniform",
-        pre_rescaling=rescaling,
-        offset=True,
-    )
-    np.testing.assert_equal(reparam.offsets["x"], 500.25)
-    np.testing.assert_array_equal(reparam.prior_bounds["x"], [1000, 1001])
-    np.testing.assert_array_equal(reparam.pre_prior_bounds["x"], [500, 500.5])
-    np.testing.assert_array_equal(reparam.bounds["x"], [-0.25, 0.25])
-    np.testing.assert_array_equal(
-        reparam.prime_prior_bounds["x_prime"], [-1, 1]
-    )
-
-    x_prime = numpy_array_to_live_points(
-        np.array([[-2], [-1], [0.5], [1], [10]]), ["x_prime"]
-    )
-    log_prior = reparam.x_prime_log_prior(x_prime)
-    expected = np.array([-np.inf, 0, 0, 0, -np.inf])
-    np.testing.assert_equal(log_prior, expected)
 
 
 @pytest.mark.integration_test

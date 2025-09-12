@@ -190,21 +190,6 @@ def test_log_prior(mock_prior, proposal, x):
     assert log_p == 2
 
 
-@patch(
-    "nessai.proposal.flowproposal.FlowProposal.x_prime_log_prior",
-    return_value=1,
-)
-def test_prime_log_prior(mock_prior, proposal, x):
-    """Test the complete prime log prior"""
-    proposal.augmented_prior = MagicMock(return_value=1)
-
-    log_p = AugmentedFlowProposal.x_prime_log_prior(proposal, x)
-
-    mock_prior.assert_called_once_with(x)
-    proposal.augmented_prior.assert_called_once_with(x)
-    assert log_p == 2
-
-
 def test_marginalise_augment(proposal, rng):
     """Test the marginalise augment function"""
     proposal.n_marg = 5

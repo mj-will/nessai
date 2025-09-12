@@ -74,7 +74,6 @@ def test_add_single_reparameterisations():
     c = CombinedReparameterisation()
     c.add_reparameterisations(r)
     assert c.parameters == ["x"]
-    assert c.has_prime_prior is False
 
 
 def test_add_multiple_reparameterisations(model):
@@ -93,7 +92,6 @@ def test_add_multiple_reparameterisations(model):
     reparam.add_reparameterisations(r)
 
     assert reparam.parameters == ["x", "y"]
-    assert reparam.has_prime_prior is True
 
     n = 100
     x = model.new_point(N=n)
@@ -101,8 +99,6 @@ def test_add_multiple_reparameterisations(model):
     log_j = 0
 
     x_re, x_prime_re, log_j_re = reparam.reparameterise(x, x_prime, log_j)
-
-    assert reparam.x_prime_log_prior(x_prime_re) is not None
 
     assert_structured_arrays_equal(x, x_re)
 
@@ -209,40 +205,6 @@ def test_check_order_invalid(reparam, LightReparam):
         CombinedReparameterisation.check_order(reparam)
 
 
-@pytest.mark.parametrize("has", [False, True])
-def test_has_prime_prior(reparam, has):
-    """Assert correct value is returned for has_prime_prior.
-
-    If any of the reparam are missing the prime prior should be False. If all
-    of them have it, should be True.
-    """
-    r1 = MagicMock(spec=Reparameterisation)
-    r2 = MagicMock(spec=Reparameterisation)
-    r1.has_prime_prior = True
-    r2.has_prime_prior = has
-    reparam.values = MagicMock(return_value=[r1, r2])
-
-    out = CombinedReparameterisation.has_prime_prior.__get__(reparam)
-    assert out is has
-
-
-@pytest.mark.parametrize("require", [False, True])
-def test_requires_prime_prior(reparam, require):
-    """Assert correct value is returned for requires prime prior.
-
-    Should be True if any reparam requires the prime prior and False only if
-    none of them do.
-    """
-    r1 = MagicMock(spec=Reparameterisation)
-    r2 = MagicMock(spec=Reparameterisation)
-    r1.requires_prime_prior = False
-    r2.requires_prime_prior = require
-    reparam.values = MagicMock(return_value=[r1, r2])
-
-    out = CombinedReparameterisation.requires_prime_prior.__get__(reparam)
-    assert out is require
-
-
 def test_update_bounds(reparam):
     """Assert update bounds calls the method for each reparam"""
     x = [1, 2]
@@ -309,20 +271,3 @@ def test_log_prior(reparam):
     r1.log_prior.assert_not_called()
     r2.log_prior.assert_called_once_with(x)
     r3.log_prior.assert_called_once_with(x)
-
-
-def test_x_prime_log_prior(reparam):
-    """Assert x_prime_log_prior is called for all reparams"""
-    r1 = MagicMock(spec=Reparameterisation)
-    r2 = MagicMock(spec=Reparameterisation)
-    r1.x_prime_log_prior = MagicMock(return_value=-4)
-    r2.x_prime_log_prior = MagicMock(return_value=-5)
-    reparam.values = MagicMock(return_value=[r1, r2])
-
-    x = np.array([(1, 2)], dtype=[("x", "f8"), ("y", "f8")])
-
-    out = CombinedReparameterisation.x_prime_log_prior(reparam, x)
-
-    r1.x_prime_log_prior.assert_called_once_with(x)
-    r2.x_prime_log_prior.assert_called_once_with(x)
-    assert out == -9
