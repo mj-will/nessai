@@ -143,7 +143,6 @@ class BaseFlowProposal(RejectionProposal):
         self.acceptance = []
         self._reparameterisation = None
         self.rescaling_set = False
-        self.use_x_prime_prior = False
         self.should_update_reparameterisations = False
         self.map_to_unit_hypercube = map_to_unit_hypercube
         self.accumulate_weights = accumulate_weights
@@ -239,10 +238,7 @@ class BaseFlowProposal(RejectionProposal):
         dtype used for populating the proposal, depends on if the prior
         is defined in the x space or x-prime space
         """
-        if self.use_x_prime_prior:
-            return self.x_prime_dtype
-        else:
-            return self.x_dtype
+        return self.x_dtype
 
     @property
     def prior_bounds(self):
@@ -544,31 +540,6 @@ class BaseFlowProposal(RejectionProposal):
             self.should_update_reparameterisations = True
         else:
             self.should_update_reparameterisations = False
-
-        if self._reparameterisation.has_prime_prior:
-            warn(
-                (
-                    "Support for x-prime priors is deprecated and will be "
-                    "removed in a future release. "
-                ),
-                FutureWarning,
-            )
-            self.use_x_prime_prior = True
-            self.x_prime_log_prior = self._reparameterisation.x_prime_log_prior
-            logger.debug("Using x prime prior")
-            if self.map_to_unit_hypercube:
-                raise RuntimeError(
-                    "x prime prior does not support map to unit hypercube"
-                )
-        else:
-            logger.debug("Prime prior is disabled")
-            if self._reparameterisation.requires_prime_prior:
-                raise RuntimeError(
-                    "One or more reparameterisations require use of the x "
-                    "prime prior but it cannot be enabled with the current "
-                    "settings. Note that the x prime prior is deprecated and "
-                    "will be removed in a future release."
-                )
 
         self._reparameterisation.check_order()
 
@@ -1007,17 +978,6 @@ class BaseFlowProposal(RejectionProposal):
         else:
             return self.model.batch_evaluate_log_prior(x)
 
-    def x_prime_log_prior(self, x):
-        """
-        Compute the prior in the prime space
-
-        Parameters
-        ----------
-        x : array
-            Samples in the X-prime space.
-        """
-        raise RuntimeError("Prime prior is not implemented")
-
     def unit_hypercube_log_prior(self, x):
         """
         Compute the prior in the unit hypercube space.
@@ -1054,9 +1014,7 @@ class BaseFlowProposal(RejectionProposal):
         array_like
             Log-weights for rejection sampling.
         """
-        if self.use_x_prime_prior:
-            log_p = self.x_prime_log_prior(x)
-        elif self.map_to_unit_hypercube:
+        if self.map_to_unit_hypercube:
             log_p = self.unit_hypercube_log_prior(x)
         else:
             log_p = self.log_prior(x)
@@ -1089,19 +1047,7 @@ class BaseFlowProposal(RejectionProposal):
         array
             Structured array of samples.
         """
-        if self.use_x_prime_prior:
-            if self._plot_pool and plot:
-                plot_1d_comparison(
-                    self.training_data_prime,
-                    x,
-                    labels=["live points", "pool"],
-                    filename=os.path.join(
-                        self.output, f"pool_prime_{self.populated_count}.png"
-                    ),
-                )
-
-            x, _ = self.inverse_rescale(x)
-        elif self.map_to_unit_hypercube:
+        if self.map_to_unit_hypercube:
             x = self.model.from_unit_hypercube(x)
         x = rfn.repack_fields(
             x[self.model.names + config.livepoints.non_sampling_parameters]

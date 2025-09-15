@@ -233,7 +233,6 @@ def test_populate_accumulate_weights(
     proposal.populated_count = 1
     proposal.population_dtype = get_dtype(names)
     proposal.truncate_log_q = False
-    proposal.use_x_prime_prior = False
     proposal.accumulate_weights = True
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, np.nan))
@@ -428,7 +427,6 @@ def test_populate_not_accumulate_weights(
     proposal.populated_count = 1
     proposal.population_dtype = get_dtype(names)
     proposal.truncate_log_q = False
-    proposal.use_x_prime_prior = False
     proposal.accumulate_weights = False
 
     proposal.forward_pass = MagicMock(return_value=(worst_z, np.nan))
@@ -598,7 +596,6 @@ def test_populate_truncate_log_q(proposal, rng):
     proposal.compute_radius_with_all = False
     proposal.check_acceptance = False
     proposal._plot_pool = False
-    proposal.use_x_prime_prior = False
     proposal.populated_count = 1
     proposal.population_dtype = get_dtype(names)
     proposal.truncate_log_q = True
@@ -742,7 +739,6 @@ def test_populate_enforce_likelihood_threshold(proposal, rng):
     proposal.compute_radius_with_all = False
     proposal.check_acceptance = False
     proposal._plot_pool = False
-    proposal.use_x_prime_prior = False
     proposal.populated_count = 1
     proposal.population_dtype = get_dtype(names)
     proposal.truncate_log_q = False

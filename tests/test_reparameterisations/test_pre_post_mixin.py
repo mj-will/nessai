@@ -64,7 +64,6 @@ def test_post_rescaling_with_functions(reparam):
     rescaling = (np.exp, np.log)
     PrePostRescalingMixin.configure_post_rescaling(reparam, rescaling)
     assert reparam.has_post_rescaling is True
-    assert reparam.has_prime_prior is False
     assert reparam.post_rescaling is np.exp
     assert reparam.post_rescaling_inv is np.log
 
@@ -86,7 +85,6 @@ def test_post_rescaling_with_str(reparam, rescaling):
 
     PrePostRescalingMixin.configure_post_rescaling(reparam, rescaling)
     assert reparam.has_post_rescaling is True
-    assert reparam.has_prime_prior is False
     assert reparam.post_rescaling is rescaling_functions[rescaling][0]
     assert reparam.post_rescaling_inv is rescaling_functions[rescaling][1]
 

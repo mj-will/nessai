@@ -5,12 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nessai.experimental.gw.proposal import ClusteringGWFlowProposal
 from nessai.experimental.proposal.clustering import ClusteringFlowProposal
-from nessai.gw.proposal import (
-    AugmentedGWFlowProposal,
-    GWFlowProposal,
-)
 from nessai.proposal import (
     AugmentedFlowProposal,
     FlowProposal,
@@ -47,12 +42,12 @@ def test_kwargs_all_okay(caplog):
     caplog.set_level("DEBUG")
     kwargs = dict(poolsize=100, volume_fraction=0.9)
     expected = kwargs.copy()
-    out = check_proposal_kwargs(GWFlowProposal, kwargs)
+    out = check_proposal_kwargs(AugmentedFlowProposal, kwargs)
     assert out == expected
     assert "All keyword arguments match the proposal class" in str(caplog.text)
 
 
-@pytest.mark.parametrize("ProposalClass", [FlowProposal, GWFlowProposal])
+@pytest.mark.parametrize("ProposalClass", [FlowProposal])
 def test_remove_kwargs(ProposalClass, caplog):
     """Assert kwargs for a different proposal are removed"""
     kwargs = dict(poolsize=100, volume_fraction=0.9, augment_dims=1)
@@ -91,14 +86,9 @@ def test_get_flow_proposal_class_none():
     [
         ["FlowProposal", FlowProposal],
         ["AugmentedFlowProposal", AugmentedFlowProposal],
-        ["GWFlowProposal", GWFlowProposal],
-        ["AugmentedGWFlowProposal", AugmentedGWFlowProposal],
         ["flowproposal", FlowProposal],
         ["augmentedflowproposal", AugmentedFlowProposal],
-        ["gwflowproposal", GWFlowProposal],
-        ["augmentedgwflowproposal", AugmentedGWFlowProposal],
         ["clusteringflowproposal", ClusteringFlowProposal],
-        ["clusteringgwflowproposal", ClusteringGWFlowProposal],
     ],
 )
 def test_get_flow_proposal_class_str(proposal_str, ProposalClass):
@@ -158,7 +148,7 @@ def test_get_flow_proposal_class_not_a_subclass():
 
 def test_available_base_flow_proposal_classes():
     avail = available_base_flow_proposal_classes()
-    assert len(avail) == 7
+    assert len(avail) == 4
 
 
 @pytest.mark.parametrize("load", [True, False])

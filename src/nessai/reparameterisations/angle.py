@@ -4,15 +4,10 @@ Reparameterisations for handling angles.
 """
 
 import logging
-from warnings import warn
 
 import numpy as np
 from scipy import stats
 
-from ..priors import (
-    log_2d_cartesian_prior,
-    log_2d_cartesian_prior_sine,
-)
 from ..utils.rescaling import inverse_rescale_zero_to_one, rescale_zero_to_one
 from .base import Reparameterisation
 
@@ -38,9 +33,6 @@ class Angle(Reparameterisation):
     scale : float, optional
         Value used to rescale the angle before converting to Cartesian
         coordinates. If None the scale will be set to 2pi / prior_bounds.
-    prior : {'uniform', 'sine', None}
-        Type of prior being used for sampling this angle. If specified, the
-        prime prior is enabled. If None then it is disabled.
     """
 
     requires_bounded_prior = True
@@ -50,7 +42,6 @@ class Angle(Reparameterisation):
         parameters=None,
         prior_bounds=None,
         scale=1.0,
-        prior=None,
         rng=None,
     ):
         super().__init__(
@@ -79,20 +70,6 @@ class Angle(Reparameterisation):
 
         self.prime_parameters = [self.angle + "_x", self.angle + "_y"]
         self.requires = []
-
-        if prior in ["uniform", "sine"]:
-            self.prior = prior
-            self.has_prime_prior = True
-            if self.prior == "uniform":
-                self._prime_prior = log_2d_cartesian_prior
-                self._k = self.scale * np.pi
-            else:
-                self._prime_prior = log_2d_cartesian_prior_sine
-                self._k = np.pi
-            logger.debug(f"Prime prior enabled for {self.name}")
-        else:
-            self.has_prime_prior = False
-            logger.debug(f"Prime prior disabled for {self.name}")
 
     @property
     def angle(self):
@@ -180,24 +157,6 @@ class Angle(Reparameterisation):
     def log_prior(self, x):
         """Prior for radial parameter"""
         return self.chi.logpdf(x[self.parameters[1]])
-
-    def x_prime_log_prior(self, x_prime):
-        """Compute the prior in the prime space assuming a uniform prior"""
-        warn(
-            (
-                "Support for x-prime priors is deprecated and will be "
-                "removed in a future release. "
-            ),
-            FutureWarning,
-        )
-        if self.has_prime_prior:
-            return self._prime_prior(
-                x_prime[self.prime_parameters[0]],
-                x_prime[self.prime_parameters[1]],
-                k=self._k,
-            )
-        else:
-            raise RuntimeError("Prime prior")
 
 
 class ToCartesian(Angle):
@@ -330,17 +289,6 @@ class AnglePair(Reparameterisation):
 
         self.parameters = parameters
         self.prime_parameters = [f"{m}_{x}" for x in ["x", "y", "z"]]
-
-        if prior == "isotropic" and self.chi:
-            self.has_prime_prior = True
-            logger.info(f"Prime prior enabled for {self.name}")
-        elif prior not in self.known_priors:
-            raise ValueError(
-                f"Unknown prior: `{prior}`. Choose from: {self.known_priors}"
-            )
-        else:
-            self.has_prime_prior = False
-            logger.debug(f"Prime prior disabled for {self.name}")
 
         if convention is None:
             logger.debug("Trying to determine convention")
@@ -520,20 +468,3 @@ class AnglePair(Reparameterisation):
                 "log_prior is not defined when a radial parameter has been "
                 "specified!"
             )
-
-    def x_prime_log_prior(self, x_prime):
-        """
-        Log probability of 3d Cartesian coordinates for an isotropic
-        distribution of angles and a radial component drawn from a chi
-        distribution with three degrees of freedom.
-        """
-        if self.has_prime_prior:
-            return (
-                -1.5 * np.log(2 * np.pi)
-                - np.sum(
-                    [x_prime[pp] ** 2 for pp in self.prime_parameters], axis=0
-                )
-                / 2
-            )
-        else:
-            raise RuntimeError("x prime prior is not defined!")

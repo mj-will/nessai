@@ -170,12 +170,6 @@ class AugmentedFlowProposal(FlowProposal):
         """
         return super().log_prior(x) + self.augmented_prior(x)
 
-    def x_prime_log_prior(self, x):
-        """
-        Compute prior probability in the prime space.
-        """
-        return super().x_prime_log_prior(x) + self.augmented_prior(x)
-
     def _marginalise_augment(self, x_prime):
         """Marginalise out the augmented features.
 

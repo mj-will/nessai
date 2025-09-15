@@ -161,10 +161,10 @@ default_reparameterisations.add_reparameterisation(
 )
 default_reparameterisations.add_reparameterisation("angle", Angle, {})
 default_reparameterisations.add_reparameterisation(
-    "angle-pi", Angle, {"scale": 2.0, "prior": "uniform"}
+    "angle-pi", Angle, {"scale": 2.0}
 )
 default_reparameterisations.add_reparameterisation(
-    "angle-2pi", Angle, {"scale": 1.0, "prior": "uniform"}
+    "angle-2pi", Angle, {"scale": 1.0}
 )
 default_reparameterisations.add_reparameterisation(
     "angle-sine", RescaleToBounds

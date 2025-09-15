@@ -16,7 +16,6 @@ def reparam(rng):
 def test_dequantise_init():
     reparam = Dequantise(parameters=["a"], prior_bounds={"a": [0, 10]})
     assert reparam.has_pre_rescaling is True
-    assert reparam.has_prime_prior is False
 
     # Bounds should be one more than the max
     assert reparam.bounds["a"][0] == 0

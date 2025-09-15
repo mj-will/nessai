@@ -24,11 +24,8 @@ class Reparameterisation:
 
     _update = False
     has_prior = False
-    has_prime_prior = False
-    requires_prime_prior = False
     requires_bounded_prior = False
     prior_bounds = None
-    prime_prior_bounds = None
     one_to_one = True
 
     def __init__(self, parameters=None, prior_bounds=None, rng=None):

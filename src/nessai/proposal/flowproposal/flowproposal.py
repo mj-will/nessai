@@ -493,7 +493,7 @@ class FlowProposal(BaseFlowProposal):
 
             x, log_q = self.backward_pass(
                 z,
-                rescale=not self.use_x_prime_prior,
+                rescale=True,
                 return_unit_hypercube=self.map_to_unit_hypercube,
             )
             if self.truncate_log_q:

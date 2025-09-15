@@ -4,15 +4,12 @@ Reparameterisations that rescale the parameters.
 """
 
 import logging
-from warnings import warn
 
 import numpy as np
 
-from ..priors import log_uniform_prior
 from ..utils.rescaling import (
     configure_edge_detection,
     detect_edge,
-    determine_rescaled_bounds,
     inverse_rescale_minus_one_to_one,
     inverse_rescale_zero_to_one,
     rescale_minus_one_to_one,
@@ -97,9 +94,6 @@ class PrePostRescalingMixin:
                 raise RuntimeError(
                     "Post-rescaling must be a str or tuple of two functions"
                 )
-            logger.debug("Disabling prime prior with post-rescaling")
-            self.has_prime_prior = False
-
             self.has_post_rescaling = True
         else:
             logger.debug("No post-rescaling to configure")
@@ -442,15 +436,6 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
                 "Must enable boundary inversion to use detect edges"
             )
 
-        if prior == "uniform":
-            self.prior = "uniform"
-            self.has_prime_prior = True
-            self._prime_prior = log_uniform_prior
-            logger.debug(f"Prime prior enabled for {self.name}")
-        else:
-            self.has_prime_prior = False
-            logger.debug(f"Prime prior disabled for {self.name}")
-
         self.configure_pre_rescaling(pre_rescaling)
         self.configure_post_rescaling(post_rescaling)
 
@@ -485,9 +470,6 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
                 )
             logger.debug("Setting bounds to [0, 1] for log/logit")
             self.rescale_bounds = {p: [0, 1] for p in self.parameters}
-
-            logger.debug("Disabling prime prior with post-rescaling")
-            self.has_prime_prior = False
 
     def pre_rescaling(self, x):
         """Function applied before rescaling to bounds"""
@@ -538,7 +520,6 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
             self._edges[p] = detect_edge(
                 x_prime[pp], test=test, **self.detect_edges_kwargs
             )
-            self.update_prime_prior_bounds()
 
         if self._edges[p]:
             logger.debug(f"Apply inversion for {p} to {self._edges[p]} bound")
@@ -678,7 +659,6 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
             for p, b in prior_bounds.items()
         }
         logger.debug(f"Initial bounds: {self.bounds}")
-        self.update_prime_prior_bounds()
 
     def update_bounds(self, x):
         """Update the bounds used for the reparameterisation"""
@@ -691,36 +671,9 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
                 for p in self.parameters
             }
             logger.debug(f"New bounds: {self.bounds}")
-            self.update_prime_prior_bounds()
 
         else:
             logger.debug("Update bounds not enabled")
-
-    def update_prime_prior_bounds(self):
-        """Update the prior bounds used for the prime prior"""
-        if self.has_prime_prior:
-            self.prime_prior_bounds = {
-                pp: self.post_rescaling(
-                    np.asarray(
-                        determine_rescaled_bounds(
-                            self.pre_prior_bounds[p][0],
-                            self.pre_prior_bounds[p][1],
-                            self.bounds[p][0],
-                            self.bounds[p][1],
-                            invert=self._edges[p] if self._edges else None,
-                            inversion=(
-                                p in self.boundary_inversion
-                                if self.boundary_inversion
-                                else False
-                            ),
-                            offset=self.offsets[p],
-                            rescale_bounds=self.rescale_bounds[p],
-                        )
-                    )
-                )[0]
-                for p, pp in zip(self.parameters, self.prime_parameters)
-            }
-            logger.debug(f"New prime bounds: {self.prime_prior_bounds}")
 
     def update(self, x):
         """Update the reparameterisation given some points.
@@ -737,24 +690,3 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         """
         self.reset_inversion()
         self.set_bounds(self.prior_bounds)
-
-    def x_prime_log_prior(self, x_prime):
-        """Compute the prior in the prime space assuming a uniform prior"""
-        warn(
-            (
-                "Support for x-prime priors is deprecated and will be "
-                "removed in a future release. "
-            ),
-            FutureWarning,
-        )
-        if self.has_prime_prior:
-            log_p = 0
-            for pp in self.prime_parameters:
-                log_p += self._prime_prior(
-                    x_prime[pp], *self.prime_prior_bounds[pp]
-                )
-            return log_p
-        else:
-            raise RuntimeError(
-                f"Prime prior is not configured for {self.name}"
-            )

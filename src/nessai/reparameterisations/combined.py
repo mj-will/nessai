@@ -38,16 +38,6 @@ class CombinedReparameterisation(dict):
             self.add_reparameterisations(reparameterisations)
 
     @property
-    def has_prime_prior(self):
-        """Boolean to check if prime prior can be enabled"""
-        return all(r.has_prime_prior for r in self.values())
-
-    @property
-    def requires_prime_prior(self):
-        """Boolean to check if any of the priors require the prime space"""
-        return any(r.requires_prime_prior for r in self.values())
-
-    @property
     def one_to_one(self):
         return all(r.one_to_one for r in self.values())
 
@@ -203,13 +193,4 @@ class CombinedReparameterisation(dict):
         for r in self.values():
             if r.has_prior:
                 log_p += r.log_prior(x)
-        return log_p
-
-    def x_prime_log_prior(self, x_prime):
-        """
-        Compute the prior in the prime space
-        """
-        log_p = np.zeros(x_prime.size)
-        for r in self.values():
-            log_p += r.x_prime_log_prior(x_prime)
         return log_p

@@ -55,7 +55,6 @@ class Dequantise(RescaleToBounds):
         )
 
         self.has_pre_rescaling = True
-        self.has_prime_prior = False
 
     def set_bounds(self, prior_bounds):
         super().set_bounds(prior_bounds)

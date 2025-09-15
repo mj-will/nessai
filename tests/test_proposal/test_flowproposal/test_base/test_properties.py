@@ -63,27 +63,9 @@ def test_population_dtype(proposal):
         ("logP", "f8"),
         ("logL", "f8"),
     ]
-    proposal.use_x_prime_prior = False
     assert BaseFlowProposal.population_dtype.__get__(proposal) == [
         ("x", "f8"),
         ("y", "f8"),
-        ("logP", "f8"),
-        ("logL", "f8"),
-    ]
-
-
-def test_population_dtype_prime_prior(proposal):
-    """Test dims property"""
-    proposal.x_prime_dtype = [
-        ("x_p", "f8"),
-        ("y_p", "f8"),
-        ("logP", "f8"),
-        ("logL", "f8"),
-    ]
-    proposal.use_x_prime_prior = True
-    assert BaseFlowProposal.population_dtype.__get__(proposal) == [
-        ("x_p", "f8"),
-        ("y_p", "f8"),
         ("logP", "f8"),
         ("logL", "f8"),
     ]
