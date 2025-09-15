@@ -88,11 +88,6 @@ class MCMCFlowProposal(BaseFlowProposal):
         fig.savefig(os.path.join(self.output, "mcmc_history.png"))
         plt.close(fig)
 
-    def x_prime_log_prior(self, x):
-        raise RuntimeError(
-            "MCMCFlowProposal does not support using x-prime priors"
-        )
-
     def populate(
         self,
         worst_point,

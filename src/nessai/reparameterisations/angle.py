@@ -33,9 +33,6 @@ class Angle(Reparameterisation):
     scale : float, optional
         Value used to rescale the angle before converting to Cartesian
         coordinates. If None the scale will be set to 2pi / prior_bounds.
-    prior : {'uniform', 'sine', None}
-        Type of prior being used for sampling this angle. If specified, the
-        prime prior is enabled. If None then it is disabled.
     """
 
     requires_bounded_prior = True
@@ -45,7 +42,6 @@ class Angle(Reparameterisation):
         parameters=None,
         prior_bounds=None,
         scale=1.0,
-        prior=None,
         rng=None,
     ):
         super().__init__(

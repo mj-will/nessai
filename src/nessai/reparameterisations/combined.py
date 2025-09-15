@@ -194,12 +194,3 @@ class CombinedReparameterisation(dict):
             if r.has_prior:
                 log_p += r.log_prior(x)
         return log_p
-
-    def x_prime_log_prior(self, x_prime):
-        """
-        Compute the prior in the prime space
-        """
-        log_p = np.zeros(x_prime.size)
-        for r in self.values():
-            log_p += r.x_prime_log_prior(x_prime)
-        return log_p
