@@ -73,6 +73,9 @@ docs = [
 nflows = [
     "nflows",
 ]
+mcmc = [
+    "minipcn",
+]
 
 [tool.setuptools_scm]
 version_scheme = "release-branch-semver"
