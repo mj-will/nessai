@@ -313,6 +313,8 @@ def test_empty_numpy_array_to_live_points(empty_live_point):
     [
         {"x": 1, "y": 2, "z": 3},
         {"x": 1.0, "y": 2.0, "z": 3.0},
+        {"x": np.array(1.0), "y": np.array(2.0), "z": np.array(3.0)},
+        {"x": np.array([1.0]), "y": np.array([2.0]), "z": np.array([3.0])},
     ],
 )
 def test_dict_to_live_point(live_point, d, non_sampling_parameters):

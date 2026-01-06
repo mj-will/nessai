@@ -261,9 +261,10 @@ def numpy_array_to_live_points(array, names, non_sampling_parameters=True):
 def dict_to_live_points(d, non_sampling_parameters=True):
     """Convert a dictionary with parameters names as keys to live points.
 
-    Assumes all entries have the same length. Also, determines number of points
-    from the first entry by checking if the value has `__len__` attribute,
-    if not the dictionary is assumed to contain a single point.
+    Assumes all entries have the same length. Also, determines if points are
+    array-like by checking if the first value has `__len__` attribute and
+    the number of dimensions is not zero, if not the dictionary is assumed to
+    contain a single live point.
 
     Parameters
     ----------
@@ -278,16 +279,15 @@ def dict_to_live_points(d, non_sampling_parameters=True):
     structured_array
         Numpy structured array with fields given by names plus logP and logL
     """
-    a = tuple(d.values())
-    if hasattr(a[0], "__len__"):
-        N = len(a[0])
-    else:
-        N = 1
-    if N == 1:
+    values = tuple(d.values())
+    is_array_like = (
+        hasattr(values[0], "__len__") and not np.ndim(values[0]) == 0
+    )
+    if not is_array_like:
         if non_sampling_parameters:
-            a = (*a, *config.livepoints.non_sampling_defaults)
+            values = (*values, *config.livepoints.non_sampling_defaults)
         return np.array(
-            [a],
+            [values],
             dtype=get_dtype(
                 d.keys(),
                 config.livepoints.default_float_dtype,
@@ -295,8 +295,9 @@ def dict_to_live_points(d, non_sampling_parameters=True):
             ),
         )
     else:
+        n = len(values[0])
         array = empty_structured_array(
-            N,
+            n,
             names=list(d.keys()),
             non_sampling_parameters=non_sampling_parameters,
         )
