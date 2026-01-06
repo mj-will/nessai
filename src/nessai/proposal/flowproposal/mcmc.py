@@ -35,7 +35,7 @@ class MiniPCNFlowProposal(BaseFlowProposal):
         self,
         model,
         n_steps: int,
-        step_fn: str = "pcn",
+        step_fn: str = "tpcn",
         minipcn_kwargs: dict | None = None,
         enforce_likelihood_threshold: bool = True,
         plot_history: bool = False,
