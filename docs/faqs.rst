@@ -2,6 +2,17 @@
 FAQs
 ====
 
+My runs show signs of over-constraining. What can I do?
+-------------------------------------------------------
+
+If your runs show signs of over-constraining, we suggest starting with the settings
+described in :ref:`Standard sampler configuration<Key settings>`: :code:`reset_flow`,
+:code:`volume_fraction`, and :code:`nlive`.
+
+If you continue to see signs of over-constraining, you can also try using different
+reparameterisations, as described in :ref:`Configuring reparameterisations` or
+changing the normalising flow architecture, as described in :ref:`Normalising flows configuration`.
+
 
 When should I use :code:`allow_multi_valued_likelihood`?
 --------------------------------------------------------
