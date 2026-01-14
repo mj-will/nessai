@@ -10,7 +10,7 @@ described in :ref:`Standard sampler configuration<Key settings>`: :code:`reset_f
 :code:`volume_fraction`, and :code:`nlive`.
 
 If you continue to see signs of over-constraining, you can also try using different
-reparameterisations, as described in :ref:`Configuring reparameterisations` or
+reparameterisations, as described in :ref:`Reparameterisations` or
 changing the normalising flow architecture, as described in :ref:`Normalising flows configuration`.
 
 

@@ -3,7 +3,7 @@ Standard sampler configuration
 ==============================
 
 .. important::
-    Some of settings discussed here only apply to standard ``nessai`` not ``i-nessai``. For ``i-nessai`` see :ref:`Importance Nested Sampling`
+    Some of settings discussed here only apply to standard ``nessai`` not ``i-nessai``. For ``i-nessai`` see :ref:`Importance Nested Sampler`
 
 There are various settings in ``nessai`` which can be configured. These can be grouped in to general settings and proposal settings. The former controls general aspects of the sampler such as the model being sampler or how many live points are used. The latter affect the proposal process and how new points are drawn.
 
