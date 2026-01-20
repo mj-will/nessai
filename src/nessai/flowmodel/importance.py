@@ -70,6 +70,7 @@ class ImportanceFlowModel(FlowModel):
         else:
             self._current_model = max(int(key), self._current_model)
         self.models[key] = model
+        self._model = model
 
     @property
     def current_model_key(self):
@@ -137,6 +138,10 @@ class ImportanceFlowModel(FlowModel):
 
     def log_prob_all(self, x):
         """Compute the log probability using all of the stored models."""
+        # if self.model is None:
+        #     if not self.models:
+        #         raise RuntimeError("Models are not initialised yet!")
+        #     self._model = next(iter(self.models.values()))
         x = (
             torch.from_numpy(x)
             .type(torch.get_default_dtype())
@@ -147,7 +152,7 @@ class ImportanceFlowModel(FlowModel):
         n = self.n_models
         log_prob = torch.empty(x.shape[0], n)
         with torch.no_grad():
-            for i, m in enumerate(self.models[:n]):
+            for i, m in enumerate(list(self.models.values())[:n]):
                 log_prob[:, i] = m.log_prob(x)
         log_prob = log_prob.cpu().numpy().astype(np.float64)
         return log_prob
@@ -181,11 +186,11 @@ class ImportanceFlowModel(FlowModel):
             self.training_config.get("device_tag", "cpu")
         )
         self._current_model = -1
-        for wf in self.weights_files.values():
+        for key, wf in self.weights_files.items():
             new_flow = configure_model(self.flow_config)
             new_flow.device = self.device
             new_flow.load_state_dict(torch.load(wf, weights_only=True))
-            self.add_model(new_flow)
+            self.add_model(new_flow, key=key)
         self.models.eval()
 
     def update_weights_path(
@@ -216,7 +221,7 @@ class ImportanceFlowModel(FlowModel):
                 raise RuntimeError(
                     f"Cannot find level number in weights file: {wf}"
                 )
-            weights_files[level] = wf
+            weights_files[level.group(1)] = wf
 
         if keys is None:
             keys = weights_files.keys()

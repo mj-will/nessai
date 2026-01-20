@@ -6,11 +6,13 @@ Importance nested sampler.
 import datetime
 import logging
 import os
+from functools import partial
 from typing import Any, Callable, List, Literal, Optional, Union
 
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.lib.recfunctions as rfn
 from scipy.special import logsumexp
 
 from .. import config
@@ -57,6 +59,7 @@ class OrderedSamples:
         strict_threshold: bool = False,
         replace_all: bool = False,
         save_log_q: bool = False,
+        proposal: Optional[ImportanceFlowProposal] = None,
     ) -> None:
         self.samples = None
         self.log_q = None
@@ -67,6 +70,7 @@ class OrderedSamples:
         self.state = _INSIntegralState()
         self.log_likelihood_threshold = None
         self.save_log_q = save_log_q
+        self.proposal = proposal
 
     @property
     def live_points(self) -> np.ndarray:
@@ -233,7 +237,8 @@ class OrderedSamples:
         log_imp_post = {}
         log_imp_post_indv = {}
         for qID in qIDs:
-            idx = self.samples["qID"] == qID
+            qid_value = self.proposal.cast_qid(qID)
+            idx = self.samples["qID"] == qid_value
             log_imp_post[qID] = log_evidence_from_ins_samples(
                 self.samples[idx]
             )
@@ -470,12 +475,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
             strict_threshold=self.strict_threshold,
             replace_all=self.replace_all,
             save_log_q=self.save_log_q,
+            proposal=self.proposal,
         )
         if self.draw_iid_live:
             self.iid_samples = OrderedSamples(
                 strict_threshold=self.strict_threshold,
                 replace_all=self.replace_all,
                 save_log_q=self.save_log_q,
+                proposal=self.proposal,
             )
         else:
             self.iid_samples = None
@@ -1314,7 +1321,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
                     else:
                         new_samples, new_log_q = proposal.draw(
                             n=(nc - c),
-                            flow_number=it,
+                            flow_id=it,
                             update_counts=False,
                         )
                     new_samples["it"] = it
@@ -1345,7 +1352,14 @@ class ImportanceNestedSampler(BaseNestedSampler):
             batch_log_q = log_q[idx_keep]
             assert batch_samples.size == orig_n_total
 
-            log_Q = logsumexp(batch_log_q, b=norm_weight, axis=1)
+            weight_by_id = {str(it): w for it, w in zip(its, norm_weight)}
+            weights = np.array(
+                [weight_by_id[name] for name in batch_log_q.dtype.names],
+                dtype=float,
+            )
+            log_Q = rfn.apply_along_fields(
+                partial(logsumexp, b=weights), batch_log_q
+            )
             # Weights are normalised because the total number of samples is the
             # same.
             batch_samples["logQ"] = log_Q
@@ -1492,7 +1506,8 @@ class ImportanceNestedSampler(BaseNestedSampler):
         """
         sample_counts = {}
         for qid in self.proposal.weights.keys():
-            sample_counts[qid] = np.sum(self.samples_unit["qID"] == qid)
+            qid_value = self.proposal.cast_qid(qid) if self.proposal else qid
+            sample_counts[qid] = np.sum(self.samples_unit["qID"] == qid_value)
         self.sample_counts = sample_counts
 
     def add_new_proposal_weight(self, proposal_id: str, n_new: int) -> None:
@@ -1714,7 +1729,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
         elif self.iid_samples:
             logger.warning("Already have i.i.d samples")
 
-        final_samples = OrderedSamples()
+        final_samples = OrderedSamples(proposal=self.proposal)
 
         eff = (
             self.state.effective_n_posterior_samples
@@ -1786,7 +1801,7 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
         n_models = self.proposal.n_proposals
         samples = np.empty([0], dtype=self.proposal.dtype)
-        log_q = np.empty([0, n_models])
+        log_q = np.empty(0, dtype=self.proposal.log_q_dtype)
         counts = np.zeros(n_models)
 
         it = 0
@@ -1831,7 +1846,9 @@ class ImportanceNestedSampler(BaseNestedSampler):
 
             samples = np.concatenate([samples, it_samples])
 
-            log_Q = logsumexp(log_q, b=weights, axis=1)
+            log_Q = rfn.apply_along_fields(
+                partial(logsumexp, b=weights), log_q
+            )
 
             if np.isposinf(log_Q).any():
                 logger.warning("Log meta proposal contains +inf")

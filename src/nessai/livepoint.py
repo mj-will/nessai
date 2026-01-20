@@ -46,6 +46,10 @@ def add_extra_parameters_to_live_points(
         dtypes = len(parameters) * (config.livepoints.default_float_dtype,)
     else:
         dtypes = tuple(dtypes)
+    if not (len(parameters) == len(default_values) == len(dtypes)):
+        raise ValueError(
+            "Length mismatch between parameters, default_values, and dtypes."
+        )
     for p, dtype, dv in zip(parameters, dtypes, default_values):
         if p not in config.livepoints.extra_parameters:
             config.livepoints.extra_parameters.append(p)

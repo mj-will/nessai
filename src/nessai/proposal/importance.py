@@ -7,7 +7,6 @@ import logging
 import os
 from functools import partial
 from typing import Callable, Optional, Tuple, Union
-from warnings import warn
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
@@ -149,6 +148,22 @@ class ImportanceFlowProposal(Proposal):
         """
         return np.dtype([(qid, "f8") for qid in self.weights.keys()])
 
+    @property
+    def qid_dtype(self) -> Optional[np.dtype]:
+        """Dtype for the qID field in live points."""
+        try:
+            idx = config.livepoints.non_sampling_parameters.index("qID")
+        except ValueError:
+            return None
+        return np.dtype(config.livepoints.non_sampling_dtype[idx])
+
+    def cast_qid(self, qid):
+        """Cast qID to the dtype defined in live points."""
+        dtype = self.qid_dtype
+        if dtype is None:
+            return qid
+        return np.asarray(qid, dtype=dtype).item()
+
     @staticmethod
     def _check_fields():
         """Check that the logQ and logW fields have been added."""
@@ -171,7 +186,7 @@ class ImportanceFlowProposal(Proposal):
         """Array of weights for each proposal"""
         if keys is None:
             keys = self.log_q_dtype.names
-        elif len(keys) != len(self.log_q_dtype.names):
+        elif set(keys) != set(self.log_q_dtype.names):
             raise ValueError(
                 f"Keys must be the same as the log_q dtype names: {keys}"
             )
@@ -480,13 +495,6 @@ class ImportanceFlowProposal(Proposal):
             log_q,
         )
 
-    def compute_log_Q(self, *args, **kwargs):
-        warn(
-            "compute_log_Q is deprecated. Use log_prob_meta_proposal instead.",
-            DeprecationWarning,
-        )
-        return self.log_prob_meta_proposal(*args, **kwargs)
-
     def draw(
         self,
         n: int,
@@ -498,7 +506,7 @@ class ImportanceFlowProposal(Proposal):
         ----------
         n : int
             Number of points to draw.
-        flow_number : Optional[int]
+        flow_id : Optional[int]
             Specifies which flow to use. If not specified the last flow will
             be used.
 
@@ -562,7 +570,7 @@ class ImportanceFlowProposal(Proposal):
 
         samples = samples[:n]
         log_q_samples = log_q_samples[:n]
-        samples["qID"] = flow_id
+        samples["qID"] = self.cast_qid(flow_id)
 
         logger.debug(f"Returning {samples.size} samples")
         return samples, log_q_samples
@@ -618,6 +626,7 @@ class ImportanceFlowProposal(Proposal):
         self, it: str, log_j: np.ndarray = None
     ) -> Callable:
         """Get a pointer to the function for ith proposal."""
+        it = str(it)
         if it == "-1":
             return self._log_prob_initial
         elif it in self.flow.models:
@@ -640,15 +649,27 @@ class ImportanceFlowProposal(Proposal):
         current and previous proposals are used.
         """
         x_prime, log_j = self.rescale(x)
+        flow_keys = list(self.flow.models.keys())
+        if flow_keys:
+            flow_keys = sorted(flow_keys, key=int)
         if p_it is None:
-            p_it = self.flow.n_models - 1
-
+            if not flow_keys:
+                raise ValueError("No flow models available for p_it")
+            p_it = flow_keys[-1]
         if q_it is None:
-            q_it = self.flow.n_models - 2
+            if len(flow_keys) >= 2:
+                q_it = flow_keys[-2]
+            else:
+                q_it = "-1"
+        p_it = str(p_it)
+        q_it = str(q_it)
 
         if p_it == q_it:
             raise ValueError("p and q must be different")
-        elif p_it < -1 or q_it < -1:
+        elif not (
+            (p_it == "-1" or p_it.isdigit())
+            and (q_it == "-1" or q_it.isdigit())
+        ):
             raise ValueError(f"Invalid p_it or q_it: {p_it}, {q_it}")
 
         log_p_f = self.get_proposal_log_prob(p_it)
@@ -657,9 +678,9 @@ class ImportanceFlowProposal(Proposal):
         log_p = log_p_f(x_prime)
         log_q = log_q_f(x_prime)
 
-        if p_it > -1:
+        if p_it != "-1":
             log_p += log_j
-        if q_it > -1:
+        if q_it != "-1":
             log_q += log_j
 
         kl = np.mean(log_p - log_q)
@@ -732,7 +753,7 @@ class ImportanceFlowProposal(Proposal):
                 )[0]
             else:
                 prime_samples[count : (count + m)] = self.flow.sample_ith(
-                    id, N=m
+                    str(id), N=m
                 )
             sample_its[count : (count + m)] = id
             count += m
@@ -753,21 +774,29 @@ class ImportanceFlowProposal(Proposal):
             finite, samples, prime_samples, log_j
         )
 
-        log_q = np.zeros((samples.size, self.n_proposals))
+        log_q = np.empty(samples.size, dtype=self.log_q_dtype)
         logger.debug("Computing log_q")
-        if self.n_proposals > 1:
-            log_q[:, 1:] = (
-                self.flow.log_prob_all(prime_samples) + log_j[:, np.newaxis]
-            )
+        for name in log_q.dtype.names:
+            log_prob_fn = self.get_proposal_log_prob(name, log_j=log_j)
+            log_q[name] = log_prob_fn(prime_samples)
 
         # -inf is okay since this is just zero, so only remove +inf or NaN
-        finite = ~np.isnan(log_q).all(axis=1) & ~np.isposinf(log_q).all(axis=1)
+        nan_all = np.ones(samples.size, dtype=bool)
+        posinf_all = np.ones(samples.size, dtype=bool)
+        for name in log_q.dtype.names:
+            nan_all &= np.isnan(log_q[name])
+            posinf_all &= np.isposinf(log_q[name])
+        finite = ~nan_all & ~posinf_all
         samples, log_q = get_subset_arrays(finite, samples, log_q)
 
         logger.debug(
-            f"Mean g for each each flow: {np.exp(log_q).mean(axis=0)}"
+            "Mean g for each each flow: "
+            f"{[np.exp(log_q[n]).mean() for n in log_q.dtype.names]}"
         )
-        logger.debug(f"Mean log_q for each each flow: {log_q.mean(axis=0)}")
+        logger.debug(
+            "Mean log_q for each each flow: "
+            f"{[log_q[n].mean() for n in log_q.dtype.names]}"
+        )
 
         samples["logP"] = self.model.batch_evaluate_log_prior(
             samples, unit_hypercube=True
