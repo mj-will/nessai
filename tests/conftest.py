@@ -112,7 +112,11 @@ def mp_context(request):
 def ins_parameters():
     """Add (and remove) the standard INS parameters for the tests."""
     # Before every test
-    add_extra_parameters_to_live_points(["logQ", "logW", "logU", "qID"])
+    add_extra_parameters_to_live_points(
+        ["logQ", "logW", "logU", "qID"],
+        dtypes=["f8", "f8", "f8", "U8"],
+        default_values=[np.nan, np.nan, np.nan, "NULL"],
+    )
     try:
         yield
     finally:

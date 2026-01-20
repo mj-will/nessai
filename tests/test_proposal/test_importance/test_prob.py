@@ -18,15 +18,21 @@ def ifp(ifp):
 
 
 def test_update_proposal_weights(ifp):
-    ifp._weights = {-1: 0.5, 1: 0.5}
-    weights = {-1: 1 / 3, 0: 1 / 3, 1: 1 / 3}
+    ifp._weights = {"-1": 0.5, "1": 0.5}
+    ifp.weights = ifp._weights
+    ifp.log_q_dtype = np.dtype([("-1", "f8"), ("0", "f8"), ("1", "f8")])
+    ifp.weights_array = IFP.weights_array.__get__(ifp, IFP)
+    weights = {"-1": 1 / 3, "0": 1 / 3, "1": 1 / 3}
     IFP.update_weights(ifp, weights)
     assert ifp._weights == weights
 
 
 def test_update_proposal_weights_vaild(ifp):
-    ifp._weights = {-1: 0.5, 1: 0.5}
-    weights = {-1: 0.33, 0: 0.33, 1: 0.33}
+    ifp._weights = {"-1": 0.5, "1": 0.5}
+    ifp.weights = ifp._weights
+    ifp.log_q_dtype = np.dtype([("-1", "f8"), ("0", "f8"), ("1", "f8")])
+    ifp.weights_array = IFP.weights_array.__get__(ifp, IFP)
+    weights = {"-1": 0.33, "0": 0.33, "1": 0.33}
     with pytest.raises(RuntimeError, match="Weights must sum to 1!"):
         IFP.update_weights(ifp, weights)
 
@@ -42,51 +48,106 @@ def test_get_proposal_log_prob_initial(ifp):
     assert func is ifp._log_prob_initial
 
 
-def test_compute_log_Q(ifp, x_prime):
+def test_log_prob_meta_proposal(ifp, x_prime):
     n_flows = 3
-    ifp.weights_array = np.array([0.25, 0.25, 0.25, 0.25])
+    ifp._weights = {"-1": 0.25, "0": 0.25, "1": 0.25, "2": 0.25}
+    ifp.weights = ifp._weights
+    ifp.weights_array = MagicMock(
+        return_value=np.array([0.25, 0.25, 0.25, 0.25])
+    )
     ifp.flow.n_models = n_flows
+    ifp.flow.models = {
+        "0": MagicMock(training=False),
+        "1": MagicMock(training=False),
+        "2": MagicMock(training=False),
+    }
+    ifp.log_q_dtype = np.dtype(
+        [("-1", "f8"), ("0", "f8"), ("1", "f8"), ("2", "f8")]
+    )
+    ifp.get_proposal_log_prob = MagicMock(
+        side_effect=lambda it, log_j=None: (
+            (lambda x: np.zeros(len(x)))
+            if it == "-1"
+            else (lambda x: np.log(np.random.rand(len(x))))
+        )
+    )
+    ifp.log_prob_meta_proposal_from_log_q = (
+        IFP.log_prob_meta_proposal_from_log_q.__get__(ifp, IFP)
+    )
     ifp.n_proposals = n_flows + 1
 
     log_j = np.log(np.random.rand(len(x_prime)))
 
-    def log_prob_all(x):
-        return np.log(np.random.rand(len(x), n_flows))
+    def log_prob_ith(x, it):
+        return np.log(np.random.rand(len(x)))
 
-    ifp.flow.log_prob_all = MagicMock(side_effect=log_prob_all)
+    ifp.flow.log_prob_ith = MagicMock(side_effect=log_prob_ith)
 
     log_Q, log_q = IFP.log_prob_meta_proposal(ifp, x_prime, log_j=log_j)
 
     assert len(log_Q) == len(x_prime)
-    assert log_q.shape == (len(x_prime), n_flows + 1)
-    assert all(log_q[:, 0] == 0)
+    assert log_q.shape == (len(x_prime),)
+    assert log_q.dtype.names == ("-1", "0", "1", "2")
+    assert np.all(log_q["-1"] == 0)
 
-    expected_log_Q = logsumexp(log_q, b=ifp.weights_array, axis=1)
+    log_q_values = np.column_stack([log_q[name] for name in log_q.dtype.names])
+    expected_log_Q = logsumexp(
+        log_q_values, b=ifp.weights_array(log_q.dtype.names), axis=1
+    )
     np.testing.assert_array_equal(log_Q, expected_log_Q)
 
 
-def test_compute_log_Q_weights_not_set(ifp, x_prime):
+def test_log_prob_meta_proposal_weights_not_set(ifp, x_prime):
     """Assert an error is raised if a flow is in training mode"""
     n_flows = 3
-    ifp.weights = {i - 1: v for i, v in enumerate([0.25, 0.25, 0.25, np.nan])}
+    ifp._weights = {
+        "-1": 0.25,
+        "0": 0.25,
+        "1": 0.25,
+        "2": np.nan,
+    }
+    ifp.weights = ifp._weights
     ifp.flow.n_models = n_flows
+    ifp.log_q_dtype = np.dtype(
+        [("-1", "f8"), ("0", "f8"), ("1", "f8"), ("2", "f8")]
+    )
+    ifp.get_proposal_log_prob = MagicMock(
+        side_effect=lambda it, log_j=None: (
+            (lambda x: np.zeros(len(x)))
+            if it == "-1"
+            else (lambda x: np.log(np.random.rand(len(x))))
+        )
+    )
     ifp.n_proposals = n_flows + 1
     log_j = np.log(np.random.rand(len(x_prime)))
     with pytest.raises(RuntimeError, match="Some weights are not set!"):
         IFP.log_prob_meta_proposal(ifp, x_prime, log_j=log_j)
 
 
-def test_compute_log_Q_flow_training(ifp, x_prime):
+def test_log_prob_meta_proposal_flow_training(ifp, x_prime):
     """Assert an error is raised if a flow is in training mode"""
     n_flows = 3
-    ifp.weights_array = np.array([0.25, 0.25, 0.25, 0.25])
+    ifp._weights = {"-1": 0.25, "0": 0.25, "1": 0.25, "2": 0.25}
+    ifp.weights = ifp._weights
+    ifp.weights_array = MagicMock(
+        return_value=np.array([0.25, 0.25, 0.25, 0.25])
+    )
     ifp.flow.n_models = n_flows
-    ifp.flow.models = []
-    for _ in range(n_flows):
-        mock_model = MagicMock()
-        mock_model.training = False
-        ifp.flow.models.append(mock_model)
-    ifp.flow.models[-1].training = True
+    ifp.flow.models = {
+        "0": MagicMock(training=False),
+        "1": MagicMock(training=False),
+        "2": MagicMock(training=True),
+    }
+    ifp.log_q_dtype = np.dtype(
+        [("-1", "f8"), ("0", "f8"), ("1", "f8"), ("2", "f8")]
+    )
+    ifp.get_proposal_log_prob = MagicMock(
+        side_effect=lambda it, log_j=None: (
+            (lambda x: np.zeros(len(x)))
+            if it == "-1"
+            else (lambda x: np.log(np.random.rand(len(x))))
+        )
+    )
     ifp.n_proposals = n_flows + 1
     log_j = np.log(np.random.rand(len(x_prime)))
     with pytest.raises(
@@ -104,7 +165,7 @@ def test_kl_between_proposals(ifp, model, p_it, q_it, x):
 
     def get_proposal_log_prob(it):
         def log_prob(x):
-            if it == -1:
+            if it == "-1":
                 return np.zeros(len(x))
             else:
                 return np.log(np.random.rand(len(x)))
@@ -112,6 +173,7 @@ def test_kl_between_proposals(ifp, model, p_it, q_it, x):
         return log_prob
 
     ifp.flow.n_models = 15
+    ifp.flow.models = {str(i): MagicMock(training=False) for i in range(15)}
     ifp.rescale = MagicMock(side_effect=rescale)
     ifp.get_proposal_log_prob = MagicMock(side_effect=get_proposal_log_prob)
 
@@ -123,17 +185,21 @@ def test_kl_between_proposals(ifp, model, p_it, q_it, x):
 
 def test_update_log_q(ifp, model, x):
     n_proposals = 5
-    ifp.level_count = 4
+    ifp._proposal_count = 4
+    ifp.proposal_id = "4"
 
-    log_q = np.log(np.random.rand(len(x), n_proposals - 1))
+    names = ["-1", "0", "1", "2"]
+    log_q = np.empty(len(x), dtype=[(name, "f8") for name in names])
+    for name in names:
+        log_q[name] = np.log(np.random.rand(len(x)))
 
     def rescale(x):
         x = model.to_unit_hypercube(x)
         x = live_points_to_array(x, model.names)
         return x, np.zeros(x.shape[0])
 
-    def get_proposal_log_prob(it):
-        assert it == 4
+    def get_proposal_log_prob(it, log_j=None):
+        assert it == "4"
 
         def log_prob(x):
             return np.log(np.random.rand(len(x)))
@@ -147,13 +213,17 @@ def test_update_log_q(ifp, model, x):
 
     log_q_out = IFP.update_log_q(ifp, x, log_q)
 
-    assert log_q_out.shape == (len(x), n_proposals)
+    assert log_q_out.shape == (len(x),)
+    assert log_q_out.dtype.names == ("-1", "0", "1", "2", "4")
 
 
 def test_compute_meta_proposal_from_log_q(ifp):
     n = 100
     n_prop = 10
-    log_q = np.log(np.random.rand(n, n_prop))
+    names = [str(i - 1) for i in range(n_prop)]
+    log_q = np.empty(n, dtype=[(name, "f8") for name in names])
+    for name in names:
+        log_q[name] = np.log(np.random.rand(n))
 
     poolsize = np.random.multinomial(
         n_prop,
@@ -161,15 +231,12 @@ def test_compute_meta_proposal_from_log_q(ifp):
         size=n,
     )
     weights = poolsize / np.sum(poolsize)
-    ifp.weights_array = weights
+    ifp.weights_array = MagicMock(return_value=weights)
 
-    expected = logsumexp(
-        log_q,
-        b=weights,
-        axis=1,
-    )
+    log_q_values = np.column_stack([log_q[name] for name in log_q.dtype.names])
+    expected = logsumexp(log_q_values, b=weights, axis=1)
 
-    out = IFP.compute_meta_proposal_from_log_q(ifp, log_q)
+    out = IFP.log_prob_meta_proposal_from_log_q(ifp, log_q)
 
     assert len(out) == len(log_q)
     np.testing.assert_array_equal(out, expected)
@@ -177,33 +244,37 @@ def test_compute_meta_proposal_from_log_q(ifp):
 
 @pytest.mark.usefixtures("ins_parameters")
 def test_compute_meta_proposal_samples(ifp, x, x_prime, log_j):
-    ifp.level_count = 2
-    ifp.weights = {-1: 0.25, 0: 0.25, 1: 0.25, 2: 0.25}
+    ifp._proposal_count = 2
+    ifp._weights = {"-1": 0.25, "0": 0.25, "1": 0.25, "2": 0.25}
+    ifp.weights = ifp._weights
+    ifp.proposal_id = "2"
 
     x["logQ"] = np.nan
     x["logW"] = np.nan
 
     log_Q = np.log(np.random.rand(len(x)))
-    log_q = np.log(np.random.rand(len(x), 10))
+    log_q = np.empty(len(x), dtype=[(str(i), "f8") for i in range(10)])
+    for name in log_q.dtype.names:
+        log_q[name] = np.log(np.random.rand(len(x)))
 
     ifp.rescale = MagicMock(return_value=(x_prime, log_j))
-    ifp.compute_log_Q = MagicMock(return_value=(log_Q, log_q))
+    ifp.log_prob_meta_proposal = MagicMock(return_value=(log_Q, log_q))
 
     log_Q_out, log_q_out = IFP.compute_meta_proposal_samples(ifp, x)
 
     ifp.rescale.assert_called_once_with(x)
-    ifp.compute_log_Q.assert_called_once_with(x_prime, log_j=log_j)
+    ifp.log_prob_meta_proposal.assert_called_once_with(x_prime, log_j=log_j)
 
     np.testing.assert_array_equal(log_Q_out, log_Q)
     np.testing.assert_array_equal(log_q_out, log_q)
 
 
 @pytest.mark.parametrize(
-    "weights", [{-1: 0.5, 0: 0.5}, {-1: 0.5, 0: 0.5, 1: np.nan}]
+    "weights", [{"-1": 0.5, "0": 0.5}, {"-1": 0.5, "0": 0.5, "1": np.nan}]
 )
 @pytest.mark.usefixtures("ins_parameters")
 def test_compute_meta_proposal_samples_weights_error(ifp, x, weights):
-    ifp.level_count = 1
-    ifp.weights = weights
+    ifp._proposal_count = 1
+    ifp._weights = weights
     with pytest.raises(RuntimeError, match=r"Weight\(s\) missing or not set."):
         IFP.compute_meta_proposal_samples(ifp, x)

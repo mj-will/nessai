@@ -61,9 +61,9 @@ def test_populate_live_points_no_iid(ins, model):
 
     ins.training_samples.add_initial_samples.assert_called_once()
     assert len(ins.training_samples.add_initial_samples.call_args.args[0]) == n
-    assert ins.training_samples.add_initial_samples.call_args.args[
-        1
-    ].shape == (n, 1)
+    log_q = ins.training_samples.add_initial_samples.call_args.args[1]
+    assert log_q.shape == (n,)
+    assert len(log_q.dtype.names) == 1
 
 
 @pytest.mark.usefixtures("ins_parameters")
@@ -79,9 +79,9 @@ def test_populate_live_points_iid(ins, model):
 
     ins.training_samples.add_initial_samples.assert_called_once()
     assert len(ins.training_samples.add_initial_samples.call_args.args[0]) == n
-    assert ins.training_samples.add_initial_samples.call_args.args[
-        1
-    ].shape == (n, 1)
+    log_q = ins.training_samples.add_initial_samples.call_args.args[1]
+    assert log_q.shape == (n,)
+    assert len(log_q.dtype.names) == 1
     assert np.isfinite(
         ins.training_samples.add_initial_samples.call_args.args[0]["logL"]
     ).all()
@@ -91,10 +91,9 @@ def test_populate_live_points_iid(ins, model):
 
     ins.iid_samples.add_initial_samples.assert_called_once()
     assert len(ins.iid_samples.add_initial_samples.call_args.args[0]) == n
-    assert ins.iid_samples.add_initial_samples.call_args.args[1].shape == (
-        n,
-        1,
-    )
+    iid_log_q = ins.iid_samples.add_initial_samples.call_args.args[1]
+    assert iid_log_q.shape == (n,)
+    assert len(iid_log_q.dtype.names) == 1
     assert np.isfinite(
         ins.iid_samples.add_initial_samples.call_args.args[0]["logL"]
     ).all()
@@ -122,18 +121,22 @@ def test_remove_samples(ins, iid):
 
 
 def test_adjust_final_samples(ins, proposal, model, samples, log_q):
-    def draw(n, flow_number=None, update_counts=False):
+    def draw(n, flow_id=None, update_counts=False):
         assert update_counts is False
         x = numpy_array_to_live_points(
             np.random.randn(n, model.dims),
             names=model.names,
         )
-        lq = np.random.rand(n, log_q.shape[1])
+        lq = np.empty(n, dtype=log_q.dtype)
+        for name in log_q.dtype.names:
+            lq[name] = np.random.rand(n)
         return x, lq
 
     def draw_from_prior(n):
         x = model.new_point(n)
-        lq = np.random.rand(n, log_q.shape[1])
+        lq = np.empty(n, dtype=log_q.dtype)
+        for name in log_q.dtype.names:
+            lq[name] = np.random.rand(n)
         return x, lq
 
     proposal.draw = MagicMock(side_effect=draw)
@@ -180,8 +183,15 @@ def test_update_evidence(ins, iid):
 
 
 def test_update_sample_counts(ins):
-    ins.samples_unit = {"it": np.array([-1, 0, 2, 2, 2])}
+    ins.samples_unit = {"qID": np.array(["-1", "0", "2", "2", "2"])}
     ins.proposal = MagicMock()
-    ins.proposal.n_proposals = 5
+    ins.proposal.weights = {
+        "-1": 0.0,
+        "0": 0.0,
+        "1": 0.0,
+        "2": 0.0,
+        "3": 0.0,
+    }
+    ins.proposal.cast_qid = lambda qid: qid
     INS.update_sample_counts(ins)
-    assert ins.sample_counts == {-1: 1, 0: 1, 1: 0, 2: 3, 3: 0}
+    assert ins.sample_counts == {"-1": 1, "0": 1, "1": 0, "2": 3, "3": 0}

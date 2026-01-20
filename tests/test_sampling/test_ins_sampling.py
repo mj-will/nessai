@@ -9,7 +9,6 @@ import pytest
 from nessai.flowsampler import FlowSampler
 
 
-@pytest.fixture(autouse=True)
 @pytest.mark.usefixtures("reset_ins_parameters")
 def reset_ins_parameters():
     """Reset the extra live points parameters before each test."""
@@ -54,7 +53,10 @@ def test_ins_resume(tmp_path, integration_model, flow_config, save_log_q):
 
     assert fp.ns.max_iteration == 2
     assert fp.ns.finalised is True
-    np.testing.assert_array_almost_equal(new_log_q, original_log_q)
+    for name in original_log_q.dtype.names:
+        np.testing.assert_array_almost_equal(
+            new_log_q[name], original_log_q[name]
+        )
 
 
 @pytest.mark.slow_integration_test
