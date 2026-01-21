@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1]
+
+### Fixed
+
+- Fix dict_to_live_points for 0d and len 1 arrays (https://github.com/mj-will/nessai/pull/470)
+
 ## [0.15.0]
 
 ### Added
