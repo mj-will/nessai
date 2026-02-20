@@ -203,8 +203,8 @@ class Angle(Reparameterisation):
 class ToCartesian(Angle):
     """Convert a parameter to Cartesian coordinates"""
 
-    def __init__(self, mode="split", scale=np.pi, **kwargs):
-        super().__init__(scale=scale, **kwargs)
+    def __init__(self, mode="split", scale=np.pi, rng=None, **kwargs):
+        super().__init__(scale=scale, rng=rng, **kwargs)
 
         self.mode = mode
         if self.mode not in ["duplicate", "split", "half"]:
@@ -276,14 +276,21 @@ class AnglePair(Reparameterisation):
     _conventions = {"az-zen": [0, np.pi], "ra-dec": [-np.pi / 2, np.pi / 2]}
 
     def __init__(
-        self, parameters=None, prior_bounds=None, prior=None, convention=None
+        self,
+        parameters=None,
+        prior_bounds=None,
+        prior=None,
+        convention=None,
+        rng=None,
     ):
         if len(parameters) not in [2, 3]:
             raise RuntimeError(
                 "Must use a pair of angles or a pair plus a radius"
             )
 
-        super().__init__(parameters=parameters, prior_bounds=prior_bounds)
+        super().__init__(
+            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+        )
 
         # Determine which parameter is for the horizontal plane
         # and which is for the vertical plane
