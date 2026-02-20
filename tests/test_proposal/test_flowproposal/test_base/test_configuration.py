@@ -47,7 +47,7 @@ def test_configure_plotting(proposal, plot, plot_pool, plot_train):
 
 def test_update_flow_proposal(proposal):
     """Assert the number of inputs is updated"""
-    proposal.flow_config = {"model_config": {}}
+    proposal.flow_config = {}
     proposal.rescaled_dims = 4
     BaseFlowProposal.update_flow_config(proposal)
     assert proposal.flow_config["n_inputs"] == 4

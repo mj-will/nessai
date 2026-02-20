@@ -9,7 +9,8 @@ from nessai.proposal.importance import ImportanceFlowProposal as IFP
 
 
 def test_resume(ifp, model, tmp_path):
-    flow_config = dict(patience=10, model_config=dict(n_inputs=2))
+    flow_config = dict(patience=10)
+    training_config = dict(max_epochs=10)
 
     ifp.initialise = MagicMock()
     ifp.flow = MagicMock()
@@ -18,7 +19,7 @@ def test_resume(ifp, model, tmp_path):
     path = tmp_path / "test_resume"
 
     with patch("nessai.proposal.importance.Proposal.resume") as mock_parent:
-        IFP.resume(ifp, model, flow_config, weights_path=path)
+        IFP.resume(ifp, model, flow_config, training_config, weights_path=path)
 
     mock_parent.assert_called_once_with(model)
     ifp.initialise.assert_called_once_with()
@@ -26,6 +27,7 @@ def test_resume(ifp, model, tmp_path):
     assert ifp.flow_config is flow_config
     ifp.flow.resume.assert_called_once_with(
         flow_config,
+        training_config=training_config,
         weights_path=path,
     )
 

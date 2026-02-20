@@ -387,6 +387,8 @@ def test_training_additional_config_args(
     """
     flow_config = {}
     if test_deprecated:
+        # This test should fail
+        pytest.xfail(reason="Deprecated config should not be supported")
         flow_config["model_config"] = {}
         flow_config["model_config"]["n_inputs"] = data_dim
         training_config = None
