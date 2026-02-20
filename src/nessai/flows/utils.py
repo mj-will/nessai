@@ -294,10 +294,7 @@ def reset_permutations(module):
     module : :obj:`torch.nn.Module`
         Module to reset
     """
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        from .transforms import LULinear
-    if isinstance(module, (transforms.LULinear, LULinear)):
+    if isinstance(module, transforms.LULinear):
         module.cache.invalidate()
         module._initialize(identity_init=True)
     elif isinstance(module, transforms.RandomPermutation):
