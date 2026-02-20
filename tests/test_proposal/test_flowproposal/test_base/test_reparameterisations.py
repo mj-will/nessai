@@ -10,6 +10,7 @@ from nessai.model import Model
 from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.reparameterisations import (
     NullReparameterisation,
+    Reparameterisation,
     ReparameterisationError,
     RescaleToBounds,
     get_reparameterisation,
@@ -386,6 +387,26 @@ def test_configure_reparameterisation_no_parameters(proposal, dummy_rc):
             proposal, {"default": {"update_bounds": True}}
         )
     assert "No parameters key" in str(excinfo.value)
+
+
+def test_configure_reparameterisation_with_rng(proposal, rng):
+    """Test that the rng is correctly passed to the reparameterisation if it is
+    in the signature."""
+    proposal.model.names = ["x"]
+    proposal.model.bounds = {"x": [-1, 1]}
+    proposal.get_reparameterisation = MagicMock(
+        return_value=(
+            Reparameterisation,
+            {},
+        )
+    )
+    proposal.rng = rng
+    with patch("numpy.random.default_rng") as mocked_rng:
+        BaseFlowProposal.configure_reparameterisations(
+            proposal, {"default": {"parameters": ["x"]}}
+        )
+    mocked_rng.assert_not_called()
+    assert proposal._reparameterisation["reparameterisation_x"].rng is rng
 
 
 def test_set_rescaling_with_model(proposal, model):
