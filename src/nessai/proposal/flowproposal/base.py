@@ -7,7 +7,6 @@ import re
 from abc import abstractmethod
 from inspect import signature
 from typing import Optional
-from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -616,33 +615,6 @@ class BaseFlowProposal(RejectionProposal):
         self._reparameterisation.check_order()
 
         self._set_parameter_order()
-
-    @property
-    def names(self):
-        warn(
-            "`names` is deprecated, use `parameters` instead",
-            FutureWarning,
-        )
-        return self.parameters
-
-    @property
-    def rescaled_names(self):
-        warn(
-            ("`rescaled_names` is deprecated, use `prime_parameters` instead"),
-            FutureWarning,
-        )
-        return self.prime_parameters
-
-    @property
-    def update_bounds(self):
-        warn(
-            (
-                "`update_bounds` is deprecated, use "
-                "`should_update_reparameterisations` instead."
-            ),
-            FutureWarning,
-        )
-        return self.should_update_reparameterisations
 
     def set_rescaling(self):
         """

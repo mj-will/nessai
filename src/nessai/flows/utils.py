@@ -6,7 +6,6 @@ Various utilities for implementing normalising flows.
 import copy
 import inspect
 import logging
-import warnings
 from typing import Callable, Optional, Type, Union
 
 import numpy as np
@@ -214,14 +213,6 @@ def configure_model(config):
 
     if not isinstance(config["n_inputs"], int):
         raise TypeError("Number of inputs (n_inputs) must be an int")
-
-    kwargs_dict = config.pop("kwargs", None)
-    if kwargs_dict is not None:
-        warnings.warn(
-            "Specifying the kwargs as a dictionary is deprecated.",
-            FutureWarning,
-        )
-        config.update(kwargs_dict)
 
     if "activation" in config:
         config["activation"] = get_activation_function(config["activation"])
