@@ -5,6 +5,7 @@ import logging
 import os
 import re
 from abc import abstractmethod
+from inspect import signature
 from typing import Optional
 from warnings import warn
 
@@ -507,6 +508,9 @@ class BaseFlowProposal(RejectionProposal):
                         default_config["parameters"]
                     ]
                 }
+            sig = signature(rc.__init__)
+            if "rng" in sig.parameters:
+                default_config["rng"] = self.rng
 
             logger.info(f"Adding {rc.__name__} with config: {default_config}")
             r = rc(prior_bounds=prior_bounds, **default_config)
