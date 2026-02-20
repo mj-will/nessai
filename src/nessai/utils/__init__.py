@@ -15,7 +15,7 @@ from .io import (
     save_live_points,
     save_to_json,
 )
-from .logging import configure_logger, setup_logger
+from .logging import configure_logger
 from .rescaling import (
     configure_edge_detection,
     detect_edge,
