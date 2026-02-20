@@ -184,7 +184,6 @@ class NestedSampler(BaseNestedSampler):
         uninformed_acceptance_threshold=None,
         uninformed_proposal_kwargs=None,
         flow_proposal_class=None,
-        flow_class=None,
         flow_config=None,
         training_frequency=None,
         train_on_empty=True,
