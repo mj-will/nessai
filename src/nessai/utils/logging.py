@@ -119,19 +119,3 @@ def configure_logger(
     logger.info(f"Running Nessai version {version}")
 
     return logger
-
-
-def setup_logger(*args, **kwargs):
-    """
-    Wrapper for configure_logger to maintain backwards compatibility.
-
-    .. deprecated:: 0.14.0
-        Use :func:`configure_logger` instead.
-    """
-    import warnings
-
-    warnings.warn(
-        "setup_logger is deprecated, use configure_logger instead",
-        FutureWarning,
-    )
-    return configure_logger(*args, **kwargs)
