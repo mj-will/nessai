@@ -29,10 +29,11 @@ def test_init(reparam, mode, scale):
     prior_bounds = {"x": [0.0, 1.0]}
     """Test the init method"""
 
-    def side_effect(scale, prior_bounds=None):
+    def side_effect(scale, prior_bounds=None, rng=None):
         reparam.scale = scale
         reparam.parameters = ["x", "y"]
         reparam.prior_bounds = prior_bounds
+        reparam.rng = rng or np.random.default_rng()
 
     with patch(
         "nessai.reparameterisations.Angle.__init__", side_effect=side_effect
@@ -43,7 +44,9 @@ def test_init(reparam, mode, scale):
     assert reparam.mode == mode
     assert reparam._zero_bound is False
     assert reparam._k == 1.0
-    super_init.assert_called_once_with(scale=scale, prior_bounds=prior_bounds)
+    super_init.assert_called_once_with(
+        scale=scale, prior_bounds=prior_bounds, rng=None
+    )
 
 
 def test_init_invalid_mode(reparam):
