@@ -446,6 +446,30 @@ def test_configure_reparameterisation_with_rng(proposal, rng):
     assert proposal._reparameterisation["reparameterisation_x"].rng is rng
 
 
+def test_set_parameter_order(proposal):
+    proposal.model.names = ["x", "y"]
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.parameters = ["x", "y", "z"]
+    proposal._reparameterisation.values.return_value = [
+        MagicMock(
+            parameters=["x", "z"],
+            prime_parameters=["x_prime", "z_prime"],
+        ),
+        MagicMock(
+            parameters=["y"],
+            prime_parameters=["y_prime", "y_aux"],
+        ),
+    ]
+    proposal._set_parameter_order()
+    assert proposal.parameters == ["x", "y", "z"]
+    assert proposal.prime_parameters == [
+        "x_prime",
+        "z_prime",
+        "y_prime",
+        "y_aux",
+    ]
+
+
 def test_set_rescaling_with_model(proposal, model):
     """
     Test setting the rescaling when the model contains reparmaeterisations.
