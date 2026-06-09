@@ -414,7 +414,7 @@ class BaseFlowProposal(RejectionProposal):
             parameter: [] for parameter in model_parameters
         }
         # Prime parameters that are derived from other prime parameters
-        derived_prime_parameters = []
+        auxiliary_prime_parameters = []
 
         for reparameterisation in self._reparameterisation.values():
             owned_model_parameters = [
@@ -437,7 +437,7 @@ class BaseFlowProposal(RejectionProposal):
                     reparameterisation.prime_parameters
                 )
             else:
-                derived_prime_parameters.extend(
+                auxiliary_prime_parameters.extend(
                     reparameterisation.prime_parameters
                 )
 
@@ -447,7 +447,7 @@ class BaseFlowProposal(RejectionProposal):
             if parameter in parameter_to_prime:
                 self.prime_parameters.append(parameter_to_prime[parameter])
 
-        self.prime_parameters.extend(derived_prime_parameters)
+        self.prime_parameters.extend(auxiliary_prime_parameters)
 
     def configure_reparameterisations(self, reparameterisations):
         """Configure the reparameterisations.
