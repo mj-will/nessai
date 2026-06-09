@@ -27,6 +27,11 @@ def proposal(proposal):
     proposal.use_default_reparameterisations = False
     proposal.reverse_reparameterisations = False
     proposal.model = MagicMock(spec=Model)
+    proposal._set_parameter_order = (
+        BaseFlowProposal._set_parameter_order.__get__(
+            proposal, BaseFlowProposal
+        )
+    )
     return proposal
 
 
@@ -46,6 +51,13 @@ def dummy_cmb_rc():
     return m
 
 
+class DummyFlowProposal(BaseFlowProposal):
+    def populate(self, worst_point, n_samples=10000):
+        raise NotImplementedError(
+            "This is a dummy proposal and does not implement populate."
+        )
+
+
 def make_test_proposal(reparameterisations, rng):
     """Construct a concrete proposal with a toy four-parameter model."""
     model = MagicMock(spec=Model)
@@ -53,7 +65,7 @@ def make_test_proposal(reparameterisations, rng):
     model.bounds = {n: [-1.0, 1.0] for n in model.names}
     model.reparameterisations = None
 
-    proposal = BaseFlowProposal(
+    proposal = DummyFlowProposal(
         model,
         rng=rng,
         poolsize=10,
@@ -181,7 +193,7 @@ def test_configure_reparameterisations_dict_w_params(
     proposal.add_default_reparameterisations.assert_not_called()
     dummy_rc.assert_called_once_with(
         prior_bounds={"x": [-1, 1], "y": [-1, 1]},
-        parameters=["y", "x"],
+        parameters=["x", "y"],
     )
     mocked_class.assert_called_once()
     # fmt: off
