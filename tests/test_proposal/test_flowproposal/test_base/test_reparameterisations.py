@@ -153,8 +153,9 @@ def test_configure_reparameterisations_dict(
 
 
 @patch("nessai.proposal.flowproposal.base.CombinedReparameterisation")
+@pytest.mark.parametrize("parameters_value", ["y", ["y"], ("y",)])
 def test_configure_reparameterisations_dict_w_params(
-    mocked_class, proposal, dummy_rc, dummy_cmb_rc
+    mocked_class, proposal, dummy_rc, dummy_cmb_rc, parameters_value
 ):
     """Test configuration for reparameterisations dictionary with parameters.
 
@@ -186,7 +187,12 @@ def test_configure_reparameterisations_dict_w_params(
     ) as mocked_class:
         BaseFlowProposal.configure_reparameterisations(
             proposal,
-            {"x": {"reparameterisation": "default", "parameters": ["y"]}},
+            {
+                "x": {
+                    "reparameterisation": "default",
+                    "parameters": parameters_value,
+                }
+            },
         )
 
     proposal.get_reparameterisation.assert_called_once_with("default")
@@ -449,7 +455,7 @@ def test_configure_reparameterisation_with_rng(proposal, rng):
 def test_set_parameter_order(proposal):
     proposal.model.names = ["x", "y"]
     proposal._reparameterisation = MagicMock()
-    proposal._reparameterisation.parameters = ["x", "y", "z"]
+    proposal._reparameterisation.parameters = ["w", "x", "y", "z"]
     proposal._reparameterisation.values.return_value = [
         MagicMock(
             parameters=["x", "z"],
@@ -459,14 +465,24 @@ def test_set_parameter_order(proposal):
             parameters=["y"],
             prime_parameters=["y_prime", "y_aux"],
         ),
+        # Derived parameter (isn't present in model)
+        MagicMock(
+            parameters=["w"],
+            prime_parameters=["w_prime"],
+        ),
     ]
     proposal._set_parameter_order()
-    assert proposal.parameters == ["x", "y", "z"]
+    # Parameter order will be model + others in order returned by the
+    # reparameterisation
+    assert proposal.parameters == ["x", "y", "w", "z"]
+    # Model parameters, additional parameters from reparams with model
+    # parameters, then any remaining parameters from reparams in order
     assert proposal.prime_parameters == [
         "x_prime",
         "z_prime",
         "y_prime",
         "y_aux",
+        "w_prime",
     ]
 
 
