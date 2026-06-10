@@ -386,6 +386,69 @@ class BaseFlowProposal(RejectionProposal):
         """Get the reparameterisation from the name"""
         return get_reparameterisation(name)
 
+    def _set_parameter_order(self):
+        """Set stable proposal-facing parameter orders.
+
+        Parameters are ordered such that the model parameters are first and in
+        the same order as the model, followed by any additional parameters from
+        the reparameterisations.
+
+        The prime parameters are ordered such that any prime parameters that
+        correspond to model parameters are in the same order as the model
+        parameters, followed by any additional prime parameters.
+        """
+        model_parameters = list(self.model.names)
+
+        self.parameters = model_parameters + [
+            parameter
+            for parameter in self._reparameterisation.parameters
+            if parameter not in model_parameters
+        ]
+
+        # Dictionary of parameter -> prime parameter for parameters that have a
+        # one-to-one mapping to a prime parameter
+        parameter_to_prime = {}
+        # Dictionary of parameter -> list of prime parameters for parameters
+        # that have a one-to-many mapping to prime parameters.
+        grouped_prime_parameters = {
+            parameter: [] for parameter in model_parameters
+        }
+        # Prime parameters that are derived from other prime parameters
+        auxiliary_prime_parameters = []
+
+        for reparameterisation in self._reparameterisation.values():
+            owned_model_parameters = [
+                parameter
+                for parameter in reparameterisation.parameters
+                if parameter in model_parameters
+            ]
+
+            if owned_model_parameters and len(owned_model_parameters) == len(
+                reparameterisation.prime_parameters
+            ):
+                parameter_to_prime.update(
+                    zip(
+                        owned_model_parameters,
+                        reparameterisation.prime_parameters,
+                    )
+                )
+            elif owned_model_parameters:
+                grouped_prime_parameters[owned_model_parameters[0]].extend(
+                    reparameterisation.prime_parameters
+                )
+            else:
+                auxiliary_prime_parameters.extend(
+                    reparameterisation.prime_parameters
+                )
+
+        self.prime_parameters = []
+        for parameter in model_parameters:
+            self.prime_parameters.extend(grouped_prime_parameters[parameter])
+            if parameter in parameter_to_prime:
+                self.prime_parameters.append(parameter_to_prime[parameter])
+
+        self.prime_parameters.extend(auxiliary_prime_parameters)
+
     def configure_reparameterisations(self, reparameterisations):
         """Configure the reparameterisations.
 
@@ -438,7 +501,12 @@ class BaseFlowProposal(RejectionProposal):
                     cfg.pop("reparameterisation")
 
                     if cfg.get("parameters", False):
-                        cfg["parameters"] += [k]
+                        parameters = cfg.pop("parameters")
+                        if isinstance(parameters, str):
+                            parameters = [parameters]
+                        default_config["parameters"] = list(
+                            dict.fromkeys([k, *parameters])
+                        )
                     else:
                         default_config["parameters"] = k
 
@@ -547,8 +615,7 @@ class BaseFlowProposal(RejectionProposal):
 
         self._reparameterisation.check_order()
 
-        self.parameters = self._reparameterisation.parameters
-        self.prime_parameters = self._reparameterisation.prime_parameters
+        self._set_parameter_order()
 
     @property
     def names(self):

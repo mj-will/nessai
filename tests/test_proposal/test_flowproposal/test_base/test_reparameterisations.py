@@ -5,7 +5,11 @@ from unittest.mock import MagicMock, Mock, call, patch
 import numpy as np
 import pytest
 
-from nessai.livepoint import get_dtype, numpy_array_to_live_points
+from nessai.livepoint import (
+    get_dtype,
+    live_points_to_array,
+    numpy_array_to_live_points,
+)
 from nessai.model import Model
 from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.reparameterisations import (
@@ -23,6 +27,11 @@ def proposal(proposal):
     proposal.use_default_reparameterisations = False
     proposal.reverse_reparameterisations = False
     proposal.model = MagicMock(spec=Model)
+    proposal._set_parameter_order = (
+        BaseFlowProposal._set_parameter_order.__get__(
+            proposal, BaseFlowProposal
+        )
+    )
     return proposal
 
 
@@ -40,6 +49,34 @@ def dummy_cmb_rc():
     m = MagicMock()
     m.add_reparameterisation = MagicMock()
     return m
+
+
+class DummyFlowProposal(BaseFlowProposal):
+    def populate(self, worst_point, n_samples=10000):
+        raise NotImplementedError(
+            "This is a dummy proposal and does not implement populate."
+        )
+
+
+def make_test_proposal(reparameterisations, rng):
+    """Construct a concrete proposal with a toy four-parameter model."""
+    model = MagicMock(spec=Model)
+    model.names = ["a", "b", "c", "d"]
+    model.bounds = {n: [-1.0, 1.0] for n in model.names}
+    model.reparameterisations = None
+
+    proposal = DummyFlowProposal(
+        model,
+        rng=rng,
+        poolsize=10,
+        reparameterisations=reparameterisations,
+        fallback_reparameterisation=None,
+    )
+    proposal.get_reparameterisation = MagicMock(
+        side_effect=get_reparameterisation
+    )
+    proposal.set_rescaling()
+    return proposal
 
 
 def test_default_reparameterisation(proposal):
@@ -116,8 +153,9 @@ def test_configure_reparameterisations_dict(
 
 
 @patch("nessai.proposal.flowproposal.base.CombinedReparameterisation")
+@pytest.mark.parametrize("parameters_value", ["y", ["y"], ("y",)])
 def test_configure_reparameterisations_dict_w_params(
-    mocked_class, proposal, dummy_rc, dummy_cmb_rc
+    mocked_class, proposal, dummy_rc, dummy_cmb_rc, parameters_value
 ):
     """Test configuration for reparameterisations dictionary with parameters.
 
@@ -149,14 +187,19 @@ def test_configure_reparameterisations_dict_w_params(
     ) as mocked_class:
         BaseFlowProposal.configure_reparameterisations(
             proposal,
-            {"x": {"reparameterisation": "default", "parameters": ["y"]}},
+            {
+                "x": {
+                    "reparameterisation": "default",
+                    "parameters": parameters_value,
+                }
+            },
         )
 
     proposal.get_reparameterisation.assert_called_once_with("default")
     proposal.add_default_reparameterisations.assert_not_called()
     dummy_rc.assert_called_once_with(
         prior_bounds={"x": [-1, 1], "y": [-1, 1]},
-        parameters=["y", "x"],
+        parameters=["x", "y"],
     )
     mocked_class.assert_called_once()
     # fmt: off
@@ -407,6 +450,40 @@ def test_configure_reparameterisation_with_rng(proposal, rng):
         )
     mocked_rng.assert_not_called()
     assert proposal._reparameterisation["reparameterisation_x"].rng is rng
+
+
+def test_set_parameter_order(proposal):
+    proposal.model.names = ["x", "y"]
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.parameters = ["w", "x", "y", "z"]
+    proposal._reparameterisation.values.return_value = [
+        MagicMock(
+            parameters=["x", "z"],
+            prime_parameters=["x_prime", "z_prime"],
+        ),
+        MagicMock(
+            parameters=["y"],
+            prime_parameters=["y_prime", "y_aux"],
+        ),
+        # Derived parameter (isn't present in model)
+        MagicMock(
+            parameters=["w"],
+            prime_parameters=["w_prime"],
+        ),
+    ]
+    proposal._set_parameter_order()
+    # Parameter order will be model + others in order returned by the
+    # reparameterisation
+    assert proposal.parameters == ["x", "y", "w", "z"]
+    # Model parameters, additional parameters from reparams with model
+    # parameters, then any remaining parameters from reparams in order
+    assert proposal.prime_parameters == [
+        "x_prime",
+        "z_prime",
+        "y_prime",
+        "y_aux",
+        "w_prime",
+    ]
 
 
 def test_set_rescaling_with_model(proposal, model):
@@ -708,3 +785,150 @@ def test_check_state_update(proposal, map_to_unit_hypercube):
         proposal._reparameterisation.update.assert_called_once_with(x_hyper)
     else:
         proposal._reparameterisation.update.assert_called_once_with(x)
+
+
+def test_multi_parameter_reparameterisation_ordering(rng):
+    """Parameter-key grouping should preserve model-order parameters."""
+    grouped = make_test_proposal(
+        {
+            "a": {"reparameterisation": "null", "parameters": ["d"]},
+            "b": "null",
+            "c": "null",
+        },
+        rng=rng,
+    )
+
+    assert grouped.parameters == ["a", "b", "c", "d"]
+    assert grouped.prime_parameters == ["a", "b", "c", "d"]
+
+
+@pytest.mark.integration_test
+def test_multi_parameter_reparameterisation_flow_input_order(rng):
+    baseline = make_test_proposal(
+        {"a": "null", "b": "null", "c": "null", "d": "null"},
+        rng=rng,
+    )
+    grouped = make_test_proposal(
+        {
+            "a": {"reparameterisation": "null", "parameters": ["d"]},
+            "b": "null",
+            "c": "null",
+        },
+        rng=rng,
+    )
+    x = numpy_array_to_live_points(
+        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
+        ["a", "b", "c", "d"],
+    )
+
+    x_prime_baseline, _ = baseline.rescale(x)
+    x_prime_grouped, _ = grouped.rescale(x)
+
+    np.testing.assert_array_equal(
+        live_points_to_array(
+            x_prime_baseline, names=baseline.prime_parameters, copy=True
+        ),
+        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
+    )
+    np.testing.assert_array_equal(
+        live_points_to_array(
+            x_prime_grouped, names=grouped.prime_parameters, copy=True
+        ),
+        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
+    )
+
+    baseline.flow = MagicMock()
+    baseline.flow.forward_and_log_prob = MagicMock(
+        return_value=(np.zeros((x.size, 4)), np.zeros(x.size))
+    )
+    grouped.flow = MagicMock()
+    grouped.flow.forward_and_log_prob = MagicMock(
+        return_value=(np.zeros((x.size, 4)), np.zeros(x.size))
+    )
+
+    baseline.forward_pass(x)
+    grouped.forward_pass(x)
+
+    np.testing.assert_array_equal(
+        baseline.flow.forward_and_log_prob.call_args[0][0],
+        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
+    )
+    np.testing.assert_array_equal(
+        grouped.flow.forward_and_log_prob.call_args[0][0],
+        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
+    )
+
+
+@pytest.mark.integration_test
+def test_multi_parameter_reparameterisation_ordering_integration(rng):
+    """Grouped scaling should affect only `a` and `d` in stable order."""
+    baseline = make_test_proposal(
+        {
+            "a": {"reparameterisation": "rescale", "scale": 2.0},
+            "b": "null",
+            "c": "null",
+            "d": {"reparameterisation": "rescale", "scale": 10.0},
+        },
+        rng=rng,
+    )
+    grouped = make_test_proposal(
+        {
+            "rescale": {
+                "parameters": ["a", "d"],
+                "scale": {"a": 2.0, "d": 10.0},
+            },
+            "b": "null",
+            "c": "null",
+        },
+        rng=rng,
+    )
+    x = numpy_array_to_live_points(
+        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
+        ["a", "b", "c", "d"],
+    )
+
+    x_prime_baseline, log_j_baseline = baseline.rescale(x)
+    x_prime_grouped, log_j_grouped = grouped.rescale(x)
+    x_out_grouped, log_j_inv_grouped = grouped.inverse_rescale(x_prime_grouped)
+
+    expected = np.array([[0.5, 2.0, 3.0, 0.4], [5.0, 20.0, 30.0, 4.0]])
+    expected_log_j = -np.log(20.0) * np.ones(x.shape[0])
+
+    np.testing.assert_array_equal(
+        live_points_to_array(
+            x_prime_baseline, names=baseline.prime_parameters, copy=True
+        ),
+        expected,
+    )
+    np.testing.assert_array_equal(
+        live_points_to_array(
+            x_prime_grouped, names=grouped.prime_parameters, copy=True
+        ),
+        expected,
+    )
+    np.testing.assert_allclose(log_j_baseline, expected_log_j)
+    np.testing.assert_allclose(log_j_grouped, expected_log_j)
+    np.testing.assert_array_equal(
+        live_points_to_array(x_out_grouped, names=grouped.model.names),
+        live_points_to_array(x, names=grouped.model.names),
+    )
+    np.testing.assert_allclose(log_j_inv_grouped, -expected_log_j)
+
+    baseline.flow = MagicMock()
+    baseline.flow.forward_and_log_prob = MagicMock(
+        return_value=(np.zeros((x.size, 4)), np.zeros(x.size))
+    )
+    grouped.flow = MagicMock()
+    grouped.flow.forward_and_log_prob = MagicMock(
+        return_value=(np.zeros((x.size, 4)), np.zeros(x.size))
+    )
+
+    baseline.forward_pass(x)
+    grouped.forward_pass(x)
+
+    np.testing.assert_array_equal(
+        baseline.flow.forward_and_log_prob.call_args[0][0], expected
+    )
+    np.testing.assert_array_equal(
+        grouped.flow.forward_and_log_prob.call_args[0][0], expected
+    )
