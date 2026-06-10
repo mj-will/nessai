@@ -7,18 +7,15 @@ import pytest
 
 from nessai.livepoint import (
     get_dtype,
-    live_points_to_array,
     numpy_array_to_live_points,
 )
 from nessai.model import Model
 from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.reparameterisations import (
-    NullReparameterisation,
     Reparameterisation,
     ReparameterisationError,
-    RescaleToBounds,
-    get_reparameterisation,
 )
+from nessai.reparameterisations.utils import ReparameterisationSpec
 
 
 @pytest.fixture
@@ -27,21 +24,8 @@ def proposal(proposal):
     proposal.use_default_reparameterisations = False
     proposal.reverse_reparameterisations = False
     proposal.model = MagicMock(spec=Model)
-    proposal._set_parameter_order = (
-        BaseFlowProposal._set_parameter_order.__get__(
-            proposal, BaseFlowProposal
-        )
-    )
-    proposal._resolve_reparameterisation_parameters = (
-        BaseFlowProposal._resolve_reparameterisation_parameters.__get__(
-            proposal, BaseFlowProposal
-        )
-    )
-    proposal._get_prior_bounds_for_parameters = (
-        BaseFlowProposal._get_prior_bounds_for_parameters.__get__(
-            proposal, BaseFlowProposal
-        )
-    )
+    proposal.fallback_reparameterisation = None
+    proposal.prior_bounds = {}
     return proposal
 
 
@@ -58,117 +42,11 @@ def dummy_cmb_rc():
     """Dummy combined reparameteristation class"""
     m = MagicMock()
     m.add_reparameterisation = MagicMock()
+    m.add_reparameterisations = MagicMock()
+    m.values.return_value = []
+    m.check_order = MagicMock()
+    m.parameters = []
     return m
-
-
-class DummyFlowProposal(BaseFlowProposal):
-    def populate(self, worst_point, n_samples=10000):
-        raise NotImplementedError(
-            "This is a dummy proposal and does not implement populate."
-        )
-
-
-class AddAuxiliaryReparameterisation(Reparameterisation):
-    def __init__(
-        self,
-        parameters=None,
-        prior_bounds=None,
-        auxiliary_parameter="aux",
-        rng=None,
-    ):
-        super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
-        )
-        self.auxiliary_parameter = auxiliary_parameter
-        self.auxiliary_parameters = [auxiliary_parameter]
-
-    def reparameterise(self, x, x_prime, log_j, **kwargs):
-        if self.auxiliary_parameter not in x.dtype.names:
-            x_out = np.empty(
-                x.shape,
-                dtype=x.dtype.descr + [(self.auxiliary_parameter, "f8")],
-            )
-            for name in x.dtype.names:
-                x_out[name] = x[name]
-            x = x_out
-        x[self.auxiliary_parameter] = 2.0 * x[self.parameters[0]]
-        x_prime[self.prime_parameters[0]] = x[self.parameters[0]]
-        return x, x_prime, log_j
-
-    def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
-        x[self.parameters[0]] = x_prime[self.prime_parameters[0]]
-        x[self.auxiliary_parameter] = 2.0 * x[self.parameters[0]]
-        return x, x_prime, log_j
-
-
-class RescaleAuxiliaryReparameterisation(Reparameterisation):
-    def __init__(
-        self, parameters=None, prior_bounds=None, scale=10.0, rng=None
-    ):
-        super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
-        )
-        self.scale = scale
-
-    def reparameterise(self, x, x_prime, log_j, **kwargs):
-        x_prime[self.prime_parameters[0]] = x[self.parameters[0]] / self.scale
-        log_j -= np.log(self.scale)
-        return x, x_prime, log_j
-
-    def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
-        x[self.parameters[0]] = x_prime[self.prime_parameters[0]] * self.scale
-        log_j += np.log(self.scale)
-        return x, x_prime, log_j
-
-
-def make_test_proposal(reparameterisations, rng):
-    """Construct a concrete proposal with a toy four-parameter model."""
-    model = MagicMock(spec=Model)
-    model.names = ["a", "b", "c", "d"]
-    model.bounds = {n: [-1.0, 1.0] for n in model.names}
-    model.reparameterisations = None
-
-    proposal = DummyFlowProposal(
-        model,
-        rng=rng,
-        poolsize=10,
-        reparameterisations=reparameterisations,
-        fallback_reparameterisation=None,
-    )
-    proposal.get_reparameterisation = MagicMock(
-        side_effect=get_reparameterisation
-    )
-    proposal.set_rescaling()
-    return proposal
-
-
-def make_auxiliary_test_proposal(reparameterisations, rng):
-    model = MagicMock(spec=Model)
-    model.names = ["a", "b"]
-    model.bounds = {n: [-1.0, 1.0] for n in model.names}
-    model.reparameterisations = None
-
-    proposal = DummyFlowProposal(
-        model,
-        rng=rng,
-        poolsize=10,
-        reparameterisations=reparameterisations,
-        fallback_reparameterisation=None,
-    )
-
-    def get_test_reparameterisation(name):
-        mapping = {
-            "null": (NullReparameterisation, {}),
-            "add-aux": (AddAuxiliaryReparameterisation, {}),
-            "aux-rescale": (RescaleAuxiliaryReparameterisation, {}),
-        }
-        return mapping[name]
-
-    proposal.get_reparameterisation = MagicMock(
-        side_effect=get_test_reparameterisation
-    )
-    proposal.set_rescaling()
-    return proposal
 
 
 def test_default_reparameterisation(proposal):
@@ -187,10 +65,9 @@ def test_get_reparamaterisation(mocked_fn, proposal):
 
 @pytest.mark.parametrize("reverse_order", [False, True])
 @pytest.mark.parametrize("use_default_reparameterisations", [False, True])
-def test_configure_reparameterisations_dict(
+def test_configure_reparameterisations(
     proposal,
     dummy_cmb_rc,
-    dummy_rc,
     reverse_order,
     use_default_reparameterisations,
 ):
@@ -199,289 +76,300 @@ def test_configure_reparameterisations_dict(
     Also tests to make sure boundary inversion is set and if the
     `reverse_reparameterisation` is correctly set.
     """
-    dummy_rc.return_value = "r"
-    # Need to add the parameters before hand to prevent a
-    # NullReparameterisation from being added
-    dummy_cmb_rc.parameters = ["x"]
     proposal.add_default_reparameterisations = MagicMock()
-    proposal.get_reparameterisation = MagicMock(
-        return_value=(dummy_rc, {"boundary_inversion": True})
-    )
     proposal.map_to_unit_hypercube = False
     proposal.model = MagicMock()
     proposal.model.bounds = {"x": [-1, 1]}
     proposal.model.names = ["x"]
-    proposal.fallback_reparameterisations = None
+    proposal.fallback_reparameterisation = None
     proposal.reverse_reparameterisations = reverse_order
     proposal.use_default_reparameterisations = use_default_reparameterisations
     proposal.prior_bounds = proposal.model.bounds
 
-    with patch(
-        "nessai.proposal.flowproposal.base.CombinedReparameterisation",
-        return_value=dummy_cmb_rc,
-    ) as mocked_class:
+    dummy_cmb_rc.parameters = ["x"]
+    reparams = [MagicMock()]
+    proposal.instantiate_reparameterisation_from_spec = MagicMock(
+        side_effect=reparams
+    )
+    specs = [MagicMock()]
+    proposal._set_parameter_order = MagicMock()
+
+    reparameterisations = {"x": {"reparameterisation": "default"}}
+
+    with (
+        patch(
+            "nessai.proposal.flowproposal.base.CombinedReparameterisation",
+            return_value=dummy_cmb_rc,
+        ) as mocked_class,
+        patch(
+            "nessai.proposal.flowproposal.base.parse_reparameterisations",
+            return_value=specs,
+        ) as mocked_parse,
+    ):
         BaseFlowProposal.configure_reparameterisations(
-            proposal, {"x": {"reparameterisation": "default"}}
+            proposal, reparameterisations
         )
 
-    proposal.get_reparameterisation.assert_called_once_with("default")
+    mocked_parse.assert_called_once_with(
+        reparameterisations,
+        model_names=proposal.model.names,
+        class_name=proposal.__class__.__name__,
+    )
+
+    proposal.instantiate_reparameterisation_from_spec.assert_has_calls(
+        [call(spec) for spec in specs]
+    )
+    proposal._reparameterisation.add_reparameterisations.assert_has_calls(
+        [call(r) for r in reparams]
+    )
 
     if use_default_reparameterisations:
         proposal.add_default_reparameterisations.assert_called_once()
     else:
         proposal.add_default_reparameterisations.assert_not_called()
 
-    dummy_rc.assert_called_once_with(
-        prior_bounds={"x": [-1, 1]}, parameters="x", boundary_inversion=True
-    )
+    # other_params should be empty
+    proposal.get_reparameterisation.assert_not_called()
+
     mocked_class.assert_called_once_with(
         reverse_order=reverse_order, initial_parameters=["x"]
     )
-    # fmt: off
-    proposal._reparameterisation.add_reparameterisations \
-        .assert_called_once_with("r")
-    # fmt: on
 
-    assert proposal.boundary_inversion is True
-    assert proposal.parameters == ["x"]
+    proposal._set_parameter_order.assert_called_once()
 
 
-@patch("nessai.proposal.flowproposal.base.CombinedReparameterisation")
-@pytest.mark.parametrize("parameters_value", ["y", ["y"], ("y",)])
-def test_configure_reparameterisations_dict_w_params(
-    mocked_class, proposal, dummy_rc, dummy_cmb_rc, parameters_value
-):
-    """Test configuration for reparameterisations dictionary with parameters.
-
-    For example:
-
-        {'x': {'reparmeterisation': 'default', 'parameters': 'y'}}
-
-    This should add both x and y to the reparameterisation.
-    """
-    dummy_rc.return_value = "r"
-    # Need to add the parameters before hand to prevent a
-    # NullReparameterisation from being added
-    dummy_cmb_rc.parameters = ["x", "y"]
-    proposal.add_default_reparameterisations = MagicMock()
+def test_get_reparameterisation_from_spec_model_key(proposal, dummy_rc):
+    """Assert parameter-key specs are converted into a config."""
     proposal.get_reparameterisation = MagicMock(
-        return_value=(
-            dummy_rc,
-            {},
-        )
+        return_value=(dummy_rc, {"offset": 1.0})
     )
-    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
-    proposal.model.names = ["x", "y"]
-    proposal.map_to_unit_hypercube = False
-    proposal.prior_bounds = proposal.model.bounds
-
-    with patch(
-        "nessai.proposal.flowproposal.base.CombinedReparameterisation",
-        return_value=dummy_cmb_rc,
-    ) as mocked_class:
-        BaseFlowProposal.configure_reparameterisations(
-            proposal,
-            {
-                "x": {
-                    "reparameterisation": "default",
-                    "parameters": parameters_value,
-                }
-            },
-        )
-
-    proposal.get_reparameterisation.assert_called_once_with("default")
-    proposal.add_default_reparameterisations.assert_not_called()
-    dummy_rc.assert_called_once_with(
-        prior_bounds={"x": [-1, 1], "y": [-1, 1]},
+    spec = ReparameterisationSpec(
+        source_key="x",
+        spec_index=0,
+        reparameterisation="default",
+        source_is_parameter=True,
         parameters=["x", "y"],
-    )
-    mocked_class.assert_called_once_with(
-        reverse_order=False, initial_parameters=["x", "y"]
-    )
-    # fmt: off
-    proposal._reparameterisation.add_reparameterisations \
-        .assert_called_once_with("r")
-    # fmt: on
-
-    assert proposal.parameters == ["x", "y"]
-
-
-@patch("nessai.reparameterisations.CombinedReparameterisation")
-def test_configure_reparameterisations_dict_missing(mocked_class, proposal):
-    """
-    Test configuration for reparameterisations dictionary when missing
-    the reparameterisation for a parameter.
-
-    This should raise a runtime error.
-    """
-    proposal.add_default_reparameterisations = MagicMock()
-    proposal.get_reparameterisation = get_reparameterisation
-    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
-    proposal.model.names = ["x", "y"]
-
-    with pytest.raises(RuntimeError) as excinfo:
-        BaseFlowProposal.configure_reparameterisations(
-            proposal, {"x": {"scale": 1.0}}
-        )
-
-    assert "No reparameterisation found for x" in str(excinfo.value)
-
-
-def test_configure_reparameterisations_dict_str(proposal):
-    """Test configuration for reparameterisations dictionary from a str"""
-    proposal.add_default_reparameterisations = MagicMock()
-    proposal.get_reparameterisation = get_reparameterisation
-    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
-    proposal.model.names = ["x", "y"]
-    proposal.fallback_reparameterisation = None
-    BaseFlowProposal.configure_reparameterisations(proposal, {"x": "default"})
-
-    proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.prime_parameters == ["x_prime", "y"]
-    assert proposal._reparameterisation.parameters == ["x", "y"]
-    assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
-
-
-def test_configure_reparameterisations_dict_reparam(proposal):
-    """Test configuration for reparameterisations dictionary"""
-    proposal.add_default_reparameterisations = MagicMock()
-    proposal.get_reparameterisation = get_reparameterisation
-    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
-    proposal.model.names = ["x", "y"]
-    proposal.fallback_reparameterisation = None
-    BaseFlowProposal.configure_reparameterisations(
-        proposal, {"default": {"parameters": ["x"]}}
+        kwargs={"scale": 2.0},
     )
 
-    proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.prime_parameters == ["x_prime", "y"]
-    assert proposal._reparameterisation.parameters == ["x", "y"]
-    assert proposal._reparameterisation.prime_parameters == ["x_prime", "y"]
-
-
-def test_configure_reparameterisations_dict_reparam_list(proposal):
-    """Test configuration for reparameterisations dictionary"""
-    proposal.add_default_reparameterisations = MagicMock()
-    proposal.get_reparameterisation = get_reparameterisation
-    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
-    proposal.model.names = ["x", "y"]
-    proposal.fallback_reparameterisation = None
-    BaseFlowProposal.configure_reparameterisations(
-        proposal, {"default": ["x", "y"]}
+    rc, config = BaseFlowProposal.get_reparameterisation_from_spec(
+        proposal, spec
     )
 
-    proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.prime_parameters == ["x_prime", "y_prime"]
-    assert proposal._reparameterisation.parameters == ["x", "y"]
-    assert proposal._reparameterisation.prime_parameters == [
-        "x_prime",
-        "y_prime",
-    ]
+    assert rc is dummy_rc
+    assert config == {
+        "offset": 1.0,
+        "parameters": ["x", "y"],
+        "scale": 2.0,
+    }
+    proposal.get_reparameterisation.assert_called_once_with("default")
 
 
 @pytest.mark.parametrize(
     "parameters",
     [
         "x.*",
-        [
-            "x.*",
-        ],
+        ["x.*"],
         ("x.*",),
     ],
 )
-def test_configure_reparameterisations_regex(proposal, parameters):
-    """Test configuration for reparameterisations dictionary"""
-    proposal.add_default_reparameterisations = MagicMock()
-    proposal.get_reparameterisation = get_reparameterisation
+def test_get_reparameterisation_from_spec_resolves_patterns(
+    proposal, dummy_rc, parameters
+):
+    """Assert non-parameter specs resolve regex patterns."""
+    proposal.get_reparameterisation = MagicMock(return_value=(dummy_rc, {}))
     proposal.model.names = ["x_0", "x_1", "y"]
-    proposal.model.bounds = {"x_0": [-1, 1], "x_1": [-1, 1], "y": [-1, 1]}
-    proposal.fallback_reparameterisation = None
-    BaseFlowProposal.configure_reparameterisations(
-        proposal,
-        {"z-score": {"parameters": parameters}},
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.parameters = ["x_0", "x_1", "y"]
+    spec = ReparameterisationSpec(
+        source_key="z-score",
+        spec_index=0,
+        reparameterisation="z-score",
+        source_is_parameter=False,
+        parameters=parameters,
+        kwargs={},
     )
 
-    proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.prime_parameters == ["x_0_prime", "x_1_prime", "y"]
-    assert proposal._reparameterisation.parameters == ["x_0", "x_1", "y"]
-    assert proposal._reparameterisation.prime_parameters == [
-        "x_0_prime",
-        "x_1_prime",
-        "y",
-    ]
-
-
-def test_configure_reparameterisations_none(proposal):
-    """Test configuration when input is None"""
-    proposal.add_default_reparameterisations = MagicMock()
-    proposal.get_reparameterisation = get_reparameterisation
-    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
-    proposal.model.names = ["x", "y"]
-    proposal.fallback_reparameterisation = None
-    BaseFlowProposal.configure_reparameterisations(proposal, None)
-    proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.prime_parameters == ["x", "y"]
-
-    assert proposal._reparameterisation.parameters == ["x", "y"]
-    assert proposal._reparameterisation.prime_parameters == ["x", "y"]
-    assert all(
-        [
-            isinstance(r, NullReparameterisation)
-            for r in proposal._reparameterisation.reparameterisations.values()
-        ]
+    rc, config = BaseFlowProposal.get_reparameterisation_from_spec(
+        proposal, spec
     )
 
+    assert rc is dummy_rc
+    assert config == {"parameters": ["x_0", "x_1"]}
 
-def test_configure_reparameterisations_string(proposal):
-    """Test configuration when input is a string"""
-    proposal.add_default_reparameterisations = MagicMock()
-    proposal.get_reparameterisation = get_reparameterisation
-    proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
-    proposal.model.names = ["x", "y"]
-    proposal.fallback_reparameterisation = None
-    BaseFlowProposal.configure_reparameterisations(proposal, "rescaletobounds")
-    proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.prime_parameters == ["x_prime", "y_prime"]
 
-    assert proposal._reparameterisation.parameters == ["x", "y"]
-    assert proposal._reparameterisation.prime_parameters == [
-        "x_prime",
-        "y_prime",
-    ]
-    assert all(
-        [
-            isinstance(r, RescaleToBounds)
-            for r in proposal._reparameterisation.reparameterisations.values()
-        ]
+@pytest.mark.parametrize(
+    "spec",
+    [
+        ReparameterisationSpec(
+            source_key="x",
+            spec_index=0,
+            reparameterisation="sine",
+            source_is_parameter=True,
+            parameters=["x"],
+            kwargs={},
+        ),
+        ReparameterisationSpec(
+            source_key="sine",
+            spec_index=0,
+            reparameterisation="sine",
+            source_is_parameter=False,
+            parameters=["x"],
+            kwargs={},
+        ),
+    ],
+)
+def test_get_reparameterisation_from_spec_unknown(proposal, spec):
+    """Assert unknown reparameterisations raise a runtime error."""
+    proposal.get_reparameterisation = MagicMock(side_effect=ValueError)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        BaseFlowProposal.get_reparameterisation_from_spec(proposal, spec)
+
+    assert "is not a parameter in the model or a known" in str(excinfo.value)
+
+
+def test_get_reparameterisation_from_spec_no_parameters(proposal, dummy_rc):
+    """Assert an error is raised if the resolved config has no parameters."""
+    proposal.get_reparameterisation = MagicMock(return_value=(dummy_rc, {}))
+    proposal.model.names = ["x"]
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.parameters = ["x"]
+    spec = ReparameterisationSpec(
+        source_key="default",
+        spec_index=0,
+        reparameterisation="default",
+        source_is_parameter=False,
+        parameters=None,
+        kwargs={"update_bounds": True},
     )
 
+    with pytest.raises(RuntimeError) as excinfo:
+        BaseFlowProposal.get_reparameterisation_from_spec(proposal, spec)
 
-def test_configure_reparameterisations_fallback(proposal):
-    """Test configuration when input is None"""
+    assert "No parameters key" in str(excinfo.value)
+
+
+def test_get_reparameterisation_from_spec_allows_prime_requires(
+    proposal, dummy_rc
+):
+    """Assert prime-only chained specs do not require x-space parameters."""
+    proposal.get_reparameterisation = MagicMock(return_value=(dummy_rc, {}))
+    proposal.model.names = ["x"]
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.parameters = ["x"]
+    spec = ReparameterisationSpec(
+        source_key="prime-scale",
+        spec_index=1,
+        reparameterisation="prime-scale",
+        source_is_parameter=False,
+        parameters=[],
+        kwargs={
+            "prime_requires": ["x_bounded"],
+            "prime_parameters": ["x_scaled"],
+        },
+    )
+
+    rc, config = BaseFlowProposal.get_reparameterisation_from_spec(
+        proposal, spec
+    )
+
+    assert rc is dummy_rc
+    assert config == {
+        "parameters": [],
+        "prime_parameters": ["x_scaled"],
+        "prime_requires": ["x_bounded"],
+    }
+
+
+def test_instantiate_reparameterisation_from_spec_with_rng(proposal, rng):
+    """Test that the rng is passed through when supported by the class."""
+    spec = Mock()
+    proposal.rng = rng
+    proposal.get_reparameterisation_from_spec = MagicMock(
+        return_value=(Reparameterisation, {"parameters": ["x"]})
+    )
+    proposal._get_prior_bounds_for_parameters = MagicMock(
+        return_value={"x": [-1, 1]}
+    )
+
+    with patch("numpy.random.default_rng") as mocked_rng:
+        reparameterisation = (
+            BaseFlowProposal.instantiate_reparameterisation_from_spec(
+                proposal, spec
+            )
+        )
+
+    mocked_rng.assert_not_called()
+    proposal.get_reparameterisation_from_spec.assert_called_once_with(spec)
+    proposal._get_prior_bounds_for_parameters.assert_called_once_with(["x"])
+    assert reparameterisation.rng is rng
+
+
+def test_configure_reparameterisations_dict_missing(proposal, dummy_cmb_rc):
+    """Assert parser errors propagate out of configure."""
+    proposal.model.names = ["x", "y"]
+    proposal._set_parameter_order = MagicMock()
+
+    with (
+        patch(
+            "nessai.proposal.flowproposal.base.CombinedReparameterisation",
+            return_value=dummy_cmb_rc,
+        ),
+        patch(
+            "nessai.proposal.flowproposal.base.parse_reparameterisations",
+            side_effect=RuntimeError("No reparameterisation found for x"),
+        ),
+    ):
+        with pytest.raises(RuntimeError) as excinfo:
+            BaseFlowProposal.configure_reparameterisations(
+                proposal, {"x": {"scale": 1.0}}
+            )
+
+    assert "No reparameterisation found for x" in str(excinfo.value)
+
+
+def test_configure_reparameterisations_fallback(
+    proposal, dummy_rc, dummy_cmb_rc
+):
+    """Assert the fallback reparameterisation is added for unclaimed parameters."""
+    dummy_rc.return_value = "r"
     proposal.add_default_reparameterisations = MagicMock()
-    proposal.get_reparameterisation = get_reparameterisation
+    proposal.get_reparameterisation = MagicMock(return_value=(dummy_rc, {}))
+    proposal.instantiate_reparameterisation_from_spec = MagicMock()
+    proposal._set_parameter_order = MagicMock()
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x", "y"]
+    proposal.prior_bounds = proposal.model.bounds
     proposal.fallback_reparameterisation = "default"
-    BaseFlowProposal.configure_reparameterisations(proposal, None)
-    proposal.add_default_reparameterisations.assert_not_called()
-    assert proposal.prime_parameters == ["x_prime", "y_prime"]
 
-    assert proposal._reparameterisation.parameters == ["x", "y"]
-    assert proposal._reparameterisation.prime_parameters == [
-        "x_prime",
-        "y_prime",
-    ]
-    assert all(
-        [
-            isinstance(r, RescaleToBounds)
-            for r in proposal._reparameterisation.reparameterisations.values()
-        ]
+    with (
+        patch(
+            "nessai.proposal.flowproposal.base.CombinedReparameterisation",
+            return_value=dummy_cmb_rc,
+        ),
+        patch(
+            "nessai.proposal.flowproposal.base.parse_reparameterisations",
+            return_value=[],
+        ),
+    ):
+        BaseFlowProposal.configure_reparameterisations(proposal, None)
+
+    proposal.add_default_reparameterisations.assert_not_called()
+    proposal.get_reparameterisation.assert_called_once_with("default")
+    dummy_rc.assert_called_once_with(
+        parameters=["x", "y"],
+        prior_bounds={"x": [-1, 1], "y": [-1, 1]},
     )
+    proposal._reparameterisation.add_reparameterisations.assert_called_once_with(
+        "r"
+    )
+    proposal._set_parameter_order.assert_called_once()
 
 
 def test_configure_reparameterisations_incorrect_type(proposal):
     """Assert an error is raised when input is not a dictionary"""
+    proposal.model.names = []
     with pytest.raises(TypeError) as excinfo:
         BaseFlowProposal.configure_reparameterisations(proposal, ["default"])
     assert "must be a dictionary" in str(excinfo.value)
@@ -493,59 +381,8 @@ def test_configure_reparameterisations_incorrect_config_type(proposal):
     """
     proposal.model.names = ["x"]
     with pytest.raises(TypeError) as excinfo:
-        BaseFlowProposal.configure_reparameterisations(proposal, {"x": ["a"]})
+        BaseFlowProposal.configure_reparameterisations(proposal, {"x": [1]})
     assert "Unknown config type" in str(excinfo.value)
-
-
-@pytest.mark.parametrize(
-    "reparam",
-    [{"z": {"reparameterisation": "sine"}}, {"sine": {"parameters": ["x"]}}],
-)
-def test_configure_reparameterisation_unknown(proposal, reparam):
-    """
-    Assert an error is raised if an unknown reparameterisation or parameters
-    is passed.
-    """
-    proposal.model.names = ["x"]
-    with pytest.raises(RuntimeError) as excinfo:
-        BaseFlowProposal.configure_reparameterisations(proposal, reparam)
-    assert "is not a parameter in the model or a known" in str(excinfo.value)
-
-
-def test_configure_reparameterisation_no_parameters(proposal, dummy_rc):
-    """Assert an error is raised if no parameters are specified"""
-    proposal.model.names = ["x"]
-    proposal.get_reparameterisation = MagicMock(
-        return_value=(
-            dummy_rc,
-            {},
-        )
-    )
-    with pytest.raises(RuntimeError) as excinfo:
-        BaseFlowProposal.configure_reparameterisations(
-            proposal, {"default": {"update_bounds": True}}
-        )
-    assert "No parameters key" in str(excinfo.value)
-
-
-def test_configure_reparameterisation_with_rng(proposal, rng):
-    """Test that the rng is correctly passed to the reparameterisation if it is
-    in the signature."""
-    proposal.model.names = ["x"]
-    proposal.model.bounds = {"x": [-1, 1]}
-    proposal.get_reparameterisation = MagicMock(
-        return_value=(
-            Reparameterisation,
-            {},
-        )
-    )
-    proposal.rng = rng
-    with patch("numpy.random.default_rng") as mocked_rng:
-        BaseFlowProposal.configure_reparameterisations(
-            proposal, {"default": {"parameters": ["x"]}}
-        )
-    mocked_rng.assert_not_called()
-    assert proposal._reparameterisation["reparameterisation_x"].rng is rng
 
 
 def test_set_parameter_order(proposal):
@@ -567,12 +404,8 @@ def test_set_parameter_order(proposal):
             prime_parameters=["w_prime"],
         ),
     ]
-    proposal._set_parameter_order()
-    # Parameter order will be model + others in order returned by the
-    # reparameterisation
-    assert proposal.parameters == ["x", "y", "w", "z"]
-    # Model parameters, additional parameters from reparams with model
-    # parameters, then any remaining parameters from reparams in order
+    BaseFlowProposal._set_parameter_order(proposal)
+    assert proposal.parameters == ["x", "y", "z"]
     assert proposal.prime_parameters == [
         "x_prime",
         "z_prime",
@@ -629,48 +462,6 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
     )
     assert proposal.reparameterisations == {"x": "default"}
     assert proposal.prime_parameters == ["x_prime"]
-
-
-def test_configure_reparameterisations_with_auxiliary_parameter(rng):
-    proposal = make_auxiliary_test_proposal(
-        {
-            "a": {
-                "reparameterisation": "add-aux",
-                "auxiliary_parameter": "aux",
-            },
-            "aux-rescale": {"parameters": ["aux"], "scale": 10.0},
-            "b": "null",
-        },
-        rng=rng,
-    )
-
-    assert proposal.parameters == ["a", "b", "aux"]
-    assert proposal.prime_parameters == ["a_prime", "b", "aux_prime"]
-
-    x = numpy_array_to_live_points(
-        np.array([[1.0, 2.0], [10.0, 20.0]]),
-        ["a", "b"],
-    )
-
-    x_prime, log_j = proposal.rescale(x)
-    x_out, log_j_inv = proposal.inverse_rescale(x_prime)
-
-    expected_prime = np.array([[1.0, 2.0, 0.2], [10.0, 20.0, 2.0]])
-    expected_x = np.array([[1.0, 2.0, 2.0], [10.0, 20.0, 20.0]])
-    expected_log_j = -np.log(10.0) * np.ones(x.shape[0])
-
-    np.testing.assert_array_equal(
-        live_points_to_array(
-            x_prime, names=proposal.prime_parameters, copy=True
-        ),
-        expected_prime,
-    )
-    np.testing.assert_array_equal(
-        live_points_to_array(x_out, names=proposal.parameters, copy=True),
-        expected_x,
-    )
-    np.testing.assert_allclose(log_j, expected_log_j)
-    np.testing.assert_allclose(log_j_inv, -expected_log_j)
 
 
 @pytest.mark.parametrize("n", [1, 10])
@@ -923,150 +714,3 @@ def test_check_state_update(proposal, map_to_unit_hypercube):
         proposal._reparameterisation.update.assert_called_once_with(x_hyper)
     else:
         proposal._reparameterisation.update.assert_called_once_with(x)
-
-
-def test_multi_parameter_reparameterisation_ordering(rng):
-    """Parameter-key grouping should preserve model-order parameters."""
-    grouped = make_test_proposal(
-        {
-            "a": {"reparameterisation": "null", "parameters": ["d"]},
-            "b": "null",
-            "c": "null",
-        },
-        rng=rng,
-    )
-
-    assert grouped.parameters == ["a", "b", "c", "d"]
-    assert grouped.prime_parameters == ["a", "b", "c", "d"]
-
-
-@pytest.mark.integration_test
-def test_multi_parameter_reparameterisation_flow_input_order(rng):
-    baseline = make_test_proposal(
-        {"a": "null", "b": "null", "c": "null", "d": "null"},
-        rng=rng,
-    )
-    grouped = make_test_proposal(
-        {
-            "a": {"reparameterisation": "null", "parameters": ["d"]},
-            "b": "null",
-            "c": "null",
-        },
-        rng=rng,
-    )
-    x = numpy_array_to_live_points(
-        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
-        ["a", "b", "c", "d"],
-    )
-
-    x_prime_baseline, _ = baseline.rescale(x)
-    x_prime_grouped, _ = grouped.rescale(x)
-
-    np.testing.assert_array_equal(
-        live_points_to_array(
-            x_prime_baseline, names=baseline.prime_parameters, copy=True
-        ),
-        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
-    )
-    np.testing.assert_array_equal(
-        live_points_to_array(
-            x_prime_grouped, names=grouped.prime_parameters, copy=True
-        ),
-        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
-    )
-
-    baseline.flow = MagicMock()
-    baseline.flow.forward_and_log_prob = MagicMock(
-        return_value=(np.zeros((x.size, 4)), np.zeros(x.size))
-    )
-    grouped.flow = MagicMock()
-    grouped.flow.forward_and_log_prob = MagicMock(
-        return_value=(np.zeros((x.size, 4)), np.zeros(x.size))
-    )
-
-    baseline.forward_pass(x)
-    grouped.forward_pass(x)
-
-    np.testing.assert_array_equal(
-        baseline.flow.forward_and_log_prob.call_args[0][0],
-        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
-    )
-    np.testing.assert_array_equal(
-        grouped.flow.forward_and_log_prob.call_args[0][0],
-        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
-    )
-
-
-@pytest.mark.integration_test
-def test_multi_parameter_reparameterisation_ordering_integration(rng):
-    """Grouped scaling should affect only `a` and `d` in stable order."""
-    baseline = make_test_proposal(
-        {
-            "a": {"reparameterisation": "rescale", "scale": 2.0},
-            "b": "null",
-            "c": "null",
-            "d": {"reparameterisation": "rescale", "scale": 10.0},
-        },
-        rng=rng,
-    )
-    grouped = make_test_proposal(
-        {
-            "rescale": {
-                "parameters": ["a", "d"],
-                "scale": {"a": 2.0, "d": 10.0},
-            },
-            "b": "null",
-            "c": "null",
-        },
-        rng=rng,
-    )
-    x = numpy_array_to_live_points(
-        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
-        ["a", "b", "c", "d"],
-    )
-
-    x_prime_baseline, log_j_baseline = baseline.rescale(x)
-    x_prime_grouped, log_j_grouped = grouped.rescale(x)
-    x_out_grouped, log_j_inv_grouped = grouped.inverse_rescale(x_prime_grouped)
-
-    expected = np.array([[0.5, 2.0, 3.0, 0.4], [5.0, 20.0, 30.0, 4.0]])
-    expected_log_j = -np.log(20.0) * np.ones(x.shape[0])
-
-    np.testing.assert_array_equal(
-        live_points_to_array(
-            x_prime_baseline, names=baseline.prime_parameters, copy=True
-        ),
-        expected,
-    )
-    np.testing.assert_array_equal(
-        live_points_to_array(
-            x_prime_grouped, names=grouped.prime_parameters, copy=True
-        ),
-        expected,
-    )
-    np.testing.assert_allclose(log_j_baseline, expected_log_j)
-    np.testing.assert_allclose(log_j_grouped, expected_log_j)
-    np.testing.assert_array_equal(
-        live_points_to_array(x_out_grouped, names=grouped.model.names),
-        live_points_to_array(x, names=grouped.model.names),
-    )
-    np.testing.assert_allclose(log_j_inv_grouped, -expected_log_j)
-
-    baseline.flow = MagicMock()
-    baseline.flow.forward_and_log_prob = MagicMock(
-        return_value=(np.zeros((x.size, 4)), np.zeros(x.size))
-    )
-    grouped.flow = MagicMock()
-    grouped.flow.forward_and_log_prob = MagicMock(
-        return_value=(np.zeros((x.size, 4)), np.zeros(x.size))
-    )
-
-    baseline.forward_pass(x)
-    grouped.forward_pass(x)
-
-    np.testing.assert_array_equal(
-        baseline.flow.forward_and_log_prob.call_args[0][0], expected
-    )
-    np.testing.assert_array_equal(
-        grouped.flow.forward_and_log_prob.call_args[0][0], expected
-    )

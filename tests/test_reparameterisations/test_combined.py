@@ -64,7 +64,8 @@ def test_init_none():
 
 def test_init_w_reparam():
     c = CombinedReparameterisation(
-        RescaleToBounds("x", [0, 1]), initial_parameters=["x"]
+        RescaleToBounds(parameters="x", prior_bounds=[0, 1]),
+        initial_parameters=["x"],
     )
     assert c.parameters == ["x"]
     assert c.prime_parameters == ["x_prime"]
@@ -122,12 +123,8 @@ def test_add_multiple_reparameterisations(model):
     Test adding multiple reparameterisations and using the reparameterisation.
     """
     r = [
-        RescaleToBounds(
-            parameters="x", prior_bounds=model.bounds["x"], prior="uniform"
-        ),
-        RescaleToBounds(
-            parameters="y", prior_bounds=model.bounds["y"], prior="uniform"
-        ),
+        RescaleToBounds(parameters="x", prior_bounds=model.bounds["x"]),
+        RescaleToBounds(parameters="y", prior_bounds=model.bounds["y"]),
     ]
     reparam = CombinedReparameterisation(initial_parameters=["x", "y"])
     reparam.add_reparameterisations(r)
