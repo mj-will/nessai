@@ -32,7 +32,7 @@ def reparam():
 @pytest.fixture(scope="function")
 def assert_invertibility(model, n=100):
     def test_invertibility(reparam, angle, radial=None):
-        x = empty_structured_array(n, names=reparam.parameters)
+        x = empty_structured_array(n, names=reparam.output_parameters)
         x_prime = empty_structured_array(n, names=reparam.prime_parameters)
         log_j = 0
 
@@ -50,7 +50,7 @@ def assert_invertibility(model, n=100):
                 x[reparam.radial], x_re[reparam.radial]
             )
 
-        x_in = empty_structured_array(n, names=reparam.parameters)
+        x_in = empty_structured_array(n, names=reparam.output_parameters)
 
         x_inv, x_prime_inv, log_j_inv = reparam.inverse_reparameterise(
             x_in, x_prime_re, log_j
@@ -96,10 +96,14 @@ def test_angle_parameter(bounds, scale, expected_scale):
         assert reparam._zero_bound is False
 
     assert reparam.angle == parameter
+    assert reparam.parameters == [parameter]
+    assert reparam.auxiliary_parameters == [parameter + "_radial"]
+    assert reparam.output_parameters == [parameter, parameter + "_radial"]
     assert reparam.radial == (parameter + "_radial")
     assert reparam.radius == (parameter + "_radial")
     assert reparam.x == (parameter + "_x")
     assert reparam.y == (parameter + "_y")
+    assert reparam.input_parameters == [parameter]
     assert reparam.scale == expected_scale
 
 
@@ -119,7 +123,9 @@ def test_log_prior(reparam):
     """Assert the log-prior calls the correct function"""
     reparam.chi = MagicMock()
     reparam.chi.logpdf = MagicMock()
-    reparam.parameters = ["theta", "theta_radial"]
+    reparam.parameters = ["theta"]
+    reparam.auxiliary_parameters = ["theta_radial"]
+    reparam.radial = "theta_radial"
     x = {"theta": [1.0], "theta_radial": [0.5]}
     Angle.log_prior(reparam, x)
     reparam.chi.logpdf.assert_called_once_with([0.5])
@@ -139,7 +145,10 @@ def test_both_parameters():
     assert reparam._zero_bound is True
 
     assert reparam.angle == parameters[0]
+    assert reparam.parameters == parameters
+    assert reparam.auxiliary_parameters == []
     assert reparam.radial == parameters[1]
+    assert reparam.input_parameters == parameters
 
 
 @pytest.mark.parametrize(

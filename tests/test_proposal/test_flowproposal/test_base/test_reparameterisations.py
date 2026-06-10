@@ -32,6 +32,16 @@ def proposal(proposal):
             proposal, BaseFlowProposal
         )
     )
+    proposal._resolve_reparameterisation_parameters = (
+        BaseFlowProposal._resolve_reparameterisation_parameters.__get__(
+            proposal, BaseFlowProposal
+        )
+    )
+    proposal._get_prior_bounds_for_parameters = (
+        BaseFlowProposal._get_prior_bounds_for_parameters.__get__(
+            proposal, BaseFlowProposal
+        )
+    )
     return proposal
 
 
@@ -58,6 +68,59 @@ class DummyFlowProposal(BaseFlowProposal):
         )
 
 
+class AddAuxiliaryReparameterisation(Reparameterisation):
+    def __init__(
+        self,
+        parameters=None,
+        prior_bounds=None,
+        auxiliary_parameter="aux",
+        rng=None,
+    ):
+        super().__init__(
+            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+        )
+        self.auxiliary_parameter = auxiliary_parameter
+        self.auxiliary_parameters = [auxiliary_parameter]
+
+    def reparameterise(self, x, x_prime, log_j, **kwargs):
+        if self.auxiliary_parameter not in x.dtype.names:
+            x_out = np.empty(
+                x.shape,
+                dtype=x.dtype.descr + [(self.auxiliary_parameter, "f8")],
+            )
+            for name in x.dtype.names:
+                x_out[name] = x[name]
+            x = x_out
+        x[self.auxiliary_parameter] = 2.0 * x[self.parameters[0]]
+        x_prime[self.prime_parameters[0]] = x[self.parameters[0]]
+        return x, x_prime, log_j
+
+    def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
+        x[self.parameters[0]] = x_prime[self.prime_parameters[0]]
+        x[self.auxiliary_parameter] = 2.0 * x[self.parameters[0]]
+        return x, x_prime, log_j
+
+
+class RescaleAuxiliaryReparameterisation(Reparameterisation):
+    def __init__(
+        self, parameters=None, prior_bounds=None, scale=10.0, rng=None
+    ):
+        super().__init__(
+            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+        )
+        self.scale = scale
+
+    def reparameterise(self, x, x_prime, log_j, **kwargs):
+        x_prime[self.prime_parameters[0]] = x[self.parameters[0]] / self.scale
+        log_j -= np.log(self.scale)
+        return x, x_prime, log_j
+
+    def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
+        x[self.parameters[0]] = x_prime[self.prime_parameters[0]] * self.scale
+        log_j += np.log(self.scale)
+        return x, x_prime, log_j
+
+
 def make_test_proposal(reparameterisations, rng):
     """Construct a concrete proposal with a toy four-parameter model."""
     model = MagicMock(spec=Model)
@@ -74,6 +137,35 @@ def make_test_proposal(reparameterisations, rng):
     )
     proposal.get_reparameterisation = MagicMock(
         side_effect=get_reparameterisation
+    )
+    proposal.set_rescaling()
+    return proposal
+
+
+def make_auxiliary_test_proposal(reparameterisations, rng):
+    model = MagicMock(spec=Model)
+    model.names = ["a", "b"]
+    model.bounds = {n: [-1.0, 1.0] for n in model.names}
+    model.reparameterisations = None
+
+    proposal = DummyFlowProposal(
+        model,
+        rng=rng,
+        poolsize=10,
+        reparameterisations=reparameterisations,
+        fallback_reparameterisation=None,
+    )
+
+    def get_test_reparameterisation(name):
+        mapping = {
+            "null": (NullReparameterisation, {}),
+            "add-aux": (AddAuxiliaryReparameterisation, {}),
+            "aux-rescale": (RescaleAuxiliaryReparameterisation, {}),
+        }
+        return mapping[name]
+
+    proposal.get_reparameterisation = MagicMock(
+        side_effect=get_test_reparameterisation
     )
     proposal.set_rescaling()
     return proposal
@@ -142,7 +234,9 @@ def test_configure_reparameterisations_dict(
     dummy_rc.assert_called_once_with(
         prior_bounds={"x": [-1, 1]}, parameters="x", boundary_inversion=True
     )
-    mocked_class.assert_called_once_with(reverse_order=reverse_order)
+    mocked_class.assert_called_once_with(
+        reverse_order=reverse_order, initial_parameters=["x"]
+    )
     # fmt: off
     proposal._reparameterisation.add_reparameterisations \
         .assert_called_once_with("r")
@@ -201,7 +295,9 @@ def test_configure_reparameterisations_dict_w_params(
         prior_bounds={"x": [-1, 1], "y": [-1, 1]},
         parameters=["x", "y"],
     )
-    mocked_class.assert_called_once()
+    mocked_class.assert_called_once_with(
+        reverse_order=False, initial_parameters=["x", "y"]
+    )
     # fmt: off
     proposal._reparameterisation.add_reparameterisations \
         .assert_called_once_with("r")
@@ -533,6 +629,48 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
     )
     assert proposal.reparameterisations == {"x": "default"}
     assert proposal.prime_parameters == ["x_prime"]
+
+
+def test_configure_reparameterisations_with_auxiliary_parameter(rng):
+    proposal = make_auxiliary_test_proposal(
+        {
+            "a": {
+                "reparameterisation": "add-aux",
+                "auxiliary_parameter": "aux",
+            },
+            "aux-rescale": {"parameters": ["aux"], "scale": 10.0},
+            "b": "null",
+        },
+        rng=rng,
+    )
+
+    assert proposal.parameters == ["a", "b", "aux"]
+    assert proposal.prime_parameters == ["a_prime", "b", "aux_prime"]
+
+    x = numpy_array_to_live_points(
+        np.array([[1.0, 2.0], [10.0, 20.0]]),
+        ["a", "b"],
+    )
+
+    x_prime, log_j = proposal.rescale(x)
+    x_out, log_j_inv = proposal.inverse_rescale(x_prime)
+
+    expected_prime = np.array([[1.0, 2.0, 0.2], [10.0, 20.0, 2.0]])
+    expected_x = np.array([[1.0, 2.0, 2.0], [10.0, 20.0, 20.0]])
+    expected_log_j = -np.log(10.0) * np.ones(x.shape[0])
+
+    np.testing.assert_array_equal(
+        live_points_to_array(
+            x_prime, names=proposal.prime_parameters, copy=True
+        ),
+        expected_prime,
+    )
+    np.testing.assert_array_equal(
+        live_points_to_array(x_out, names=proposal.parameters, copy=True),
+        expected_x,
+    )
+    np.testing.assert_allclose(log_j, expected_log_j)
+    np.testing.assert_allclose(log_j_inv, -expected_log_j)
 
 
 @pytest.mark.parametrize("n", [1, 10])

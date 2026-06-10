@@ -38,7 +38,7 @@ def reparam():
 def assert_invertibility():
     def test_invertibility(reparam, angles, radial=None):
         n = list(angles.values())[0].size
-        x = np.zeros([n], dtype=get_dtype(reparam.parameters))
+        x = np.zeros([n], dtype=get_dtype(reparam.output_parameters))
         x_prime = np.zeros([n], dtype=get_dtype(reparam.prime_parameters))
         log_j = 0
 
@@ -58,7 +58,7 @@ def assert_invertibility():
                 x[reparam.radial], x_re[reparam.radial]
             )
 
-        x_in = np.zeros([n], dtype=get_dtype(reparam.parameters))
+        x_in = np.zeros([n], dtype=get_dtype(reparam.output_parameters))
 
         x_inv, x_prime_inv, log_j_inv = reparam.inverse_reparameterise(
             x_in, x_prime_re, log_j
@@ -109,11 +109,15 @@ def test_two_angles(angles):
     assert hasattr(reparam.chi, "rvs")
 
     m = "_".join(parameters[:2])
+    assert reparam.parameters == parameters[:2]
+    assert reparam.auxiliary_parameters == [m + "_radial"]
+    assert reparam.output_parameters == parameters[:2] + [m + "_radial"]
     assert reparam.angles == parameters[:2]
     assert reparam.radial == (m + "_radial")
     assert reparam.x == (m + "_x")
     assert reparam.y == (m + "_y")
     assert reparam.z == (m + "_z")
+    assert reparam.input_parameters == parameters[:2]
 
 
 def test_ra_dec(assert_invertibility):
@@ -174,6 +178,8 @@ def test_w_radial(assert_invertibility):
     assert reparam.parameters == ["ra", "dec", "r"]
     assert reparam.angles == ["ra", "dec"]
     assert reparam.chi is False
+    assert reparam.auxiliary_parameters == []
+    assert reparam.input_parameters == ["ra", "dec", "r"]
 
     n = 100
     angles = {
@@ -231,14 +237,14 @@ def test_specific_points_x_prime_to_x_0_2pi(convention, input, expected):
     )
 
     x_prime = parameters_to_live_point(input, reparam.prime_parameters)
-    x = parameters_to_live_point([0, 0, 0], reparam.parameters)
+    x = parameters_to_live_point([0, 0, 0], reparam.output_parameters)
     log_j = 0
 
     out, _, _ = reparam.inverse_reparameterise(x, x_prime, log_j)
 
     np.testing.assert_equal(out[reparam.parameters[0]], expected[0])
     np.testing.assert_equal(out[reparam.parameters[1]], expected[1])
-    np.testing.assert_equal(out[reparam.parameters[2]], expected[2])
+    np.testing.assert_equal(out[reparam.radial], expected[2])
 
 
 @pytest.mark.parametrize(
@@ -286,14 +292,14 @@ def test_specific_points_x_prime_to_x_pi_pi(convention, input, expected):
     )
 
     x_prime = parameters_to_live_point(input, reparam.prime_parameters)
-    x = parameters_to_live_point([0, 0, 0], reparam.parameters)
+    x = parameters_to_live_point([0, 0, 0], reparam.output_parameters)
     log_j = 0
 
     out, _, _ = reparam.inverse_reparameterise(x, x_prime, log_j)
 
     np.testing.assert_equal(out[reparam.parameters[0]], expected[0])
     np.testing.assert_equal(out[reparam.parameters[1]], expected[1])
-    np.testing.assert_equal(out[reparam.parameters[2]], expected[2])
+    np.testing.assert_equal(out[reparam.radial], expected[2])
 
 
 @pytest.mark.parametrize(
@@ -360,9 +366,12 @@ def test_no_convention():
 def test_log_prior():
     """Assert log_prior calls the log pdf of a chi distribution."""
     reparam = create_autospec(AnglePair)
-    reparam.parameters = ["a", "b", "r"]
+    reparam.parameters = ["a", "b"]
+    reparam.auxiliary_parameters = ["r"]
+    reparam.output_parameters = ["a", "b", "r"]
+    reparam.radial = "r"
     reparam.has_prior = True
-    x = parameters_to_live_point([0, 0, 2.0], reparam.parameters)
+    x = parameters_to_live_point([0, 0, 2.0], reparam.output_parameters)
     reparam.chi = MagicMock()
     reparam.chi.logpdf = MagicMock(return_value=1.0)
     out = AnglePair.log_prior(reparam, x)

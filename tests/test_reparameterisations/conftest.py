@@ -1,6 +1,6 @@
 """Configuration for the reparameterisation tests"""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 import numpy as np
@@ -17,6 +17,22 @@ class _LightReparam:
     name: str
     parameters: List[str]
     requires: List[str]
+    auxiliary_parameters: List[str] = field(default_factory=list)
+    prime_parameters: List[str] = field(default_factory=list)
+    prime_requires: List[str] = field(default_factory=list)
+    inverse_requires: List[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if not self.prime_parameters:
+            self.prime_parameters = [p + "_prime" for p in self.parameters]
+
+    @property
+    def output_parameters(self) -> List[str]:
+        return self.parameters + self.auxiliary_parameters
+
+    @property
+    def input_parameters(self) -> List[str]:
+        return list(dict.fromkeys(self.parameters + self.requires))
 
 
 @pytest.fixture

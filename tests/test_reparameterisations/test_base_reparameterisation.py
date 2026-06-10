@@ -86,9 +86,19 @@ def test_parameters_error():
 
 
 def test_missing_bounds():
+    class TestReparam(Reparameterisation):
+        requires_bounded_prior = True
+
     with pytest.raises(RuntimeError) as excinfo:
-        Reparameterisation(parameters=["x", "y"], prior_bounds={"x": [0, 1]})
+        TestReparam(parameters=["x", "y"], prior_bounds={"x": [0, 1]})
     assert "Mismatch" in str(excinfo.value)
+
+
+def test_missing_bounds_allowed_for_auxiliary_parameters():
+    reparam = Reparameterisation(
+        parameters=["x", "aux"], prior_bounds={"x": [0, 1]}
+    )
+    assert_equal(reparam.prior_bounds, {"x": np.array([0, 1])})
 
 
 def test_incorrect_bounds_type():
@@ -112,6 +122,12 @@ def test_methods_not_implemented():
 
     with pytest.raises(NotImplementedError):
         reparam.inverse_reparameterise(None, None, None)
+
+
+def test_output_parameters():
+    reparam = Reparameterisation(parameters=["x"], prior_bounds={"x": [0, 1]})
+    reparam.auxiliary_parameters = ["x_aux"]
+    assert reparam.output_parameters == ["x", "x_aux"]
 
 
 def test_update(reparam):

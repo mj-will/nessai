@@ -1,6 +1,6 @@
 """Tests for the sorting utilities"""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 import pytest
@@ -15,6 +15,22 @@ class Reparameterisation:
     name: str
     parameters: List[str]
     requires: List[str]
+    auxiliary_parameters: List[str] = field(default_factory=list)
+    prime_parameters: List[str] = field(default_factory=list)
+    prime_requires: List[str] = field(default_factory=list)
+    inverse_requires: List[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        if not self.prime_parameters:
+            self.prime_parameters = [p + "_prime" for p in self.parameters]
+
+    @property
+    def output_parameters(self):
+        return self.parameters + self.auxiliary_parameters
+
+    @property
+    def input_parameters(self):
+        return list(dict.fromkeys(self.parameters + self.requires))
 
 
 def test_sorting():
@@ -23,7 +39,9 @@ def test_sorting():
     r1 = Reparameterisation("2", ["b"], requires=["c"])
     r2 = Reparameterisation("3", ["c"], requires=[])
 
-    out = sort_reparameterisations([r0, r1, r2])
+    out = sort_reparameterisations(
+        [r0, r1, r2], existing_parameters=["a", "b", "c"]
+    )
     print([o.name for o in out])
     assert out == [r2, r1, r0]
 
@@ -34,9 +52,11 @@ def test_sorting_existing():
     r1 = Reparameterisation("2", ["b"], requires=[])
     r2 = Reparameterisation("3", ["c"], requires=["d"])
 
-    out = sort_reparameterisations([r0, r1, r2], existing_parameters=["d"])
+    out = sort_reparameterisations(
+        [r0, r1, r2], existing_parameters=["a", "b", "c", "d"]
+    )
     print([o.name for o in out])
-    assert out == [r1, r2, r0]
+    assert out == [r1, r0, r2]
 
 
 def test_sorting_error():
@@ -44,4 +64,46 @@ def test_sorting_error():
     r0 = Reparameterisation("1", ["a"], requires=[])
     r1 = Reparameterisation("2", ["b"], requires=["c"])
     with pytest.raises(ValueError, match=r".* are not known \(\['a', 'b'\]\)"):
-        sort_reparameterisations([r0, r1])
+        sort_reparameterisations([r0, r1], existing_parameters=["a", "b"])
+
+
+def test_sorting_with_auxiliary_parameters():
+    r0 = Reparameterisation(
+        "1", ["a"], requires=[], auxiliary_parameters=["aux"]
+    )
+    r1 = Reparameterisation("2", ["b"], requires=["aux"])
+
+    out = sort_reparameterisations([r1, r0], existing_parameters=["a", "b"])
+
+    assert out == [r0, r1]
+
+
+def test_sorting_with_prime_requirements():
+    r0 = Reparameterisation("1", ["a"], requires=[], prime_parameters=["a_p"])
+    r1 = Reparameterisation(
+        "2",
+        ["b"],
+        requires=[],
+        prime_parameters=["b_p"],
+        prime_requires=["a_p"],
+    )
+
+    out = sort_reparameterisations([r1, r0], existing_parameters=["a", "b"])
+
+    assert out == [r0, r1]
+
+
+def test_sorting_with_unknown_prime_requirement():
+    r0 = Reparameterisation("1", ["a"], requires=[], prime_parameters=["a_p"])
+    r1 = Reparameterisation(
+        "2",
+        ["b"],
+        requires=[],
+        prime_parameters=["b_p"],
+        prime_requires=["c_p"],
+    )
+
+    with pytest.raises(
+        ValueError, match=r"requires prime parameters \['c_p'\]"
+    ):
+        sort_reparameterisations([r0, r1], existing_parameters=["a", "b"])
