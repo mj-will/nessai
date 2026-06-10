@@ -5,6 +5,7 @@ Tests for `nessai.model`
 
 import datetime
 import logging
+import sys
 from unittest.mock import MagicMock, call, create_autospec, patch
 
 import numpy as np
@@ -1319,6 +1320,14 @@ def test_pool(integration_model, mp_context, pickleable, init, rng):
 @pytest.mark.requires("ray")
 @pytest.mark.integration_test
 @pytest.mark.flaky(reruns=3)
+@pytest.mark.xfail(
+    sys.platform == "win32" and sys.version_info < (3, 12),
+    reason=(
+        "Ray imports aiohttp dashboard deps, which creates an SSL context at "
+        "import time; Python <3.12 can fail loading bad Windows cert-store "
+        "certs. See https://github.com/python/cpython/issues/79846"
+    ),
+)
 def test_pool_ray(integration_model, rng):
     """Integration test for evaluating the likelihood with a pool from ray.
 
