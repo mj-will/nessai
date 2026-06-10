@@ -237,8 +237,6 @@ class AnglePair(Reparameterisation):
         optionally, also a radial component.
     prior_bounds : dict
         Dictionary of prior bounds for each parameter
-    prior : str, {'isotropic', None}
-        Type of prior, used to enable use of the prime prior.
     convention : str, {'ra-dec', 'az-zen'}
         Convention used for defining the spherical polar coordinates. If not
         set, it will be guessed based on either dec or zen. Where it is assumed
@@ -251,9 +249,14 @@ class AnglePair(Reparameterisation):
     def __init__(
         self,
         parameters=None,
+        prime_parameters=None,
+        auxiliary_parameters=None,
         prior_bounds=None,
         convention=None,
         rng=None,
+        requires=None,
+        prime_requires=None,
+        inverse_requires=None,
     ):
         if len(parameters) not in [2, 3]:
             raise RuntimeError(
@@ -261,7 +264,14 @@ class AnglePair(Reparameterisation):
             )
 
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            parameters=parameters,
+            prime_parameters=prime_parameters,
+            auxiliary_parameters=auxiliary_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            requires=requires,
+            prime_requires=prime_requires,
+            inverse_requires=inverse_requires,
         )
 
         # Determine which parameter is for the horizontal plane
