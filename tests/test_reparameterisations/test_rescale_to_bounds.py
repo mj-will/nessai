@@ -23,7 +23,9 @@ rtol = 1e-15
 
 @pytest.fixture
 def reparam(rng):
-    return create_autospec(RescaleToBounds, rng=rng)
+    r = create_autospec(RescaleToBounds, rng=rng)
+    r._format_parameters = lambda x: x if isinstance(x, list) else [x]
+    return r
 
 
 @pytest.fixture()

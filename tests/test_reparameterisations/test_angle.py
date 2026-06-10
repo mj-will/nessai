@@ -26,7 +26,9 @@ def scale(request):
 
 @pytest.fixture
 def reparam():
-    return create_autospec(Angle)
+    r = create_autospec(Angle)
+    r._format_parameters = lambda x: x if isinstance(x, list) else [x]
+    return r
 
 
 @pytest.fixture(scope="function")

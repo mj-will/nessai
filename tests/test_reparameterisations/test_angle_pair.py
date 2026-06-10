@@ -31,7 +31,9 @@ def angles(request):
 
 @pytest.fixture
 def reparam():
-    return create_autospec(AnglePair)
+    r = create_autospec(AnglePair)
+    r._format_parameters = lambda x: x if isinstance(x, list) else [x]
+    return r
 
 
 @pytest.fixture(scope="function")
@@ -132,7 +134,6 @@ def test_ra_dec(assert_invertibility):
         parameters=parameters,
         prior_bounds=prior_bounds,
         convention="ra-dec",
-        prior="isotropic",
     )
 
     n = 100
@@ -152,7 +153,6 @@ def test_azimuth_zenith(assert_invertibility):
         parameters=parameters,
         prior_bounds=prior_bounds,
         convention="az-zen",
-        prior="isotropic",
     )
 
     n = 100
