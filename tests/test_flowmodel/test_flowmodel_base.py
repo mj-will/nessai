@@ -375,30 +375,19 @@ def test_training_non_finite_samples(model, x):
         {"val_size": None},
     ],
 )
-@pytest.mark.parametrize("test_deprecated", [False, True])
 def test_training_additional_config_args(
     data_dim,
     tmpdir,
     kwargs,
-    test_deprecated,
 ):
     """
     Test training with different config args
     """
     flow_config = {}
-    if test_deprecated:
-        # This test should fail
-        pytest.xfail(reason="Deprecated config should not be supported")
-        flow_config["model_config"] = {}
-        flow_config["model_config"]["n_inputs"] = data_dim
-        training_config = None
-        for key, value in kwargs.items():
-            flow_config[key] = value
-    else:
-        flow_config["n_inputs"] = data_dim
-        training_config = {}
-        for key, value in kwargs.items():
-            training_config[key] = value
+    flow_config["n_inputs"] = data_dim
+    training_config = {}
+    for key, value in kwargs.items():
+        training_config[key] = value
 
     output = str(tmpdir.mkdir("flowmodel"))
     flow_model = FlowModel(
