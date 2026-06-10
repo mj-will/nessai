@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix a bug with parameter ordering in reparameterisations with multiple parameters (https://github.com/mj-will/nessai/pull/479)
+
+### Removed
+
+- The `nessai.gw` submodule has been removed (https://github.com/mj-will/nessai/pull/474)
+- Support for `prime-prior` has been removed (https://github.com/mj-will/nessai/pull/474)
+- `setup_logger` has been removed (https://github.com/mj-will/nessai/pull/474)
+- Support for `model_config` is `flow_config` has been removed (https://github.com/mj-will/nessai/pull/474)
+- The `flow_class` argument in `NestedSampler` has been removed (https://github.com/mj-will/nessai/pull/474)
+- `nestedsampler.py` has been removed (https://github.com/mj-will/nessai/pull/474)
+- `utils/bilbyutils.py` has been removed (https://github.com/mj-will/nessai/pull/474)
+
+## [0.15.2]
+
+### Fixed
+
+- Ensure reparameterisations are seeded in `FlowProposal.configure_reparamterisations` (https://github.com/mj-will/nessai/pull/475)
+
+## [0.15.1]
+
+### Fixed
+
+- Fix dict_to_live_points for 0d and len 1 arrays (https://github.com/mj-will/nessai/pull/470)
+
 ## [0.15.0]
 
 ### Added
@@ -733,7 +759,9 @@ First public release.
 
 - Original `GWFlowProposal` method renamed to `LegacyGWFlowProposal`. Will be removed in the next release.
 
-[Unreleased]: https://github.com/mj-will/nessai/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/mj-will/nessai/compare/v0.15.2...HEAD
+[0.15.2]: https://github.com/mj-will/nessai/compare/v0.15.1...v0.15.2
+[0.15.1]: https://github.com/mj-will/nessai/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/mj-will/nessai/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/mj-will/nessai/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/mj-will/nessai/compare/v0.13.1...v0.13.2
