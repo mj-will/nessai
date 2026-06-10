@@ -107,3 +107,33 @@ def test_sorting_with_unknown_prime_requirement():
         ValueError, match=r"requires prime parameters \['c_p'\]"
     ):
         sort_reparameterisations([r0, r1], existing_parameters=["a", "b"])
+
+
+def test_sorting_retries_skipped_reparameterisations():
+    """Assert skipped reparameterisations are retried after one pass.
+
+    The two reparameterisations have the same initial sort weight, so the
+    first pass keeps the input order. `r0` is skipped because it depends on
+    an auxiliary parameter that is only added once `r1` has been applied.
+    """
+    r0 = Reparameterisation("1", ["a"], requires=["aux"])
+    r1 = Reparameterisation(
+        "2",
+        ["b"],
+        requires=["seed"],
+        auxiliary_parameters=["aux"],
+    )
+
+    out = sort_reparameterisations(
+        [r0, r1], existing_parameters=["a", "b", "seed"]
+    )
+
+    assert out == [r1, r0]
+
+
+def test_sorting_error_if_skipped_and_no_progress():
+    r0 = Reparameterisation("1", ["a"], requires=["b"])
+    r1 = Reparameterisation("2", ["b"], requires=["a"])
+
+    with pytest.raises(ValueError, match="Could not sort reparameterisations"):
+        sort_reparameterisations([r0, r1])

@@ -165,6 +165,50 @@ def test_get_reparameterisation_from_spec_model_key(proposal, dummy_rc):
     proposal.get_reparameterisation.assert_called_once_with("default")
 
 
+def test_get_prior_bounds_for_parameters_allows_missing_auxiliary(proposal):
+    """Assert auxiliary parameters are ignored in the default lookup mode."""
+    proposal.prior_bounds = {"x": [-1, 1]}
+    proposal.model.bounds = {"x": [-10, 10], "aux": [0, 1]}
+
+    out = BaseFlowProposal._get_prior_bounds_for_parameters(
+        proposal, ["x", "aux"]
+    )
+
+    assert out == {"x": [-1, 1]}
+
+
+def test_get_prior_bounds_for_parameters_require_all_uses_model_bounds(
+    proposal,
+):
+    """Assert full model bounds are used when all parameters are required."""
+    proposal.prior_bounds = {"x": [-1, 1]}
+    proposal.model.bounds = {"x": [-10, 10], "y": [0, 1]}
+
+    out = BaseFlowProposal._get_prior_bounds_for_parameters(
+        proposal, ["x", "y"], require_all=True
+    )
+
+    assert out == {"x": [-10, 10], "y": [0, 1]}
+
+
+def test_get_prior_bounds_for_parameters_single_parameter(proposal):
+    proposal.prior_bounds = {"x": [-1, 1]}
+    proposal.model.bounds = {"x": [-10, 10]}
+
+    out = BaseFlowProposal._get_prior_bounds_for_parameters(proposal, "x")
+
+    assert out == {"x": [-1, 1]}
+
+
+def test_get_prior_bounds_for_parameters_unknown_parameter(proposal):
+    proposal.prior_bounds = {"x": [-1, 1]}
+    proposal.model.bounds = {"x": [-10, 10]}
+
+    out = BaseFlowProposal._get_prior_bounds_for_parameters(proposal, "y")
+
+    assert out is None
+
+
 @pytest.mark.parametrize(
     "parameters",
     [
@@ -242,6 +286,23 @@ def test_get_reparameterisation_from_spec_no_parameters(proposal, dummy_rc):
         source_is_parameter=False,
         parameters=None,
         kwargs={"update_bounds": True},
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        BaseFlowProposal.get_reparameterisation_from_spec(proposal, spec)
+
+    assert "No parameters key" in str(excinfo.value)
+
+
+def test_get_reparameterisation_from_spec_empty_parameters(proposal, dummy_rc):
+    proposal.get_reparameterisation = MagicMock(return_value=(dummy_rc, {}))
+    spec = ReparameterisationSpec(
+        source_key="x",
+        spec_index=0,
+        reparameterisation="default",
+        source_is_parameter=True,
+        parameters=[],
+        kwargs={},
     )
 
     with pytest.raises(RuntimeError) as excinfo:
@@ -337,6 +398,9 @@ def test_configure_reparameterisations_fallback(
     proposal.add_default_reparameterisations = MagicMock()
     proposal.get_reparameterisation = MagicMock(return_value=(dummy_rc, {}))
     proposal.instantiate_reparameterisation_from_spec = MagicMock()
+    proposal._get_prior_bounds_for_parameters = MagicMock(
+        return_value={"x": [-1, 1], "y": [-1, 1]}
+    )
     proposal._set_parameter_order = MagicMock()
     proposal.model.bounds = {"x": [-1, 1], "y": [-1, 1]}
     proposal.model.names = ["x", "y"]
@@ -357,6 +421,9 @@ def test_configure_reparameterisations_fallback(
 
     proposal.add_default_reparameterisations.assert_not_called()
     proposal.get_reparameterisation.assert_called_once_with("default")
+    proposal._get_prior_bounds_for_parameters.assert_called_once_with(
+        ["x", "y"], require_all=True
+    )
     dummy_rc.assert_called_once_with(
         parameters=["x", "y"],
         prior_bounds={"x": [-1, 1], "y": [-1, 1]},

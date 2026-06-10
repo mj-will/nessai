@@ -130,6 +130,11 @@ def test_output_parameters():
     assert reparam.output_parameters == ["x", "x_aux"]
 
 
+def test_format_parameters_invalid_type():
+    with pytest.raises(TypeError, match="Parameters must be a string"):
+        Reparameterisation._format_parameters(1)
+
+
 def test_update(reparam):
     """Assert the default update method can be called and does not raised an
     error.

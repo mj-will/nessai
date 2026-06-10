@@ -42,6 +42,39 @@ def test_build_reparameterisation_spec_reparam_key():
     assert spec.kwargs == {"foo": 1}
 
 
+def test_build_reparameterisation_spec_model_key_missing_reparameterisation():
+    with pytest.raises(
+        RuntimeError, match="No reparameterisation found for x"
+    ):
+        build_reparameterisation_spec("x", {"scale": 2.0}, 0, ["x"])
+
+
+@pytest.mark.parametrize(
+    "parameters, expected",
+    [("y", ["x", "y"]), (None, [])],
+)
+def test_build_reparameterisation_spec_model_key_parameter_variants(
+    parameters, expected
+):
+    spec = build_reparameterisation_spec(
+        "x",
+        {"reparameterisation": "scale", "parameters": parameters},
+        0,
+        ["x"],
+    )
+    assert spec.parameters == expected
+
+
+def test_build_reparameterisation_spec_reparam_key_list():
+    spec = build_reparameterisation_spec("scale", ["x", "y"], 0, ["x", "y"])
+    assert spec.parameters == ["x", "y"]
+
+
+def test_build_reparameterisation_spec_reparam_key_invalid():
+    with pytest.raises(TypeError, match="Unknown config type for: scale"):
+        build_reparameterisation_spec("scale", 1, 0, ["x"])
+
+
 def test_normalise_reparameterisation_spec_str():
     key = "x"
     spec_cfg = "scale"
