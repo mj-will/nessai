@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix a bug with parameter ordering in reparameterisations with multiple parameters (https://github.com/mj-will/nessai/pull/479)
+
+### Removed
+
+- The `nessai.gw` submodule has been removed (https://github.com/mj-will/nessai/pull/474)
+- Support for `prime-prior` has been removed (https://github.com/mj-will/nessai/pull/474)
+- `setup_logger` has been removed (https://github.com/mj-will/nessai/pull/474)
+- Support for `model_config` is `flow_config` has been removed (https://github.com/mj-will/nessai/pull/474)
+- The `flow_class` argument in `NestedSampler` has been removed (https://github.com/mj-will/nessai/pull/474)
+- `nestedsampler.py` has been removed (https://github.com/mj-will/nessai/pull/474)
+- `utils/bilbyutils.py` has been removed (https://github.com/mj-will/nessai/pull/474)
+
 ## [0.15.2]
 
 ### Fixed
