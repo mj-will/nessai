@@ -59,7 +59,8 @@ class Reparameterisation:
             )
 
         if prior_bounds is not None:
-            if set(self.parameters) - set(prior_bounds.keys()):
+            missing_bounds = set(self.parameters) - set(prior_bounds.keys())
+            if missing_bounds and self.requires_bounded_prior:
                 raise RuntimeError(
                     "Mismatch between parameters and prior bounds: "
                     f"{set(self.parameters)}, {set(prior_bounds.keys())}"
@@ -67,6 +68,12 @@ class Reparameterisation:
             self.prior_bounds = {
                 p: np.asarray(b) for p, b in prior_bounds.items()
             }
+            if missing_bounds:
+                logger.debug(
+                    "Missing prior bounds for parameters %s in %s",
+                    sorted(missing_bounds),
+                    self.name,
+                )
         else:
             logger.debug(f"No prior bounds for {self.name}")
 
@@ -81,8 +88,23 @@ class Reparameterisation:
                 )
 
         self.prime_parameters = [p + "_prime" for p in self.parameters]
+        self.auxiliary_parameters = []
         self.requires = []
+        self.prime_requires = []
+        self.inverse_requires = []
         logger.debug(f"Initialised reparameterisation: {self.name}")
+
+    @property
+    def output_parameters(self):
+        """All x-space parameters made available after this reparameterisation."""
+        return self.parameters + self.auxiliary_parameters
+
+    @property
+    def input_parameters(self):
+        """All x-space parameters required for the forward pass."""
+        # self.parameters + self.requires may contain duplicates
+        # we want to preserve the order but remove duplicates
+        return list(dict.fromkeys(self.parameters + self.requires))
 
     @property
     def name(self):

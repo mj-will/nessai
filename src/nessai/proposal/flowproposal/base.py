@@ -396,6 +396,52 @@ class BaseFlowProposal(RejectionProposal):
         """Get the reparameterisation from the name"""
         return get_reparameterisation(name)
 
+    def _resolve_reparameterisation_parameters(self, parameters):
+        """Resolve parameter names or regex patterns for reparameterisations."""
+        if parameters is None:
+            return None
+
+        if isinstance(parameters, str):
+            patterns = [parameters]
+        else:
+            patterns = list(parameters)
+
+        known_parameters = set(
+            self.model.names + self._reparameterisation.parameters
+        )
+
+        matches = []
+        for pattern in patterns:
+            if pattern in known_parameters:
+                matches.append(pattern)
+                continue
+
+            r = re.compile(pattern)
+            pattern_matches = list(filter(r.fullmatch, known_parameters))
+            if pattern_matches:
+                matches.extend(pattern_matches)
+            else:
+                matches.append(pattern)
+
+        return list(dict.fromkeys(matches))
+
+    def _get_prior_bounds_for_parameters(self, parameters):
+        """Get prior bounds for parameters that are model parameters."""
+        if isinstance(parameters, list):
+            prior_bounds = {
+                p: self.prior_bounds[p]
+                for p in parameters
+                if p in self.prior_bounds
+            }
+        elif parameters in self.prior_bounds:
+            prior_bounds = {parameters: self.prior_bounds[parameters]}
+        else:
+            prior_bounds = {}
+
+        if prior_bounds:
+            return prior_bounds
+        return None
+
     def _set_parameter_order(self):
         """Set stable proposal-facing parameter orders.
 
@@ -478,7 +524,8 @@ class BaseFlowProposal(RejectionProposal):
             _reparameterisations = copy.deepcopy(reparameterisations)
         logger.info(f"Adding reparameterisations from: {_reparameterisations}")
         self._reparameterisation = CombinedReparameterisation(
-            reverse_order=self.reverse_reparameterisations
+            reverse_order=self.reverse_reparameterisations,
+            initial_parameters=list(self.model.names),
         )
         if isinstance(_reparameterisations, str):
             _reparameterisations = {
@@ -534,23 +581,12 @@ class BaseFlowProposal(RejectionProposal):
                         logger.debug("Assuming list of patterns")
                         cfg = {"parameters": cfg}
                     default_config.update(cfg)
-                    parameters = default_config.get("parameters")
+                    parameters = self._resolve_reparameterisation_parameters(
+                        default_config.get("parameters")
+                    )
 
                     if parameters is not None:
-                        if not isinstance(parameters, list):
-                            if isinstance(parameters, str):
-                                patterns = [parameters]
-                            else:
-                                patterns = list(parameters)
-                        else:
-                            patterns = parameters.copy()
-                        matches = []
-                        for pattern in patterns:
-                            r = re.compile(pattern)
-                            matches += list(
-                                filter(r.fullmatch, self.model.names)
-                            )
-                        default_config["parameters"] = matches
+                        default_config["parameters"] = parameters
                     else:
                         logger.warning(
                             "Reparameterisation might be missing parameters!"
@@ -575,17 +611,9 @@ class BaseFlowProposal(RejectionProposal):
             ):
                 self.boundary_inversion = True
 
-            if isinstance(default_config["parameters"], list):
-                prior_bounds = {
-                    p: self.prior_bounds[p]
-                    for p in default_config["parameters"]
-                }
-            else:
-                prior_bounds = {
-                    default_config["parameters"]: self.prior_bounds[
-                        default_config["parameters"]
-                    ]
-                }
+            prior_bounds = self._get_prior_bounds_for_parameters(
+                default_config["parameters"]
+            )
             sig = signature(rc.__init__)
             if "rng" in sig.parameters:
                 default_config["rng"] = self.rng

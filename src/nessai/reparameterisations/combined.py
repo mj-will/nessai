@@ -4,10 +4,14 @@ Combined reparameterisation.
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from ..utils.sorting import sort_reparameterisations
+
+if TYPE_CHECKING:
+    from . import Reparameterisation
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +30,12 @@ class CombinedReparameterisation(dict):
         to the default ordering.
     """
 
-    def __init__(self, reparameterisations=None, reverse_order=False):
+    def __init__(
+        self,
+        reparameterisations: list["Reparameterisation"] = None,
+        reverse_order: bool = False,
+        initial_parameters: list[str] | None = None,
+    ):
         super().__init__()
         self.reparameterisations = {}
         self.parameters = []
@@ -34,6 +43,9 @@ class CombinedReparameterisation(dict):
         self.requires = []
         self.order = []
         self.reverse_order = reverse_order
+        self.initial_parameters = (
+            initial_parameters.copy() if initial_parameters is not None else []
+        )
         if reparameterisations is not None:
             self.add_reparameterisations(reparameterisations)
 
@@ -58,19 +70,33 @@ class CombinedReparameterisation(dict):
             return reversed(self.order)
 
     def _add_reparameterisation(self, reparameterisation):
-        requires = reparameterisation.requires
-        if requires and (
-            any([req not in self.parameters for req in requires])
-            and any([req not in self.prime_parameters for req in requires])
-        ):
+        available_parameters = self.initial_parameters + self.parameters
+        available_prime_parameters = self.prime_parameters
+        missing_parameters = [
+            req
+            for req in reparameterisation.input_parameters
+            if req not in available_parameters
+        ]
+        missing_prime_parameters = [
+            req
+            for req in reparameterisation.prime_requires
+            if req not in available_prime_parameters
+        ]
+        if missing_parameters or missing_prime_parameters:
             raise RuntimeError(
                 f"Could not add {reparameterisation}, missing requirement(s): "
-                f"{reparameterisation.requires}. Current: {self.parameters}."
+                f"{missing_parameters}. Missing prime requirement(s): "
+                f"{missing_prime_parameters}. Current: {available_parameters}. "
+                f"Current prime parameters: {available_prime_parameters}."
             )
 
         self[reparameterisation.name] = reparameterisation
         self.order = list(self.keys())
-        self.parameters += reparameterisation.parameters
+        self.parameters += [
+            p
+            for p in reparameterisation.output_parameters
+            if p not in self.parameters
+        ]
         self.prime_parameters += reparameterisation.prime_parameters
         self.requires += reparameterisation.requires
 
@@ -90,10 +116,13 @@ class CombinedReparameterisation(dict):
             reparameterisations = [reparameterisations]
 
         logger.debug("Sorting reparameterisations")
-        logger.debug(f"Existing parameters: {self.parameters}")
+        existing_parameters = self.initial_parameters + self.parameters
+        existing_prime_parameters = self.prime_parameters
+        logger.debug(f"Existing parameters: {existing_parameters}")
         reparameterisations = sort_reparameterisations(
             reparameterisations,
-            existing_parameters=self.parameters,
+            existing_parameters=existing_parameters,
+            existing_prime_parameters=existing_prime_parameters,
         )
 
         for r in reparameterisations:
@@ -109,14 +138,14 @@ class CombinedReparameterisation(dict):
         """
         parameters = []
         for key in self.from_prime_order:
-            if not all([r in parameters for r in self[key].requires]):
+            if not all([r in parameters for r in self[key].inverse_requires]):
                 raise RuntimeError(
                     "Order of reparameterisations is invalid (x' -> x)"
-                    f"{self[key].name} requires {self[key].requires} but with "
+                    f"{self[key].name} requires {self[key].inverse_requires} but with "
                     f"the current order only the parameters {parameters} "
                     "would be available."
                 )
-            parameters += self[key].parameters
+            parameters += self[key].output_parameters
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
         """
