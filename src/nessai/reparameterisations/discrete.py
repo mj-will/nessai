@@ -34,16 +34,22 @@ class Dequantise(RescaleToBounds):
     def __init__(
         self,
         parameters=None,
+        prime_parameters=None,
+        auxiliary_parameters=None,
         prior_bounds=None,
         rescale_bounds=None,
         update_bounds=False,
         post_rescaling=None,
         rng=None,
+        requires=None,
+        prime_requires=None,
+        inverse_requires=None,
     ):
         super().__init__(
             parameters=parameters,
+            prime_parameters=prime_parameters,
+            auxiliary_parameters=auxiliary_parameters,
             prior_bounds=prior_bounds,
-            prior=None,
             rescale_bounds=rescale_bounds,
             boundary_inversion=None,
             detect_edges=False,
@@ -52,6 +58,9 @@ class Dequantise(RescaleToBounds):
             pre_rescaling=None,
             post_rescaling=post_rescaling,
             rng=rng,
+            requires=requires,
+            prime_requires=prime_requires,
+            inverse_requires=inverse_requires,
         )
 
         self.has_pre_rescaling = True

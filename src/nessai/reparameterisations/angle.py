@@ -40,12 +40,24 @@ class Angle(Reparameterisation):
     def __init__(
         self,
         parameters=None,
+        prime_parameters=None,
+        auxiliary_parameters=None,
         prior_bounds=None,
         scale=1.0,
         rng=None,
+        requires=None,
+        prime_requires=None,
+        inverse_requires=None,
     ):
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            parameters=parameters,
+            prime_parameters=prime_parameters,
+            auxiliary_parameters=auxiliary_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            requires=requires,
+            prime_requires=prime_requires,
+            inverse_requires=inverse_requires,
         )
 
         if len(self.parameters) == 1:
@@ -68,8 +80,9 @@ class Angle(Reparameterisation):
         else:
             self._zero_bound = False
 
-        self.prime_parameters = [self.angle + "_x", self.angle + "_y"]
-        self.requires = []
+        # overwrite the prime parameters if not specified
+        if prime_parameters is None:
+            self.prime_parameters = [self.angle + "_x", self.angle + "_y"]
 
     @property
     def angle(self):
@@ -233,14 +246,12 @@ class AnglePair(Reparameterisation):
     """
 
     requires_bounded_prior = True
-    known_priors = ["isotropic", None]
     _conventions = {"az-zen": [0, np.pi], "ra-dec": [-np.pi / 2, np.pi / 2]}
 
     def __init__(
         self,
         parameters=None,
         prior_bounds=None,
-        prior=None,
         convention=None,
         rng=None,
     ):

@@ -10,7 +10,7 @@ from .base import Reparameterisation
 logger = logging.getLogger(__name__)
 
 
-class NullReparameterisation(Reparameterisation):
+class IdentityReparameterisation(Reparameterisation):
     """Reparameterisation that does not modify the parameters.
 
     Parameters
@@ -21,9 +21,26 @@ class NullReparameterisation(Reparameterisation):
         Prior bounds for parameters. Unused for this reparameterisation.
     """
 
-    def __init__(self, parameters=None, prior_bounds=None, rng=None):
+    def __init__(
+        self,
+        parameters=None,
+        prime_parameters=None,
+        auxiliary_parameters=None,
+        prior_bounds=None,
+        rng=None,
+        requires=None,
+        prime_requires=None,
+        inverse_requires=None,
+    ):
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            parameters=parameters,
+            prime_parameters=prime_parameters,
+            auxiliary_parameters=auxiliary_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            requires=requires,
+            prime_requires=prime_requires,
+            inverse_requires=inverse_requires,
         )
         self.prime_parameters = self.parameters
         logger.debug(f"Initialised reparameterisation: {self.name}")
@@ -59,3 +76,7 @@ class NullReparameterisation(Reparameterisation):
         """
         x[self.parameters] = x_prime[self.prime_parameters]
         return x, x_prime, log_j
+
+
+NullReparameterisation = IdentityReparameterisation
+"""Alias for IdentityReparameterisation."""

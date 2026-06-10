@@ -1,9 +1,7 @@
 """Base proposal class that contains common methods."""
 
-import copy
 import logging
 import os
-import re
 from abc import abstractmethod
 from inspect import signature
 from typing import Optional
@@ -23,10 +21,14 @@ from ...livepoint import (
     numpy_array_to_live_points,
 )
 from ...plot import nessai_style, plot_1d_comparison, plot_live_points
-from ...reparameterisations import (
+from ...reparameterisations.combined import (
     CombinedReparameterisation,
+)
+from ...reparameterisations.utils import (
     ReparameterisationError,
     get_reparameterisation,
+    parse_reparameterisations,
+    resolve_reparameterisation_parameters,
 )
 from ...utils import (
     save_live_points,
@@ -396,51 +398,90 @@ class BaseFlowProposal(RejectionProposal):
         """Get the reparameterisation from the name"""
         return get_reparameterisation(name)
 
-    def _resolve_reparameterisation_parameters(self, parameters):
-        """Resolve parameter names or regex patterns for reparameterisations."""
-        if parameters is None:
-            return None
-
-        if isinstance(parameters, str):
-            patterns = [parameters]
-        else:
-            patterns = list(parameters)
-
-        known_parameters = set(
-            self.model.names + self._reparameterisation.parameters
-        )
-
-        matches = []
-        for pattern in patterns:
-            if pattern in known_parameters:
-                matches.append(pattern)
-                continue
-
-            r = re.compile(pattern)
-            pattern_matches = list(filter(r.fullmatch, known_parameters))
-            if pattern_matches:
-                matches.extend(pattern_matches)
-            else:
-                matches.append(pattern)
-
-        return list(dict.fromkeys(matches))
-
     def _get_prior_bounds_for_parameters(self, parameters):
         """Get prior bounds for parameters that are model parameters."""
+        prior_bounds_lookup = getattr(self, "prior_bounds", None)
+        if not isinstance(prior_bounds_lookup, dict):
+            prior_bounds_lookup = self.model.bounds
+
         if isinstance(parameters, list):
             prior_bounds = {
-                p: self.prior_bounds[p]
+                p: prior_bounds_lookup[p]
                 for p in parameters
-                if p in self.prior_bounds
+                if p in prior_bounds_lookup
             }
-        elif parameters in self.prior_bounds:
-            prior_bounds = {parameters: self.prior_bounds[parameters]}
+        elif parameters in prior_bounds_lookup:
+            prior_bounds = {parameters: prior_bounds_lookup[parameters]}
         else:
             prior_bounds = {}
 
         if prior_bounds:
             return prior_bounds
         return None
+
+    def get_reparameterisation_from_spec(self, spec):
+        """Get the reparameterisation class and config from a reparameterisation spec."""
+        try:
+            rc, default_config = self.get_reparameterisation(
+                spec.reparameterisation
+            )
+        except ValueError:
+            raise RuntimeError(
+                f"{spec.source_key} is not a parameter in the model or a known "
+                "reparameterisation"
+            )
+
+        config = default_config.copy()
+        config.update(spec.kwargs)
+
+        if spec.source_is_parameter:
+            config["parameters"] = spec.parameters
+        else:
+            parameters = resolve_reparameterisation_parameters(
+                spec.parameters,
+                available_parameters=list(
+                    dict.fromkeys(
+                        list(self.model.names)
+                        + list(self._reparameterisation.parameters)
+                    )
+                ),
+            )
+            if parameters is not None:
+                config["parameters"] = parameters
+            else:
+                logger.warning(
+                    "Reparameterisation might be missing parameters!"
+                )
+
+        if "parameters" not in config:
+            raise RuntimeError(
+                "No parameters key in the config! "
+                "Check reparameterisations, setting logging"
+                " level to DEBUG can be helpful"
+            )
+        if not config["parameters"] and not config.get("prime_requires"):
+            raise RuntimeError(
+                "No parameters key in the config! "
+                "Check reparameterisations, setting logging"
+                " level to DEBUG can be helpful"
+            )
+
+        return rc, config
+
+    def instantiate_reparameterisation_from_spec(self, spec):
+        """Instantiate a reparameterisation from a spec."""
+        rc, config = self.get_reparameterisation_from_spec(spec)
+
+        prior_bounds = self._get_prior_bounds_for_parameters(
+            config["parameters"]
+        )
+        sig = signature(rc.__init__)
+        if "rng" in sig.parameters:
+            config["rng"] = self.rng
+
+        logger.info(f"Instantiating {rc.__name__} with config: {config}")
+        reparameterisation = rc(prior_bounds=prior_bounds, **config)
+        return reparameterisation
 
     def _set_parameter_order(self):
         """Set stable proposal-facing parameter orders.
@@ -514,113 +555,20 @@ class BaseFlowProposal(RejectionProposal):
             Dictionary of reparameterisations. If None, then the defaults
             from :py:func`get_default_reparameterisations` are used.
         """
-        if reparameterisations is None:
-            logger.info(
-                "No reparameterisations provided, using default "
-                f"reparameterisations included in {self.__class__.__name__}"
-            )
-            _reparameterisations = {}
-        else:
-            _reparameterisations = copy.deepcopy(reparameterisations)
-        logger.info(f"Adding reparameterisations from: {_reparameterisations}")
+        logger.info(f"Adding reparameterisations from: {reparameterisations}")
         self._reparameterisation = CombinedReparameterisation(
             reverse_order=self.reverse_reparameterisations,
             initial_parameters=list(self.model.names),
         )
-        if isinstance(_reparameterisations, str):
-            _reparameterisations = {
-                _reparameterisations: {"parameters": self.model.names}
-            }
-        elif not isinstance(_reparameterisations, dict):
-            raise TypeError(
-                "Reparameterisations must be a dictionary, string or None, "
-                f"received {type(_reparameterisations).__name__}"
-            )
 
-        for k, cfg in _reparameterisations.items():
-            if k in self.model.names:
-                logger.debug(
-                    f"Found parameter {k} in model, assuming it is a parameter"
-                )
-                if isinstance(cfg, str) or cfg is None:
-                    rc, default_config = self.get_reparameterisation(cfg)
-                    default_config["parameters"] = k
-                elif isinstance(cfg, dict):
-                    if cfg.get("reparameterisation", None) is None:
-                        raise RuntimeError(
-                            f"No reparameterisation found for {k}. "
-                            "Check inputs (and their spelling :)). "
-                            f"Current keys: {list(cfg.keys())}"
-                        )
-                    rc, default_config = self.get_reparameterisation(
-                        cfg["reparameterisation"]
-                    )
-                    cfg.pop("reparameterisation")
-
-                    if cfg.get("parameters", False):
-                        parameters = cfg.pop("parameters")
-                        if isinstance(parameters, str):
-                            parameters = [parameters]
-                        default_config["parameters"] = list(
-                            dict.fromkeys([k, *parameters])
-                        )
-                    else:
-                        default_config["parameters"] = k
-
-                    default_config.update(cfg)
-                else:
-                    raise TypeError(
-                        f"Unknown config type for: {k}. Expected str or dict, "
-                        f"received instance of {type(cfg)}."
-                    )
-            else:
-                logger.debug(f"Assuming {k} is a reparameterisation")
-                try:
-                    rc, default_config = self.get_reparameterisation(k)
-                    if isinstance(cfg, list):
-                        logger.debug("Assuming list of patterns")
-                        cfg = {"parameters": cfg}
-                    default_config.update(cfg)
-                    parameters = self._resolve_reparameterisation_parameters(
-                        default_config.get("parameters")
-                    )
-
-                    if parameters is not None:
-                        default_config["parameters"] = parameters
-                    else:
-                        logger.warning(
-                            "Reparameterisation might be missing parameters!"
-                        )
-
-                except ValueError:
-                    raise RuntimeError(
-                        f"{k} is not a parameter in the model or a known "
-                        "reparameterisation"
-                    )
-
-            if not default_config.get("parameters", False):
-                raise RuntimeError(
-                    "No parameters key in the config! "
-                    "Check reparameterisations, setting logging"
-                    " level to DEBUG can be helpful"
-                )
-
-            if (
-                "boundary_inversion" in default_config
-                and default_config["boundary_inversion"]
-            ):
-                self.boundary_inversion = True
-
-            prior_bounds = self._get_prior_bounds_for_parameters(
-                default_config["parameters"]
-            )
-            sig = signature(rc.__init__)
-            if "rng" in sig.parameters:
-                default_config["rng"] = self.rng
-
-            logger.info(f"Adding {rc.__name__} with config: {default_config}")
-            r = rc(prior_bounds=prior_bounds, **default_config)
-            self._reparameterisation.add_reparameterisations(r)
+        specs = parse_reparameterisations(
+            reparameterisations,
+            model_names=list(self.model.names),
+            class_name=self.__class__.__name__,
+        )
+        for spec in specs:
+            reparam = self.instantiate_reparameterisation_from_spec(spec)
+            self._reparameterisation.add_reparameterisations(reparam)
 
         if self.use_default_reparameterisations:
             self.add_default_reparameterisations()
@@ -635,8 +583,13 @@ class BaseFlowProposal(RejectionProposal):
             FallbackClass, fallback_kwargs = self.get_reparameterisation(
                 self.fallback_reparameterisation
             )
+            prior_bounds_lookup = getattr(self, "prior_bounds", None)
+            if not isinstance(prior_bounds_lookup, dict) or any(
+                p not in prior_bounds_lookup for p in other_params
+            ):
+                prior_bounds_lookup = self.model.bounds
             fallback_kwargs["prior_bounds"] = {
-                p: self.prior_bounds[p] for p in other_params
+                p: prior_bounds_lookup[p] for p in other_params
             }
             logger.info(
                 f"Assuming fallback reparameterisation "

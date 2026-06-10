@@ -160,6 +160,8 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
     def __init__(
         self,
         parameters=None,
+        prime_parameters=None,
+        auxiliary_parameters=None,
         prior_bounds=None,
         scale=None,
         shift=None,
@@ -168,11 +170,21 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
         pre_rescaling=None,
         post_rescaling=None,
         rng=None,
+        requires=None,
+        prime_requires=None,
+        inverse_requires=None,
     ):
         if scale is None and not estimate_scale:
             raise RuntimeError("Must specify a scale or enable estimate_scale")
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            parameters=parameters,
+            prime_parameters=prime_parameters,
+            auxiliary_parameters=auxiliary_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            requires=requires,
+            prime_requires=prime_requires,
+            inverse_requires=inverse_requires,
         )
 
         self.estimate_scale = estimate_scale
@@ -321,8 +333,6 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         Bounds to rescale to.
     update_bounds : bool, optional
         Enable or disable updating bounds.
-    prior : {'uniform', None}
-        Type of prior used, if uniform prime prior is enabled.
     boundary_inversion : bool, list, dict, optional
         Configuration for boundary inversion. If a list, inversion is only
         applied to the parameters in the list based on `inversion_type`. If
@@ -352,8 +362,9 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
     def __init__(
         self,
         parameters=None,
+        prime_parameters=None,
+        auxiliary_parameters=None,
         prior_bounds=None,
-        prior=None,
         rescale_bounds=None,
         boundary_inversion=None,
         detect_edges=False,
@@ -364,9 +375,19 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         pre_rescaling=None,
         post_rescaling=None,
         rng=None,
+        requires=None,
+        prime_requires=None,
+        inverse_requires=None,
     ):
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            parameters=parameters,
+            prime_parameters=prime_parameters,
+            auxiliary_parameters=auxiliary_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            requires=requires,
+            prime_requires=prime_requires,
+            inverse_requires=inverse_requires,
         )
 
         self.bounds = None

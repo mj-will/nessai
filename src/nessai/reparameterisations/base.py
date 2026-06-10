@@ -18,8 +18,26 @@ class Reparameterisation:
     ----------
     parameters : str or list
         Name of parameters to reparameterise.
+    prime_parameters : str or list, optional
+        Name of the parameters in the prime space. If None, will be set to
+        the same as `parameters` with '_prime' appended.
+    auxiliary_parameters : str or list, optional
+        Name of any auxiliary parameters that are made available in x-space after
+        the reparameterisation. These parameters are not required for the forward
+        pass but may be used in the inverse pass. Defaults to None.
     prior_bounds : list, dict or None
         Prior bounds for the parameter(s).
+    rng: np.random.Generator, optional
+        Random number generator to use for any random operations in the
+        reparameterisation. If None, a new default_rng will be used.
+    requires : str or list, optional
+        Name of any parameters that are required for the reparameterisation.
+    prime_requires : str or list, optional
+        Name of any parameters in the prime space that are required for the
+        reparameterisation.
+    inverse_requires : str or list, optional
+        Name of any parameters that are required for the inverse
+        reparameterisation.
     """
 
     _update = False
@@ -28,7 +46,17 @@ class Reparameterisation:
     prior_bounds = None
     one_to_one = True
 
-    def __init__(self, parameters=None, prior_bounds=None, rng=None):
+    def __init__(
+        self,
+        parameters=None,
+        prime_parameters=None,
+        auxiliary_parameters=None,
+        prior_bounds=None,
+        rng=None,
+        requires=None,
+        prime_requires=None,
+        inverse_requires=None,
+    ):
         if rng is None:
             logger.debug("No rng specified, using the default rng.")
             rng = np.random.default_rng()
@@ -36,9 +64,7 @@ class Reparameterisation:
         if not isinstance(parameters, (str, list)):
             raise TypeError("Parameters must be a str or list.")
 
-        self.parameters = (
-            [parameters] if isinstance(parameters, str) else parameters.copy()
-        )
+        self.parameters = self._format_parameters(parameters)
 
         if isinstance(prior_bounds, (list, tuple, np.ndarray)):
             if len(prior_bounds) == 2:
@@ -87,12 +113,30 @@ class Reparameterisation:
                     f"bounds. Received: {self.prior_bounds}"
                 )
 
-        self.prime_parameters = [p + "_prime" for p in self.parameters]
-        self.auxiliary_parameters = []
-        self.requires = []
-        self.prime_requires = []
-        self.inverse_requires = []
+        self.prime_parameters = self._format_parameters(prime_parameters) or [
+            f"{p}_prime" for p in self.parameters
+        ]
+        self.auxiliary_parameters = self._format_parameters(
+            auxiliary_parameters
+        )
+        self.requires = self._format_parameters(requires)
+        self.prime_requires = self._format_parameters(prime_requires)
+        self.inverse_requires = self._format_parameters(inverse_requires)
         logger.debug(f"Initialised reparameterisation: {self.name}")
+
+    @staticmethod
+    def _format_parameters(parameters: str | list[str] | None) -> list[str]:
+        """Format the parameters to be a list of strings."""
+        if isinstance(parameters, str):
+            return [parameters]
+        elif isinstance(parameters, list):
+            return parameters.copy()
+        elif parameters is None:
+            return []
+        else:
+            raise TypeError(
+                "Parameters must be a string or a list of strings."
+            )
 
     @property
     def output_parameters(self):
