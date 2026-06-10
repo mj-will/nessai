@@ -86,7 +86,7 @@ def test_min_max_radius_invalid_input(proposal, rmin, rmax):
 def test_configure_latent_prior(proposal, latent_prior, prior_func):
     """Test to make sure the correct latent priors are used."""
     proposal.latent_prior = latent_prior
-    proposal.flow_config = {"model_config": {}}
+    proposal.flow_config = {}
     FlowProposal.configure_latent_prior(proposal)
     if prior_func:
         assert proposal._draw_latent_prior == getattr(utils, prior_func)

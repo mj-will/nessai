@@ -104,9 +104,15 @@ def test_flowproposal_populate_edge_cases(
 def test_training(tmpdir, model, plot):
     """Integration test to test training the flow with and without plotting."""
     output = str(tmpdir.mkdir("test_train"))
-    config = dict(max_epochs=10)
+    config = dict(n_layers=1)
+    training_config = dict(max_epochs=10)
     fp = FlowProposal(
-        model, output=output, plot="min", poolsize=100, flow_config=config
+        model,
+        output=output,
+        plot="min",
+        poolsize=100,
+        flow_config=config,
+        training_config=training_config,
     )
 
     fp.initialise()

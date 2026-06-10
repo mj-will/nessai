@@ -404,6 +404,7 @@ def test_update_weights_path_not_enough_files(ifm, tmp_path):
 def test_resume(ifm, weights_path):
     """Assert resume method calls the correct methods"""
     flow_config = dict(n_neurons=20)
+    training_config = dict(patience=5)
     updated_config = dict(n_neurons=20, ftype="realnvp")
     output = "current_output"
 
@@ -419,7 +420,9 @@ def test_resume(ifm, weights_path):
         "nessai.flowmodel.importance.update_flow_config",
         return_value=updated_config,
     ) as mock_update:
-        IFM.resume(ifm, flow_config, weights_path)
+        IFM.resume(
+            ifm, flow_config, training_config, weights_path=weights_path
+        )
 
     mock_update.assert_called_once_with(flow_config)
 

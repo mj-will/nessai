@@ -9,7 +9,6 @@ import random
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional, Union
-from warnings import warn
 
 import numpy as np
 import torch
@@ -221,25 +220,6 @@ class BaseNestedSampler(ABC):
             rng = np.random.default_rng(self.seed)
         self.rng = rng
         torch.manual_seed(self.seed)
-
-    def configure_random_seed(self, seed: Optional[int] = None) -> None:
-        """Initialise the random seed
-
-        ..deprecated:: 0.14.0
-            Deprecated in favour of
-            :py:meth:`~nessai.samplers.base.BaseNestedSampler.configure_rng`.
-
-        Parameters
-        ----------
-        seed : Optional[int]
-            The random seed. If not specified, a random seed is generated.
-        """
-        msg = (
-            "`configure_random_seed` is deprecated and will be removed in a "
-            "future release. Use `configure_rng` instead."
-        )
-        warn(msg, FutureWarning)
-        self.configure_rng(seed=seed)
 
     def configure_periodic_logging(self, logging_interval, log_on_iteration):
         """Configure the periodic logging.

@@ -8,7 +8,6 @@ import glob
 import logging
 import os
 from typing import Optional
-from warnings import warn
 
 import numpy as np
 import torch
@@ -210,15 +209,13 @@ class ImportanceFlowModel(FlowModel):
     def resume(
         self,
         flow_config: dict,
+        training_config: Optional[dict] = None,
         weights_path: Optional[str] = None,
     ) -> None:
         """Resume the model"""
-        if "model_config" in flow_config:
-            warn(
-                "Resuming with old style flow config is not supported",
-                RuntimeWarning,
-            )
         self.flow_config = update_flow_config(flow_config)
+        if training_config is not None:
+            self.training_config = training_config
         if weights_path is None:
             logger.debug(
                 "Not weights path specified, looking in output directory"

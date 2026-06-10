@@ -5,7 +5,6 @@ import logging
 from copy import deepcopy
 from inspect import getmro, signature
 from typing import Callable, Union
-from warnings import warn
 
 from ..utils.settings import _get_all_kwargs
 
@@ -154,14 +153,3 @@ def get_flow_proposal_class(
             f"FlowProposal or None. "
             f"Actual input: {proposal_class} ({type(proposal_class)})."
         )
-
-
-def get_region_sampler_proposal_class(*args, **kwargs):
-    warn(
-        (
-            "`get_region_sampler_proposal_class` is deprecated in favour of "
-            "`get_flow_proposal_class`"
-        ),
-        FutureWarning,
-    )
-    return get_flow_proposal_class(*args, **kwargs)

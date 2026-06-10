@@ -41,6 +41,7 @@ def test_update_config():
     assert training_config_out is expected_out_training
 
 
+@pytest.mark.xfail(reason="Deprecated configs should not be supported")
 def test_update_config_deprecated():
     """Test with a basic config"""
     model_config = dict(n_blocks=2)

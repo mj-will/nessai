@@ -14,21 +14,10 @@ from nessai.samplers.nestedsampler import NestedSampler
 
 @pytest.mark.parametrize("plot", [True, False])
 @pytest.mark.parametrize("shrinkage_expectation", ["t", "logt"])
-@pytest.mark.parametrize(
-    "flow_class, flow_proposal_class, expected_proposal_call",
-    [
-        (None, None, None),
-        (None, "test", "test"),
-        ("test_old", "test", "test_old"),
-    ],
-)
 def test_init(
     sampler,
     plot,
     shrinkage_expectation,
-    flow_class,
-    flow_proposal_class,
-    expected_proposal_call,
 ):
     """Test the init method"""
     pool = "pool"
@@ -52,8 +41,6 @@ def test_init(
             n_pool=n_pool,
             plot=plot,
             shrinkage_expectation=shrinkage_expectation,
-            flow_class=flow_class,
-            flow_proposal_class=flow_proposal_class,
         )
     assert sampler.initialised is False
     assert sampler.nlive == 100
@@ -65,7 +52,7 @@ def test_init(
     model.verify_model.assert_called_once()
     model.configure_pool.assert_called_once_with(pool=pool, n_pool=n_pool)
     sampler.configure_flow_proposal.assert_called_once_with(
-        expected_proposal_call,
+        None,  # Default flow proposal is None
         None,  # flow config is None
         False,  # proposal_plots is False by default
         poolsize=100,

@@ -250,7 +250,7 @@ def test_get_flow_class_native():
 
 def test_configure_model_basic(config):
     """Test configure model with the most basic config."""
-    config["kwargs"] = dict(num_bins=2)
+    config["num_bins"] = 2
     with patch("nessai.flows.realnvp.RealNVP") as mock_flow:
         configure_model(config)
 
@@ -304,7 +304,7 @@ def test_configure_model_flow_class(config):
 )
 def test_configure_model_activation_functions(config, act):
     """Test the different activation functions."""
-    config["kwargs"] = dict(activation=act["act"])
+    config["activation"] = act["act"]
 
     with patch("nessai.flows.realnvp.RealNVP") as mock_flow:
         configure_model(config)
@@ -349,7 +349,7 @@ def test_configure_model_input_type_error(config):
 
 def test_configure_model_unknown_activation(config):
     """Assert unknown activation functions raise an error"""
-    config["kwargs"] = dict(activation="test")
+    config["activation"] = "test"
     with pytest.raises(ValueError, match="Unknown activation: test"):
         configure_model(config)
 

@@ -744,12 +744,19 @@ class ImportanceFlowProposal(Proposal):
 
         return samples, log_q, counts
 
-    def resume(self, model, flow_config, weights_path=None):
+    def resume(
+        self, model, flow_config, training_config=None, weights_path=None
+    ):
         """Resume the proposal"""
         super().resume(model)
         self.flow_config = flow_config
+        self.training_config = training_config
         self.initialise()
-        self.flow.resume(self.flow_config, weights_path=weights_path)
+        self.flow.resume(
+            self.flow_config,
+            training_config=self.training_config,
+            weights_path=weights_path,
+        )
 
     def __getstate__(self):
         d = self.__dict__

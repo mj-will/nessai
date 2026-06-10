@@ -10,7 +10,6 @@ import os
 from collections import deque
 from copy import copy
 from typing import Union
-from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -185,7 +184,6 @@ class NestedSampler(BaseNestedSampler):
         uninformed_acceptance_threshold=None,
         uninformed_proposal_kwargs=None,
         flow_proposal_class=None,
-        flow_class=None,
         flow_config=None,
         training_frequency=None,
         train_on_empty=True,
@@ -287,13 +285,6 @@ class NestedSampler(BaseNestedSampler):
             uninformed_acceptance_threshold,
             **uninformed_proposal_kwargs,
         )
-
-        if flow_class is not None:
-            warn(
-                "`flow_class` is deprecated, use `flow_proposal_class`.",
-                FutureWarning,
-            )
-            flow_proposal_class = flow_class
 
         self.configure_flow_proposal(
             flow_proposal_class, flow_config, proposal_plots, **kwargs
