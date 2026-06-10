@@ -405,7 +405,7 @@ def test_set_parameter_order(proposal):
         ),
     ]
     BaseFlowProposal._set_parameter_order(proposal)
-    assert proposal.parameters == ["x", "y", "z"]
+    assert proposal.parameters == ["x", "y", "w", "z"]
     assert proposal.prime_parameters == [
         "x_prime",
         "z_prime",
