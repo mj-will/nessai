@@ -583,14 +583,9 @@ class BaseFlowProposal(RejectionProposal):
             FallbackClass, fallback_kwargs = self.get_reparameterisation(
                 self.fallback_reparameterisation
             )
-            prior_bounds_lookup = getattr(self, "prior_bounds", None)
-            if not isinstance(prior_bounds_lookup, dict) or any(
-                p not in prior_bounds_lookup for p in other_params
-            ):
-                prior_bounds_lookup = self.model.bounds
-            fallback_kwargs["prior_bounds"] = {
-                p: prior_bounds_lookup[p] for p in other_params
-            }
+            fallback_kwargs["prior_bounds"] = (
+                self._get_prior_bounds_for_parameters(other_params)
+            )
             logger.info(
                 f"Assuming fallback reparameterisation "
                 f"({FallbackClass.__name__}) for {other_params} with kwargs: "
