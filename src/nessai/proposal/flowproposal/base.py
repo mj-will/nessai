@@ -400,18 +400,14 @@ class BaseFlowProposal(RejectionProposal):
 
     def _get_prior_bounds_for_parameters(self, parameters):
         """Get prior bounds for parameters that are model parameters."""
-        prior_bounds_lookup = getattr(self, "prior_bounds", None)
-        if not isinstance(prior_bounds_lookup, dict):
-            prior_bounds_lookup = self.model.bounds
-
         if isinstance(parameters, list):
             prior_bounds = {
-                p: prior_bounds_lookup[p]
+                p: self.prior_bounds[p]
                 for p in parameters
-                if p in prior_bounds_lookup
+                if p in self.prior_bounds
             }
-        elif parameters in prior_bounds_lookup:
-            prior_bounds = {parameters: prior_bounds_lookup[parameters]}
+        elif parameters in self.prior_bounds:
+            prior_bounds = {parameters: self.prior_bounds[parameters]}
         else:
             prior_bounds = {}
 
