@@ -330,7 +330,7 @@ class BaseFlowProposal(RejectionProposal):
 
     def update_flow_config(self):
         """Update the flow configuration dictionary."""
-        self.flow_config["n_inputs"] = self.rescaled_dims
+        self.flow_config["n_inputs"] = self.prime_dims
 
     def initialise(self, resumed: bool = False) -> None:
         """
