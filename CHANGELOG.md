@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `prime_dims` to `FlowProposal` (https://github.com/mj-will/nessai/pull/483)
+- Add support for chaining reparameterisations (https://github.com/mj-will/nessai/pull/480)
+
 ### Fixed
 
 - Fix a bug with parameter ordering in reparameterisations with multiple parameters (https://github.com/mj-will/nessai/pull/479)
+- Fix bug with dimensionality of flow latent space when using reparameterisations that add prime parameters (https://github.com/mj-will/nessai/pull/483)
+
+### Deprecated
+
+- `rescaled_dims` is now replaced by `prime_dims`
 
 ### Removed
 
