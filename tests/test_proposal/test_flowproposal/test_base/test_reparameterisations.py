@@ -177,20 +177,6 @@ def test_get_prior_bounds_for_parameters_allows_missing_auxiliary(proposal):
     assert out == {"x": [-1, 1]}
 
 
-def test_get_prior_bounds_for_parameters_require_all_uses_model_bounds(
-    proposal,
-):
-    """Assert full model bounds are used when all parameters are required."""
-    proposal.prior_bounds = {"x": [-1, 1]}
-    proposal.model.bounds = {"x": [-10, 10], "y": [0, 1]}
-
-    out = BaseFlowProposal._get_prior_bounds_for_parameters(
-        proposal, ["x", "y"], require_all=True
-    )
-
-    assert out == {"x": [-10, 10], "y": [0, 1]}
-
-
 def test_get_prior_bounds_for_parameters_single_parameter(proposal):
     proposal.prior_bounds = {"x": [-1, 1]}
     proposal.model.bounds = {"x": [-10, 10]}
@@ -422,7 +408,7 @@ def test_configure_reparameterisations_fallback(
     proposal.add_default_reparameterisations.assert_not_called()
     proposal.get_reparameterisation.assert_called_once_with("default")
     proposal._get_prior_bounds_for_parameters.assert_called_once_with(
-        ["x", "y"], require_all=True
+        ["x", "y"],
     )
     dummy_rc.assert_called_once_with(
         parameters=["x", "y"],
