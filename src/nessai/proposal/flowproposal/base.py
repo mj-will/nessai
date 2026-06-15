@@ -7,6 +7,7 @@ import re
 from abc import abstractmethod
 from inspect import signature
 from typing import Optional
+from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -212,6 +213,16 @@ class BaseFlowProposal(RejectionProposal):
     @property
     def rescaled_dims(self):
         """Return the number of rescaled dimensions"""
+        warn(
+            "rescaled_dims is deprecated and will be removed in a future "
+            "release, use prime_dims instead",
+            DeprecationWarning,
+        )
+        return len(self.prime_parameters)
+
+    @property
+    def prime_dims(self):
+        """Return the number of prime dimensions"""
         return len(self.prime_parameters)
 
     @property

@@ -236,7 +236,7 @@ class FlowProposal(BaseFlowProposal):
                     f"{self.latent_prior}"
                 )
             self.fixed_radius = compute_radius(
-                self.rescaled_dims, self.volume_fraction
+                self.prime_dims, self.volume_fraction
             )
             self.fuzz = 1.0
             if self.max_radius < self.fixed_radius:
@@ -267,9 +267,7 @@ class FlowProposal(BaseFlowProposal):
         super().set_rescaling()
         if self.expansion_fraction and self.expansion_fraction is not None:
             logger.info("Overwriting fuzz factor with expansion fraction")
-            self.fuzz = (1 + self.expansion_fraction) ** (
-                1 / self.rescaled_dims
-            )
+            self.fuzz = (1 + self.expansion_fraction) ** (1 / self.prime_dims)
             logger.info(f"New fuzz factor: {self.fuzz}")
         self.configure_constant_volume()
 
