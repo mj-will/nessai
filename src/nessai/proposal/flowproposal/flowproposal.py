@@ -599,7 +599,7 @@ class FlowProposal(BaseFlowProposal):
         """
         if self.latent_prior in ["uniform_nsphere", "uniform_nball"]:
             return get_uniform_distribution(
-                self.dims, self.r * self.fuzz, device=self.flow.device
+                self.prime_dims, self.r * self.fuzz, device=self.flow.device
             )
 
     def reset(self):
