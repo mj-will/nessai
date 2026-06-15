@@ -236,7 +236,7 @@ class FlowProposal(BaseFlowProposal):
                     f"{self.latent_prior}"
                 )
             self.fixed_radius = compute_radius(
-                self.rescaled_dims, self.volume_fraction
+                self.prime_dims, self.volume_fraction
             )
             self.fuzz = 1.0
             if self.max_radius < self.fixed_radius:
@@ -267,9 +267,7 @@ class FlowProposal(BaseFlowProposal):
         super().set_rescaling()
         if self.expansion_fraction and self.expansion_fraction is not None:
             logger.info("Overwriting fuzz factor with expansion fraction")
-            self.fuzz = (1 + self.expansion_fraction) ** (
-                1 / self.rescaled_dims
-            )
+            self.fuzz = (1 + self.expansion_fraction) ** (1 / self.prime_dims)
             logger.info(f"New fuzz factor: {self.fuzz}")
         self.configure_constant_volume()
 
@@ -302,7 +300,7 @@ class FlowProposal(BaseFlowProposal):
         """Prepare the latent prior."""
         if self.latent_prior == "truncated_gaussian":
             self._populate_dist = NDimensionalTruncatedGaussian(
-                self.dims,
+                self.prime_dims,
                 self.r,
                 fuzz=self.fuzz,
                 rng=self.rng,
@@ -312,7 +310,7 @@ class FlowProposal(BaseFlowProposal):
             self._draw_func = lambda N: self.flow.sample_latent_distribution(N)
         else:
             draw_kwargs = dict(
-                dims=self.dims,
+                dims=self.prime_dims,
                 r=self.r,
                 fuzz=self.fuzz,
                 rng=self.rng,
@@ -601,7 +599,7 @@ class FlowProposal(BaseFlowProposal):
         """
         if self.latent_prior in ["uniform_nsphere", "uniform_nball"]:
             return get_uniform_distribution(
-                self.dims, self.r * self.fuzz, device=self.flow.device
+                self.prime_dims, self.r * self.fuzz, device=self.flow.device
             )
 
     def reset(self):

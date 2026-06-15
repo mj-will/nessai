@@ -84,7 +84,7 @@ class AugmentedFlowProposal(FlowProposal):
     def update_flow_config(self):
         """Update the flow configuration dictionary"""
         super().update_flow_config()
-        m = np.ones(self.rescaled_dims)
+        m = np.ones(self.prime_dims)
         m[-self.augment_dims :] = -1
         self.flow_config["mask"] = m
 

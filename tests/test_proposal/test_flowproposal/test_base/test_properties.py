@@ -29,10 +29,10 @@ def test_dims(proposal):
     assert BaseFlowProposal.dims.__get__(proposal) == 2
 
 
-def test_rescaled_dims(proposal):
-    """Test rescaled_dims property"""
+def test_prime_dims(proposal):
+    """Test prime_dims property"""
     proposal.prime_parameters = ["x", "y"]
-    assert BaseFlowProposal.rescaled_dims.__get__(proposal) == 2
+    assert BaseFlowProposal.prime_dims.__get__(proposal) == 2
 
 
 def test_dtype(proposal):

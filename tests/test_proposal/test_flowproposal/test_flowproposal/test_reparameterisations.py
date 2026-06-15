@@ -9,7 +9,7 @@ from nessai.proposal.flowproposal.flowproposal import FlowProposal
     "expansion_fraction, fuzz", [(None, 2.0), (0.5, 1.5**0.5)]
 )
 def test_set_rescaling(proposal, expansion_fraction, fuzz):
-    proposal.rescaled_dims = 2
+    proposal.prime_dims = 2
     proposal.expansion_fraction = expansion_fraction
     proposal.fuzz = 2.0
     with patch(
