@@ -50,7 +50,7 @@ def test_get_alt_distribution_uniform(proposal, prior):
     the n-ball.
     """
     proposal.latent_prior = prior
-    proposal.dims = 2
+    proposal.prime_dims = 2
     proposal.r = 2.0
     proposal.fuzz = 1.2
     proposal.flow = Mock()
@@ -86,7 +86,7 @@ def test_prep_latent_prior_truncated(proposal):
     """Assert prep latent prior calls the correct values"""
 
     proposal.latent_prior = "truncated_gaussian"
-    proposal.dims = 2
+    proposal.prime_dims = 2
     proposal.r = 3.0
     proposal.fuzz = 1.2
     dist = MagicMock()
@@ -108,7 +108,7 @@ def test_prep_latent_prior_other(proposal):
     """Assert partial acts as expected"""
     proposal.latent_prior = "gaussian"
     proposal.latent_temperature = 0.9
-    proposal.dims = 2
+    proposal.prime_dims = 2
     proposal.r = 3.0
     proposal.fuzz = 1.2
 
