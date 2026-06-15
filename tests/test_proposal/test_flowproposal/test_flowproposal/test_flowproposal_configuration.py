@@ -110,7 +110,7 @@ def test_configure_constant_volume(proposal, latent_prior):
     """Test configuration for constant volume mode."""
     proposal.constant_volume_mode = True
     proposal.volume_fraction = 0.95
-    proposal.rescaled_dims = 5
+    proposal.prime_dims = 5
     proposal.latent_prior = latent_prior
     proposal.max_radius = 3.0
     proposal.min_radius = 5.0

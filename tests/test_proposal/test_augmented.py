@@ -38,7 +38,7 @@ def test_init(model):
 
 def test_update_flow_config(proposal):
     """Test update flow config"""
-    proposal.rescaled_dims = 4
+    proposal.prime_dims = 4
     proposal.augment_dims = 2
     proposal.flow_config = dict()
     with patch(
