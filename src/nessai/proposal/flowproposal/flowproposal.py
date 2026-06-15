@@ -300,7 +300,7 @@ class FlowProposal(BaseFlowProposal):
         """Prepare the latent prior."""
         if self.latent_prior == "truncated_gaussian":
             self._populate_dist = NDimensionalTruncatedGaussian(
-                self.dims,
+                self.prime_dims,
                 self.r,
                 fuzz=self.fuzz,
                 rng=self.rng,
@@ -310,7 +310,7 @@ class FlowProposal(BaseFlowProposal):
             self._draw_func = lambda N: self.flow.sample_latent_distribution(N)
         else:
             draw_kwargs = dict(
-                dims=self.dims,
+                dims=self.prime_dims,
                 r=self.r,
                 fuzz=self.fuzz,
                 rng=self.rng,
