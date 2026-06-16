@@ -13,7 +13,6 @@ from scipy.special import logsumexp
 from ... import config
 from ...livepoint import (
     empty_structured_array,
-    numpy_array_to_live_points,
 )
 from ...utils import (
     compute_radius,
@@ -378,10 +377,14 @@ class FlowProposal(BaseFlowProposal):
         if discard_nans:
             valid = np.isfinite(log_prob)
             x, log_prob, z = get_subset_arrays(valid, x, log_prob, z)
-        x = numpy_array_to_live_points(
-            x.astype(config.livepoints.default_float_dtype),
-            self.prime_parameters,
+        x_array = np.asarray(x, dtype=config.livepoints.default_float_dtype)
+        if x_array.ndim == 1:
+            x_array = x_array[np.newaxis, :]
+        x = empty_structured_array(
+            x_array.shape[0], dtype=self.x_prime_internal_dtype
         )
+        for i, parameter in enumerate(self.prime_parameters):
+            x[parameter] = x_array[:, i]
         # Apply rescaling in rescale=True
         if rescale:
             x, log_J = self.inverse_rescale(

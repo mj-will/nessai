@@ -18,7 +18,6 @@ from ...livepoint import (
     empty_structured_array,
     get_dtype,
     live_points_to_array,
-    numpy_array_to_live_points,
 )
 from ...plot import nessai_style, plot_1d_comparison, plot_live_points
 from ...reparameterisations.combined import (
@@ -143,6 +142,7 @@ class BaseFlowProposal(RejectionProposal):
         self.x = None
         self.samples = None
         self.prime_parameters = None
+        self._prime_parameters_internal = None
         self.acceptance = []
         self._reparameterisation = None
         self.rescaling_set = False
@@ -241,9 +241,31 @@ class BaseFlowProposal(RejectionProposal):
         """Return the dtype for the x prime space"""
         if self._x_prime_dtype is None:
             self._x_prime_dtype = get_dtype(
-                self.prime_parameters, config.livepoints.default_float_dtype
+                self.prime_parameters,
+                config.livepoints.default_float_dtype,
             )
         return self._x_prime_dtype
+
+    @property
+    def internal_prime_parameters(self):
+        """List of prime parameters, including intermediate parameters that are
+        not visible to the flow.
+        """
+        return self._prime_parameters_internal
+
+    @property
+    def x_prime_internal_dtype(self):
+        """Return the dtype for the internal x prime space.
+
+        This includes intermediate prime parameters that are not visible to the
+        flow.
+        """
+        if self._x_prime_internal_dtype is None:
+            self._x_prime_internal_dtype = get_dtype(
+                self._prime_parameters_internal or self.prime_parameters,
+                config.livepoints.default_float_dtype,
+            )
+        return self._x_prime_internal_dtype
 
     @property
     def population_dtype(self):
@@ -431,33 +453,34 @@ class BaseFlowProposal(RejectionProposal):
         config.update(spec.kwargs)
 
         if spec.source_is_parameter:
-            config["parameters"] = spec.parameters
+            config["input_parameters"] = spec.input_parameters
         else:
             parameters = resolve_reparameterisation_parameters(
-                spec.parameters,
+                spec.input_parameters,
                 available_parameters=list(
                     dict.fromkeys(
                         list(self.model.names)
                         + list(self._reparameterisation.parameters)
+                        + list(self._reparameterisation.prime_parameters)
                     )
                 ),
             )
             if parameters is not None:
-                config["parameters"] = parameters
+                config["input_parameters"] = parameters
             else:
                 logger.warning(
-                    "Reparameterisation might be missing parameters!"
+                    "Reparameterisation might be missing input parameters!"
                 )
 
-        if "parameters" not in config:
+        if "input_parameters" not in config:
             raise RuntimeError(
-                "No parameters key in the config! "
+                "No input_parameters key in the config! "
                 "Check reparameterisations, setting logging"
                 " level to DEBUG can be helpful"
             )
-        if not config["parameters"] and not config.get("prime_requires"):
+        if not config["input_parameters"]:
             raise RuntimeError(
-                "No parameters key in the config! "
+                "No input_parameters key in the config! "
                 "Check reparameterisations, setting logging"
                 " level to DEBUG can be helpful"
             )
@@ -469,7 +492,7 @@ class BaseFlowProposal(RejectionProposal):
         rc, config = self.get_reparameterisation_from_spec(spec)
 
         prior_bounds = self._get_prior_bounds_for_parameters(
-            config["parameters"]
+            config["input_parameters"]
         )
         sig = signature(rc.__init__)
         if "rng" in sig.parameters:
@@ -487,60 +510,48 @@ class BaseFlowProposal(RejectionProposal):
         the reparameterisations.
 
         The prime parameters are ordered such that any prime parameters that
-        correspond to model parameters are in the same order as the model
-        parameters, followed by any additional prime parameters.
+        are produced by the reparameterisations appear in reparameterisation
+        order. Public flow-facing prime parameters exclude intermediate prime
+        inputs unless they are explicitly marked as persistent.
         """
         model_parameters = list(self.model.names)
 
+        # x-space order is given by the model parameters
         self.parameters = model_parameters + [
             parameter
             for parameter in self._reparameterisation.parameters
             if parameter not in model_parameters
         ]
 
-        # Dictionary of parameter -> prime parameter for parameters that have a
-        # one-to-one mapping to a prime parameter
-        parameter_to_prime = {}
-        # Dictionary of parameter -> list of prime parameters for parameters
-        # that have a one-to-many mapping to prime parameters.
-        grouped_prime_parameters = {
-            parameter: [] for parameter in model_parameters
-        }
-        # Prime parameters that are derived from other prime parameters
-        auxiliary_prime_parameters = []
+        # x-prime parameters are ordering by the reparameterisation order
+        # the 'visible' prime parameters are those that are not intermediate
+        # inputs and are visible to the flow
+        all_prime_parameters = []
+        visible_prime_parameters = []
 
         for reparameterisation in self._reparameterisation.values():
-            owned_model_parameters = [
-                parameter
-                for parameter in reparameterisation.parameters
-                if parameter in model_parameters
-            ]
+            # Remove any intermediate inputs that are not persistent
+            for parameter in reparameterisation.x_prime_input_parameters:
+                if (
+                    parameter
+                    in reparameterisation.x_prime_persistent_parameters
+                ):
+                    continue
+                if parameter in visible_prime_parameters:
+                    visible_prime_parameters.remove(parameter)
+            for parameter in reparameterisation.output_parameters:
+                if parameter not in all_prime_parameters:
+                    all_prime_parameters.append(parameter)
+                if parameter not in visible_prime_parameters:
+                    visible_prime_parameters.append(parameter)
 
-            if owned_model_parameters and len(owned_model_parameters) == len(
-                reparameterisation.prime_parameters
-            ):
-                parameter_to_prime.update(
-                    zip(
-                        owned_model_parameters,
-                        reparameterisation.prime_parameters,
-                    )
-                )
-            elif owned_model_parameters:
-                grouped_prime_parameters[owned_model_parameters[0]].extend(
-                    reparameterisation.prime_parameters
-                )
-            else:
-                auxiliary_prime_parameters.extend(
-                    reparameterisation.prime_parameters
-                )
-
-        self.prime_parameters = []
-        for parameter in model_parameters:
-            self.prime_parameters.extend(grouped_prime_parameters[parameter])
-            if parameter in parameter_to_prime:
-                self.prime_parameters.append(parameter_to_prime[parameter])
-
-        self.prime_parameters.extend(auxiliary_prime_parameters)
+        # The inverse pass still needs access to every produced prime
+        # parameter, even if some of them are hidden from the flow-facing
+        # training space.
+        self._prime_parameters_internal = all_prime_parameters
+        self.prime_parameters = visible_prime_parameters
+        self._x_prime_dtype = None
+        self._x_prime_internal_dtype = None
 
     def configure_reparameterisations(self, reparameterisations):
         """Configure the reparameterisations.
@@ -587,7 +598,7 @@ class BaseFlowProposal(RejectionProposal):
                 f"({FallbackClass.__name__}) for {other_params} with kwargs: "
                 f"{fallback_kwargs}."
             )
-            r = FallbackClass(parameters=other_params, **fallback_kwargs)
+            r = FallbackClass(input_parameters=other_params, **fallback_kwargs)
             self._reparameterisation.add_reparameterisations(r)
 
         if any(r._update for r in self._reparameterisation.values()):
@@ -610,6 +621,13 @@ class BaseFlowProposal(RejectionProposal):
 
         logger.info(f"x space parameters: {self.parameters}")
         logger.info(f"x prime space parameters: {self.prime_parameters}")
+        if self._prime_parameters_internal != self.prime_parameters:
+            intermediate = [
+                p
+                for p in self._prime_parameters_internal
+                if p not in self.prime_parameters
+            ]
+            logger.info(f"Intermediate parameters: {intermediate}")
         self.rescaling_set = True
 
     def verify_rescaling(self):
@@ -693,7 +711,9 @@ class BaseFlowProposal(RejectionProposal):
         array
             Array of log det|J|
         """
-        x_prime = empty_structured_array(x.size, dtype=self.x_prime_dtype)
+        x_prime = empty_structured_array(
+            x.size, dtype=self.x_prime_internal_dtype
+        )
         log_J = np.zeros(x_prime.size)
 
         if x.size == 1:
@@ -972,10 +992,14 @@ class BaseFlowProposal(RejectionProposal):
         # Compute the log probability
         x, log_j = self.flow.inverse(z)
 
-        x = numpy_array_to_live_points(
-            x.astype(config.livepoints.default_float_dtype),
-            self.prime_parameters,
+        x_array = np.asarray(x, dtype=config.livepoints.default_float_dtype)
+        if x_array.ndim == 1:
+            x_array = x_array[np.newaxis, :]
+        x = empty_structured_array(
+            x_array.shape[0], dtype=self.x_prime_internal_dtype
         )
+        for i, parameter in enumerate(self.prime_parameters):
+            x[parameter] = x_array[:, i]
         # Apply rescaling in rescale=True
         if rescale:
             x, log_j_rescale = self.inverse_rescale(x, **kwargs)
