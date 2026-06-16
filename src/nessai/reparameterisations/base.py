@@ -206,11 +206,6 @@ class Reparameterisation:
         return self._x_prime_persistent_parameters.copy()
 
     @property
-    def prime_persistent_parameters(self):
-        """Compatibility alias for `x_prime_persistent_parameters`."""
-        return self.x_prime_persistent_parameters
-
-    @property
     def x_inverse_input_parameters(self):
         """Resolved x-space inverse inputs."""
         return self._x_inverse_input_parameters.copy()
@@ -219,11 +214,6 @@ class Reparameterisation:
     def x_prime_inverse_input_parameters(self):
         """Resolved x'-space inverse inputs."""
         return self._x_prime_inverse_input_parameters.copy()
-
-    @property
-    def prime_inverse_input_parameters(self):
-        """Compatibility alias for `x_prime_inverse_input_parameters`."""
-        return self.x_prime_inverse_input_parameters
 
     @property
     def parameters(self):

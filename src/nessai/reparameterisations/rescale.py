@@ -244,7 +244,7 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
         log_j : Log jacobian to be updated
         """
         for p, pp in zip(self.parameters, self.output_parameters):
-            x_in = self.get_value(p, x, x_prime)
+            x_in = self._get_value(p, x, x_prime)
             if self.has_pre_rescaling:
                 x_prime[pp], lj = self.pre_rescaling(x_in)
                 log_j += lj
@@ -295,7 +295,7 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
         if self._update:
             logger.debug("Updating scale and shift")
             for p in self.parameters:
-                x_pre = self.pre_rescaling(self.get_value(p, x, x_prime))[0]
+                x_pre = self.pre_rescaling(self._get_value(p, x, x_prime))[0]
                 if self.estimate_scale:
                     self.scale[p] = np.std(x_pre)
                 if self.estimate_shift:
@@ -581,7 +581,7 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         return x, x_prime, log_j
 
     def _reverse_inversion(self, x, x_prime, log_j, p, pp):
-        value = self.get_value(p, x, x_prime)
+        value = self._get_value(p, x, x_prime)
         if self._edges[p]:
             inv = value < 0.0
             value = value.copy()
@@ -619,7 +619,7 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
             Parsed to inversion function
         """
         for p, pp in zip(self.parameters, self.output_parameters):
-            x_in = self.get_value(p, x, x_prime)
+            x_in = self._get_value(p, x, x_prime)
             if self.has_pre_rescaling:
                 x_prime[pp], lj = self.pre_rescaling(x_in)
                 log_j += lj
@@ -656,13 +656,13 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
                     x, x_prime, log_j, p, pp, **kwargs
                 )
             else:
-                value = self.get_value(p, x, x_prime)
+                value = self._get_value(p, x, x_prime)
                 value, lj = self._inverse_rescale_to_bounds(value, p)
                 value = value + self.offsets[p]
                 log_j += lj
                 x, x_prime = self._set_value(p, value, x, x_prime)
             if self.has_pre_rescaling:
-                value = self.get_value(p, x, x_prime)
+                value = self._get_value(p, x, x_prime)
                 value, lj = self.pre_rescaling_inv(value)
                 log_j += lj
                 x, x_prime = self._set_value(p, value, x, x_prime)
@@ -696,11 +696,11 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         if self._update:
             self.bounds = {
                 p: [
-                    self.pre_rescaling(np.min(self.get_value(p, x, x_prime)))[
+                    self.pre_rescaling(np.min(self._get_value(p, x, x_prime)))[
                         0
                     ]
                     - self.offsets[p],
-                    self.pre_rescaling(np.max(self.get_value(p, x, x_prime)))[
+                    self.pre_rescaling(np.max(self._get_value(p, x, x_prime)))[
                         0
                     ]
                     - self.offsets[p],
