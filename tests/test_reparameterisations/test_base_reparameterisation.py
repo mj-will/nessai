@@ -102,6 +102,29 @@ def test_missing_bounds_allowed_for_auxiliary_parameters():
     assert_equal(reparam.prior_bounds, {"x": np.array([0, 1])})
 
 
+def test_conflicting_parameters_and_input_parameters():
+    with pytest.raises(
+        RuntimeError, match="Received conflicting values for `parameters`"
+    ):
+        Reparameterisation(
+            parameters=["x"],
+            input_parameters=["y"],
+            prior_bounds={"y": [0, 1]},
+        )
+
+
+def test_persistent_parameters_must_be_subset():
+    with pytest.raises(
+        RuntimeError,
+        match="Persistent parameters must be a subset of the input",
+    ):
+        Reparameterisation(
+            parameters=["x"],
+            persistent_parameters=["y"],
+            prior_bounds={"x": [0, 1]},
+        )
+
+
 def test_incorrect_bounds_type():
     with pytest.raises(TypeError) as excinfo:
         Reparameterisation(parameters=["x", "y"], prior_bounds=1)
@@ -149,6 +172,42 @@ def test_reset(reparam):
     expected = copy.deepcopy(reparam)
     Reparameterisation.reset(reparam)
     assert expected == reparam
+
+
+def test_resolve_forward_input_spaces():
+    reparam = Reparameterisation(
+        input_parameters=["x", "x_prime", "missing"],
+        persistent_parameters=["x", "x_prime"],
+        prior_bounds={"x": [0, 1]},
+    )
+
+    missing = reparam.resolve_forward_input_spaces(
+        available_parameters=["x", "y"],
+        available_prime_parameters=["x_prime", "y_prime"],
+    )
+
+    assert missing == ["missing"]
+    assert reparam.x_input_parameters == ["x"]
+    assert reparam.x_prime_input_parameters == ["x_prime"]
+    assert reparam.x_persistent_parameters == ["x"]
+    assert reparam.x_prime_persistent_parameters == ["x_prime"]
+
+
+def test_resolve_inverse_input_spaces():
+    reparam = Reparameterisation(
+        parameters=["x"],
+        inverse_input_parameters=["y", "y_prime", "missing"],
+        prior_bounds={"x": [0, 1]},
+    )
+
+    missing = reparam.resolve_inverse_input_spaces(
+        available_parameters=["x", "y"],
+        available_prime_parameters=["x_prime", "y_prime"],
+    )
+
+    assert missing == ["missing"]
+    assert reparam.x_inverse_input_parameters == ["y"]
+    assert reparam.x_prime_inverse_input_parameters == ["y_prime"]
 
 
 def test_get_parameter_value_from_x():

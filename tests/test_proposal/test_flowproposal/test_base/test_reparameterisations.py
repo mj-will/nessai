@@ -474,6 +474,40 @@ def test_set_parameter_order(proposal):
     ]
 
 
+@pytest.mark.parametrize(
+    "persistent, expected",
+    [
+        ([], ["x_scaled"]),
+        (["x_bounded"], ["x_bounded", "x_scaled"]),
+    ],
+)
+def test_set_parameter_order_removes_non_persistent_intermediate_prime_inputs(
+    proposal, persistent, expected
+):
+    proposal.model.names = ["x"]
+    proposal._reparameterisation = MagicMock()
+    proposal._reparameterisation.parameters = ["x"]
+    proposal._reparameterisation.values.return_value = [
+        MagicMock(
+            input_parameters=["x"],
+            output_parameters=["x_bounded"],
+            x_prime_input_parameters=[],
+            x_prime_persistent_parameters=[],
+        ),
+        MagicMock(
+            input_parameters=["x_bounded"],
+            output_parameters=["x_scaled"],
+            x_prime_input_parameters=["x_bounded"],
+            x_prime_persistent_parameters=persistent,
+        ),
+    ]
+
+    BaseFlowProposal._set_parameter_order(proposal)
+
+    assert proposal._prime_parameters_internal == ["x_bounded", "x_scaled"]
+    assert proposal.prime_parameters == expected
+
+
 def test_set_rescaling_with_model(proposal, model):
     """
     Test setting the rescaling when the model contains reparmaeterisations.
