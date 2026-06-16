@@ -13,7 +13,7 @@ from nessai.livepoint import (
     get_dtype,
     numpy_array_to_live_points,
 )
-from nessai.reparameterisations import RescaleToBounds
+from nessai.reparameterisations import Reparameterisation, RescaleToBounds
 from nessai.utils.testing import assert_structured_arrays_equal
 
 # Tolerances for assert_allclose
@@ -23,8 +23,20 @@ rtol = 1e-15
 
 @pytest.fixture
 def reparam(rng):
-    r = create_autospec(RescaleToBounds, rng=rng)
-    r._format_parameters = lambda x: x if isinstance(x, list) else [x]
+    r = create_autospec(
+        RescaleToBounds(parameters="x", prior_bounds={"x": [0, 1]}, rng=rng),
+        instance=True,
+    )
+    r._format_parameters = lambda x: (
+        x.copy() if isinstance(x, list) else ([] if x is None else [x])
+    )
+    r.get_parameter_value = Reparameterisation.get_parameter_value.__get__(
+        r, Reparameterisation
+    )
+    r.set_parameter_value = Reparameterisation.set_parameter_value.__get__(
+        r, Reparameterisation
+    )
+    r.rng = rng
     return r
 
 
@@ -42,7 +54,7 @@ def reparameterisation(model):
 def is_invertible(model, n=100):
     def test_invertibility(reparam, model=model, atol=1e-15, rtol=1e-15):
         x = model.new_point(N=n)
-        x_prime = empty_structured_array(n, names=reparam.prime_parameters)
+        x_prime = empty_structured_array(n, names=reparam.output_parameters)
         log_j = np.zeros(n)
         assert x.size == x_prime.size
 
@@ -80,10 +92,9 @@ def is_invertible(model, n=100):
         ({"x": [0, 1], "y": [-1, 1]}, {"x": [0, 1], "y": [-1, 1]}),
     ],
 )
-def test_rescale_bounds_config(reparam, input, expected_value):
+def test_rescale_bounds_config(input, expected_value):
     """Assert the rescale bounds are set correctly."""
-    RescaleToBounds.__init__(
-        reparam,
+    reparam = RescaleToBounds(
         parameters=["x", "y"],
         prior_bounds={"x": [-1, 1], "y": [0, 1]},
         rescale_bounds=input,
@@ -127,10 +138,9 @@ def test_rescale_bounds_incorrect_type(reparam):
         (None, False),
     ],
 )
-def test_boundary_inversion_config(reparam, input, expected_value):
+def test_boundary_inversion_config(input, expected_value):
     """Assert the boundary inversion dict is set correctly"""
-    RescaleToBounds.__init__(
-        reparam,
+    reparam = RescaleToBounds(
         parameters=["x", "y"],
         prior_bounds={"x": [0, 1], "y": [0, 1]},
         boundary_inversion=input,
@@ -214,7 +224,7 @@ def test_update(reparam):
     x = np.array((1, 2), dtype=[("x", "f8"), ("y", "f8")])
     RescaleToBounds.update(reparam, x)
     reparam.reset_inversion.assert_called_once()
-    reparam.update_bounds.assert_called_once_with(x)
+    reparam.update_bounds.assert_called_once_with(x, x_prime=None)
 
 
 def test_reset(reparam):
@@ -280,7 +290,7 @@ def test_reparameterise(reparam):
     reparam.has_pre_rescaling = False
     reparam.has_post_rescaling = False
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
     reparam.boundary_inversion = False
     x = numpy_array_to_live_points(
@@ -290,7 +300,7 @@ def test_reparameterise(reparam):
         [
             2,
         ],
-        dtype=get_dtype(reparam.prime_parameters),
+        dtype=get_dtype(reparam.output_parameters),
     )
     x_prime_val = np.array([0.0, 0.5])
     log_j = np.zeros(x.size)
@@ -320,11 +330,11 @@ def test_inverse_reparameterise(reparam):
     reparam.has_pre_rescaling = False
     reparam.has_post_rescaling = False
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
     reparam.boundary_inversion = False
     x_prime = numpy_array_to_live_points(
-        np.array([(1.0,), (2.0,)]), reparam.prime_parameters
+        np.array([(1.0,), (2.0,)]), reparam.output_parameters
     )
     x_in = np.zeros(
         [
@@ -357,20 +367,20 @@ def test_reparameterise_boundary_inversion(reparam):
     reparam.has_pre_rescaling = False
     reparam.has_post_rescaling = False
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
     reparam.boundary_inversion = {"x": "split"}
     x = numpy_array_to_live_points(
         np.array([(1.0,), (2.0,)]), reparam.parameters
     )
     inversion_out = numpy_array_to_live_points(
-        np.array([(-1.0,), (-2.0,), (1.0,), (2.0,)]), reparam.prime_parameters
+        np.array([(-1.0,), (-2.0,), (1.0,), (2.0,)]), reparam.output_parameters
     )
     x_prime_in = np.zeros(
         [
             2,
         ],
-        dtype=get_dtype(reparam.prime_parameters),
+        dtype=get_dtype(reparam.output_parameters),
     )
     log_j = np.zeros(x.size)
 
@@ -418,11 +428,11 @@ def test_inverse_reparameterise_boundary_inversion(reparam):
     reparam.has_pre_rescaling = False
     reparam.has_post_rescaling = False
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x"]
+    reparam.output_parameters = ["x"]
     reparam.offsets = {"x": 1.0}
     reparam.boundary_inversion = {"x": "split"}
     x_prime = numpy_array_to_live_points(
-        np.array([(-1.0,), (2.0,)]), reparam.prime_parameters
+        np.array([(-1.0,), (2.0,)]), reparam.output_parameters
     )
     inversion_out = numpy_array_to_live_points(
         np.array([(1.0,), (2.0,)]), reparam.parameters
@@ -470,7 +480,7 @@ def test_reparameterise_pre_post_rescaling(reparam):
     reparam.has_pre_rescaling = True
     reparam.has_post_rescaling = True
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 0.0}
     reparam.boundary_inversion = {}
     x = numpy_array_to_live_points(
@@ -480,7 +490,7 @@ def test_reparameterise_pre_post_rescaling(reparam):
         [
             2,
         ],
-        dtype=get_dtype(reparam.prime_parameters),
+        dtype=get_dtype(reparam.output_parameters),
     )
     x_prime_val = np.array([4.0, 8.0])
     log_j = np.zeros(x.size)
@@ -523,11 +533,11 @@ def test_inverse_reparameterise_pre_post_rescaling(reparam):
     reparam.has_pre_rescaling = True
     reparam.has_post_rescaling = True
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 0.0}
     reparam.boundary_inversion = {}
     x_prime = numpy_array_to_live_points(
-        np.array([(1.0,), (2.0,)]), reparam.prime_parameters
+        np.array([(1.0,), (2.0,)]), reparam.output_parameters
     )
     x_in = np.zeros(
         [
@@ -575,7 +585,7 @@ def test_inverse_reparameterise_pre_post_rescaling(reparam):
 def test_apply_inversion_detect_edge(reparam):
     """Assert detect edge is called with the correct arguments"""
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
     reparam._edges = {"x": None}
     reparam.detect_edges_kwargs = {"allowed_bounds": ["lower"]}
@@ -605,7 +615,7 @@ def test_apply_inversion_detect_edge(reparam):
 def test_apply_inversion_not_applied(reparam):
     """Assert the apply inversion works correctly"""
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
     reparam._edges = {"x": False}
     reparam.bounds = {"x": [0, 5]}
@@ -645,7 +655,7 @@ def test_apply_inversion_split(reparam):
     Also tests "upper" setting.
     """
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
     reparam._edges = {"x": "upper"}
     reparam.bounds = {"x": [0, 5]}
@@ -702,7 +712,7 @@ def test_apply_inversion_duplicate(reparam, inv_type, compute_radius):
     This test also covers compute_radius=True
     """
     reparam.parameters = ["x", "y"]
-    reparam.prime_parameters = ["x_prime", "y"]
+    reparam.output_parameters = ["x_prime", "y"]
     reparam.offsets = {"x": 1.0}
     reparam._edges = {"x": "lower"}
     reparam.bounds = {"x": [0, 5]}
@@ -755,7 +765,7 @@ def test_apply_inversion_duplicate(reparam, inv_type, compute_radius):
 def test_reverse_inversion(reparam):
     """Assert the reverse inversion works correctly"""
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
     reparam._edges = {"x": "upper"}
     reparam.bounds = {"x": [0, 5]}
@@ -793,7 +803,7 @@ def test_reverse_inversion(reparam):
 def test_reverse_inversion_not_applied(reparam):
     """Assert the reverse inversion works correctly"""
     reparam.parameters = ["x"]
-    reparam.prime_parameters = ["x_prime"]
+    reparam.output_parameters = ["x_prime"]
     reparam.offsets = {"x": 1.0}
     reparam._edges = {"x": False}
     reparam.bounds = {"x": [0, 5]}

@@ -24,7 +24,7 @@ def test_build_reparameterisation_spec_model_key(spec_cfg):
     )
     assert spec.source_key == key
     assert spec.reparameterisation == "scale"
-    assert spec.parameters == ["y"]
+    assert spec.input_parameters == ["y"]
     assert spec.kwargs == {"foo": 1}
 
 
@@ -38,7 +38,7 @@ def test_build_reparameterisation_spec_reparam_key():
     )
     assert spec.source_key == key
     assert spec.reparameterisation == "scale"
-    assert spec.parameters == ["y"]
+    assert spec.input_parameters == ["y"]
     assert spec.kwargs == {"foo": 1}
 
 
@@ -50,8 +50,35 @@ def test_build_reparameterisation_spec_model_key_missing_reparameterisation():
 
 
 @pytest.mark.parametrize(
+    "key, cfg, expected_kwargs",
+    [
+        (
+            "x",
+            {"reparameterisation": "scale", "prime_parameters": ["x_prime"]},
+            {"prime_parameters": ["x_prime"]},
+        ),
+        (
+            "scale",
+            {"inverse_input_parameters": ["x"]},
+            {"inverse_input_parameters": ["x"]},
+        ),
+        (
+            "scale",
+            {"persistent_parameters": ["x_prime"]},
+            {"persistent_parameters": ["x_prime"]},
+        ),
+    ],
+)
+def test_build_reparameterisation_spec_preserves_extra_keys(
+    key, cfg, expected_kwargs
+):
+    spec = build_reparameterisation_spec(key, cfg, 0, ["x"])
+    assert spec.kwargs == expected_kwargs
+
+
+@pytest.mark.parametrize(
     "parameters, expected",
-    [("y", ["x", "y"]), (None, [])],
+    [("y", ["y"]), (None, [])],
 )
 def test_build_reparameterisation_spec_model_key_parameter_variants(
     parameters, expected
@@ -62,12 +89,12 @@ def test_build_reparameterisation_spec_model_key_parameter_variants(
         0,
         ["x"],
     )
-    assert spec.parameters == expected
+    assert spec.input_parameters == expected
 
 
 def test_build_reparameterisation_spec_reparam_key_list():
     spec = build_reparameterisation_spec("scale", ["x", "y"], 0, ["x", "y"])
-    assert spec.parameters == ["x", "y"]
+    assert spec.input_parameters == ["x", "y"]
 
 
 def test_build_reparameterisation_spec_reparam_key_invalid():
@@ -125,25 +152,25 @@ def test_parse_reparameterisations_dict():
     spec_w = specs[0]
     assert spec_w.source_key == "scale"
     assert spec_w.reparameterisation == "scale"
-    assert spec_w.parameters == ["w"]
+    assert spec_w.input_parameters == ["w"]
     assert spec_w.kwargs == {}
 
     spec_x = specs[1]
     assert spec_x.source_key == "x"
     assert spec_x.reparameterisation == "scale"
-    assert spec_x.parameters == ["x"]
+    assert spec_x.input_parameters == ["x"]
     assert spec_x.kwargs == {}
 
     spec_y = specs[2]
     assert spec_y.source_key == "y"
     assert spec_y.reparameterisation == "log"
-    assert spec_y.parameters == ["y", "y_prime"]
+    assert spec_y.input_parameters == ["y_prime"]
     assert spec_y.kwargs == {"foo": 1}
 
     spec_z = specs[3]
     assert spec_z.source_key == "log"
     assert spec_z.reparameterisation == "log"
-    assert spec_z.parameters == ["z"]
+    assert spec_z.input_parameters == ["z"]
     assert spec_z.kwargs == {}
 
 
@@ -157,7 +184,7 @@ def test_parse_reparameterisations_dict_reparam_list():
     spec_x = specs[0]
     assert spec_x.source_key == "scale"
     assert spec_x.reparameterisation == "scale"
-    assert spec_x.parameters == ["x", "y", "z"]
+    assert spec_x.input_parameters == ["x", "y", "z"]
     assert spec_x.kwargs == {}
 
 
@@ -171,7 +198,7 @@ def test_parse_reparameterisations_str():
     spec_x = specs[0]
     assert spec_x.source_key == "scale"
     assert spec_x.reparameterisation == "scale"
-    assert spec_x.parameters == ["x", "y", "z"]
+    assert spec_x.input_parameters == ["x", "y", "z"]
     assert spec_x.kwargs == {}
 
 
@@ -193,7 +220,7 @@ def test_parse_reparameterisations_regex():
     assert spec_x.source_key == "scale"
     assert spec_x.reparameterisation == "scale"
     # Match happens later in resolve_reparameterisation_parameters
-    assert spec_x.parameters == ["x.*"]
+    assert spec_x.input_parameters == ["x.*"]
     assert spec_x.kwargs == {}
 
 
@@ -202,9 +229,9 @@ def test_parse_reparameterisations_chained():
         "x": [
             {
                 "reparameterisation": "rescaletobounds",
-                "prime_parameters": ["x_01"],
+                "output_parameters": ["x_01"],
             },
-            {"reparameterisation": "log", "prime_requires": ["x_01"]},
+            {"reparameterisation": "log", "input_parameters": ["x_01"]},
         ]
     }
     model_names = ["x"]
@@ -212,8 +239,8 @@ def test_parse_reparameterisations_chained():
     assert len(specs) == 2
     assert specs[0].reparameterisation == "rescaletobounds"
     assert specs[1].reparameterisation == "log"
-    assert specs[0].parameters == ["x"]
-    assert specs[1].parameters == ["x"]
+    assert specs[0].input_parameters == ["x"]
+    assert specs[1].input_parameters == ["x_01"]
     assert specs[0].spec_index == 0
     assert specs[1].spec_index == 1
 

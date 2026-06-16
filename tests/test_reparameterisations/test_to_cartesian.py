@@ -9,13 +9,20 @@ import numpy as np
 import pytest
 
 from nessai.livepoint import numpy_array_to_live_points
-from nessai.reparameterisations import ToCartesian
+from nessai.reparameterisations import Reparameterisation, ToCartesian
 from nessai.utils.testing import assert_structured_arrays_equal
 
 
 @pytest.fixture
 def reparam(rng):
-    return create_autospec(ToCartesian, rng=rng)
+    r = create_autospec(ToCartesian, rng=rng)
+    r.get_parameter_value = Reparameterisation.get_parameter_value.__get__(
+        r, Reparameterisation
+    )
+    r.set_parameter_value = Reparameterisation.set_parameter_value.__get__(
+        r, Reparameterisation
+    )
+    return r
 
 
 @pytest.fixture

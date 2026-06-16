@@ -13,31 +13,63 @@ class Reparameterisation:
     """A dataclass that mocks the Reparameterisation class"""
 
     name: str
-    parameters: List[str]
-    requires: List[str]
+    input_parameters: List[str]
+    output_parameters: List[str] = field(default_factory=list)
+    persistent_parameters: List[str] = field(default_factory=list)
     auxiliary_parameters: List[str] = field(default_factory=list)
-    prime_parameters: List[str] = field(default_factory=list)
-    prime_requires: List[str] = field(default_factory=list)
-    inverse_requires: List[str] = field(default_factory=list)
+    inverse_input_parameters: List[str] = field(default_factory=list)
 
     def __post_init__(self):
-        if not self.prime_parameters:
-            self.prime_parameters = [p + "_prime" for p in self.parameters]
+        if not self.output_parameters:
+            self.output_parameters = [
+                p + "_prime" for p in self.input_parameters
+            ]
+        self._x_input_parameters = []
+        self._x_prime_input_parameters = []
+        self._x_persistent_parameters = []
+        self._x_prime_persistent_parameters = []
 
     @property
-    def output_parameters(self):
-        return self.parameters + self.auxiliary_parameters
+    def parameters(self):
+        return self.input_parameters
 
     @property
-    def input_parameters(self):
-        return list(dict.fromkeys(self.parameters + self.requires))
+    def prime_parameters(self):
+        return self.output_parameters
+
+    @property
+    def x_input_parameters(self):
+        return self._x_input_parameters or self.input_parameters
+
+    @property
+    def x_prime_input_parameters(self):
+        return self._x_prime_input_parameters
+
+    @property
+    def x_output_parameters(self):
+        return self.x_input_parameters + self.auxiliary_parameters
+
+    def resolve_forward_input_spaces(self, parameters, prime_parameters):
+        self._x_input_parameters = []
+        self._x_prime_input_parameters = []
+        self._x_persistent_parameters = []
+        self._x_prime_persistent_parameters = []
+        missing = []
+        for p in self.input_parameters:
+            if p in parameters:
+                self._x_input_parameters.append(p)
+            elif p in prime_parameters:
+                self._x_prime_input_parameters.append(p)
+            else:
+                missing.append(p)
+        return missing
 
 
 def test_sorting():
     """Test a basic sorting example"""
-    r0 = Reparameterisation("1", ["a"], requires=["b", "c"])
-    r1 = Reparameterisation("2", ["b"], requires=["c"])
-    r2 = Reparameterisation("3", ["c"], requires=[])
+    r0 = Reparameterisation("1", ["a", "b", "c"], ["a_p"])
+    r1 = Reparameterisation("2", ["b", "c"], ["b_p"])
+    r2 = Reparameterisation("3", ["c"], ["c_p"])
 
     out = sort_reparameterisations(
         [r0, r1, r2], existing_parameters=["a", "b", "c"]
@@ -48,9 +80,9 @@ def test_sorting():
 
 def test_sorting_existing():
     """Test sorting when there are existing parameters"""
-    r0 = Reparameterisation("1", ["a"], requires=["c"])
-    r1 = Reparameterisation("2", ["b"], requires=[])
-    r2 = Reparameterisation("3", ["c"], requires=["d"])
+    r0 = Reparameterisation("1", ["a", "c"], ["a_p"])
+    r1 = Reparameterisation("2", ["b"], ["b_p"])
+    r2 = Reparameterisation("3", ["c", "d"], ["c_p"])
 
     out = sort_reparameterisations(
         [r0, r1, r2], existing_parameters=["a", "b", "c", "d"]
@@ -61,17 +93,15 @@ def test_sorting_existing():
 
 def test_sorting_error():
     """Assert an errors is raised if there is an invalid requirement"""
-    r0 = Reparameterisation("1", ["a"], requires=[])
-    r1 = Reparameterisation("2", ["b"], requires=["c"])
-    with pytest.raises(ValueError, match=r".* are not known \(\['a', 'b'\]\)"):
+    r0 = Reparameterisation("1", ["a"], ["a_p"])
+    r1 = Reparameterisation("2", ["b", "c"], ["b_p"])
+    with pytest.raises(ValueError, match=r"requires inputs \['c'\]"):
         sort_reparameterisations([r0, r1], existing_parameters=["a", "b"])
 
 
 def test_sorting_with_auxiliary_parameters():
-    r0 = Reparameterisation(
-        "1", ["a"], requires=[], auxiliary_parameters=["aux"]
-    )
-    r1 = Reparameterisation("2", ["b"], requires=["aux"])
+    r0 = Reparameterisation("1", ["a"], ["a_p"], auxiliary_parameters=["aux"])
+    r1 = Reparameterisation("2", ["b", "aux"], ["b_p"])
 
     out = sort_reparameterisations([r1, r0], existing_parameters=["a", "b"])
 
@@ -79,14 +109,8 @@ def test_sorting_with_auxiliary_parameters():
 
 
 def test_sorting_with_prime_requirements():
-    r0 = Reparameterisation("1", ["a"], requires=[], prime_parameters=["a_p"])
-    r1 = Reparameterisation(
-        "2",
-        ["b"],
-        requires=[],
-        prime_parameters=["b_p"],
-        prime_requires=["a_p"],
-    )
+    r0 = Reparameterisation("1", ["a"], ["a_p"])
+    r1 = Reparameterisation("2", ["b", "a_p"], ["b_p"])
 
     out = sort_reparameterisations([r1, r0], existing_parameters=["a", "b"])
 
@@ -94,18 +118,10 @@ def test_sorting_with_prime_requirements():
 
 
 def test_sorting_with_unknown_prime_requirement():
-    r0 = Reparameterisation("1", ["a"], requires=[], prime_parameters=["a_p"])
-    r1 = Reparameterisation(
-        "2",
-        ["b"],
-        requires=[],
-        prime_parameters=["b_p"],
-        prime_requires=["c_p"],
-    )
+    r0 = Reparameterisation("1", ["a"], ["a_p"])
+    r1 = Reparameterisation("2", ["b", "c_p"], ["b_p"])
 
-    with pytest.raises(
-        ValueError, match=r"requires prime parameters \['c_p'\]"
-    ):
+    with pytest.raises(ValueError, match=r"requires inputs \['c_p'\]"):
         sort_reparameterisations([r0, r1], existing_parameters=["a", "b"])
 
 
@@ -116,11 +132,11 @@ def test_sorting_retries_skipped_reparameterisations():
     first pass keeps the input order. `r0` is skipped because it depends on
     an auxiliary parameter that is only added once `r1` has been applied.
     """
-    r0 = Reparameterisation("1", ["a"], requires=["aux"])
+    r0 = Reparameterisation("1", ["a", "aux"], ["a_p"])
     r1 = Reparameterisation(
         "2",
-        ["b"],
-        requires=["seed"],
+        ["b", "seed"],
+        ["b_p"],
         auxiliary_parameters=["aux"],
     )
 
@@ -132,8 +148,12 @@ def test_sorting_retries_skipped_reparameterisations():
 
 
 def test_sorting_error_if_skipped_and_no_progress():
-    r0 = Reparameterisation("1", ["a"], requires=["b"])
-    r1 = Reparameterisation("2", ["b"], requires=["a"])
+    r0 = Reparameterisation(
+        "1", ["a", "aux_b"], ["a_p"], auxiliary_parameters=["aux_a"]
+    )
+    r1 = Reparameterisation(
+        "2", ["b", "aux_a"], ["b_p"], auxiliary_parameters=["aux_b"]
+    )
 
     with pytest.raises(ValueError, match="Could not sort reparameterisations"):
-        sort_reparameterisations([r0, r1])
+        sort_reparameterisations([r0, r1], existing_parameters=["a", "b"])

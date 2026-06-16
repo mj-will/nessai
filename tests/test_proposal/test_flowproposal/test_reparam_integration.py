@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, create_autospec
 
 import numpy as np
 import pytest
+from scipy.stats import norm
 
 from nessai.livepoint import live_points_to_array, numpy_array_to_live_points
 from nessai.model import Model
@@ -35,13 +36,17 @@ class DummyFlowProposal(BaseFlowProposal):
 class AddAuxiliaryReparameterisation(Reparameterisation):
     def __init__(
         self,
-        parameters=None,
+        input_parameters=None,
         prior_bounds=None,
         auxiliary_parameter="aux",
         rng=None,
+        parameters=None,
     ):
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            input_parameters=input_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            parameters=parameters,
         )
         self.auxiliary_parameter = auxiliary_parameter
         self.auxiliary_parameters = [auxiliary_parameter]
@@ -56,56 +61,64 @@ class AddAuxiliaryReparameterisation(Reparameterisation):
                 x_out[name] = x[name]
             x = x_out
         x[self.auxiliary_parameter] = 2.0 * x[self.parameters[0]]
-        x_prime[self.prime_parameters[0]] = x[self.parameters[0]]
+        x_prime[self.output_parameters[0]] = x[self.parameters[0]]
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
-        x[self.parameters[0]] = x_prime[self.prime_parameters[0]]
+        x[self.parameters[0]] = x_prime[self.output_parameters[0]]
         x[self.auxiliary_parameter] = 2.0 * x[self.parameters[0]]
         return x, x_prime, log_j
 
 
 class RescaleAuxiliaryReparameterisation(Reparameterisation):
     def __init__(
-        self, parameters=None, prior_bounds=None, scale=10.0, rng=None
+        self,
+        input_parameters=None,
+        prior_bounds=None,
+        scale=10.0,
+        rng=None,
+        parameters=None,
     ):
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            input_parameters=input_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            parameters=parameters,
         )
         self.scale = scale
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
-        x_prime[self.prime_parameters[0]] = x[self.parameters[0]] / self.scale
+        x_prime[self.output_parameters[0]] = x[self.parameters[0]] / self.scale
         log_j -= np.log(self.scale)
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
-        x[self.parameters[0]] = x_prime[self.prime_parameters[0]] * self.scale
+        x[self.parameters[0]] = x_prime[self.output_parameters[0]] * self.scale
         log_j += np.log(self.scale)
         return x, x_prime, log_j
 
 
 class PrimeProducerReparameterisation(Reparameterisation):
     def reparameterise(self, x, x_prime, log_j, **kwargs):
-        x_prime[self.prime_parameters[0]] = x[self.parameters[0]] + 1.0
+        x_prime[self.output_parameters[0]] = x[self.parameters[0]] + 1.0
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
-        x[self.parameters[0]] = x_prime[self.prime_parameters[0]] - 1.0
+        x[self.parameters[0]] = x_prime[self.output_parameters[0]] - 1.0
         return x, x_prime, log_j
 
 
 class PrimeScaleReparameterisation(Reparameterisation):
     def reparameterise(self, x, x_prime, log_j, **kwargs):
-        x_prime[self.prime_parameters[0]] = (
-            2.0 * x_prime[self.prime_requires[0]]
+        x_prime[self.output_parameters[0]] = (
+            2.0 * x_prime[self.x_prime_input_parameters[0]]
         )
         log_j -= np.log(2.0)
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
-        x_prime[self.prime_requires[0]] = (
-            x_prime[self.prime_parameters[0]] / 2.0
+        x_prime[self.x_prime_input_parameters[0]] = (
+            x_prime[self.output_parameters[0]] / 2.0
         )
         log_j += np.log(2.0)
         return x, x_prime, log_j
@@ -244,7 +257,10 @@ def test_configure_reparameterisation_angle_pair(tmpdir, model):
         output=str(tmpdir.mkdir("test")),
         poolsize=10,
         reparameterisations={
-            "x": {"reparameterisation": "angle-pair", "parameters": ["y"]}
+            "x": {
+                "reparameterisation": "angle-pair",
+                "input_parameters": ["x", "y"],
+            }
         },
     )
     proposal.set_rescaling()
@@ -291,7 +307,7 @@ def test_configure_reparameterisations_with_auxiliary_parameter(rng):
     )
 
     assert proposal.parameters == ["a", "b", "aux"]
-    assert proposal.prime_parameters == ["a_prime", "b", "aux_prime"]
+    assert proposal.prime_parameters == ["a_prime", "aux_prime", "b"]
 
     x = numpy_array_to_live_points(
         np.array([[1.0, 2.0], [10.0, 20.0]]),
@@ -301,7 +317,7 @@ def test_configure_reparameterisations_with_auxiliary_parameter(rng):
     x_prime, log_j = proposal.rescale(x)
     x_out, log_j_inv = proposal.inverse_rescale(x_prime)
 
-    expected_prime = np.array([[1.0, 2.0, 0.2], [10.0, 20.0, 2.0]])
+    expected_prime = np.array([[1.0, 0.2, 2.0], [10.0, 2.0, 20.0]])
     expected_x = np.array([[1.0, 2.0, 2.0], [10.0, 20.0, 20.0]])
     expected_log_j = -np.log(10.0) * np.ones(x.shape[0])
 
@@ -326,13 +342,12 @@ def test_configure_reparameterisations_with_prime_spec_chain(rng):
             "x": [
                 {
                     "reparameterisation": "prime-producer",
-                    "prime_parameters": ["x_bounded"],
+                    "output_parameters": ["x_bounded"],
                 },
                 {
                     "reparameterisation": "prime-scale",
-                    "parameters": [],
-                    "prime_requires": ["x_bounded"],
-                    "prime_parameters": ["x_scaled"],
+                    "input_parameters": ["x_bounded"],
+                    "output_parameters": ["x_scaled"],
                 },
             ]
         },
@@ -340,16 +355,24 @@ def test_configure_reparameterisations_with_prime_spec_chain(rng):
     )
 
     assert proposal.parameters == ["x"]
-    assert proposal.prime_parameters == ["x_bounded", "x_scaled"]
+    assert proposal.prime_parameters == ["x_scaled"]
+    assert proposal._prime_parameters_internal == ["x_bounded", "x_scaled"]
 
     x = numpy_array_to_live_points(np.array([[1.0], [2.0]]), ["x"])
 
     x_prime, log_j = proposal.rescale(x)
     x_out, log_j_inv = proposal.inverse_rescale(x_prime)
 
-    expected_prime = np.array([[2.0, 4.0], [3.0, 6.0]])
+    expected_prime_internal = np.array([[2.0, 4.0], [3.0, 6.0]])
+    expected_prime = np.array([[4.0], [6.0]])
     expected_x = np.array([[1.0], [2.0]])
 
+    np.testing.assert_array_equal(
+        live_points_to_array(
+            x_prime, names=proposal._prime_parameters_internal, copy=True
+        ),
+        expected_prime_internal,
+    )
     np.testing.assert_array_equal(
         live_points_to_array(
             x_prime, names=proposal.prime_parameters, copy=True
@@ -365,8 +388,61 @@ def test_configure_reparameterisations_with_prime_spec_chain(rng):
 
 
 @pytest.mark.integration_test
+def test_verify_rescaling_with_prime_input_update_chain(tmpdir):
+    class HalfGaussian(Model):
+        def __init__(self):
+            self.names = ["x", "y"]
+            self.bounds = {"x": [-10.0, 10.0], "y": [0.0, 10.0]}
+            self.reparameterisations = None
+            self.rng = np.random.default_rng(1234)
+
+        def log_prior(self, x):
+            log_p = np.log(self.in_bounds(x), dtype="float")
+            for bounds in self.bounds.values():
+                log_p -= np.log(bounds[1] - bounds[0])
+            return log_p
+
+        def log_likelihood(self, x):
+            log_l = np.zeros(x.size)
+            for name in self.names:
+                log_l += norm.logpdf(x[name])
+            return log_l
+
+    proposal = FlowProposal(
+        HalfGaussian(),
+        output=str(tmpdir.mkdir("test")),
+        poolsize=10,
+        plot=False,
+        reparameterisations={
+            "x": "default",
+            "y": [
+                {
+                    "reparameterisation": "rescaletobounds",
+                    "output_parameters": ["y_01"],
+                },
+                {
+                    "reparameterisation": "z-score",
+                    "input_parameters": ["y_01"],
+                    "output_parameters": ["y_prime"],
+                },
+            ],
+        },
+    )
+
+    proposal.set_rescaling()
+    proposal.verify_rescaling()
+
+    assert proposal.prime_parameters == ["x_prime", "y_prime"]
+    assert proposal._prime_parameters_internal == [
+        "x_prime",
+        "y_01",
+        "y_prime",
+    ]
+
+
+@pytest.mark.integration_test
 def test_multi_parameter_reparameterisation_ordering(rng):
-    """Parameter-key grouping should preserve model-order parameters."""
+    """Prime parameters should follow reparameterisation output order."""
     grouped = make_test_proposal(
         {
             "a": {"reparameterisation": "null", "parameters": ["d"]},
@@ -377,7 +453,10 @@ def test_multi_parameter_reparameterisation_ordering(rng):
     )
 
     assert grouped.parameters == ["a", "b", "c", "d"]
-    assert grouped.prime_parameters == ["a", "b", "c", "d"]
+    expected = []
+    for reparameterisation in grouped._reparameterisation.values():
+        expected.extend(reparameterisation.output_parameters)
+    assert grouped.prime_parameters == expected
 
 
 @pytest.mark.integration_test
@@ -408,11 +487,14 @@ def test_multi_parameter_reparameterisation_flow_input_order(rng):
         ),
         np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
     )
+    expected_grouped = live_points_to_array(
+        x, names=grouped.prime_parameters, copy=True
+    )
     np.testing.assert_array_equal(
         live_points_to_array(
             x_prime_grouped, names=grouped.prime_parameters, copy=True
         ),
-        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
+        expected_grouped,
     )
 
     baseline.flow = MagicMock()
@@ -433,7 +515,7 @@ def test_multi_parameter_reparameterisation_flow_input_order(rng):
     )
     np.testing.assert_array_equal(
         grouped.flow.forward_and_log_prob.call_args[0][0],
-        np.array([[1.0, 2.0, 3.0, 4.0], [10.0, 20.0, 30.0, 40.0]]),
+        expected_grouped,
     )
 
 
@@ -469,20 +551,23 @@ def test_multi_parameter_reparameterisation_ordering_integration(rng):
     x_prime_grouped, log_j_grouped = grouped.rescale(x)
     x_out_grouped, log_j_inv_grouped = grouped.inverse_rescale(x_prime_grouped)
 
-    expected = np.array([[0.5, 2.0, 3.0, 0.4], [5.0, 20.0, 30.0, 4.0]])
+    expected_baseline = np.array(
+        [[0.5, 2.0, 3.0, 0.4], [5.0, 20.0, 30.0, 4.0]]
+    )
+    expected_grouped = np.array([[0.5, 0.4, 2.0, 3.0], [5.0, 4.0, 20.0, 30.0]])
     expected_log_j = -np.log(20.0) * np.ones(x.shape[0])
 
     np.testing.assert_array_equal(
         live_points_to_array(
             x_prime_baseline, names=baseline.prime_parameters, copy=True
         ),
-        expected,
+        expected_baseline,
     )
     np.testing.assert_array_equal(
         live_points_to_array(
             x_prime_grouped, names=grouped.prime_parameters, copy=True
         ),
-        expected,
+        expected_grouped,
     )
     np.testing.assert_allclose(log_j_baseline, expected_log_j)
     np.testing.assert_allclose(log_j_grouped, expected_log_j)
@@ -505,8 +590,8 @@ def test_multi_parameter_reparameterisation_ordering_integration(rng):
     grouped.forward_pass(x)
 
     np.testing.assert_array_equal(
-        baseline.flow.forward_and_log_prob.call_args[0][0], expected
+        baseline.flow.forward_and_log_prob.call_args[0][0], expected_baseline
     )
     np.testing.assert_array_equal(
-        grouped.flow.forward_and_log_prob.call_args[0][0], expected
+        grouped.flow.forward_and_log_prob.call_args[0][0], expected_grouped
     )

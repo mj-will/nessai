@@ -46,6 +46,7 @@ def dummy_cmb_rc():
     m.values.return_value = []
     m.check_order = MagicMock()
     m.parameters = []
+    m.prime_parameters = []
     return m
 
 
@@ -148,7 +149,7 @@ def test_get_reparameterisation_from_spec_model_key(proposal, dummy_rc):
         spec_index=0,
         reparameterisation="default",
         source_is_parameter=True,
-        parameters=["x", "y"],
+        input_parameters=["x", "y"],
         kwargs={"scale": 2.0},
     )
 
@@ -159,7 +160,7 @@ def test_get_reparameterisation_from_spec_model_key(proposal, dummy_rc):
     assert rc is dummy_rc
     assert config == {
         "offset": 1.0,
-        "parameters": ["x", "y"],
+        "input_parameters": ["x", "y"],
         "scale": 2.0,
     }
     proposal.get_reparameterisation.assert_called_once_with("default")
@@ -216,7 +217,7 @@ def test_get_reparameterisation_from_spec_resolves_patterns(
         spec_index=0,
         reparameterisation="z-score",
         source_is_parameter=False,
-        parameters=parameters,
+        input_parameters=parameters,
         kwargs={},
     )
 
@@ -225,7 +226,7 @@ def test_get_reparameterisation_from_spec_resolves_patterns(
     )
 
     assert rc is dummy_rc
-    assert config == {"parameters": ["x_0", "x_1"]}
+    assert config == {"input_parameters": ["x_0", "x_1"]}
 
 
 @pytest.mark.parametrize(
@@ -236,7 +237,7 @@ def test_get_reparameterisation_from_spec_resolves_patterns(
             spec_index=0,
             reparameterisation="sine",
             source_is_parameter=True,
-            parameters=["x"],
+            input_parameters=["x"],
             kwargs={},
         ),
         ReparameterisationSpec(
@@ -244,7 +245,7 @@ def test_get_reparameterisation_from_spec_resolves_patterns(
             spec_index=0,
             reparameterisation="sine",
             source_is_parameter=False,
-            parameters=["x"],
+            input_parameters=["x"],
             kwargs={},
         ),
     ],
@@ -260,7 +261,7 @@ def test_get_reparameterisation_from_spec_unknown(proposal, spec):
 
 
 def test_get_reparameterisation_from_spec_no_parameters(proposal, dummy_rc):
-    """Assert an error is raised if the resolved config has no parameters."""
+    """Assert an error is raised if the resolved config has no inputs."""
     proposal.get_reparameterisation = MagicMock(return_value=(dummy_rc, {}))
     proposal.model.names = ["x"]
     proposal._reparameterisation = MagicMock()
@@ -270,14 +271,14 @@ def test_get_reparameterisation_from_spec_no_parameters(proposal, dummy_rc):
         spec_index=0,
         reparameterisation="default",
         source_is_parameter=False,
-        parameters=None,
+        input_parameters=None,
         kwargs={"update_bounds": True},
     )
 
     with pytest.raises(RuntimeError) as excinfo:
         BaseFlowProposal.get_reparameterisation_from_spec(proposal, spec)
 
-    assert "No parameters key" in str(excinfo.value)
+    assert "No input_parameters key" in str(excinfo.value)
 
 
 def test_get_reparameterisation_from_spec_empty_parameters(proposal, dummy_rc):
@@ -287,33 +288,33 @@ def test_get_reparameterisation_from_spec_empty_parameters(proposal, dummy_rc):
         spec_index=0,
         reparameterisation="default",
         source_is_parameter=True,
-        parameters=[],
+        input_parameters=[],
         kwargs={},
     )
 
     with pytest.raises(RuntimeError) as excinfo:
         BaseFlowProposal.get_reparameterisation_from_spec(proposal, spec)
 
-    assert "No parameters key" in str(excinfo.value)
+    assert "No input_parameters key" in str(excinfo.value)
 
 
-def test_get_reparameterisation_from_spec_allows_prime_requires(
+def test_get_reparameterisation_from_spec_allows_prime_inputs(
     proposal, dummy_rc
 ):
-    """Assert prime-only chained specs do not require x-space parameters."""
+    """Assert chained specs can use prime-space input parameters."""
     proposal.get_reparameterisation = MagicMock(return_value=(dummy_rc, {}))
     proposal.model.names = ["x"]
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.parameters = ["x"]
+    proposal._reparameterisation.prime_parameters = ["x_bounded"]
     spec = ReparameterisationSpec(
         source_key="prime-scale",
         spec_index=1,
         reparameterisation="prime-scale",
         source_is_parameter=False,
-        parameters=[],
+        input_parameters=["x_bounded"],
         kwargs={
-            "prime_requires": ["x_bounded"],
-            "prime_parameters": ["x_scaled"],
+            "output_parameters": ["x_scaled"],
         },
     )
 
@@ -323,9 +324,8 @@ def test_get_reparameterisation_from_spec_allows_prime_requires(
 
     assert rc is dummy_rc
     assert config == {
-        "parameters": [],
-        "prime_parameters": ["x_scaled"],
-        "prime_requires": ["x_bounded"],
+        "input_parameters": ["x_bounded"],
+        "output_parameters": ["x_scaled"],
     }
 
 
@@ -334,7 +334,7 @@ def test_instantiate_reparameterisation_from_spec_with_rng(proposal, rng):
     spec = Mock()
     proposal.rng = rng
     proposal.get_reparameterisation_from_spec = MagicMock(
-        return_value=(Reparameterisation, {"parameters": ["x"]})
+        return_value=(Reparameterisation, {"input_parameters": ["x"]})
     )
     proposal._get_prior_bounds_for_parameters = MagicMock(
         return_value={"x": [-1, 1]}
@@ -411,7 +411,7 @@ def test_configure_reparameterisations_fallback(
         ["x", "y"],
     )
     dummy_rc.assert_called_once_with(
-        parameters=["x", "y"],
+        input_parameters=["x", "y"],
         prior_bounds={"x": [-1, 1], "y": [-1, 1]},
     )
     proposal._reparameterisation.add_reparameterisations.assert_called_once_with(
@@ -445,16 +445,22 @@ def test_set_parameter_order(proposal):
     proposal._reparameterisation.values.return_value = [
         MagicMock(
             parameters=["x", "z"],
-            prime_parameters=["x_prime", "z_prime"],
+            output_parameters=["x_prime", "z_prime"],
+            x_prime_input_parameters=[],
+            x_prime_persistent_parameters=[],
         ),
         MagicMock(
             parameters=["y"],
-            prime_parameters=["y_prime", "y_aux"],
+            output_parameters=["y_prime", "y_aux"],
+            x_prime_input_parameters=[],
+            x_prime_persistent_parameters=[],
         ),
         # Derived parameter (isn't present in model)
         MagicMock(
             parameters=["w"],
-            prime_parameters=["w_prime"],
+            output_parameters=["w_prime"],
+            x_prime_input_parameters=[],
+            x_prime_persistent_parameters=[],
         ),
     ]
     BaseFlowProposal._set_parameter_order(proposal)
@@ -479,6 +485,7 @@ def test_set_rescaling_with_model(proposal, model):
     def update(self):
         proposal.parameters = model.names
         proposal.prime_parameters = ["x_prime"]
+        proposal._prime_parameters_internal = proposal.prime_parameters
 
     proposal.configure_reparameterisations = MagicMock()
     proposal.configure_reparameterisations.side_effect = update
@@ -504,6 +511,7 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
     def update(self):
         proposal.parameters = model.names
         proposal.prime_parameters = ["x_prime"]
+        proposal._prime_parameters_internal = proposal.prime_parameters
 
     proposal.configure_reparameterisations = MagicMock()
     proposal.configure_reparameterisations.side_effect = update
@@ -526,7 +534,7 @@ def test_rescale(proposal, n, map_to_unit_hypercube):
     x_prime = numpy_array_to_live_points(
         np.random.randn(n, 2), ["x_prime", "y_prime"]
     )
-    proposal.x_prime_dtype = get_dtype(["x_prime", "y_prime"])
+    proposal.x_prime_internal_dtype = get_dtype(["x_prime", "y_prime"])
     proposal.map_to_unit_hypercube = map_to_unit_hypercube
     proposal._reparameterisation = MagicMock()
     proposal._reparameterisation.reparameterise = MagicMock(

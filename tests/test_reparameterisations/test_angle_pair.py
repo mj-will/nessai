@@ -13,7 +13,7 @@ from nessai.livepoint import (
     numpy_array_to_live_points,
     parameters_to_live_point,
 )
-from nessai.reparameterisations import AnglePair
+from nessai.reparameterisations import AnglePair, Reparameterisation
 
 angle_pairs = [
     (["ra", "dec"], [[0, 2 * np.pi], [-np.pi / 2, np.pi / 2]]),
@@ -32,7 +32,15 @@ def angles(request):
 @pytest.fixture
 def reparam():
     r = create_autospec(AnglePair)
-    r._format_parameters = lambda x: x if isinstance(x, list) else [x]
+    r._format_parameters = lambda x: (
+        x.copy() if isinstance(x, list) else ([] if x is None else [x])
+    )
+    r.get_parameter_value = Reparameterisation.get_parameter_value.__get__(
+        r, Reparameterisation
+    )
+    r.set_parameter_value = Reparameterisation.set_parameter_value.__get__(
+        r, Reparameterisation
+    )
     return r
 
 
@@ -40,8 +48,8 @@ def reparam():
 def assert_invertibility():
     def test_invertibility(reparam, angles, radial=None):
         n = list(angles.values())[0].size
-        x = np.zeros([n], dtype=get_dtype(reparam.output_parameters))
-        x_prime = np.zeros([n], dtype=get_dtype(reparam.prime_parameters))
+        x = np.zeros([n], dtype=get_dtype(reparam.x_output_parameters))
+        x_prime = np.zeros([n], dtype=get_dtype(reparam.output_parameters))
         log_j = 0
 
         for a in reparam.angles:
@@ -60,7 +68,7 @@ def assert_invertibility():
                 x[reparam.radial], x_re[reparam.radial]
             )
 
-        x_in = np.zeros([n], dtype=get_dtype(reparam.output_parameters))
+        x_in = np.zeros([n], dtype=get_dtype(reparam.x_output_parameters))
 
         x_inv, x_prime_inv, log_j_inv = reparam.inverse_reparameterise(
             x_in, x_prime_re, log_j
@@ -110,16 +118,19 @@ def test_two_angles(angles):
     assert reparam.chi is not False
     assert hasattr(reparam.chi, "rvs")
 
-    m = "_".join(parameters[:2])
-    assert reparam.parameters == parameters[:2]
+    m = "_".join(reparam.parameters[:2])
+    assert set(reparam.parameters) == set(parameters[:2])
     assert reparam.auxiliary_parameters == [m + "_radial"]
-    assert reparam.output_parameters == parameters[:2] + [m + "_radial"]
-    assert reparam.angles == parameters[:2]
+    assert reparam.x_output_parameters == reparam.parameters[:2] + [
+        m + "_radial"
+    ]
+    assert reparam.angles == reparam.parameters[:2]
     assert reparam.radial == (m + "_radial")
     assert reparam.x == (m + "_x")
     assert reparam.y == (m + "_y")
     assert reparam.z == (m + "_z")
-    assert reparam.input_parameters == parameters[:2]
+    assert reparam.input_parameters == reparam.parameters[:2]
+    assert reparam.output_parameters == [m + "_x", m + "_y", m + "_z"]
 
 
 def test_ra_dec(assert_invertibility):
@@ -236,8 +247,8 @@ def test_specific_points_x_prime_to_x_0_2pi(convention, input, expected):
         convention=convention,
     )
 
-    x_prime = parameters_to_live_point(input, reparam.prime_parameters)
-    x = parameters_to_live_point([0, 0, 0], reparam.output_parameters)
+    x_prime = parameters_to_live_point(input, reparam.output_parameters)
+    x = parameters_to_live_point([0, 0, 0], reparam.x_output_parameters)
     log_j = 0
 
     out, _, _ = reparam.inverse_reparameterise(x, x_prime, log_j)
@@ -291,8 +302,8 @@ def test_specific_points_x_prime_to_x_pi_pi(convention, input, expected):
         convention=convention,
     )
 
-    x_prime = parameters_to_live_point(input, reparam.prime_parameters)
-    x = parameters_to_live_point([0, 0, 0], reparam.output_parameters)
+    x_prime = parameters_to_live_point(input, reparam.output_parameters)
+    x = parameters_to_live_point([0, 0, 0], reparam.x_output_parameters)
     log_j = 0
 
     out, _, _ = reparam.inverse_reparameterise(x, x_prime, log_j)

@@ -17,7 +17,7 @@ def test_invertiblity():
     reparam = NullReparameterisation(parameters=["x", "y"])
     n = 100
     x = numpy_array_to_live_points(np.random.rand(n, 2), reparam.parameters)
-    x_prime = empty_structured_array(n, names=reparam.prime_parameters)
+    x_prime = empty_structured_array(n, names=reparam.output_parameters)
     log_j = 0
 
     x_re, x_prime_re, log_j_re = reparam.reparameterise(x, x_prime, log_j)
