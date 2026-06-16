@@ -289,7 +289,7 @@ class Reparameterisation:
         self._resolved_inverse_inputs = True
         return missing
 
-    def _get_value(self, parameter, x, x_prime=None):
+    def get_parameter_value(self, parameter, x, x_prime=None):
         """Get the current value for an input parameter.
 
         Returns the value from x or x_prime depending on where the parameter is
@@ -307,7 +307,7 @@ class Reparameterisation:
             return x_prime[parameter]
         return x[parameter]
 
-    def _set_value(self, parameter, value, x, x_prime=None):
+    def set_parameter_value(self, parameter, value, x, x_prime=None):
         """Set the reconstructed value for an input parameter.
 
         Sets the value in x or x_prime depending on where the parameter is
@@ -372,7 +372,7 @@ class Reparameterisation:
         """
         raise NotImplementedError
 
-    def update(self, x):
+    def update(self, x, x_prime=None):
         """Update the reparameterisation given some points.
 
         Does nothing by default.

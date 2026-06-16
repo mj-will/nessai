@@ -113,7 +113,7 @@ class Angle(Reparameterisation):
 
     def _rescale_radial(self, x, x_prime, log_j, **kwargs):
         return (
-            self._get_value(self.radial, x, x_prime),
+            self.get_parameters_value(self.radial, x, x_prime),
             x,
             x_prime,
             log_j,
@@ -121,7 +121,7 @@ class Angle(Reparameterisation):
 
     def _rescale_angle(self, x, x_prime, log_j, **kwargs):
         return (
-            self._get_value(self.angle, x, x_prime) * self.scale,
+            self.get_parameters_value(self.angle, x, x_prime) * self.scale,
             x,
             x_prime,
             log_j,
@@ -175,8 +175,8 @@ class Angle(Reparameterisation):
             )
 
         log_j -= np.log(radial)
-        x, x_prime = self._set_value(self.radial, radial, x, x_prime)
-        x, x_prime = self._set_value(self.angle, angle, x, x_prime)
+        x, x_prime = self.set_parameter_value(self.radial, radial, x, x_prime)
+        x, x_prime = self.set_parameter_value(self.angle, angle, x, x_prime)
         x, x_prime, log_j = self._inverse_rescale_angle(x, x_prime, log_j)
 
         return x, x_prime, log_j
@@ -204,7 +204,7 @@ class ToCartesian(Angle):
         self, x, x_prime, log_j, compute_radius=False, **kwargs
     ):
         angle, lj = rescale_zero_to_one(
-            self._get_value(self.parameters[0], x, x_prime),
+            self.get_parameters_value(self.parameters[0], x, x_prime),
             *self.prior_bounds[self.parameters[0]],
         )
         log_j += lj
@@ -222,11 +222,13 @@ class ToCartesian(Angle):
 
     def _inverse_rescale_angle(self, x, x_prime, log_j):
         angle, lj = inverse_rescale_zero_to_one(
-            np.abs(self._get_value(self.parameters[0], x, x_prime)),
+            np.abs(self.get_parameters_value(self.parameters[0], x, x_prime)),
             *self.prior_bounds[self.parameters[0]],
         )
         log_j += lj
-        x, x_prime = self._set_value(self.parameters[0], angle, x, x_prime)
+        x, x_prime = self.set_parameter_value(
+            self.parameters[0], angle, x, x_prime
+        )
         return x, x_prime, log_j
 
 
@@ -406,8 +408,8 @@ class AnglePair(Reparameterisation):
         return self.output_parameters[2]
 
     def _az_zen(self, x, x_prime, log_j, r):
-        horizontal = self._get_value(self.parameters[0], x, x_prime)
-        vertical = self._get_value(self.parameters[1], x, x_prime)
+        horizontal = self.get_parameters_value(self.parameters[0], x, x_prime)
+        vertical = self.get_parameters_value(self.parameters[1], x, x_prime)
         x_prime[self.output_parameters[0]] = (
             r * np.sin(vertical) * np.cos(horizontal)
         )
@@ -419,8 +421,8 @@ class AnglePair(Reparameterisation):
         return x, x_prime, log_j
 
     def _ra_dec(self, x, x_prime, log_j, r):
-        horizontal = self._get_value(self.parameters[0], x, x_prime)
-        vertical = self._get_value(self.parameters[1], x, x_prime)
+        horizontal = self.get_parameters_value(self.parameters[0], x, x_prime)
+        vertical = self.get_parameters_value(self.parameters[1], x, x_prime)
         x_prime[self.output_parameters[0]] = (
             r * np.cos(vertical) * np.cos(horizontal)
         )
@@ -456,11 +458,13 @@ class AnglePair(Reparameterisation):
             x_prime[self.output_parameters[2]],
         )
         log_j += -2 * np.log(radial) - np.log(np.sin(vertical))
-        x, x_prime = self._set_value(self.radial, radial, x, x_prime)
-        x, x_prime = self._set_value(
+        x, x_prime = self.set_parameter_value(self.radial, radial, x, x_prime)
+        x, x_prime = self.set_parameter_value(
             self.parameters[0], horizontal, x, x_prime
         )
-        x, x_prime = self._set_value(self.parameters[1], vertical, x, x_prime)
+        x, x_prime = self.set_parameter_value(
+            self.parameters[1], vertical, x, x_prime
+        )
 
         return x, x_prime, log_j
 
@@ -491,11 +495,13 @@ class AnglePair(Reparameterisation):
         )
 
         log_j += -2 * np.log(radial) - np.log(np.cos(vertical))
-        x, x_prime = self._set_value(self.radial, radial, x, x_prime)
-        x, x_prime = self._set_value(
+        x, x_prime = self.set_parameter_value(self.radial, radial, x, x_prime)
+        x, x_prime = self.set_parameter_value(
             self.parameters[0], horizontal, x, x_prime
         )
-        x, x_prime = self._set_value(self.parameters[1], vertical, x, x_prime)
+        x, x_prime = self.set_parameter_value(
+            self.parameters[1], vertical, x, x_prime
+        )
         return x, x_prime, log_j
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -505,7 +511,7 @@ class AnglePair(Reparameterisation):
         if self.chi:
             r = self.chi.rvs(size=x.size, random_state=self.rng)
         else:
-            r = self._get_value(self.radial, x, x_prime)
+            r = self.get_parameters_value(self.radial, x, x_prime)
         if any(r < 0):
             raise RuntimeError("Radius cannot be negative.")
 
