@@ -73,6 +73,13 @@ class AugmentedFlowProposal(FlowProposal):
         self.augment_parameters = [f"e_{i}" for i in range(self.augment_dims)]
         self.parameters += self.augment_parameters
         self.prime_parameters += self.augment_parameters
+        if getattr(self, "_prime_parameters_internal", None) is None:
+            self._prime_parameters_internal = self.prime_parameters.copy()
+        else:
+            self._prime_parameters_internal += self.augment_parameters
+        self._x_dtype = None
+        self._x_prime_dtype = None
+        self._x_prime_internal_dtype = None
         logger.info(f"augmented x space parameters: {self.parameters}")
         logger.info(
             f"Augmented x prime space parameters: {self.prime_parameters}"
