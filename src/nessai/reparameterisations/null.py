@@ -59,7 +59,7 @@ class IdentityReparameterisation(Reparameterisation):
         for parameter, output_parameter in zip(
             self.parameters, self.output_parameters
         ):
-            x_prime[output_parameter] = self.get_parameters_value(
+            x_prime[output_parameter] = self.get_parameter_value(
                 parameter, x, x_prime
             )
         return x, x_prime, log_j
