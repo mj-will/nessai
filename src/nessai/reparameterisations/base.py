@@ -18,11 +18,14 @@ class Reparameterisation:
 
     Parameters
     ----------
-    parameters : str or list
-        Name of parameters to reparameterise.
-    prime_parameters : str or list, optional
-        Name of the parameters in the prime space. If None, will be set to
-        the same as `parameters` with '_prime' appended.
+    input_parameters : str or list
+        Names of the parameters required in the forward direction.
+    output_parameters : str or list, optional
+        Names of the parameters produced in the prime space. If None, will be
+        set to the same as `input_parameters` with '_prime' appended.
+    persistent_parameters : str or list, optional
+        Subset of `input_parameters` that should remain exposed in the
+        flow-facing parameter set after this reparameterisation.
     auxiliary_parameters : str or list, optional
         Name of any auxiliary parameters that are made available in x-space after
         the reparameterisation. These parameters are not required for the forward
@@ -32,14 +35,11 @@ class Reparameterisation:
     rng: np.random.Generator, optional
         Random number generator to use for any random operations in the
         reparameterisation. If None, a new default_rng will be used.
-    requires : str or list, optional
-        Name of any parameters that are required for the reparameterisation.
-    prime_requires : str or list, optional
-        Name of any parameters in the prime space that are required for the
-        reparameterisation.
-    inverse_requires : str or list, optional
+    inverse_input_parameters : str or list, optional
         Name of any parameters that are required for the inverse
         reparameterisation.
+    parameters : str or list, optional
+        Alias for `input_parameters`.
     """
 
     _update = False
@@ -50,27 +50,39 @@ class Reparameterisation:
 
     def __init__(
         self,
-        parameters=None,
-        prime_parameters=None,
+        input_parameters=None,
+        output_parameters=None,
+        persistent_parameters=None,
         auxiliary_parameters=None,
         prior_bounds=None,
         rng=None,
-        requires=None,
-        prime_requires=None,
-        inverse_requires=None,
+        inverse_input_parameters=None,
+        parameters=None,
     ):
         if rng is None:
             logger.debug("No rng specified, using the default rng.")
             rng = np.random.default_rng()
         self.rng = rng
-        if not isinstance(parameters, (str, list)):
+        if parameters is not None and input_parameters is not None:
+            if self._format_parameters(parameters) != self._format_parameters(
+                input_parameters
+            ):
+                raise RuntimeError(
+                    "Received conflicting values for `parameters` and "
+                    "`input_parameters`."
+                )
+        if input_parameters is None:
+            input_parameters = parameters
+        if not isinstance(input_parameters, (str, list)):
             raise TypeError("Parameters must be a str or list.")
 
-        self.parameters = self._format_parameters(parameters)
+        self.input_parameters = self._format_parameters(input_parameters)
 
         if isinstance(prior_bounds, (list, tuple, np.ndarray)):
             if len(prior_bounds) == 2:
-                prior_bounds = {self.parameters[0]: np.asarray(prior_bounds)}
+                prior_bounds = {
+                    self.input_parameters[0]: np.asarray(prior_bounds)
+                }
             else:
                 raise RuntimeError("Prior bounds got a list of len > 2")
         elif prior_bounds is None:
@@ -87,11 +99,13 @@ class Reparameterisation:
             )
 
         if prior_bounds is not None:
-            missing_bounds = set(self.parameters) - set(prior_bounds.keys())
+            missing_bounds = set(self.input_parameters) - set(
+                prior_bounds.keys()
+            )
             if missing_bounds and self.requires_bounded_prior:
                 raise RuntimeError(
                     "Mismatch between parameters and prior bounds: "
-                    f"{set(self.parameters)}, {set(prior_bounds.keys())}"
+                    f"{set(self.input_parameters)}, {set(prior_bounds.keys())}"
                 )
             self.prior_bounds = {
                 p: np.asarray(b) for p, b in prior_bounds.items()
@@ -115,15 +129,32 @@ class Reparameterisation:
                     f"bounds. Received: {self.prior_bounds}"
                 )
 
-        self.prime_parameters = self._format_parameters(prime_parameters) or [
-            f"{p}_prime" for p in self.parameters
-        ]
+        self.output_parameters = self._format_parameters(
+            output_parameters
+        ) or [f"{p}_prime" for p in self.input_parameters]
+        self.persistent_parameters = self._format_parameters(
+            persistent_parameters
+        )
+        if not set(self.persistent_parameters).issubset(self.input_parameters):
+            raise RuntimeError(
+                "Persistent parameters must be a subset of the input "
+                f"parameters. Received {self.persistent_parameters} for "
+                f"{self.input_parameters}."
+            )
         self.auxiliary_parameters = self._format_parameters(
             auxiliary_parameters
         )
-        self.requires = self._format_parameters(requires)
-        self.prime_requires = self._format_parameters(prime_requires)
-        self.inverse_requires = self._format_parameters(inverse_requires)
+        self.inverse_input_parameters = self._format_parameters(
+            inverse_input_parameters
+        )
+        self._x_input_parameters = []
+        self._x_prime_input_parameters = []
+        self._x_persistent_parameters = []
+        self._x_prime_persistent_parameters = []
+        self._x_inverse_input_parameters = []
+        self._x_prime_inverse_input_parameters = []
+        self._resolved_forward_inputs = False
+        self._resolved_inverse_inputs = False
         logger.debug(f"Initialised reparameterisation: {self.name}")
 
     @staticmethod
@@ -141,23 +172,170 @@ class Reparameterisation:
             )
 
     @property
-    def output_parameters(self):
-        """All x-space parameters made available after this reparameterisation."""
-        return self.parameters + self.auxiliary_parameters
+    def x_input_parameters(self):
+        """Resolved x-space forward inputs."""
+        if self._resolved_forward_inputs:
+            return self._x_input_parameters.copy()
+        return self.input_parameters.copy()
 
     @property
-    def input_parameters(self):
-        """All x-space parameters required for the forward pass."""
-        # self.parameters + self.requires may contain duplicates
-        # we want to preserve the order but remove duplicates
-        return list(dict.fromkeys(self.parameters + self.requires))
+    def x_prime_input_parameters(self):
+        """Resolved x'-space forward inputs."""
+        return self._x_prime_input_parameters.copy()
+
+    @property
+    def prime_input_parameters(self):
+        """Compatibility alias for `x_prime_input_parameters`."""
+        return self.x_prime_input_parameters
+
+    @property
+    def x_output_parameters(self):
+        """All x-space parameters available after this reparameterisation."""
+        return list(
+            dict.fromkeys(self.x_input_parameters + self.auxiliary_parameters)
+        )
+
+    @property
+    def x_persistent_parameters(self):
+        """Resolved persistent x-space inputs."""
+        return self._x_persistent_parameters.copy()
+
+    @property
+    def x_prime_persistent_parameters(self):
+        """Resolved persistent x'-space inputs."""
+        return self._x_prime_persistent_parameters.copy()
+
+    @property
+    def prime_persistent_parameters(self):
+        """Compatibility alias for `x_prime_persistent_parameters`."""
+        return self.x_prime_persistent_parameters
+
+    @property
+    def x_inverse_input_parameters(self):
+        """Resolved x-space inverse inputs."""
+        return self._x_inverse_input_parameters.copy()
+
+    @property
+    def x_prime_inverse_input_parameters(self):
+        """Resolved x'-space inverse inputs."""
+        return self._x_prime_inverse_input_parameters.copy()
+
+    @property
+    def prime_inverse_input_parameters(self):
+        """Compatibility alias for `x_prime_inverse_input_parameters`."""
+        return self.x_prime_inverse_input_parameters
+
+    @property
+    def parameters(self):
+        """Compatibility alias for `input_parameters`."""
+        return self.input_parameters
+
+    @parameters.setter
+    def parameters(self, value):
+        self.input_parameters = self._format_parameters(value)
+        self._resolved_forward_inputs = False
+        self._resolved_inverse_inputs = False
 
     @property
     def name(self):
         """Unique name of the reparameterisations"""
         return (
-            self.__class__.__name__.lower() + "_" + "_".join(self.parameters)
+            self.__class__.__name__.lower()
+            + "_"
+            + "_".join(self.input_parameters)
         )
+
+    def resolve_forward_input_spaces(
+        self, available_parameters, available_prime_parameters
+    ):
+        """Resolve forward inputs against x and prime namespaces."""
+        x_inputs = []
+        prime_inputs = []
+        missing = []
+        for parameter in self.input_parameters:
+            if parameter in available_parameters:
+                x_inputs.append(parameter)
+            elif parameter in available_prime_parameters:
+                prime_inputs.append(parameter)
+            else:
+                missing.append(parameter)
+
+        x_persistent = [
+            parameter
+            for parameter in self.persistent_parameters
+            if parameter in x_inputs
+        ]
+
+        x_prime_persistent = [
+            parameter
+            for parameter in self.persistent_parameters
+            if parameter in prime_inputs
+        ]
+
+        self._x_input_parameters = x_inputs
+        self._x_prime_input_parameters = prime_inputs
+        self._x_persistent_parameters = x_persistent
+        self._x_prime_persistent_parameters = x_prime_persistent
+        self._resolved_forward_inputs = True
+        return missing
+
+    def resolve_inverse_input_spaces(
+        self, available_parameters, available_prime_parameters
+    ):
+        """Resolve inverse inputs against x and prime namespaces."""
+        x_inputs = []
+        x_prime_inputs = []
+        missing = []
+        for parameter in self.inverse_input_parameters:
+            if parameter in available_parameters:
+                x_inputs.append(parameter)
+            elif parameter in available_prime_parameters:
+                x_prime_inputs.append(parameter)
+            else:
+                missing.append(parameter)
+
+        self._x_inverse_input_parameters = x_inputs
+        self._x_prime_inverse_input_parameters = x_prime_inputs
+        self._resolved_inverse_inputs = True
+        return missing
+
+    def _get_value(self, parameter, x, x_prime=None):
+        """Get the current value for an input parameter.
+
+        Returns the value from x or x_prime depending on where the parameter is
+        defined.
+        """
+        x_prime_inputs = getattr(self, "_x_prime_input_parameters", [])
+        if not isinstance(x_prime_inputs, (list, tuple, set)):
+            x_prime_inputs = []
+        if parameter in x_prime_inputs:
+            if x_prime is None:
+                raise RuntimeError(
+                    f"Prime-space input `{parameter}` requested for "
+                    f"{self.name} but no x_prime array was provided."
+                )
+            return x_prime[parameter]
+        return x[parameter]
+
+    def _set_value(self, parameter, value, x, x_prime=None):
+        """Set the reconstructed value for an input parameter.
+
+        Sets the value in x or x_prime depending on where the parameter is
+        defined.
+        """
+        x_prime_inputs = getattr(self, "_x_prime_input_parameters", [])
+        if not isinstance(x_prime_inputs, (list, tuple, set)):
+            x_prime_inputs = []
+        if parameter in x_prime_inputs:
+            if x_prime is None:
+                raise RuntimeError(
+                    f"Prime-space input `{parameter}` requested for "
+                    f"{self.name} but no x_prime array was provided."
+                )
+            x_prime[parameter] = value
+        else:
+            x[parameter] = value
+        return x, x_prime
 
     def reparameterise(self, x, x_prime, log_j):
         """

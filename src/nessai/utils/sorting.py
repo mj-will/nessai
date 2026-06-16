@@ -56,39 +56,43 @@ def sort_reparameterisations(
     if known_parameters is None:
         known_parameters = parameters.copy()
         for r in reparameterisations:
-            known_parameters += r.output_parameters
+            known_parameters += r.auxiliary_parameters
         known_parameters = list(dict.fromkeys(known_parameters))
 
     if known_prime_parameters is None:
         known_prime_parameters = prime_parameters.copy()
         for r in reparameterisations:
-            known_prime_parameters += r.prime_parameters
+            known_prime_parameters += r.output_parameters
         known_prime_parameters = list(dict.fromkeys(known_prime_parameters))
 
     if initial_sort:
         reparameterisations = sorted(
             reparameterisations,
-            key=lambda r: len(r.requires) + len(r.prime_requires),
+            key=lambda r: len(r.input_parameters),
         )
 
     for r in reparameterisations:
-        if all([req in parameters for req in r.input_parameters]) and all(
-            [req in prime_parameters for req in r.prime_requires]
-        ):
+        missing_inputs = r.resolve_forward_input_spaces(
+            parameters, prime_parameters
+        )
+        if not missing_inputs:
             ordered.append(r)
-            parameters += r.output_parameters
-            prime_parameters += r.prime_parameters
-        elif any([req not in known_parameters for req in r.input_parameters]):
-            raise ValueError(
-                f"{r.name} requires {r.input_parameters} which contains parameters "
-                f"that are not known ({known_parameters})"
-            )
+            parameters += [
+                p for p in r.x_output_parameters if p not in parameters
+            ]
+            prime_parameters += [
+                p for p in r.output_parameters if p not in prime_parameters
+            ]
         elif any(
-            [req not in known_prime_parameters for req in r.prime_requires]
+            [
+                req not in known_parameters
+                and req not in known_prime_parameters
+                for req in missing_inputs
+            ]
         ):
             raise ValueError(
-                f"{r.name} requires prime parameters {r.prime_requires} which "
-                f"are not known ({known_prime_parameters})"
+                f"{r.name} requires inputs {missing_inputs} which are not "
+                f"known (x: {known_parameters}, x': {known_prime_parameters})"
             )
         else:
             skipped.append(r)

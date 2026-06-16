@@ -23,26 +23,24 @@ class IdentityReparameterisation(Reparameterisation):
 
     def __init__(
         self,
-        parameters=None,
-        prime_parameters=None,
+        input_parameters=None,
+        output_parameters=None,
+        persistent_parameters=None,
         auxiliary_parameters=None,
         prior_bounds=None,
         rng=None,
-        requires=None,
-        prime_requires=None,
-        inverse_requires=None,
+        parameters=None,
     ):
         super().__init__(
-            parameters=parameters,
-            prime_parameters=prime_parameters,
+            input_parameters=input_parameters,
+            output_parameters=output_parameters,
+            persistent_parameters=persistent_parameters,
             auxiliary_parameters=auxiliary_parameters,
             prior_bounds=prior_bounds,
             rng=rng,
-            requires=requires,
-            prime_requires=prime_requires,
-            inverse_requires=inverse_requires,
+            parameters=parameters,
         )
-        self.prime_parameters = self.parameters
+        self.output_parameters = self.input_parameters
         logger.debug(f"Initialised reparameterisation: {self.name}")
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -58,7 +56,10 @@ class IdentityReparameterisation(Reparameterisation):
             Array to be update
         log_j : Log jacobian to be updated
         """
-        x_prime[self.prime_parameters] = x[self.parameters]
+        for parameter, output_parameter in zip(
+            self.parameters, self.output_parameters
+        ):
+            x_prime[output_parameter] = self.get_value(parameter, x, x_prime)
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -74,7 +75,12 @@ class IdentityReparameterisation(Reparameterisation):
             Array to be update
         log_j : Log jacobian to be updated
         """
-        x[self.parameters] = x_prime[self.prime_parameters]
+        for parameter, output_parameter in zip(
+            self.parameters, self.output_parameters
+        ):
+            x, x_prime = self._set_value(
+                parameter, x_prime[output_parameter], x, x_prime
+            )
         return x, x_prime, log_j
 
 

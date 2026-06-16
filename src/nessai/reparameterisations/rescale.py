@@ -159,8 +159,9 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
 
     def __init__(
         self,
-        parameters=None,
-        prime_parameters=None,
+        input_parameters=None,
+        output_parameters=None,
+        persistent_parameters=None,
         auxiliary_parameters=None,
         prior_bounds=None,
         scale=None,
@@ -170,21 +171,20 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
         pre_rescaling=None,
         post_rescaling=None,
         rng=None,
-        requires=None,
-        prime_requires=None,
-        inverse_requires=None,
+        inverse_input_parameters=None,
+        parameters=None,
     ):
         if scale is None and not estimate_scale:
             raise RuntimeError("Must specify a scale or enable estimate_scale")
         super().__init__(
-            parameters=parameters,
-            prime_parameters=prime_parameters,
+            input_parameters=input_parameters,
+            output_parameters=output_parameters,
+            persistent_parameters=persistent_parameters,
             auxiliary_parameters=auxiliary_parameters,
             prior_bounds=prior_bounds,
             rng=rng,
-            requires=requires,
-            prime_requires=prime_requires,
-            inverse_requires=inverse_requires,
+            inverse_input_parameters=inverse_input_parameters,
+            parameters=parameters,
         )
 
         self.estimate_scale = estimate_scale
@@ -196,12 +196,12 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
             self._update = False
 
         if self.estimate_scale:
-            self.scale = {p: 1.0 for p in parameters}
+            self.scale = {p: 1.0 for p in self.input_parameters}
         elif scale:
             self.scale = self._check_value(scale, "scale")
 
         if self.estimate_shift:
-            self.shift = {p: 0.0 for p in parameters}
+            self.shift = {p: 0.0 for p in self.input_parameters}
         elif shift:
             self.shift = self._check_value(shift, "shift")
         else:
@@ -243,12 +243,13 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
             Array to be update
         log_j : Log jacobian to be updated
         """
-        for p, pp in zip(self.parameters, self.prime_parameters):
+        for p, pp in zip(self.parameters, self.output_parameters):
+            x_in = self.get_value(p, x, x_prime)
             if self.has_pre_rescaling:
-                x_prime[pp], lj = self.pre_rescaling(x[p])
+                x_prime[pp], lj = self.pre_rescaling(x_in)
                 log_j += lj
             else:
-                x_prime[pp] = x[p]
+                x_prime[pp] = x_in
             if self.shift:
                 x_prime[pp] = (x_prime[pp] - self.shift[p]) / self.scale[p]
             else:
@@ -272,28 +273,29 @@ class ScaleAndShift(PrePostRescalingMixin, Reparameterisation):
             Array to be update
         log_j : Log jacobian to be updated
         """
-        for p, pp in zip(self.parameters, self.prime_parameters):
+        for p, pp in zip(self.parameters, self.output_parameters):
             if self.has_post_rescaling:
-                x_in, lj = self.post_rescaling_inv(x_prime[pp])
+                value, lj = self.post_rescaling_inv(x_prime[pp])
                 log_j += lj
             else:
-                x_in = x_prime[pp]
+                value = x_prime[pp]
             if self.shift:
-                x[p] = (x_in * self.scale[p]) + self.shift[p]
+                value = (value * self.scale[p]) + self.shift[p]
             else:
-                x[p] = x_in * self.scale[p]
+                value = value * self.scale[p]
             log_j += np.log(np.abs(self.scale[p]))
             if self.has_pre_rescaling:
-                x[p], lj = self.pre_rescaling_inv(x[p])
+                value, lj = self.pre_rescaling_inv(value)
                 log_j += lj
+            x, x_prime = self._set_value(p, value, x, x_prime)
         return x, x_prime, log_j
 
-    def update(self, x):
+    def update(self, x, x_prime=None):
         """Update the scale and shift parameters if enabled."""
         if self._update:
             logger.debug("Updating scale and shift")
             for p in self.parameters:
-                x_pre = self.pre_rescaling(x[p])[0]
+                x_pre = self.pre_rescaling(self.get_value(p, x, x_prime))[0]
                 if self.estimate_scale:
                     self.scale[p] = np.std(x_pre)
                 if self.estimate_shift:
@@ -361,8 +363,9 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
 
     def __init__(
         self,
-        parameters=None,
-        prime_parameters=None,
+        input_parameters=None,
+        output_parameters=None,
+        persistent_parameters=None,
         auxiliary_parameters=None,
         prior_bounds=None,
         rescale_bounds=None,
@@ -375,19 +378,18 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         pre_rescaling=None,
         post_rescaling=None,
         rng=None,
-        requires=None,
-        prime_requires=None,
-        inverse_requires=None,
+        inverse_input_parameters=None,
+        parameters=None,
     ):
         super().__init__(
-            parameters=parameters,
-            prime_parameters=prime_parameters,
+            input_parameters=input_parameters,
+            output_parameters=output_parameters,
+            persistent_parameters=persistent_parameters,
             auxiliary_parameters=auxiliary_parameters,
             prior_bounds=prior_bounds,
             rng=rng,
-            requires=requires,
-            prime_requires=prime_requires,
-            inverse_requires=inverse_requires,
+            inverse_input_parameters=inverse_input_parameters,
+            parameters=parameters,
         )
 
         self.bounds = None
@@ -406,7 +408,7 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
                     p: rescale_bounds for p in self.parameters
                 }
             elif isinstance(rescale_bounds, dict):
-                s = set(parameters) - set(rescale_bounds.keys())
+                s = set(self.input_parameters) - set(rescale_bounds.keys())
                 if s:
                     raise RuntimeError(
                         f"Missing rescale bounds for parameters: {s}"
@@ -579,22 +581,24 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         return x, x_prime, log_j
 
     def _reverse_inversion(self, x, x_prime, log_j, p, pp):
+        value = self.get_value(p, x, x_prime)
         if self._edges[p]:
-            inv = x[p] < 0.0
-            x[p][~inv] = x[p][~inv]
-            x[p][inv] = -x[p][inv]
+            inv = value < 0.0
+            value = value.copy()
+            value[inv] = -value[inv]
 
             if self._edges[p] == "upper":
-                x[p] = 1 - x[p]
-            x[p], lj = inverse_rescale_zero_to_one(x[p], *self.bounds[p])
-            x[p] += self.offsets[p]
+                value = 1 - value
+            value, lj = inverse_rescale_zero_to_one(value, *self.bounds[p])
+            value = value + self.offsets[p]
             log_j += lj
         else:
-            x[p], lj = inverse_rescale_minus_one_to_one(
-                x[p], xmin=self.bounds[p][0], xmax=self.bounds[p][1]
+            value, lj = inverse_rescale_minus_one_to_one(
+                value, xmin=self.bounds[p][0], xmax=self.bounds[p][1]
             )
-            x[p] += self.offsets[p]
+            value = value + self.offsets[p]
             log_j += lj
+        x, x_prime = self._set_value(p, value, x, x_prime)
         return x, x_prime, log_j
 
     def reparameterise(
@@ -614,12 +618,13 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         kwargs :
             Parsed to inversion function
         """
-        for p, pp in zip(self.parameters, self.prime_parameters):
+        for p, pp in zip(self.parameters, self.output_parameters):
+            x_in = self.get_value(p, x, x_prime)
             if self.has_pre_rescaling:
-                x_prime[pp], lj = self.pre_rescaling(x[p])
+                x_prime[pp], lj = self.pre_rescaling(x_in)
                 log_j += lj
             else:
-                x_prime[pp] = x[p]
+                x_prime[pp] = x_in
 
             if self.boundary_inversion and p in self.boundary_inversion:
                 x, x_prime, log_j = self._apply_inversion(
@@ -638,24 +643,29 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
         """Map inputs to the physical space from the prime space"""
         for p, pp in zip(
-            reversed(self.parameters), reversed(self.prime_parameters)
+            reversed(self.parameters), reversed(self.output_parameters)
         ):
             if self.has_post_rescaling:
-                x[p], lj = self.post_rescaling_inv(x_prime[pp])
+                value, lj = self.post_rescaling_inv(x_prime[pp])
                 log_j += lj
             else:
-                x[p] = x_prime[pp]
+                value = x_prime[pp]
+            x, x_prime = self._set_value(p, value, x, x_prime)
             if self.boundary_inversion and p in self.boundary_inversion:
                 x, x_prime, log_j = self._reverse_inversion(
                     x, x_prime, log_j, p, pp, **kwargs
                 )
             else:
-                x[p], lj = self._inverse_rescale_to_bounds(x[p], p)
-                x[p] += self.offsets[p]
+                value = self.get_value(p, x, x_prime)
+                value, lj = self._inverse_rescale_to_bounds(value, p)
+                value = value + self.offsets[p]
                 log_j += lj
+                x, x_prime = self._set_value(p, value, x, x_prime)
             if self.has_pre_rescaling:
-                x[p], lj = self.pre_rescaling_inv(x[p])
+                value = self.get_value(p, x, x_prime)
+                value, lj = self.pre_rescaling_inv(value)
                 log_j += lj
+                x, x_prime = self._set_value(p, value, x, x_prime)
         return x, x_prime, log_j
 
     def reset_inversion(self):
@@ -681,13 +691,19 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         }
         logger.debug(f"Initial bounds: {self.bounds}")
 
-    def update_bounds(self, x):
+    def update_bounds(self, x, x_prime=None):
         """Update the bounds used for the reparameterisation"""
         if self._update:
             self.bounds = {
                 p: [
-                    self.pre_rescaling(np.min(x[p]))[0] - self.offsets[p],
-                    self.pre_rescaling(np.max(x[p]))[0] - self.offsets[p],
+                    self.pre_rescaling(np.min(self.get_value(p, x, x_prime)))[
+                        0
+                    ]
+                    - self.offsets[p],
+                    self.pre_rescaling(np.max(self.get_value(p, x, x_prime)))[
+                        0
+                    ]
+                    - self.offsets[p],
                 ]
                 for p in self.parameters
             }
@@ -696,12 +712,12 @@ class RescaleToBounds(PrePostRescalingMixin, Reparameterisation):
         else:
             logger.debug("Update bounds not enabled")
 
-    def update(self, x):
+    def update(self, x, x_prime=None):
         """Update the reparameterisation given some points.
 
         Includes resetting the inversions and updating the bounds.
         """
-        self.update_bounds(x)
+        self.update_bounds(x, x_prime=x_prime)
         self.reset_inversion()
 
     def reset(self):

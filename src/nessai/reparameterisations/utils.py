@@ -39,7 +39,7 @@ class ReparameterisationSpec:
     spec_index: int
     reparameterisation: str | None
     source_is_parameter: bool
-    parameters: list[str] | None
+    input_parameters: list[str] | None
     kwargs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -152,7 +152,7 @@ def normalise_reparameterisation_spec(
         if key in model_names:
             return cfg.copy()
         logger.debug("Assuming list of patterns")
-        return [{"parameters": cfg.copy()}]
+        return [{"input_parameters": cfg.copy()}]
     raise TypeError(
         f"Unknown config type for: {key}. Expected str, dict or list, "
         f"received instance of {type(cfg)}."
@@ -168,7 +168,7 @@ def build_reparameterisation_spec(key, spec_cfg, spec_index, model_names):
                 spec_index=spec_index,
                 reparameterisation=spec_cfg,
                 source_is_parameter=True,
-                parameters=[key],
+                input_parameters=[key],
             )
         if not isinstance(spec_cfg, dict):
             raise TypeError(
@@ -185,35 +185,34 @@ def build_reparameterisation_spec(key, spec_cfg, spec_index, model_names):
             )
         reparameterisation = spec_cfg.pop("reparameterisation")
 
-        if "parameters" in spec_cfg:
-            parameters = spec_cfg.pop("parameters")
-            if isinstance(parameters, str):
-                parameters = [parameters]
-            elif parameters is None:
-                parameters = []
+        if "input_parameters" in spec_cfg or "parameters" in spec_cfg:
+            input_parameters = spec_cfg.pop(
+                "input_parameters", spec_cfg.pop("parameters", None)
+            )
+            if isinstance(input_parameters, str):
+                input_parameters = [input_parameters]
+            elif input_parameters is None:
+                input_parameters = []
             else:
-                parameters = list(parameters)
-
-            if parameters:
-                parameters = list(dict.fromkeys([key, *parameters]))
+                input_parameters = list(input_parameters)
         else:
-            parameters = [key]
+            input_parameters = [key]
 
         return ReparameterisationSpec(
             source_key=key,
             spec_index=spec_index,
             reparameterisation=reparameterisation,
             source_is_parameter=True,
-            parameters=parameters,
+            input_parameters=input_parameters,
             kwargs=spec_cfg,
         )
 
     if isinstance(spec_cfg, str):
         logger.debug("Assuming reparameterisation name and single parameter")
-        spec_cfg = {"parameters": [spec_cfg]}
+        spec_cfg = {"input_parameters": [spec_cfg]}
     elif isinstance(spec_cfg, list):
         logger.debug("Assuming list of patterns")
-        spec_cfg = {"parameters": spec_cfg}
+        spec_cfg = {"input_parameters": spec_cfg}
     elif not isinstance(spec_cfg, dict):
         raise TypeError(
             f"Unknown config type for: {key}. Expected str or dict, "
@@ -227,7 +226,9 @@ def build_reparameterisation_spec(key, spec_cfg, spec_index, model_names):
         spec_index=spec_index,
         reparameterisation=key,
         source_is_parameter=False,
-        parameters=spec_cfg.pop("parameters", None),
+        input_parameters=spec_cfg.pop(
+            "input_parameters", spec_cfg.pop("parameters", None)
+        ),
         kwargs=spec_cfg,
     )
 
@@ -247,7 +248,7 @@ def parse_reparameterisations(
 
     if isinstance(reparameterisations, str):
         reparameterisations = {
-            reparameterisations: {"parameters": model_names}
+            reparameterisations: {"input_parameters": model_names}
         }
     elif not isinstance(reparameterisations, dict):
         raise TypeError(
