@@ -55,6 +55,27 @@ def test_prime_dtype(proposal):
     )
 
 
+def test_internal_prime_parameters(proposal):
+    """Test the internal prime parameters property."""
+    proposal._prime_parameters_internal = ["x", "y", "z"]
+    assert BaseFlowProposal.internal_prime_parameters.__get__(proposal) == [
+        "x",
+        "y",
+        "z",
+    ]
+
+
+def test_prime_internal_dtype(proposal):
+    """Test the dtype for the full internal x-prime space."""
+    proposal.prime_parameters = ["x", "z"]
+    proposal._prime_parameters_internal = ["x", "y", "z"]
+    proposal._x_prime_internal_dtype = None
+    assert (
+        BaseFlowProposal.x_prime_internal_dtype.__get__(proposal)
+        == [("x", "f8"), ("y", "f8"), ("z", "f8")] + EXTRA_PARAMS_DTYPE
+    )
+
+
 def test_population_dtype(proposal):
     """Test dims property"""
     proposal.x_dtype = [

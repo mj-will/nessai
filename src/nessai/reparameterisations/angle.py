@@ -39,17 +39,29 @@ class Angle(Reparameterisation):
 
     def __init__(
         self,
-        parameters=None,
+        input_parameters=None,
+        output_parameters=None,
+        persistent_parameters=None,
+        auxiliary_parameters=None,
         prior_bounds=None,
         scale=1.0,
         rng=None,
+        inverse_input_parameters=None,
+        parameters=None,
     ):
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            input_parameters=input_parameters,
+            output_parameters=output_parameters,
+            persistent_parameters=persistent_parameters,
+            auxiliary_parameters=auxiliary_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            inverse_input_parameters=inverse_input_parameters,
+            parameters=parameters,
         )
 
         if len(self.parameters) == 1:
-            self.parameters.append(self.parameters[0] + "_radial")
+            self.auxiliary_parameters = [self.parameters[0] + "_radial"]
             self.chi = stats.chi(2)
             self.has_prior = True
         elif len(self.parameters) == 2:
@@ -68,8 +80,9 @@ class Angle(Reparameterisation):
         else:
             self._zero_bound = False
 
-        self.prime_parameters = [self.angle + "_x", self.angle + "_y"]
-        self.requires = []
+        # overwrite the prime parameters if not specified
+        if output_parameters is None:
+            self.output_parameters = [self.angle + "_x", self.angle + "_y"]
 
     @property
     def angle(self):
@@ -79,28 +92,40 @@ class Angle(Reparameterisation):
     @property
     def radial(self):
         """The name of the radial parameter"""
+        if self.chi:
+            return self.auxiliary_parameters[0]
         return self.parameters[1]
 
     @property
     def radius(self):
         """The name of the radial parameter (equivalent to radial)"""
-        return self.parameters[1]
+        return self.radial
 
     @property
     def x(self):
         """The name of x coordinate"""
-        return self.prime_parameters[0]
+        return self.output_parameters[0]
 
     @property
     def y(self):
         """The name of y coordinate"""
-        return self.prime_parameters[1]
+        return self.output_parameters[1]
 
     def _rescale_radial(self, x, x_prime, log_j, **kwargs):
-        return x[self.parameters[1]], x, x_prime, log_j
+        return (
+            self.get_parameter_value(self.radial, x, x_prime),
+            x,
+            x_prime,
+            log_j,
+        )
 
     def _rescale_angle(self, x, x_prime, log_j, **kwargs):
-        return x[self.parameters[0]] * self.scale, x, x_prime, log_j
+        return (
+            self.get_parameter_value(self.angle, x, x_prime) * self.scale,
+            x,
+            x_prime,
+            log_j,
+        )
 
     def _inverse_rescale_angle(self, x, x_prime, log_j):
         return x, x_prime, log_j
@@ -120,43 +145,45 @@ class Angle(Reparameterisation):
         if any(r < 0):
             raise RuntimeError("Radius cannot be negative.")
 
-        x_prime[self.prime_parameters[0]] = r * np.cos(angle)
-        x_prime[self.prime_parameters[1]] = r * np.sin(angle)
+        x_prime[self.output_parameters[0]] = r * np.cos(angle)
+        x_prime[self.output_parameters[1]] = r * np.sin(angle)
         log_j += np.log(r)
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
         """Convert from Cartesian to an angle and radial component"""
-        x[self.parameters[1]] = np.sqrt(
-            x_prime[self.prime_parameters[0]] ** 2
-            + x_prime[self.prime_parameters[1]] ** 2
+        radial = np.sqrt(
+            x_prime[self.output_parameters[0]] ** 2
+            + x_prime[self.output_parameters[1]] ** 2
         )
         if self._zero_bound:
-            x[self.parameters[0]] = (
+            angle = (
                 np.arctan2(
-                    x_prime[self.prime_parameters[1]],
-                    x_prime[self.prime_parameters[0]],
+                    x_prime[self.output_parameters[1]],
+                    x_prime[self.output_parameters[0]],
                 )
                 % (2.0 * np.pi)
                 / self.scale
             )
         else:
-            x[self.parameters[0]] = (
+            angle = (
                 np.arctan2(
-                    x_prime[self.prime_parameters[1]],
-                    x_prime[self.prime_parameters[0]],
+                    x_prime[self.output_parameters[1]],
+                    x_prime[self.output_parameters[0]],
                 )
                 / self.scale
             )
 
-        log_j -= np.log(x[self.parameters[1]])
+        log_j -= np.log(radial)
+        x, x_prime = self.set_parameter_value(self.radial, radial, x, x_prime)
+        x, x_prime = self.set_parameter_value(self.angle, angle, x, x_prime)
         x, x_prime, log_j = self._inverse_rescale_angle(x, x_prime, log_j)
 
         return x, x_prime, log_j
 
     def log_prior(self, x):
         """Prior for radial parameter"""
-        return self.chi.logpdf(x[self.parameters[1]])
+        return self.chi.logpdf(x[self.radial])
 
 
 class ToCartesian(Angle):
@@ -177,7 +204,8 @@ class ToCartesian(Angle):
         self, x, x_prime, log_j, compute_radius=False, **kwargs
     ):
         angle, lj = rescale_zero_to_one(
-            x[self.parameters[0]], *self.prior_bounds[self.parameters[0]]
+            self.get_parameter_value(self.parameters[0], x, x_prime),
+            *self.prior_bounds[self.parameters[0]],
         )
         log_j += lj
         if self.mode == "duplicate" or compute_radius:
@@ -193,11 +221,14 @@ class ToCartesian(Angle):
         return angle, x, x_prime, log_j
 
     def _inverse_rescale_angle(self, x, x_prime, log_j):
-        x[self.parameters[0]], lj = inverse_rescale_zero_to_one(
-            np.abs(x[self.parameters[0]]),
+        angle, lj = inverse_rescale_zero_to_one(
+            np.abs(self.get_parameter_value(self.parameters[0], x, x_prime)),
             *self.prior_bounds[self.parameters[0]],
         )
         log_j += lj
+        x, x_prime = self.set_parameter_value(
+            self.parameters[0], angle, x, x_prime
+        )
         return x, x_prime, log_j
 
 
@@ -222,8 +253,6 @@ class AnglePair(Reparameterisation):
         optionally, also a radial component.
     prior_bounds : dict
         Dictionary of prior bounds for each parameter
-    prior : str, {'isotropic', None}
-        Type of prior, used to enable use of the prime prior.
     convention : str, {'ra-dec', 'az-zen'}
         Convention used for defining the spherical polar coordinates. If not
         set, it will be guessed based on either dec or zen. Where it is assumed
@@ -231,29 +260,43 @@ class AnglePair(Reparameterisation):
     """
 
     requires_bounded_prior = True
-    known_priors = ["isotropic", None]
     _conventions = {"az-zen": [0, np.pi], "ra-dec": [-np.pi / 2, np.pi / 2]}
 
     def __init__(
         self,
-        parameters=None,
+        input_parameters=None,
+        output_parameters=None,
+        persistent_parameters=None,
+        auxiliary_parameters=None,
         prior_bounds=None,
-        prior=None,
         convention=None,
         rng=None,
+        inverse_input_parameters=None,
+        parameters=None,
     ):
-        if len(parameters) not in [2, 3]:
+        inputs = (
+            input_parameters if input_parameters is not None else parameters
+        )
+        if len(inputs) not in [2, 3]:
             raise RuntimeError(
                 "Must use a pair of angles or a pair plus a radius"
             )
 
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            input_parameters=input_parameters,
+            output_parameters=output_parameters,
+            persistent_parameters=persistent_parameters,
+            auxiliary_parameters=auxiliary_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            inverse_input_parameters=inverse_input_parameters,
+            parameters=parameters,
         )
 
         # Determine which parameter is for the horizontal plane
         # and which is for the vertical plane
         logger.debug("Checking order of parameters")
+        parameters = self.input_parameters.copy()
         b = np.ptp([prior_bounds[p] for p in parameters], axis=1)
         try:
             hz = np.where(b == (2 * np.pi))[0][0]
@@ -273,12 +316,13 @@ class AnglePair(Reparameterisation):
             )
             m = "_".join(parameters)
             self.chi = False
+            auxiliary_parameters = []
         else:
             parameters[0], parameters[1] = parameters[hz], parameters[vt]
             m = "_".join(parameters)
-            parameters.append(f"{m}_radial")
             self.chi = stats.chi(3)
             self.has_prior = True
+            auxiliary_parameters = [f"{m}_radial"]
 
         logger.debug(f"Parameters are: {parameters}")
 
@@ -294,8 +338,9 @@ class AnglePair(Reparameterisation):
                 f"[-pi, pi]. Received: {self.prior_bounds[parameters[0]]}"
             )
 
-        self.parameters = parameters
-        self.prime_parameters = [f"{m}_{x}" for x in ["x", "y", "z"]]
+        self.input_parameters = parameters
+        self.auxiliary_parameters = auxiliary_parameters
+        self.output_parameters = [f"{m}_{x}" for x in ["x", "y", "z"]]
 
         if convention is None:
             logger.debug("Trying to determine convention")
@@ -309,7 +354,7 @@ class AnglePair(Reparameterisation):
                 self.convention = "ra-dec"
             else:
                 raise RuntimeError(
-                    f"Could not determine convention for: {self.parameters}!"
+                    f"Could not determine convention for: {self.input_parameters}!"
                 )
         elif convention in self._conventions.keys():
             self.convention = convention
@@ -330,7 +375,7 @@ class AnglePair(Reparameterisation):
 
         logger.debug(f"Using convention: {self.convention}")
 
-        self.requires = []
+        self._resolved_forward_inputs = False
 
     @property
     def angles(self):
@@ -343,103 +388,119 @@ class AnglePair(Reparameterisation):
     @property
     def radial(self):
         """Name of the radial parameter"""
+        if self.chi:
+            return self.auxiliary_parameters[0]
         return self.parameters[-1]
 
     @property
     def x(self):
         """Name of the first Cartesian coordinate"""
-        return self.prime_parameters[0]
+        return self.output_parameters[0]
 
     @property
     def y(self):
         """Name of the second Cartesian coordinate"""
-        return self.prime_parameters[1]
+        return self.output_parameters[1]
 
     @property
     def z(self):
         """Name of the third Cartesian coordinate"""
-        return self.prime_parameters[2]
+        return self.output_parameters[2]
 
     def _az_zen(self, x, x_prime, log_j, r):
-        x_prime[self.prime_parameters[0]] = (
-            r * np.sin(x[self.parameters[1]]) * np.cos(x[self.parameters[0]])
+        horizontal = self.get_parameter_value(self.parameters[0], x, x_prime)
+        vertical = self.get_parameter_value(self.parameters[1], x, x_prime)
+        x_prime[self.output_parameters[0]] = (
+            r * np.sin(vertical) * np.cos(horizontal)
         )
-        x_prime[self.prime_parameters[1]] = (
-            r * np.sin(x[self.parameters[1]]) * np.sin(x[self.parameters[0]])
+        x_prime[self.output_parameters[1]] = (
+            r * np.sin(vertical) * np.sin(horizontal)
         )
-        x_prime[self.prime_parameters[2]] = r * np.cos(x[self.parameters[1]])
-        log_j += 2 * np.log(r) + np.log(np.sin(x[self.parameters[1]]))
+        x_prime[self.output_parameters[2]] = r * np.cos(vertical)
+        log_j += 2 * np.log(r) + np.log(np.sin(vertical))
         return x, x_prime, log_j
 
     def _ra_dec(self, x, x_prime, log_j, r):
-        x_prime[self.prime_parameters[0]] = (
-            r * np.cos(x[self.parameters[1]]) * np.cos(x[self.parameters[0]])
+        horizontal = self.get_parameter_value(self.parameters[0], x, x_prime)
+        vertical = self.get_parameter_value(self.parameters[1], x, x_prime)
+        x_prime[self.output_parameters[0]] = (
+            r * np.cos(vertical) * np.cos(horizontal)
         )
-        x_prime[self.prime_parameters[1]] = (
-            r * np.cos(x[self.parameters[1]]) * np.sin(x[self.parameters[0]])
+        x_prime[self.output_parameters[1]] = (
+            r * np.cos(vertical) * np.sin(horizontal)
         )
-        x_prime[self.prime_parameters[2]] = r * np.sin(x[self.parameters[1]])
-        log_j += 2 * np.log(r) + np.log(np.cos(x[self.parameters[1]]))
+        x_prime[self.output_parameters[2]] = r * np.sin(vertical)
+        log_j += 2 * np.log(r) + np.log(np.cos(vertical))
         return x, x_prime, log_j
 
     def _inv_az_zen(self, x, x_prime, log_j):
-        x[self.parameters[2]] = np.sqrt(
-            x_prime[self.prime_parameters[0]] ** 2.0
-            + x_prime[self.prime_parameters[1]] ** 2.0
-            + x_prime[self.prime_parameters[2]] ** 2.0
+        radial = np.sqrt(
+            x_prime[self.output_parameters[0]] ** 2.0
+            + x_prime[self.output_parameters[1]] ** 2.0
+            + x_prime[self.output_parameters[2]] ** 2.0
         )
 
         if self._modulo_2pi:
-            x[self.parameters[0]] = np.arctan2(
-                x_prime[self.prime_parameters[1]],
-                x_prime[self.prime_parameters[0]],
+            horizontal = np.arctan2(
+                x_prime[self.output_parameters[1]],
+                x_prime[self.output_parameters[0]],
             ) % (2.0 * np.pi)
         else:
-            x[self.parameters[0]] = np.arctan2(
-                x_prime[self.prime_parameters[1]],
-                x_prime[self.prime_parameters[0]],
+            horizontal = np.arctan2(
+                x_prime[self.output_parameters[1]],
+                x_prime[self.output_parameters[0]],
             )
-        x[self.parameters[1]] = np.arctan2(
+        vertical = np.arctan2(
             np.sqrt(
-                x_prime[self.prime_parameters[0]] ** 2.0
-                + x_prime[self.prime_parameters[1]] ** 2.0
+                x_prime[self.output_parameters[0]] ** 2.0
+                + x_prime[self.output_parameters[1]] ** 2.0
             ),
-            x_prime[self.prime_parameters[2]],
+            x_prime[self.output_parameters[2]],
         )
-        log_j += -2 * np.log(x[self.parameters[2]]) - np.log(
-            np.sin(x[self.parameters[1]])
+        log_j += -2 * np.log(radial) - np.log(np.sin(vertical))
+        x, x_prime = self.set_parameter_value(self.radial, radial, x, x_prime)
+        x, x_prime = self.set_parameter_value(
+            self.parameters[0], horizontal, x, x_prime
+        )
+        x, x_prime = self.set_parameter_value(
+            self.parameters[1], vertical, x, x_prime
         )
 
         return x, x_prime, log_j
 
     def _inv_ra_dec(self, x, x_prime, log_j):
-        x[self.parameters[2]] = np.sqrt(
-            x_prime[self.prime_parameters[0]] ** 2.0
-            + x_prime[self.prime_parameters[1]] ** 2.0
-            + x_prime[self.prime_parameters[2]] ** 2.0
+        radial = np.sqrt(
+            x_prime[self.output_parameters[0]] ** 2.0
+            + x_prime[self.output_parameters[1]] ** 2.0
+            + x_prime[self.output_parameters[2]] ** 2.0
         )
 
         if self._modulo_2pi:
-            x[self.parameters[0]] = np.arctan2(
-                x_prime[self.prime_parameters[1]],
-                x_prime[self.prime_parameters[0]],
+            horizontal = np.arctan2(
+                x_prime[self.output_parameters[1]],
+                x_prime[self.output_parameters[0]],
             ) % (2.0 * np.pi)
         else:
-            x[self.parameters[0]] = np.arctan2(
-                x_prime[self.prime_parameters[1]],
-                x_prime[self.prime_parameters[0]],
+            horizontal = np.arctan2(
+                x_prime[self.output_parameters[1]],
+                x_prime[self.output_parameters[0]],
             )
 
-        x[self.parameters[1]] = np.arctan2(
-            x_prime[self.prime_parameters[2]],
+        vertical = np.arctan2(
+            x_prime[self.output_parameters[2]],
             np.sqrt(
-                x_prime[self.prime_parameters[0]] ** 2.0
-                + x_prime[self.prime_parameters[1]] ** 2.0
+                x_prime[self.output_parameters[0]] ** 2.0
+                + x_prime[self.output_parameters[1]] ** 2.0
             ),
         )
 
-        log_j += -2 * np.log(x[self.parameters[2]]) - np.log(
-            np.cos(x[self.parameters[1]])
+        log_j += -2 * np.log(radial) - np.log(np.cos(vertical))
+        x, x_prime = self.set_parameter_value(self.radial, radial, x, x_prime)
+        x, x_prime = self.set_parameter_value(
+            self.parameters[0], horizontal, x, x_prime
+        )
+        x, x_prime = self.set_parameter_value(
+            self.parameters[1], vertical, x, x_prime
         )
         return x, x_prime, log_j
 
@@ -450,7 +511,7 @@ class AnglePair(Reparameterisation):
         if self.chi:
             r = self.chi.rvs(size=x.size, random_state=self.rng)
         else:
-            r = x[self.radial]
+            r = self.get_parameter_value(self.radial, x, x_prime)
         if any(r < 0):
             raise RuntimeError("Radius cannot be negative.")
 
@@ -469,7 +530,7 @@ class AnglePair(Reparameterisation):
     def log_prior(self, x):
         """Prior for radial parameter"""
         if self.chi and self.has_prior:
-            return self.chi.logpdf(x[self.parameters[2]])
+            return self.chi.logpdf(x[self.radial])
         else:
             raise RuntimeError(
                 "log_prior is not defined when a radial parameter has been "

@@ -10,7 +10,12 @@ from nessai.utils.testing import assert_structured_arrays_equal
 
 @pytest.fixture
 def reparam(rng):
-    return create_autospec(Dequantise, rng=rng)
+    r = create_autospec(
+        Dequantise(parameters="a", prior_bounds={"a": [0, 1]}, rng=rng),
+        instance=True,
+    )
+    r.rng = rng
+    return r
 
 
 def test_dequantise_init():
@@ -47,7 +52,7 @@ def test_dequantise_integration():
         rescale_bounds=[0, 1],
     )
 
-    x_prime = empty_structured_array(len(x), names=reparam.prime_parameters)
+    x_prime = empty_structured_array(len(x), names=reparam.output_parameters)
     x_out, x_prime, log_j_out = reparam.reparameterise(
         x, x_prime, np.zeros(len(x))
     )

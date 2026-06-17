@@ -10,7 +10,7 @@ from .base import Reparameterisation
 logger = logging.getLogger(__name__)
 
 
-class NullReparameterisation(Reparameterisation):
+class IdentityReparameterisation(Reparameterisation):
     """Reparameterisation that does not modify the parameters.
 
     Parameters
@@ -21,11 +21,26 @@ class NullReparameterisation(Reparameterisation):
         Prior bounds for parameters. Unused for this reparameterisation.
     """
 
-    def __init__(self, parameters=None, prior_bounds=None, rng=None):
+    def __init__(
+        self,
+        input_parameters=None,
+        output_parameters=None,
+        persistent_parameters=None,
+        auxiliary_parameters=None,
+        prior_bounds=None,
+        rng=None,
+        parameters=None,
+    ):
         super().__init__(
-            parameters=parameters, prior_bounds=prior_bounds, rng=rng
+            input_parameters=input_parameters,
+            output_parameters=output_parameters,
+            persistent_parameters=persistent_parameters,
+            auxiliary_parameters=auxiliary_parameters,
+            prior_bounds=prior_bounds,
+            rng=rng,
+            parameters=parameters,
         )
-        self.prime_parameters = self.parameters
+        self.output_parameters = self.input_parameters
         logger.debug(f"Initialised reparameterisation: {self.name}")
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -41,7 +56,12 @@ class NullReparameterisation(Reparameterisation):
             Array to be update
         log_j : Log jacobian to be updated
         """
-        x_prime[self.prime_parameters] = x[self.parameters]
+        for parameter, output_parameter in zip(
+            self.parameters, self.output_parameters
+        ):
+            x_prime[output_parameter] = self.get_parameter_value(
+                parameter, x, x_prime
+            )
         return x, x_prime, log_j
 
     def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
@@ -57,5 +77,14 @@ class NullReparameterisation(Reparameterisation):
             Array to be update
         log_j : Log jacobian to be updated
         """
-        x[self.parameters] = x_prime[self.prime_parameters]
+        for parameter, output_parameter in zip(
+            self.parameters, self.output_parameters
+        ):
+            x, x_prime = self.set_parameter_value(
+                parameter, x_prime[output_parameter], x, x_prime
+            )
         return x, x_prime, log_j
+
+
+NullReparameterisation = IdentityReparameterisation
+"""Alias for IdentityReparameterisation."""

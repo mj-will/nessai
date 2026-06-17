@@ -13,7 +13,7 @@ from nessai.livepoint import (
     numpy_array_to_live_points,
     parameters_to_live_point,
 )
-from nessai.reparameterisations import Angle
+from nessai.reparameterisations import Angle, Reparameterisation
 from nessai.utils.testing import assert_structured_arrays_equal
 
 scales = [1.0, 2.0]
@@ -26,14 +26,24 @@ def scale(request):
 
 @pytest.fixture
 def reparam():
-    return create_autospec(Angle)
+    r = create_autospec(Angle)
+    r._format_parameters = lambda x: (
+        x.copy() if isinstance(x, list) else ([] if x is None else [x])
+    )
+    r.get_parameter_value = Reparameterisation.get_parameter_value.__get__(
+        r, Reparameterisation
+    )
+    r.set_parameter_value = Reparameterisation.set_parameter_value.__get__(
+        r, Reparameterisation
+    )
+    return r
 
 
 @pytest.fixture(scope="function")
 def assert_invertibility(model, n=100):
     def test_invertibility(reparam, angle, radial=None):
-        x = empty_structured_array(n, names=reparam.parameters)
-        x_prime = empty_structured_array(n, names=reparam.prime_parameters)
+        x = empty_structured_array(n, names=reparam.x_output_parameters)
+        x_prime = empty_structured_array(n, names=reparam.output_parameters)
         log_j = 0
 
         x[reparam.angle] = angle
@@ -50,7 +60,7 @@ def assert_invertibility(model, n=100):
                 x[reparam.radial], x_re[reparam.radial]
             )
 
-        x_in = empty_structured_array(n, names=reparam.parameters)
+        x_in = empty_structured_array(n, names=reparam.x_output_parameters)
 
         x_inv, x_prime_inv, log_j_inv = reparam.inverse_reparameterise(
             x_in, x_prime_re, log_j
@@ -96,10 +106,15 @@ def test_angle_parameter(bounds, scale, expected_scale):
         assert reparam._zero_bound is False
 
     assert reparam.angle == parameter
+    assert reparam.parameters == [parameter]
+    assert reparam.auxiliary_parameters == [parameter + "_radial"]
+    assert reparam.x_output_parameters == [parameter, parameter + "_radial"]
+    assert reparam.output_parameters == [parameter + "_x", parameter + "_y"]
     assert reparam.radial == (parameter + "_radial")
     assert reparam.radius == (parameter + "_radial")
     assert reparam.x == (parameter + "_x")
     assert reparam.y == (parameter + "_y")
+    assert reparam.input_parameters == [parameter]
     assert reparam.scale == expected_scale
 
 
@@ -111,7 +126,7 @@ def test_angle_too_many_parameters(reparam):
         Angle.__init__(
             reparam, parameters=parameters, prior_bounds=prior_bounds
         )
-    assert reparam.parameters == parameters
+    assert reparam.input_parameters == parameters
     assert "Too many parameters for Angle" in str(excinfo.value)
 
 
@@ -119,7 +134,9 @@ def test_log_prior(reparam):
     """Assert the log-prior calls the correct function"""
     reparam.chi = MagicMock()
     reparam.chi.logpdf = MagicMock()
-    reparam.parameters = ["theta", "theta_radial"]
+    reparam.parameters = ["theta"]
+    reparam.auxiliary_parameters = ["theta_radial"]
+    reparam.radial = "theta_radial"
     x = {"theta": [1.0], "theta_radial": [0.5]}
     Angle.log_prior(reparam, x)
     reparam.chi.logpdf.assert_called_once_with([0.5])
@@ -139,7 +156,11 @@ def test_both_parameters():
     assert reparam._zero_bound is True
 
     assert reparam.angle == parameters[0]
+    assert reparam.parameters == parameters
+    assert reparam.auxiliary_parameters == []
     assert reparam.radial == parameters[1]
+    assert reparam.input_parameters == parameters
+    assert reparam.x_output_parameters == parameters
 
 
 @pytest.mark.parametrize(
@@ -199,7 +220,7 @@ def test_periodic_parameter(value, output_x, output_y):
     )
     x = parameters_to_live_point((value,), parameters)
     x_prime = parameters_to_live_point(
-        (np.nan, np.nan), reparam.prime_parameters
+        (np.nan, np.nan), reparam.output_parameters
     )
     log_j = np.zeros(x.size)
     x_out, x_prime_out, log_j_out = reparam.reparameterise(x, x_prime, log_j)

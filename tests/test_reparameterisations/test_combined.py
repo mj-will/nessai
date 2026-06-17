@@ -18,6 +18,37 @@ from nessai.reparameterisations import (
 from nessai.utils.testing import assert_structured_arrays_equal
 
 
+class PrimeProducer(Reparameterisation):
+    def __init__(self):
+        super().__init__(parameters="x", prior_bounds=None)
+        self.output_parameters = ["u"]
+
+    def reparameterise(self, x, x_prime, log_j, **kwargs):
+        x_prime["u"] = 2.0 * x["x"]
+        return x, x_prime, log_j
+
+    def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
+        x["x"] = x_prime["u"] / 2.0
+        return x, x_prime, log_j
+
+
+class PrimeConsumer(Reparameterisation):
+    def __init__(self):
+        super().__init__(
+            input_parameters=["y", "u"],
+            output_parameters=["v"],
+            prior_bounds=None,
+        )
+
+    def reparameterise(self, x, x_prime, log_j, **kwargs):
+        x_prime["v"] = x["y"] + x_prime["u"]
+        return x, x_prime, log_j
+
+    def inverse_reparameterise(self, x, x_prime, log_j, **kwargs):
+        x["y"] = x_prime["v"] - x_prime["u"]
+        return x, x_prime, log_j
+
+
 @pytest.fixture
 def reparam():
     # Use spec_set to raised an error if an unknown attribute is set
@@ -30,10 +61,14 @@ def reparam():
 def test_init_none():
     c = CombinedReparameterisation()
     assert c.parameters == []
+    assert c.initial_parameters == []
 
 
 def test_init_w_reparam():
-    c = CombinedReparameterisation(RescaleToBounds("x", [0, 1]))
+    c = CombinedReparameterisation(
+        RescaleToBounds(parameters="x", prior_bounds=[0, 1]),
+        initial_parameters=["x"],
+    )
     assert c.parameters == ["x"]
     assert c.prime_parameters == ["x_prime"]
 
@@ -71,9 +106,16 @@ def test_from_prime_order(reverse_order, reparam):
 def test_add_single_reparameterisations():
     """Test the core functionality of adding reparameterisations"""
     r = RescaleToBounds(parameters="x", prior_bounds=[0, 1])
-    c = CombinedReparameterisation()
+    c = CombinedReparameterisation(initial_parameters=["x"])
     c.add_reparameterisations(r)
     assert c.parameters == ["x"]
+
+
+def test_add_single_reparameterisations_with_auxiliary_parameter(LightReparam):
+    r = LightReparam("a", parameters=["x"], auxiliary_parameters=["aux"])
+    c = CombinedReparameterisation(initial_parameters=["x"])
+    c.add_reparameterisations(r)
+    assert c.parameters == ["x", "aux"]
 
 
 def test_add_multiple_reparameterisations(model):
@@ -81,14 +123,10 @@ def test_add_multiple_reparameterisations(model):
     Test adding multiple reparameterisations and using the reparameterisation.
     """
     r = [
-        RescaleToBounds(
-            parameters="x", prior_bounds=model.bounds["x"], prior="uniform"
-        ),
-        RescaleToBounds(
-            parameters="y", prior_bounds=model.bounds["y"], prior="uniform"
-        ),
+        RescaleToBounds(parameters="x", prior_bounds=model.bounds["x"]),
+        RescaleToBounds(parameters="y", prior_bounds=model.bounds["y"]),
     ]
-    reparam = CombinedReparameterisation()
+    reparam = CombinedReparameterisation(initial_parameters=["x", "y"])
     reparam.add_reparameterisations(r)
 
     assert reparam.parameters == ["x", "y"]
@@ -118,10 +156,15 @@ def test_add_multiple_reparameterisations(model):
 def test_base_add_reparameterisation_missing_requirements(reparam):
     """Assert an error is raised if a required parameter is missing"""
     r = MagicMock(spec=Reparameterisation)
-    r.requires = ["x"]
+    r.parameters = ["y"]
+    r.input_parameters = ["y", "x"]
+    r.output_parameters = ["y_prime"]
+    r.x_output_parameters = ["y"]
+    r.resolve_forward_input_spaces.return_value = ["x"]
 
     reparam.parameters = ["y"]
     reparam.prime_parameters = ["y_prime"]
+    reparam.initial_parameters = []
 
     with pytest.raises(RuntimeError) as excinfo:
         CombinedReparameterisation._add_reparameterisation(reparam, r)
@@ -144,6 +187,8 @@ def test_add_reparameterisations_single(reparam):
     Should convert to a list and then pass to `_add_reparameterisation`
     """
     reparam.parameters = []
+    reparam.initial_parameters = []
+    reparam.prime_parameters = []
     new_reparam = MagicMock(spec=Reparameterisation)
     with patch(
         "nessai.reparameterisations.combined.sort_reparameterisations",
@@ -153,7 +198,9 @@ def test_add_reparameterisations_single(reparam):
             reparam, new_reparam
         )
     reparam._add_reparameterisation.assert_called_once_with(new_reparam)
-    mock.assert_called_once_with([new_reparam], existing_parameters=[])
+    mock.assert_called_once_with(
+        [new_reparam], existing_parameters=[], existing_prime_parameters=[]
+    )
 
 
 def test_add_reparameterisations_multiple(reparam):
@@ -163,6 +210,8 @@ def test_add_reparameterisations_multiple(reparam):
     """
     parameters = ["x"]
     reparam.parameters = parameters
+    reparam.initial_parameters = []
+    reparam.prime_parameters = []
     r1 = MagicMock(spec=Reparameterisation)
     r2 = MagicMock(spec=Reparameterisation)
     reparams = [r1, r2]
@@ -172,15 +221,91 @@ def test_add_reparameterisations_multiple(reparam):
     ) as mock:
         CombinedReparameterisation.add_reparameterisations(reparam, reparams)
     reparam._add_reparameterisation.assert_has_calls([call(r1), call(r2)])
-    mock.assert_called_once_with(reparams, existing_parameters=parameters)
+    mock.assert_called_once_with(
+        reparams,
+        existing_parameters=parameters,
+        existing_prime_parameters=[],
+    )
+
+
+def test_add_reparameterisations_with_prime_requirement(LightReparam):
+    r0 = LightReparam("a", parameters=["x"], output_parameters=["u"])
+    r1 = LightReparam(
+        "b",
+        input_parameters=["y", "u"],
+        output_parameters=["v"],
+    )
+
+    c = CombinedReparameterisation(initial_parameters=["x", "y"])
+    c.add_reparameterisations([r1, r0])
+
+    assert c.order == ["a", "b"]
+
+
+def test_prime_input_chain():
+    c = CombinedReparameterisation(initial_parameters=["x", "y"])
+    c.add_reparameterisations([PrimeProducer(), PrimeConsumer()])
+
+    assert c.order == ["primeproducer_x", "primeconsumer_y_u"]
+    assert c.prime_parameters == ["u", "v"]
+
+    x = empty_structured_array(4, names=["x", "y"])
+    x["x"] = np.array([0.5, 1.0, 1.5, 2.0])
+    x["y"] = np.array([1.0, 2.0, 3.0, 4.0])
+    x_prime = empty_structured_array(4, names=c.prime_parameters)
+    log_j = np.zeros(x.size)
+
+    x_re, x_prime_re, log_j_re = c.reparameterise(x, x_prime, log_j)
+    assert_structured_arrays_equal(x_re, x)
+    np.testing.assert_allclose(x_prime_re["u"], 2.0 * x["x"])
+    np.testing.assert_allclose(x_prime_re["v"], x["y"] + x_prime_re["u"])
+
+    x_in = empty_structured_array(4, names=c.parameters)
+    x_inv, x_prime_inv, log_j_inv = c.inverse_reparameterise(
+        x_in, x_prime_re, log_j
+    )
+
+    assert_structured_arrays_equal(x_inv, x)
+    assert_structured_arrays_equal(x_prime_inv, x_prime_re)
+    np.testing.assert_array_equal(log_j_re, log_j_inv)
+
+
+def test_base_add_reparameterisation_missing_prime_requirements(reparam):
+    """Assert an error is raised if a prime requirement is missing"""
+    r = MagicMock(spec=Reparameterisation)
+    r.parameters = ["y"]
+    r.input_parameters = ["y", "x_prime"]
+    r.output_parameters = ["y_prime"]
+    r.x_output_parameters = ["y"]
+    r.resolve_forward_input_spaces.return_value = ["x_prime"]
+
+    reparam.parameters = ["y"]
+    reparam.prime_parameters = ["y_prime"]
+    reparam.initial_parameters = ["y"]
+
+    with pytest.raises(RuntimeError) as excinfo:
+        CombinedReparameterisation._add_reparameterisation(reparam, r)
+    assert "missing requirement(s)" in str(excinfo.value)
 
 
 def test_check_order_valid(reparam, LightReparam):
     """Assert no error is raised if the order is valid"""
     d = dict(
-        a=LightReparam("a", parameters=["x"], requires=[]),
-        b=LightReparam("b", parameters=["y"], requires=["x"]),
-        c=LightReparam("c", parameters=["z"], requires=["y"]),
+        a=LightReparam(
+            "a",
+            parameters=["x"],
+            inverse_input_parameters=[],
+        ),
+        b=LightReparam(
+            "b",
+            input_parameters=["y", "x"],
+            inverse_input_parameters=["x"],
+        ),
+        c=LightReparam(
+            "c",
+            input_parameters=["z", "y"],
+            inverse_input_parameters=["y"],
+        ),
     )
     reparam.__getitem__.side_effect = d.__getitem__
     reparam.from_prime_order = ["a", "b", "c"]
@@ -191,9 +316,21 @@ def test_check_order_valid(reparam, LightReparam):
 def test_check_order_invalid(reparam, LightReparam):
     """Assert an error is raised if the order is invalid"""
     d = dict(
-        a=LightReparam("a", parameters=["x"], requires=["z"]),
-        b=LightReparam("b", parameters=["y"], requires=[]),
-        c=LightReparam("c", parameters=["z"], requires=["y"]),
+        a=LightReparam(
+            "a",
+            input_parameters=["x", "z"],
+            inverse_input_parameters=["w"],
+        ),
+        b=LightReparam(
+            "b",
+            parameters=["y"],
+            inverse_input_parameters=[],
+        ),
+        c=LightReparam(
+            "c",
+            input_parameters=["z", "y"],
+            inverse_input_parameters=[],
+        ),
     )
     reparam.__getitem__.side_effect = d.__getitem__
     reparam.from_prime_order = ["a", "b", "c"]
@@ -207,18 +344,34 @@ def test_check_order_invalid(reparam, LightReparam):
 
 def test_update_bounds(reparam):
     """Assert update bounds calls the method for each reparam"""
-    x = [1, 2]
+    x = np.array([(1.0, 2.0)], dtype=[("x", "f8"), ("y", "f8")])
     # Angle doesn't have update bounds
     r1 = MagicMock(spec=Angle)
     # RescaleToBounds does have update bounds
     r2 = MagicMock(spec=RescaleToBounds)
-    reparam.values = MagicMock(return_value=[r1, r2])
+    r1.reparameterise.side_effect = lambda x, x_prime, log_j: (
+        x,
+        x_prime,
+        log_j,
+    )
+    r2.reparameterise.side_effect = lambda x, x_prime, log_j: (
+        x,
+        x_prime,
+        log_j,
+    )
+    reparam.to_prime_order = ["r1", "r2"]
+    reparam.__getitem__.side_effect = {"r1": r1, "r2": r2}.__getitem__
+    reparam.prime_parameters = ["x_prime"]
 
     assert not hasattr(r1, "update_bounds")
 
     CombinedReparameterisation.update_bounds(reparam, x)
 
-    r2.update_bounds.assert_called_once_with(x)
+    r2.update_bounds.assert_called_once()
+    assert_structured_arrays_equal(r2.update_bounds.call_args.args[0], x)
+    assert (
+        "x_prime" in r2.update_bounds.call_args.kwargs["x_prime"].dtype.names
+    )
 
 
 def test_reset_inversion(reparam):
@@ -240,14 +393,30 @@ def test_update(reparam):
     """Assert update calls the update method for all reparameterisations."""
     r1 = MagicMock(spec=Angle)
     r2 = MagicMock(spec=RescaleToBounds)
-    reparam.values = MagicMock(return_value=[r1, r2])
+    r1.reparameterise.side_effect = lambda x, x_prime, log_j: (
+        x,
+        x_prime,
+        log_j,
+    )
+    r2.reparameterise.side_effect = lambda x, x_prime, log_j: (
+        x,
+        x_prime,
+        log_j,
+    )
+    reparam.to_prime_order = ["r1", "r2"]
+    reparam.__getitem__.side_effect = {"r1": r1, "r2": r2}.__getitem__
+    reparam.prime_parameters = ["x_prime"]
 
     x = np.array((1, 2), dtype=[("x", "f8"), ("y", "f8")])
 
     CombinedReparameterisation.update(reparam, x)
 
-    r1.update.assert_called_once_with(x)
-    r2.update.assert_called_once_with(x)
+    r1.update.assert_called_once()
+    r2.update.assert_called_once()
+    assert_structured_arrays_equal(r1.update.call_args.args[0], x)
+    assert_structured_arrays_equal(r2.update.call_args.args[0], x)
+    assert "x_prime" in r1.update.call_args.kwargs["x_prime"].dtype.names
+    assert "x_prime" in r2.update.call_args.kwargs["x_prime"].dtype.names
 
 
 def test_log_prior(reparam):

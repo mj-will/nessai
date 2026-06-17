@@ -3,11 +3,18 @@
 Combined reparameterisation.
 """
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from ..livepoint import empty_structured_array
 from ..utils.sorting import sort_reparameterisations
+
+if TYPE_CHECKING:
+    from . import Reparameterisation
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +33,21 @@ class CombinedReparameterisation(dict):
         to the default ordering.
     """
 
-    def __init__(self, reparameterisations=None, reverse_order=False):
+    def __init__(
+        self,
+        reparameterisations: list["Reparameterisation"] = None,
+        reverse_order: bool = False,
+        initial_parameters: list[str] | None = None,
+    ):
         super().__init__()
         self.reparameterisations = {}
         self.parameters = []
         self.prime_parameters = []
-        self.requires = []
         self.order = []
         self.reverse_order = reverse_order
+        self.initial_parameters = (
+            initial_parameters.copy() if initial_parameters is not None else []
+        )
         if reparameterisations is not None:
             self.add_reparameterisations(reparameterisations)
 
@@ -58,21 +72,30 @@ class CombinedReparameterisation(dict):
             return reversed(self.order)
 
     def _add_reparameterisation(self, reparameterisation):
-        requires = reparameterisation.requires
-        if requires and (
-            any([req not in self.parameters for req in requires])
-            and any([req not in self.prime_parameters for req in requires])
-        ):
+        available_parameters = self.initial_parameters + self.parameters
+        available_prime_parameters = self.prime_parameters
+        missing_parameters = reparameterisation.resolve_forward_input_spaces(
+            available_parameters, available_prime_parameters
+        )
+        if missing_parameters:
             raise RuntimeError(
                 f"Could not add {reparameterisation}, missing requirement(s): "
-                f"{reparameterisation.requires}. Current: {self.parameters}."
+                f"{missing_parameters}. Current: {available_parameters}. "
+                f"Current prime parameters: {available_prime_parameters}."
             )
 
         self[reparameterisation.name] = reparameterisation
         self.order = list(self.keys())
-        self.parameters += reparameterisation.parameters
-        self.prime_parameters += reparameterisation.prime_parameters
-        self.requires += reparameterisation.requires
+        self.parameters += [
+            p
+            for p in reparameterisation.x_output_parameters
+            if p not in self.parameters
+        ]
+        self.prime_parameters += [
+            p
+            for p in reparameterisation.output_parameters
+            if p not in self.prime_parameters
+        ]
 
     def add_reparameterisation(self, reparameterisation):
         """Add a reparameterisation"""
@@ -90,10 +113,13 @@ class CombinedReparameterisation(dict):
             reparameterisations = [reparameterisations]
 
         logger.debug("Sorting reparameterisations")
-        logger.debug(f"Existing parameters: {self.parameters}")
+        existing_parameters = self.initial_parameters + self.parameters
+        existing_prime_parameters = self.prime_parameters
+        logger.debug(f"Existing parameters: {existing_parameters}")
         reparameterisations = sort_reparameterisations(
             reparameterisations,
-            existing_parameters=self.parameters,
+            existing_parameters=existing_parameters,
+            existing_prime_parameters=existing_prime_parameters,
         )
 
         for r in reparameterisations:
@@ -108,15 +134,22 @@ class CombinedReparameterisation(dict):
             Raised if the order is invalid.
         """
         parameters = []
+        prime_parameters = self.prime_parameters.copy()
         for key in self.from_prime_order:
-            if not all([r in parameters for r in self[key].requires]):
+            missing_parameters = self[key].resolve_inverse_input_spaces(
+                parameters, prime_parameters
+            )
+            if missing_parameters:
                 raise RuntimeError(
                     "Order of reparameterisations is invalid (x' -> x)"
-                    f"{self[key].name} requires {self[key].requires} but with "
+                    f"{self[key].name} requires "
+                    f"{self[key].inverse_input_parameters} but with "
                     f"the current order only the parameters {parameters} "
                     "would be available."
                 )
-            parameters += self[key].parameters
+            parameters += [
+                p for p in self[key].x_output_parameters if p not in parameters
+            ]
 
     def reparameterise(self, x, x_prime, log_j, **kwargs):
         """
@@ -162,10 +195,18 @@ class CombinedReparameterisation(dict):
         """
         Update the bounds used for the reparameterisation
         """
-        for r in self.values():
-            if hasattr(r, "update_bounds"):
-                logger.debug(f"Updating bounds for: {r.name}")
-                r.update_bounds(x)
+        x_current = x.copy()
+        x_prime = empty_structured_array(x.size, names=self.prime_parameters)
+        log_j = np.zeros(x.size)
+
+        for key in self.to_prime_order:
+            reparameterisation = self[key]
+            if hasattr(reparameterisation, "update_bounds"):
+                logger.debug(f"Updating bounds for: {reparameterisation.name}")
+                reparameterisation.update_bounds(x_current, x_prime=x_prime)
+            x_current, x_prime, log_j = reparameterisation.reparameterise(
+                x_current, x_prime, log_j
+            )
 
     def reset_inversion(self):
         """
@@ -177,8 +218,16 @@ class CombinedReparameterisation(dict):
 
     def update(self, x):
         """Update the reparameterisations given a set of points."""
-        for r in self.values():
-            r.update(x)
+        x_current = x.copy()
+        x_prime = empty_structured_array(x.size, names=self.prime_parameters)
+        log_j = np.zeros(x.size)
+
+        for key in self.to_prime_order:
+            reparameterisation = self[key]
+            reparameterisation.update(x_current, x_prime=x_prime)
+            x_current, x_prime, log_j = reparameterisation.reparameterise(
+                x_current, x_prime, log_j
+            )
 
     def reset(self):
         """Reset the reparameterisations"""

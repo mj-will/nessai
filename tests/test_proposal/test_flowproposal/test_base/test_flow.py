@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from nessai.livepoint import numpy_array_to_live_points
+from nessai.livepoint import get_dtype, numpy_array_to_live_points
 from nessai.proposal.flowproposal.base import BaseFlowProposal
 from nessai.utils.testing import assert_structured_arrays_equal
 
@@ -83,15 +83,15 @@ def test_backward_pass(proposal, rescale):
     """Test the backward pass method"""
     z = np.random.randn(10, 2)
     x_prime = np.random.randn(*z.shape)
-    x = numpy_array_to_live_points(
-        np.random.randn(*x_prime.shape),
-        ["x", "y"],
-    )
     log_j = np.random.rand(z.shape[0])
     proposal.flow = MagicMock()
     # log_j has in place operations
     proposal.flow.inverse = MagicMock(return_value=(x_prime, log_j.copy()))
     proposal.prime_parameters = ["x_prime", "y_prime"]
+    proposal._prime_parameters_internal = proposal.prime_parameters
+    proposal.x_prime_internal_dtype = get_dtype(
+        proposal._prime_parameters_internal
+    )
 
     x_rescale = numpy_array_to_live_points(
         np.random.randn(*x_prime.shape),
@@ -102,25 +102,23 @@ def test_backward_pass(proposal, rescale):
         return_value=(x_rescale, log_j_rescale)
     )
 
-    with patch(
-        "nessai.proposal.flowproposal.base.numpy_array_to_live_points",
-        return_value=x,
-    ) as mock:
-        x_out, log_j_out = BaseFlowProposal.backward_pass(
-            proposal, z, rescale=rescale, test=True
-        )
+    x_out, log_j_out = BaseFlowProposal.backward_pass(
+        proposal, z, rescale=rescale, test=True
+    )
 
     proposal.flow.inverse.assert_called_once_with(z)
-    mock.assert_called_once()
-    np.testing.assert_array_equal(mock.call_args[0][0], x_prime)
-    assert mock.call_args[0][1] == proposal.prime_parameters
 
     if not rescale:
         proposal.inverse_rescale.assert_not_called()
-        assert x_out is x
+        np.testing.assert_array_equal(x_out["x_prime"], x_prime[:, 0])
+        np.testing.assert_array_equal(x_out["y_prime"], x_prime[:, 1])
         np.testing.assert_array_equal(log_j_out, log_j)
     else:
-        proposal.inverse_rescale.assert_called_once_with(x, test=True)
+        proposal.inverse_rescale.assert_called_once()
+        x_prime_struct = proposal.inverse_rescale.call_args.args[0]
+        np.testing.assert_array_equal(x_prime_struct["x_prime"], x_prime[:, 0])
+        np.testing.assert_array_equal(x_prime_struct["y_prime"], x_prime[:, 1])
+        assert proposal.inverse_rescale.call_args.kwargs == {"test": True}
         assert x_out is x_rescale
         np.testing.assert_array_equal(log_j_out, log_j_rescale + log_j)
 
