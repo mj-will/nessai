@@ -14,8 +14,8 @@ jobs:
   ruff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/ruff-action@v3
+      - uses: actions/checkout@v6
+      - uses: astral-sh/ruff-action@v4
         with:
           version: "0.9.x"
           args: 'format --check'
