@@ -35,6 +35,49 @@ The following key-value pairs are understood:
 See the `examples directory <https://github.com/mj-will/nessai/tree/master/examples>`_ for an example of using this method of defining the reparmeterisations.
 
 
+Chaining reparameterisations
+----------------------------
+
+It is possible to apply multiple reparameterisations in sequence.
+This is done by specifying a **list of reparameterisation specifications**
+for a parameter key. Each entry in the list corresponds to one stage in the
+chain and the stages are applied in the order given.
+
+For example, the following configuration first rescales ``y`` to
+``y_01`` and then applies a z-score reparameterisation to produce
+``y_prime``:
+
+.. code-block:: python
+
+    reparameterisations = {
+        "x": "default",
+        "y": [
+            {
+                "reparameterisation": "rescaletobounds",
+                "output_parameters": ["y_01"],
+            },
+            {
+                "reparameterisation": "z-score",
+                "input_parameters": ["y_01"],
+                "output_parameters": ["y_prime"],
+            },
+        ],
+    }
+
+In this example:
+
+- the first stage consumes ``y`` from :math:`\mathcal{X}` and produces
+  ``y_01`` in :math:`\mathcal{X}'`;
+- the second stage consumes ``y_01`` from :math:`\mathcal{X}'` and produces
+  ``y_prime``.
+
+Any intermediate prime-space outputs, such as ``y_01`` in the example above,
+are retained internally so the inverse reparameterisation can be applied, but
+they are hidden from the flow by default once a later stage replaces them.
+If an intermediate prime-space parameter should remain visible to the flow, it
+can be listed in :code:`persistent_parameters`.
+
+
 Available reparameterisations
 =============================
 
