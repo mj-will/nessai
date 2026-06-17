@@ -220,9 +220,13 @@ class Reparameterisation:
         """Compatibility alias for `input_parameters`."""
         return self.input_parameters
 
-    @parameters.setter
-    def parameters(self, value):
-        self.input_parameters = self._format_parameters(value)
+    @property
+    def input_parameters(self):
+        return self._input_parameters
+
+    @input_parameters.setter
+    def input_parameters(self, value):
+        self._input_parameters = self._format_parameters(value)
         self._resolved_forward_inputs = False
         self._resolved_inverse_inputs = False
 
