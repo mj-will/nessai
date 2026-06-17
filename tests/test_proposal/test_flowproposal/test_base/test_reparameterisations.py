@@ -559,6 +559,29 @@ def test_set_rescaling_with_reparameterisations(proposal, model):
     assert proposal.prime_parameters == ["x_prime"]
 
 
+def test_set_rescaling_logs_intermediate_prime_parameters(
+    proposal, model, caplog
+):
+    proposal.model = model
+    proposal.model.reparameterisations = None
+    proposal.reparameterisations = {"x": "default"}
+    proposal.expansion_fraction = None
+
+    def update(self):
+        proposal.parameters = model.names
+        proposal.prime_parameters = ["x_prime"]
+        proposal._prime_parameters_internal = ["x_prime", "x_aux"]
+
+    proposal.configure_reparameterisations = MagicMock()
+    proposal.configure_reparameterisations.side_effect = update
+
+    with caplog.at_level("INFO"):
+        BaseFlowProposal.set_rescaling(proposal)
+
+    assert proposal.rescaling_set is True
+    assert "Intermediate parameters: ['x_aux']" in caplog.text
+
+
 @pytest.mark.parametrize("n", [1, 10])
 def test_rescale(proposal, n, map_to_unit_hypercube):
     """Test rescaling when using reparameterisation dict"""

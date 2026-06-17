@@ -130,3 +130,42 @@ def test_backward_pass_with_internal_prime_parameters(
 
     assert len(out[0]) == len(log_p)
     proposal.inverse_rescale.assert_called_once()
+
+
+def test_backward_pass_with_1d_flow_output(
+    proposal, model, map_to_unit_hypercube
+):
+    """Assert 1D flow outputs are promoted to a single-sample batch."""
+    x = np.array([1.0, 2.0])
+    log_p = np.array([0.0])
+    z = np.random.randn(1, model.dims)
+
+    def inverse_rescale(a, return_unit_hypercube):
+        assert a.size == 1
+        np.testing.assert_allclose(a["x"], [1.0])
+        np.testing.assert_allclose(a["y"], [2.0])
+        return a, np.zeros(a.size)
+
+    proposal.inverse_rescale = MagicMock(side_effect=inverse_rescale)
+    proposal.prime_parameters = model.names
+    proposal._prime_parameters_internal = proposal.prime_parameters
+    proposal.x_prime_internal_dtype = get_dtype(
+        proposal._prime_parameters_internal
+    )
+    proposal.alt_dist = None
+    proposal.check_prior_bounds = MagicMock(
+        side_effect=lambda a, b, c: (a, b, c)
+    )
+    proposal.flow = MagicMock()
+    proposal.flow.sample_and_log_prob = MagicMock(return_value=[x, log_p])
+
+    out = FlowProposal.backward_pass(
+        proposal,
+        z,
+        discard_nans=False,
+        return_unit_hypercube=map_to_unit_hypercube,
+    )
+
+    assert len(out[0]) == 1
+    assert len(out[1]) == 1
+    proposal.inverse_rescale.assert_called_once()
