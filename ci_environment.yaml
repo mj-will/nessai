@@ -5,7 +5,7 @@ dependencies:
   - numpy
   - pandas
   - scipy>=0.16
-  - matplotlib>=2.0
+  - matplotlib<3.11    # arviz/corner doesn't work with matplotlib 3.11 yet
   - seaborn
   - pytorch-cpu>=2.0
   - glasflow
