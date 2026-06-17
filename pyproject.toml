@@ -80,16 +80,23 @@ version_scheme = "release-branch-semver"
 [tool.pytest.ini_options]
 addopts = [
     "-ra",
-    "--cov=src/nessai",
+    "--cov-report=term-missing",
+    "--cov-report=xml:coverage.xml",
     "--import-mode=importlib",
 ]
-testpaths = [
-    "tests"
-]
+testpaths = ["tests"]
 
 [tool.coverage.run]
+branch = true
 source = [
-    "src/nessai"
+    "src/nessai",
+    "tests",
+]
+
+[tool.coverage.paths]
+source = [
+    "src",
+    "*/site-packages",
 ]
 
 [tool.coverage.report]
