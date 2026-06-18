@@ -22,10 +22,10 @@ jobs:
     runs-on: ${{ matrix.os }}-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Configure environment with Python ${{ matrix.python-version}}
       if: runner.os != 'Windows'
-      uses: mamba-org/setup-micromamba@v1
+      uses: mamba-org/setup-micromamba@v3
       with:
         micromamba-version: '1.5.8-0'
         environment-file: ci_environment.yaml
@@ -37,7 +37,7 @@ jobs:
         post-cleanup: 'all'
     - name: Configure environment with Python ${{ matrix.python-version}} (Windows)
       if: runner.os == 'Windows'
-      uses: mamba-org/setup-micromamba@v1
+      uses: mamba-org/setup-micromamba@v3
       with:
         micromamba-version: '1.5.8-0'
         environment-file: ci_environment.yaml

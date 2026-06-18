@@ -22,10 +22,10 @@ jobs:
     runs-on: ${{ matrix.os }}-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     - name: Configure environment with Python ${{ matrix.python-version}}
       if: runner.os != 'Windows'
-      uses: mamba-org/setup-micromamba@v1
+      uses: mamba-org/setup-micromamba@v3
       with:
         micromamba-version: '1.5.8-0'
         environment-file: ci_environment.yaml
@@ -37,7 +37,7 @@ jobs:
         post-cleanup: 'all'
     - name: Configure environment with Python ${{ matrix.python-version}} (Windows)
       if: runner.os == 'Windows'
-      uses: mamba-org/setup-micromamba@v1
+      uses: mamba-org/setup-micromamba@v3
       with:
         micromamba-version: '1.5.8-0'
         environment-file: ci_environment.yaml
@@ -62,7 +62,7 @@ jobs:
         python -m pytest --cov-report=xml --without-integration --without-slow-integration
       shell: bash -el {0}
     - name: Upload coverage
-      uses: codecov/codecov-action@v4
+      uses: codecov/codecov-action@v7
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
