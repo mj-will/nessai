@@ -14,14 +14,12 @@ from ...livepoint import empty_structured_array
 from ...utils.structures import get_subset_arrays
 from .base import BaseFlowProposal
 from .truncation import (
-    LatentRadiusTruncation,
-    LikelihoodThresholdTruncation,
-    MinLogQTruncation,
     TruncationScheme,
     apply_default_truncation_config,
     build_truncation_methods,
     get_deprecated_latent_radius_arguments,
     get_deprecated_latent_radius_kwargs,
+    get_truncation_rule_class,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,12 +27,6 @@ logger = logging.getLogger(__name__)
 
 class FlowProposal(BaseFlowProposal):
     """Proposal that samples in latent space using the trained flow."""
-
-    truncation_registry = {
-        "latent_radius": LatentRadiusTruncation,
-        "min_log_q": MinLogQTruncation,
-        "likelihood_threshold": LikelihoodThresholdTruncation,
-    }
 
     def __init__(
         self,
@@ -249,13 +241,7 @@ class FlowProposal(BaseFlowProposal):
 
         rules = []
         for method in methods:
-            try:
-                rule_cls = self.truncation_registry[method]
-            except KeyError as exc:
-                raise ValueError(
-                    f"Unknown truncation method: {method}"
-                ) from exc
-
+            rule_cls = get_truncation_rule_class(method)
             raw_kwargs = self.truncation_kwargs.get(method, {})
             if not isinstance(raw_kwargs, dict):
                 raise TypeError(

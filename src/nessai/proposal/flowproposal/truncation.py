@@ -388,6 +388,21 @@ class LikelihoodThresholdTruncation(BaseTruncationRule):
         return get_subset_arrays(keep, x, log_q, z)
 
 
+TRUNCATION_REGISTRY = {
+    "latent_radius": LatentRadiusTruncation,
+    "min_log_q": MinLogQTruncation,
+    "likelihood_threshold": LikelihoodThresholdTruncation,
+}
+
+
+def get_truncation_rule_class(name: str):
+    """Get the truncation rule class for a configured method name."""
+    try:
+        return TRUNCATION_REGISTRY[name]
+    except KeyError as exc:
+        raise ValueError(f"Unknown truncation method: {name}") from exc
+
+
 class TruncationScheme:
     """Apply an ordered set of truncation rules."""
 
