@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Any, Tuple
+from typing import Tuple
 
 import numpy as np
 from scipy.special import logsumexp
@@ -138,10 +138,8 @@ class ClusteringFlowModel(FlowModel):
             return samples
 
     def sample_and_log_prob(
-        self, N: int = 1, z: np.ndarray = None, alt_dist: Any = None
+        self, N: int = 1, z: np.ndarray = None
     ) -> Tuple[np.ndarray, np.ndarray]:
-        if alt_dist is not None:
-            raise RuntimeError
         if z is not None:
             N = len(z)
         # This could be optimised to not repeat calculations
