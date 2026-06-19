@@ -80,8 +80,8 @@ def test_plot_pool_all(proposal):
     )
 
 
-@pytest.mark.parametrize("alt_dist", [False, True])
-def test_plot_pool_1d(proposal, tmpdir, alt_dist):
+@pytest.mark.parametrize("custom_log_prob", [False, True])
+def test_plot_pool_1d(proposal, tmpdir, custom_log_prob):
     """Test `plot_pool` when plotting is not 'all'.
 
     Test cases when there is an alternative base distribution is used and
@@ -102,19 +102,17 @@ def test_plot_pool_1d(proposal, tmpdir, alt_dist):
     training_data["logP"] = np.random.randn(10)
     training_data["logP"] = np.random.randn(10)
     proposal.training_data = training_data
+    proposal.latent_temperature = None
     log_p = torch.arange(10)
 
     proposal.forward_pass = MagicMock(return_value=(z, log_q))
     proposal.flow = MagicMock()
     proposal.flow.device = "cpu"
-    if alt_dist:
-        proposal.alt_dist = MagicMock()
-        proposal.alt_dist.log_prob = MagicMock(return_value=log_p)
-    else:
+    proposal.compute_latent_log_prob = MagicMock(return_value=log_p.numpy())
+    if not custom_log_prob:
         proposal.flow.model.base_distribution_log_prob = MagicMock(
             return_value=log_p
         )
-        proposal.alt_dist = None
     with patch("nessai.proposal.flowproposal.base.plot_1d_comparison") as plot:
         FlowProposal.plot_pool(proposal, x)
 
@@ -126,7 +124,4 @@ def test_plot_pool_1d(proposal, tmpdir, alt_dist):
     )
     assert os.path.exists(os.path.join(output, "pool_0_log_q.png"))
 
-    if alt_dist:
-        proposal.alt_dist.log_prob.assert_called_once()
-    else:
-        proposal.flow.model.base_distribution_log_prob.assert_called_once()
+    proposal.compute_latent_log_prob.assert_called_once_with(z, None)

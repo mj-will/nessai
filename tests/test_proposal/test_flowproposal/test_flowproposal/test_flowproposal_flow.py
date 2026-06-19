@@ -40,12 +40,13 @@ def test_backward_pass(
     proposal.x_prime_internal_dtype = get_dtype(
         proposal._prime_parameters_internal
     )
-    proposal.alt_dist = None
     proposal.check_prior_bounds = MagicMock(
         side_effect=lambda a, b, c: (a, b, c)
     )
     proposal.flow = MagicMock()
-    proposal.flow.sample_and_log_prob = MagicMock(return_value=[x, log_p])
+    proposal.flow.inverse = MagicMock(return_value=[x, np.zeros(n)])
+    proposal.latent_temperature = None
+    proposal.compute_latent_log_prob = MagicMock(return_value=log_p)
 
     out = FlowProposal.backward_pass(
         proposal,
@@ -70,20 +71,19 @@ def test_backward_pass(
         proposal.inverse_rescale.call_args.kwargs["return_unit_hypercube"]
         is map_to_unit_hypercube
     )
-    proposal.flow.sample_and_log_prob.assert_called_once_with(
-        z=z, alt_dist=None
-    )
+    proposal.flow.inverse.assert_called_once_with(z)
+    proposal.compute_latent_log_prob.assert_called_once_with(z, None)
 
 
 @pytest.mark.parametrize("return_z", [False, True])
 def test_backwards_pass_assertion_error(proposal, caplog, return_z):
-    proposal.alt_dist = None
     proposal.flow = MagicMock()
+    proposal.latent_temperature = None
 
     def func(*args, **kwargs):
         raise AssertionError("Domain")
 
-    proposal.flow.sample_and_log_prob = MagicMock(side_effect=func)
+    proposal.flow.inverse = MagicMock(side_effect=func)
     out = FlowProposal.backward_pass(
         proposal, np.random.randn(10, 2), return_z=return_z
     )
@@ -115,12 +115,13 @@ def test_backward_pass_with_internal_prime_parameters(
     proposal.x_prime_internal_dtype = get_dtype(
         proposal._prime_parameters_internal
     )
-    proposal.alt_dist = None
     proposal.check_prior_bounds = MagicMock(
         side_effect=lambda a, b, c: (a, b, c)
     )
     proposal.flow = MagicMock()
-    proposal.flow.sample_and_log_prob = MagicMock(return_value=[x, log_p])
+    proposal.flow.inverse = MagicMock(return_value=[x, np.zeros(2)])
+    proposal.latent_temperature = None
+    proposal.compute_latent_log_prob = MagicMock(return_value=log_p)
 
     out = FlowProposal.backward_pass(
         proposal,
@@ -152,12 +153,13 @@ def test_backward_pass_with_1d_flow_output(
     proposal.x_prime_internal_dtype = get_dtype(
         proposal._prime_parameters_internal
     )
-    proposal.alt_dist = None
     proposal.check_prior_bounds = MagicMock(
         side_effect=lambda a, b, c: (a, b, c)
     )
     proposal.flow = MagicMock()
-    proposal.flow.sample_and_log_prob = MagicMock(return_value=[x, log_p])
+    proposal.flow.inverse = MagicMock(return_value=[x, np.zeros(1)])
+    proposal.latent_temperature = None
+    proposal.compute_latent_log_prob = MagicMock(return_value=log_p)
 
     out = FlowProposal.backward_pass(
         proposal,
@@ -169,3 +171,14 @@ def test_backward_pass_with_1d_flow_output(
     assert len(out[0]) == 1
     assert len(out[1]) == 1
     proposal.inverse_rescale.assert_called_once()
+
+
+def test_sample_latent_distribution_with_temperature(proposal):
+    proposal.latent_temperature = 4.0
+    proposal.flow = MagicMock()
+    proposal.flow.sample_latent_distribution = MagicMock(
+        return_value=np.array([[1.0, -2.0]])
+    )
+    out = proposal.sample_latent_distribution(1)
+    proposal.flow.sample_latent_distribution.assert_called_once_with(1)
+    np.testing.assert_array_equal(out, np.array([[2.0, -4.0]]))
