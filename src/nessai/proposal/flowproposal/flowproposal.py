@@ -21,6 +21,7 @@ from .truncation import (
     apply_default_truncation_config,
     build_truncation_methods,
     get_deprecated_latent_radius_arguments,
+    get_deprecated_latent_radius_kwargs,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,19 +40,19 @@ class FlowProposal(BaseFlowProposal):
         self,
         model,
         poolsize=None,
-        latent_prior="flow",
+        latent_prior=None,
         latent_temperature=None,
-        constant_volume_mode=True,
-        volume_fraction=0.95,
-        fuzz=1.0,
-        fixed_radius=False,
+        constant_volume_mode=None,
+        volume_fraction=None,
+        fuzz=None,
+        fixed_radius=None,
         radius_mode=None,
         drawsize=None,
         truncate_log_q=False,
-        expansion_fraction=4.0,
-        min_radius=False,
-        max_radius=50.0,
-        compute_radius_with_all=False,
+        expansion_fraction=None,
+        min_radius=None,
+        max_radius=None,
+        compute_radius_with_all=None,
         enforce_likelihood_threshold=False,
         truncation_method=None,
         truncation_methods=None,
@@ -60,6 +61,7 @@ class FlowProposal(BaseFlowProposal):
     ):
         super().__init__(model, poolsize=poolsize, **kwargs)
         logger.debug("Initialising FlowProposal")
+        self._warn_for_deprecated_latent_prior(latent_prior)
 
         self.configure_population(
             drawsize,
@@ -71,7 +73,7 @@ class FlowProposal(BaseFlowProposal):
         self.truncation_method = truncation_method
         self.truncation_methods = []
         self.truncation_kwargs = {}
-        latent_radius_kwargs = dict(
+        deprecated_latent_radius_arguments = dict(
             fixed_radius=fixed_radius,
             radius_mode=radius_mode,
             min_radius=min_radius,
@@ -82,9 +84,14 @@ class FlowProposal(BaseFlowProposal):
             fuzz=fuzz,
             expansion_fraction=expansion_fraction,
         )
-        self._warn_for_deprecated_truncation_arguments(**latent_radius_kwargs)
+        self._warn_for_deprecated_truncation_arguments(
+            **deprecated_latent_radius_arguments
+        )
         self._warn_for_deprecated_likelihood_threshold(
             enforce_likelihood_threshold
+        )
+        latent_radius_kwargs = get_deprecated_latent_radius_kwargs(
+            **deprecated_latent_radius_arguments
         )
 
         self.configure_truncation(
@@ -93,10 +100,10 @@ class FlowProposal(BaseFlowProposal):
             truncation_kwargs=truncation_kwargs,
             truncate_log_q=truncate_log_q,
             enforce_likelihood_threshold=enforce_likelihood_threshold,
-            latent_radius_kwargs=latent_radius_kwargs,
+            latent_radius_kwargs=latent_radius_kwargs or None,
             default_latent_radius=True,
         )
-        self._log_truncation_configuration()
+        self._log_configuration()
 
     @property
     def truncation(self) -> TruncationScheme:
@@ -115,15 +122,19 @@ class FlowProposal(BaseFlowProposal):
             "likelihood_threshold" in self.truncation_methods
         )
 
-    def _log_truncation_configuration(self) -> None:
+    def _log_configuration(self) -> None:
         logger.info(
-            "FlowProposal truncation methods: %s",
+            "FlowProposal configuration: drawsize=%s, latent_prior=%s, "
+            "latent_temperature=%s, truncation_methods=%s",
+            self.drawsize,
+            self.latent_prior,
+            self.latent_temperature,
             self.truncation_methods,
         )
         for rule in self._truncation_scheme.rules:
             if hasattr(rule, "to_kwargs"):
                 logger.info(
-                    "FlowProposal truncation rule %s config: %s",
+                    "FlowProposal truncation rule %s: %s",
                     rule.name,
                     rule.to_kwargs(),
                 )
@@ -147,6 +158,17 @@ class FlowProposal(BaseFlowProposal):
         )
 
     @staticmethod
+    def _warn_for_deprecated_latent_prior(latent_prior) -> None:
+        if latent_prior != "flow":
+            return
+        warnings.warn(
+            "`latent_prior` is deprecated and will be removed. "
+            "FlowProposal always uses the flow latent distribution.",
+            FutureWarning,
+            stacklevel=3,
+        )
+
+    @staticmethod
     def _warn_for_deprecated_likelihood_threshold(
         enforce_likelihood_threshold: bool,
     ) -> None:
@@ -163,7 +185,7 @@ class FlowProposal(BaseFlowProposal):
     def configure_population(
         self,
         drawsize,
-        latent_prior="flow",
+        latent_prior=None,
         latent_temperature=None,
     ) -> None:
         """Configure settings related to population."""
@@ -198,8 +220,16 @@ class FlowProposal(BaseFlowProposal):
         latent_radius_kwargs=None,
         default_latent_radius=False,
     ) -> None:
+        use_default_latent_radius = default_latent_radius and (
+            truncation_method is None and truncation_methods is None
+        )
         existing_rule = self._get_latent_radius_rule()
-        if latent_radius_kwargs is None and existing_rule is not None:
+        if (
+            latent_radius_kwargs is None
+            and truncation_method is None
+            and truncation_methods is None
+            and existing_rule is not None
+        ):
             latent_radius_kwargs = existing_rule.to_kwargs()
 
         methods = build_truncation_methods(
@@ -208,13 +238,13 @@ class FlowProposal(BaseFlowProposal):
             truncate_log_q=truncate_log_q,
             enforce_likelihood_threshold=enforce_likelihood_threshold,
             latent_radius_kwargs=latent_radius_kwargs,
-            default_latent_radius=default_latent_radius,
+            default_latent_radius=use_default_latent_radius,
         )
         self.truncation_method = truncation_method
         methods, self.truncation_kwargs = apply_default_truncation_config(
             methods,
             truncation_kwargs=truncation_kwargs,
-            default_latent_radius=default_latent_radius,
+            default_latent_radius=use_default_latent_radius,
         )
 
         rules = []

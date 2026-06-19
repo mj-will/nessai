@@ -19,30 +19,35 @@ DEFAULT_TRUNCATION_KWARGS = {
     }
 }
 
-LEGACY_LATENT_RADIUS_DEFAULTS = {
-    "constant_volume_mode": True,
-    "volume_fraction": 0.95,
-    "fuzz": 1.0,
-    "expansion_fraction": 4.0,
-    "fixed_radius": False,
-    "radius_mode": None,
-    "min_radius": False,
-    "max_radius": 50.0,
-    "compute_radius_with_all": False,
-}
+LEGACY_LATENT_RADIUS_ARGUMENTS = (
+    "constant_volume_mode",
+    "volume_fraction",
+    "fuzz",
+    "expansion_fraction",
+    "fixed_radius",
+    "radius_mode",
+    "min_radius",
+    "max_radius",
+    "compute_radius_with_all",
+)
 
 
 def get_deprecated_latent_radius_arguments(**kwargs) -> list[str]:
-    """Return legacy latent-radius arguments that differ from defaults."""
-    deprecated = []
-    for name, default in LEGACY_LATENT_RADIUS_DEFAULTS.items():
-        value = kwargs[name]
-        if default is False:
-            if value not in (False, None):
-                deprecated.append(name)
-        elif value != default:
-            deprecated.append(name)
-    return deprecated
+    """Return deprecated latent-radius arguments that were explicitly set."""
+    return [
+        name
+        for name in LEGACY_LATENT_RADIUS_ARGUMENTS
+        if kwargs[name] is not None
+    ]
+
+
+def get_deprecated_latent_radius_kwargs(**kwargs) -> dict:
+    """Build sparse latent-radius kwargs from deprecated proposal arguments."""
+    return {
+        name: kwargs[name]
+        for name in LEGACY_LATENT_RADIUS_ARGUMENTS
+        if kwargs[name] is not None
+    }
 
 
 def normalise_truncation_methods(
@@ -62,21 +67,8 @@ def normalise_truncation_methods(
 
 
 def should_enable_latent_radius(latent_radius_kwargs=None) -> bool:
-    """Check if legacy radius configuration implies latent-radius truncation."""
-    latent_radius_kwargs = latent_radius_kwargs or {}
-    return any(
-        [
-            latent_radius_kwargs.get("fixed_radius") not in (False, None),
-            latent_radius_kwargs.get("min_radius") not in (False, None),
-            latent_radius_kwargs.get("max_radius") not in (False, None, 50.0),
-            latent_radius_kwargs.get("compute_radius_with_all", False),
-            latent_radius_kwargs.get("fuzz", 1.0) != 1.0,
-            latent_radius_kwargs.get("expansion_fraction", 4.0) != 4.0,
-            latent_radius_kwargs.get("radius_mode")
-            in {"fixed", "constant_volume"},
-            latent_radius_kwargs.get("constant_volume_mode", False),
-        ]
-    )
+    """Check if latent-radius truncation should be enabled from kwargs."""
+    return bool(latent_radius_kwargs)
 
 
 def build_truncation_methods(
