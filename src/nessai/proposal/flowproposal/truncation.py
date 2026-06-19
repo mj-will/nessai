@@ -397,6 +397,34 @@ class MinLogQTruncation(BaseTruncationRule):
         return get_subset_arrays(keep, x, log_q, z)
 
 
+class LogProposalThresholdTruncation(BaseTruncationRule):
+    """Truncate samples using the current log-proposal threshold."""
+
+    name = "log_proposal_threshold"
+    _transient_defaults = {"_threshold": np.nan}
+
+    def __init__(self, quantile: float = 0.05) -> None:
+        self.quantile = float(quantile)
+
+    @property
+    def threshold(self) -> float:
+        return self._threshold
+
+    def prepare(self, proposal, worst_point, radius=None):
+        live_points = proposal.training_data.copy()
+        log_q = proposal.forward_pass(live_points)[1]
+        self._threshold = float(np.quantile(log_q, self.quantile))
+
+    def apply_after_backward(self, proposal, x, log_q, z):
+        keep = log_q > self.threshold
+        logger.debug(
+            "Accepting %s / %s samples above log-proposal threshold",
+            int(keep.sum()),
+            len(x),
+        )
+        return get_subset_arrays(keep, x, log_q, z)
+
+
 class LikelihoodThresholdTruncation(BaseTruncationRule):
     """Truncate samples using the current likelihood threshold."""
 
@@ -431,10 +459,56 @@ class LikelihoodThresholdTruncation(BaseTruncationRule):
         return get_subset_arrays(keep, x, log_q, z)
 
 
+class LogWeightThresholdTruncation(BaseTruncationRule):
+    """Truncate samples using the current log-weight threshold.
+
+    The threshold is set based on the current live points.
+    """
+
+    name = "log_weight_threshold"
+    _transient_defaults = {"_threshold": np.nan}
+
+    def __init__(
+        self, quantile: float = 0.05, enlargement: float = 0.0
+    ) -> None:
+        super().__init__()
+        self.quantile = quantile
+        self.enlargement = enlargement
+
+    @property
+    def threshold(self) -> float:
+        return self._threshold
+
+    def prepare(self, proposal, worst_point, radius=None):
+        live_points = proposal.training_data.copy()
+        log_q = proposal.forward_pass(live_points)[1]
+        log_w = proposal.compute_weights(
+            live_points,
+            log_q=log_q,
+        )
+
+        self._threshold = np.quantile(log_w, self.quantile) - self.enlargement
+
+    def apply_after_backward(self, proposal, x, log_q, z):
+        log_w = proposal.compute_weights(
+            x,
+            log_q=log_q,
+        )
+        keep = log_w > self.threshold
+        logger.debug(
+            "Accepting %s / %s samples above log-weight threshold",
+            int(keep.sum()),
+            len(x),
+        )
+        return get_subset_arrays(keep, x, log_q, z)
+
+
 TRUNCATION_REGISTRY = {
     "latent_radius": LatentRadiusTruncation,
     "min_log_q": MinLogQTruncation,
     "likelihood_threshold": LikelihoodThresholdTruncation,
+    "log_proposal_threshold": LogProposalThresholdTruncation,
+    "weights_threshold": LogWeightThresholdTruncation,
 }
 
 
