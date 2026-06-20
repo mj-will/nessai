@@ -148,7 +148,7 @@ def test_get_flow_proposal_class_not_a_subclass():
 
 def test_available_base_flow_proposal_classes():
     avail = available_base_flow_proposal_classes()
-    assert len(avail) == 4
+    assert len(avail) == 5
 
 
 @pytest.mark.parametrize("load", [True, False])

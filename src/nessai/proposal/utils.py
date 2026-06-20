@@ -84,9 +84,11 @@ def available_base_flow_proposal_classes():
     from ..experimental.proposal.mcmc import MCMCFlowProposal
     from .augmented import AugmentedFlowProposal
     from .flowproposal import FlowProposal
+    from .flowproposal.mcmc import MiniPCNFlowProposal
 
     base_proposals = {
         "mcmcflowproposal": MCMCFlowProposal,
+        "minipcnflowproposal": MiniPCNFlowProposal,
         "clusteringflowproposal": ClusteringFlowProposal,
         "augmentedflowproposal": AugmentedFlowProposal,
         "flowproposal": FlowProposal,
