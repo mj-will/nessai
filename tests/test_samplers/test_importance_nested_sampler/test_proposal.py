@@ -86,20 +86,18 @@ def test_draw_n_samples(ins, samples, log_q, history):
 
 def test_update_proposal_weights(ins):
     ins.samples_unit = np.ones(10)
-    ins.sample_counts = {-1: 2, 0: 4, 1: 4}
+    ins.sample_counts = {"-1": 2, "0": 4, "1": 4}
     ins.proposal = MagicMock(spec=ImportanceFlowProposal)
     INS.update_proposal_weights(ins)
-    expected_weights = {-1: 0.2, 0: 0.4, 1: 0.4}
-    ins.proposal.update_proposal_weights.assert_called_once_with(
-        expected_weights
-    )
+    expected_weights = {"-1": 0.2, "0": 0.4, "1": 0.4}
+    ins.proposal.update_weights.assert_called_once_with(expected_weights)
 
 
 def test_add_new_proposal_weight(ins):
     n = 8
     n_new = 2
-    sample_counts = {-1: 2, 0: 3, 1: 3}
-    iteration = 2
+    sample_counts = {"-1": 2, "0": 3, "1": 3}
+    iteration = "2"
 
     ins.samples_unit = np.ones(n)
     ins.sample_counts = sample_counts
@@ -107,18 +105,16 @@ def test_add_new_proposal_weight(ins):
 
     INS.add_new_proposal_weight(ins, iteration, n_new)
 
-    assert ins.sample_counts[2] == 2
-    expected_weights = {-1: 0.2, 0: 0.3, 1: 0.3, 2: 0.2}
-    ins.proposal.update_proposal_weights.assert_called_once_with(
-        expected_weights
-    )
+    assert ins.sample_counts["2"] == 2
+    expected_weights = {"-1": 0.2, "0": 0.3, "1": 0.3, "2": 0.2}
+    ins.proposal.update_weights.assert_called_once_with(expected_weights)
 
 
 def test_add_new_proposal_weight_error(ins):
     n = 8
     n_new = 2
-    sample_counts = {-1: 2, 0: 3, 1: 3, 2: 2}
-    iteration = 2
+    sample_counts = {"-1": 2, "0": 3, "1": 3, "2": 2}
+    iteration = "2"
 
     ins.samples_unit = np.ones(n)
     ins.sample_counts = sample_counts

@@ -1143,6 +1143,7 @@ def test_save_results_integration(
 
 @pytest.mark.integration_test
 @pytest.mark.parametrize("ins", [True, False])
+@pytest.mark.usefixtures("reset_ins_parameters")
 def test_resume_from_data_integration(
     integration_model, tmp_path, caplog, ins
 ):

@@ -112,9 +112,24 @@ def mp_context(request):
 def ins_parameters():
     """Add (and remove) the standard INS parameters for the tests."""
     # Before every test
-    add_extra_parameters_to_live_points(["logQ", "logW", "logU"])
-    yield
-    reset_extra_live_points_parameters()
+    add_extra_parameters_to_live_points(
+        ["logQ", "logW", "logU", "qID"],
+        dtypes=["f8", "f8", "f8", "U8"],
+        default_values=[np.nan, np.nan, np.nan, "NULL"],
+    )
+    try:
+        yield
+    finally:
+        reset_extra_live_points_parameters()
+
+
+@pytest.fixture()
+def reset_ins_parameters():
+    """Reset the INS parameters after the test."""
+    try:
+        yield
+    finally:
+        reset_extra_live_points_parameters()
 
 
 def pytest_configure(config):

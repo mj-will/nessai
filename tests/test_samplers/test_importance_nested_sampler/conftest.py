@@ -13,6 +13,11 @@ from nessai.samplers.importancesampler import (
 )
 
 
+@pytest.fixture(autouse=True)
+def reset_ins_parameters(reset_ins_parameters):
+    """Reset the INS parameters before each test."""
+
+
 @pytest.fixture(scope="module", params=[False, True])
 def iid(request):
     return request.param
@@ -48,6 +53,8 @@ def n_samples():
 def samples(model, n_samples, n_it, log_q, ins_parameters):
     x = model.sample_unit_hypercube(n_samples)
     x["it"] = np.random.randint(-1, n_it - 1, size=len(x))
+    qids = np.array(log_q.dtype.names)
+    x["qID"] = np.random.choice(qids, size=len(x))
     xx = model.from_unit_hypercube(x)
     x["logL"] = model.log_likelihood(xx)
     x["logP"] = model.log_prior(xx)
@@ -56,14 +63,19 @@ def samples(model, n_samples, n_it, log_q, ins_parameters):
         x["it"] + np.abs(x["it"].min()), minlength=n_it
     ).astype(float)
     alpha /= alpha.sum()
-    x["logQ"] = logsumexp(log_q, axis=1, b=alpha)
+    log_q_values = np.column_stack([log_q[name] for name in log_q.dtype.names])
+    x["logQ"] = logsumexp(log_q_values, axis=1, b=alpha)
     x["logW"] = -x["logQ"].copy()
     return x
 
 
 @pytest.fixture
 def log_q(n_samples, n_it):
-    return np.random.randn(n_samples, n_it)
+    names = [str(i - 1) for i in range(n_it)]
+    log_q = np.empty(n_samples, dtype=[(name, "f8") for name in names])
+    for name in names:
+        log_q[name] = np.random.randn(n_samples)
+    return log_q
 
 
 @pytest.fixture

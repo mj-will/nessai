@@ -40,41 +40,26 @@ def test_init(ifm, rng):
         output=output,
         rng=rng,
     )
-    assert ifm.weights_files == []
+    assert ifm.weights_files == {}
     assert len(ifm.models) == 0
 
 
 def test_model_property_with_models(ifm):
     """Assert last model is returned"""
-    models = [DummyFlow(), DummyFlow(), DummyFlow()]
-    ifm.models = models
-    assert IFM.model.__get__(ifm) is models[-1]
-
-
-def test_model_property_without_models(ifm):
-    """Assert None is return if no models have been defined"""
-    ifm.models = []
-    assert IFM.model.__get__(ifm) is None
+    ifm._model = DummyFlow()
+    assert IFM.model.__get__(ifm) is ifm._model
 
 
 def test_model_setter(ifm):
     """Assert the model setter appends the model"""
-    new_model = DummyFlow()
-    models = [DummyFlow(), DummyFlow()]
-    ifm.models = models
-    IFM.model.__set__(ifm, new_model)
-    assert len(ifm.models) == 3
-    assert ifm.models[-1] is new_model
+    IFM.model.__set__(ifm, None)
+    assert ifm._model is None
 
 
-def test_model_setter_none(ifm):
+def test_model_setter_error(ifm):
     """Assert none is not added to the models"""
-    new_model = None
-    models = [DummyFlow(), DummyFlow()]
-    ifm.models = models
-    IFM.model.__set__(ifm, new_model)
-    assert len(ifm.models) == 2
-    assert None not in ifm.models
+    with pytest.raises(ValueError, match=r"Cannot set model directly"):
+        IFM.model.__set__(ifm, DummyFlow())
 
 
 def test_n_models(ifm):
@@ -113,10 +98,10 @@ def test_reset_optimiser(ifm):
 def test_add_new_flow_reset(ifm):
     """Assert a new flow is created when reset=True."""
     flow = DummyFlow()
-    ifm.models = torch.nn.ModuleList([DummyFlow(), DummyFlow()])
     ifm.training_config = dict(device="cpu", inference_device_tag=None)
     ifm.flow_config = dict(n_neurons=4)
     ifm.reset_optimiser = MagicMock()
+    ifm.add_model = MagicMock()
 
     with patch(
         "nessai.flowmodel.importance.configure_model",
@@ -124,8 +109,7 @@ def test_add_new_flow_reset(ifm):
     ) as mock_configure:
         IFM.add_new_flow(ifm, reset=True)
 
-    assert len(ifm.models) == 3
-    assert ifm.models[-1] is flow
+    ifm.add_model.assert_called_once_with(flow)
     assert ifm.models.training is False
 
     mock_configure.assert_called_once_with(ifm.flow_config)
@@ -146,10 +130,10 @@ def test_add_new_flow_no_reset(ifm):
 
     ifm.device = device
     ifm.model = flow_to_copy
-    ifm.models = torch.nn.ModuleList([DummyFlow(), flow_to_copy])
     ifm.flow_config = dict(n_neurons=4)
     ifm.training_config = dict(patience=20)
     ifm.reset_optimiser = MagicMock()
+    ifm.add_model = MagicMock()
 
     with patch(
         "copy.deepcopy",
@@ -157,8 +141,7 @@ def test_add_new_flow_no_reset(ifm):
     ) as mock_copy:
         IFM.add_new_flow(ifm, reset=False)
 
-    assert len(ifm.models) == 3
-    assert ifm.models[-1] is flow
+    ifm.add_model.assert_called_once_with(flow)
     assert ifm.models.training is False
 
     mock_copy.assert_called_once_with(ifm.models[-2])
@@ -176,6 +159,7 @@ def test_add_new_flow_first_flow(ifm):
     ifm.training_config = dict(device="cpu", inference_device_tag=None)
     ifm.flow_config = dict(n_neurons=4)
     ifm.reset_optimiser = MagicMock()
+    ifm.add_model = MagicMock()
 
     with patch(
         "nessai.flowmodel.importance.configure_model",
@@ -183,8 +167,7 @@ def test_add_new_flow_first_flow(ifm):
     ) as mock_configure:
         IFM.add_new_flow(ifm, reset=False)
 
-    assert len(ifm.models) == 1
-    assert ifm.models[-1] is flow
+    ifm.add_model.assert_called_once_with(flow)
     assert ifm.models.training is False
 
     mock_configure.assert_called_once_with(ifm.flow_config)
@@ -351,53 +334,41 @@ def test_load_all_weights(ifm):
         model.load_state_dict.assert_called_once_with(w)
 
 
-@pytest.mark.parametrize("n", [None, 10, 16])
-def test_update_weights_path(ifm, tmp_path, n):
+@pytest.mark.parametrize("keys", [None, [1, 4, 6, 7, 9]])
+def test_update_weights_path(ifm, tmp_path, keys):
     """Assert the list of weights files is correctly updated"""
     path = tmp_path / "outdir"
     path.mkdir()
-    n_models = 15
-    n_total = 16
-    expected_files = []
+    n_total = 10
+    expected_files = {}
     for i in range(n_total):
         d = path / f"level_{i}"
         d.mkdir()
         file = d / "model.pt"
-        file.write_text("data")
+        file.touch()
         file = str(file)
-        expected_files.append(file)
+        if keys and i not in keys:
+            continue
+        expected_files[str(i)] = file
 
-    ifm.n_models = n_models
-    IFM.update_weights_path(ifm, str(path), n=n)
-    n_expeceted = n or n_models
-    assert ifm.weights_files == expected_files[:n_expeceted]
-
-
-def test_update_weights_path_cannot_update(ifm):
-    """Assert the list of weights files is correctly updated"""
-    ifm.n_models = 0
-    with pytest.raises(RuntimeError, match=r"n is None and .*"):
-        IFM.update_weights_path(ifm, ".", n=None)
+    IFM.update_weights_path(ifm, str(path), keys=keys)
+    assert ifm.weights_files == expected_files
 
 
-def test_update_weights_path_not_enough_files(ifm, tmp_path):
+def test_update_weights_path_invalid_keys(ifm, tmp_path):
     """Assert the list of weights files is correctly updated"""
     path = tmp_path / "outdir"
     path.mkdir()
-    n_models = 5
     n_total = 4
-    expected_files = []
     for i in range(n_total):
         d = path / f"level_{i}"
         d.mkdir()
         file = d / "model.pt"
-        file.write_text("data")
+        file.touch()
         file = str(file)
-        expected_files.append(file)
 
-    ifm.n_models = n_models
     with pytest.raises(RuntimeError, match=r".* Not enough files."):
-        IFM.update_weights_path(ifm, str(path))
+        IFM.update_weights_path(ifm, str(path), keys=[1, 4, 6, 7, 9])
 
 
 @pytest.mark.parametrize("weights_path", [None, "weights_directory"])
