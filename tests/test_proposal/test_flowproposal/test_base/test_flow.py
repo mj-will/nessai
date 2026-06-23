@@ -90,6 +90,20 @@ def test_sample_latent_distribution_with_temperature(proposal):
     np.testing.assert_array_equal(out, np.array([[2.0, -4.0]]))
 
 
+@pytest.mark.parametrize("temperature", [None, 1.0])
+def test_sample_latent_distribution_without_temperature_scaling(
+    proposal, temperature
+):
+    proposal.latent_temperature = temperature
+    proposal.flow = MagicMock()
+    proposal.flow.sample_latent_distribution = MagicMock(
+        return_value=np.array([[1.0, -2.0]])
+    )
+    out = BaseFlowProposal.sample_latent_distribution(proposal, 1)
+    proposal.flow.sample_latent_distribution.assert_called_once_with(1)
+    np.testing.assert_array_equal(out, np.array([[1.0, -2.0]]))
+
+
 def test_compute_latent_log_prob_with_temperature(proposal):
     z = np.array([[2.0, 0.0]])
     proposal.flow = MagicMock()
@@ -105,6 +119,28 @@ def test_compute_latent_log_prob_with_temperature(proposal):
     out = BaseFlowProposal.latent_log_prob(proposal, z, temperature=4.0)
     proposal.flow.model.base_distribution_log_prob.assert_called_once()
     np.testing.assert_allclose(out, np.array([-np.log(2.0) * 2]))
+
+
+@pytest.mark.parametrize("temperature", [None, 1.0])
+def test_compute_latent_log_prob_without_temperature_scaling(
+    proposal, temperature
+):
+    z = np.array([[2.0, 0.0]])
+    proposal.flow = MagicMock()
+    proposal.flow.numpy_array_to_tensor = MagicMock(
+        side_effect=lambda x: torch.from_numpy(x).type(
+            torch.get_default_dtype()
+        )
+    )
+    proposal.flow.model = MagicMock()
+    proposal.flow.model.base_distribution_log_prob = MagicMock(
+        return_value=torch.zeros(1, dtype=torch.get_default_dtype())
+    )
+    out = BaseFlowProposal.latent_log_prob(
+        proposal, z, temperature=temperature
+    )
+    proposal.flow.model.base_distribution_log_prob.assert_called_once()
+    np.testing.assert_allclose(out, np.array([0.0]))
 
 
 @pytest.mark.parametrize("rescale", [True, False])
