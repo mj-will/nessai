@@ -363,6 +363,9 @@ class FlowProposal(BaseFlowProposal):
             n_proposed += z.shape[0]
             z = self._truncation_scheme.apply_latent(self, z)
             if not len(z):
+                if n_proposed > max_samples:
+                    logger.warning("Reached max samples (%s)", max_samples)
+                    break
                 continue
 
             x, log_q, z = self.backward_pass(
@@ -375,6 +378,9 @@ class FlowProposal(BaseFlowProposal):
                 self, x, log_q, z
             )
             if not len(x):
+                if n_proposed > max_samples:
+                    logger.warning("Reached max samples (%s)", max_samples)
+                    break
                 continue
 
             if self._truncation_scheme.requires_log_likelihood:
@@ -385,6 +391,9 @@ class FlowProposal(BaseFlowProposal):
                     self, x, log_q, z
                 )
                 if not len(x):
+                    if n_proposed > max_samples:
+                        logger.warning("Reached max samples (%s)", max_samples)
+                        break
                     continue
 
             log_w = self.compute_weights(x, log_q)
@@ -430,7 +439,7 @@ class FlowProposal(BaseFlowProposal):
             n_accepted = np.sum(accept)
             self.x = samples[accept][:n_samples]
         else:
-            self.x = samples[:n_samples]
+            self.x = samples[: min(n_accepted, n_samples)]
 
         self.samples = self.convert_to_samples(self.x, plot=plot)
         if self._plot_pool and plot:
