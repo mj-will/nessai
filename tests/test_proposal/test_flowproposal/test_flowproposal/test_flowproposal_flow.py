@@ -46,7 +46,7 @@ def test_backward_pass(
     proposal.flow = MagicMock()
     proposal.flow.inverse = MagicMock(return_value=[x, np.zeros(n)])
     proposal.latent_temperature = None
-    proposal.compute_latent_log_prob = MagicMock(return_value=log_p)
+    proposal.latent_log_prob = MagicMock(return_value=log_p)
 
     out = FlowProposal.backward_pass(
         proposal,
@@ -72,7 +72,7 @@ def test_backward_pass(
         is map_to_unit_hypercube
     )
     proposal.flow.inverse.assert_called_once_with(z)
-    proposal.compute_latent_log_prob.assert_called_once_with(z, None)
+    proposal.latent_log_prob.assert_called_once_with(z, None)
 
 
 @pytest.mark.parametrize("return_z", [False, True])
@@ -121,7 +121,7 @@ def test_backward_pass_with_internal_prime_parameters(
     proposal.flow = MagicMock()
     proposal.flow.inverse = MagicMock(return_value=[x, np.zeros(2)])
     proposal.latent_temperature = None
-    proposal.compute_latent_log_prob = MagicMock(return_value=log_p)
+    proposal.latent_log_prob = MagicMock(return_value=log_p)
 
     out = FlowProposal.backward_pass(
         proposal,
@@ -159,7 +159,7 @@ def test_backward_pass_with_1d_flow_output(
     proposal.flow = MagicMock()
     proposal.flow.inverse = MagicMock(return_value=[x, np.zeros(1)])
     proposal.latent_temperature = None
-    proposal.compute_latent_log_prob = MagicMock(return_value=log_p)
+    proposal.latent_log_prob = MagicMock(return_value=log_p)
 
     out = FlowProposal.backward_pass(
         proposal,

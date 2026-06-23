@@ -112,7 +112,7 @@ def test_plot_pool_1d(proposal, tmpdir, custom_log_prob):
     proposal.forward_pass = MagicMock(return_value=(z, log_q))
     proposal.flow = MagicMock()
     proposal.flow.device = "cpu"
-    proposal.compute_latent_log_prob = MagicMock(return_value=log_p.numpy())
+    proposal.latent_log_prob = MagicMock(return_value=log_p.numpy())
     if not custom_log_prob:
         proposal.flow.model.base_distribution_log_prob = MagicMock(
             return_value=log_p
@@ -128,4 +128,4 @@ def test_plot_pool_1d(proposal, tmpdir, custom_log_prob):
     )
     assert os.path.exists(os.path.join(output, "pool_0_log_q.png"))
 
-    proposal.compute_latent_log_prob.assert_called_once_with(z, None)
+    proposal.latent_log_prob.assert_called_once_with(z, None)
