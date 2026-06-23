@@ -20,6 +20,7 @@ from .truncation import (
     get_deprecated_latent_radius_arguments,
     get_deprecated_latent_radius_kwargs,
     get_truncation_rule_class,
+    normalise_truncation_kwargs,
 )
 
 logger = logging.getLogger(__name__)
@@ -234,10 +235,11 @@ class FlowProposal(BaseFlowProposal):
         )
         self.truncation_method = truncation_method
 
-        truncation_kwargs = {
-            name: dict(value)
-            for name, value in (truncation_kwargs or {}).items()
-        }
+        truncation_kwargs = normalise_truncation_kwargs(
+            truncation_method=truncation_method,
+            truncation_methods=truncation_methods,
+            truncation_kwargs=truncation_kwargs,
+        )
         if latent_radius_kwargs is not None and "latent_radius" in methods:
             truncation_kwargs["latent_radius"] = {
                 **latent_radius_kwargs,
@@ -281,10 +283,7 @@ class FlowProposal(BaseFlowProposal):
         """Apply the inverse flow and inverse rescaling."""
         try:
             x, log_j = self.flow.inverse(z)
-            log_prob = (
-                self.compute_latent_log_prob(z, self.latent_temperature)
-                - log_j
-            )
+            log_prob = self.latent_log_prob(z, self.latent_temperature) - log_j
         except AssertionError as e:
             logger.warning(
                 "Assertion error raised when sampling from the flow. Error: %s",

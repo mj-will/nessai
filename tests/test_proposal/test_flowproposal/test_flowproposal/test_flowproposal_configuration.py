@@ -217,6 +217,19 @@ def test_configure_truncation_constant_volume_updates_rule(proposal):
     assert rule.radius_mode == "constant_volume"
 
 
+def test_configure_truncation_supports_flat_kwargs_for_single_method(proposal):
+    configure_truncation_mocks(proposal)
+    FlowProposal.configure_truncation(
+        proposal,
+        truncation_method="latent_radius",
+        truncation_kwargs=dict(constant_volume_mode=True),
+    )
+    assert proposal._truncation_scheme.rule_names == ["latent_radius"]
+    rule = proposal._truncation_scheme.get_rule("latent_radius")
+    assert rule.constant_volume_mode is True
+    assert rule.radius_mode == "constant_volume"
+
+
 def test_configure_truncation_rejects_invalid_fixed_radius(proposal):
     configure_truncation_mocks(proposal)
     with pytest.raises(

@@ -129,6 +129,31 @@ def apply_default_truncation_config(
     return methods, kwargs
 
 
+def normalise_truncation_kwargs(
+    truncation_method=None,
+    truncation_methods=None,
+    truncation_kwargs=None,
+):
+    """Normalise truncation kwargs into the canonical method-keyed form."""
+    if truncation_kwargs is None:
+        return {}
+
+    kwargs = {
+        name: dict(value) if isinstance(value, dict) else value
+        for name, value in truncation_kwargs.items()
+    }
+
+    if (
+        isinstance(truncation_method, str)
+        and truncation_methods is None
+        and truncation_method not in kwargs
+        and not any(isinstance(value, dict) for value in kwargs.values())
+    ):
+        return {truncation_method: kwargs}
+
+    return kwargs
+
+
 class BaseTruncationRule:
     """Base class for truncation rules."""
 

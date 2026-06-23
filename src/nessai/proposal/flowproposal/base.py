@@ -398,7 +398,7 @@ class BaseFlowProposal(RejectionProposal):
             return z
         return np.sqrt(temperature) * z
 
-    def compute_latent_log_prob(self, z, temperature=None):
+    def latent_log_prob(self, z, temperature=None):
         """Compute the latent log-probability under the effective density."""
         z = np.asarray(z)
         if temperature in (None, 1.0):
@@ -1211,7 +1211,7 @@ class BaseFlowProposal(RejectionProposal):
             )
 
             z, log_q = self.forward_pass(x, compute_radius=False)
-            log_p = self.compute_latent_log_prob(z, self.latent_temperature)
+            log_p = self.latent_log_prob(z, self.latent_temperature)
 
             fig, axs = plt.subplots(3, 1, figsize=(3, 9))
             axs = axs.ravel()

@@ -19,6 +19,7 @@ from nessai.proposal.flowproposal.truncation import (
     get_deprecated_latent_radius_arguments,
     get_deprecated_latent_radius_kwargs,
     get_truncation_rule_class,
+    normalise_truncation_kwargs,
     normalise_truncation_methods,
 )
 
@@ -160,6 +161,22 @@ def test_apply_default_truncation_config_with_default_methods():
     )
     assert methods == DEFAULT_TRUNCATION_METHODS
     assert kwargs == DEFAULT_TRUNCATION_KWARGS
+
+
+def test_normalise_truncation_kwargs_wraps_flat_kwargs_for_single_method():
+    kwargs = normalise_truncation_kwargs(
+        truncation_method="latent_radius",
+        truncation_kwargs={"constant_volume_mode": True},
+    )
+    assert kwargs == {"latent_radius": {"constant_volume_mode": True}}
+
+
+def test_normalise_truncation_kwargs_keeps_nested_kwargs():
+    kwargs = normalise_truncation_kwargs(
+        truncation_method="latent_radius",
+        truncation_kwargs={"latent_radius": {"constant_volume_mode": True}},
+    )
+    assert kwargs == {"latent_radius": {"constant_volume_mode": True}}
 
 
 def test_base_truncation_rule_reset_and_getstate():

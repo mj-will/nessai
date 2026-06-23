@@ -102,9 +102,7 @@ def test_compute_latent_log_prob_with_temperature(proposal):
     proposal.flow.model.base_distribution_log_prob = MagicMock(
         return_value=torch.zeros(1, dtype=torch.get_default_dtype())
     )
-    out = BaseFlowProposal.compute_latent_log_prob(
-        proposal, z, temperature=4.0
-    )
+    out = BaseFlowProposal.latent_log_prob(proposal, z, temperature=4.0)
     proposal.flow.model.base_distribution_log_prob.assert_called_once()
     np.testing.assert_allclose(out, np.array([-np.log(2.0) * 2]))
 
