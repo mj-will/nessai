@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Tests for initialising, pickling, and resetting FlowProposal."""
 
-from unittest.mock import patch
+import warnings
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -9,8 +10,13 @@ import pytest
 from nessai.proposal import FlowProposal
 
 
+def configure_truncation_mocks(proposal):
+    proposal._get_latent_radius_rule = MagicMock(return_value=None)
+    proposal._sync_truncation_state = MagicMock(return_value=None)
+
+
 def test_init(model):
-    with pytest.warns(None) as record:
+    with warnings.catch_warnings(record=True) as record:
         fp = FlowProposal(model, poolsize=1000)
     assert not record
     assert fp.model == model
@@ -63,7 +69,7 @@ def test_init_with_radius_configuration(model):
 
 
 def test_init_with_truncation_kwargs_does_not_warn(model):
-    with pytest.warns(None) as record:
+    with warnings.catch_warnings(record=True) as record:
         fp = FlowProposal(
             model,
             poolsize=1000,
@@ -197,14 +203,18 @@ def test_get_state(proposal, populated, mask):
 
 
 def test_reset(proposal):
+    configure_truncation_mocks(proposal)
     FlowProposal.configure_truncation(
         proposal,
         latent_radius_kwargs=dict(fixed_radius=2.0, radius_mode="fixed"),
     )
-    proposal.get_truncation_rule("latent_radius")._radius = 1.0
+    proposal._sync_truncation_state.assert_called_once_with()
+    proposal._truncation_scheme.get_rule("latent_radius")._radius = 1.0
     with patch(
         "nessai.proposal.flowproposal.base.BaseFlowProposal.reset"
     ) as mock:
         FlowProposal.reset(proposal)
     mock.assert_called_once()
-    assert np.isnan(proposal.get_truncation_rule("latent_radius").radius)
+    assert np.isnan(
+        proposal._truncation_scheme.get_rule("latent_radius").radius
+    )

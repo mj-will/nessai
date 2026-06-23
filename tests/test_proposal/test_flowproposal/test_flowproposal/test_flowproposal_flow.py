@@ -179,6 +179,6 @@ def test_sample_latent_distribution_with_temperature(proposal):
     proposal.flow.sample_latent_distribution = MagicMock(
         return_value=np.array([[1.0, -2.0]])
     )
-    out = proposal.sample_latent_distribution(1)
+    out = FlowProposal.sample_latent_distribution(proposal, 1)
     proposal.flow.sample_latent_distribution.assert_called_once_with(1)
     np.testing.assert_array_equal(out, np.array([[2.0, -4.0]]))

@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 
+from nessai.livepoint import empty_structured_array
 from nessai.proposal import FlowProposal
 from nessai.proposal.flowproposal.truncation import (
     LatentRadiusTruncation,
@@ -15,7 +16,7 @@ from nessai.proposal.flowproposal.truncation import (
 )
 
 
-def configure_population_test_proposal(proposal, samples):
+def configure_population_test_proposal(proposal, rng, samples):
     proposal.population_time = datetime.timedelta()
     proposal.initialised = True
     proposal.indices = []
@@ -25,16 +26,16 @@ def configure_population_test_proposal(proposal, samples):
     proposal._plot_pool = False
     proposal.populated_count = 0
     proposal.map_to_unit_hypercube = False
-    proposal.population_dtype = np.dtype(
-        [("x", "f8"), ("y", "f8"), ("logL", "f8")]
-    )
+    proposal.population_dtype = empty_structured_array(
+        0, names=["x", "y"]
+    ).dtype
     proposal.convert_to_samples = MagicMock(
         side_effect=lambda x, plot: x.copy()
     )
     proposal.compute_weights = MagicMock(
         side_effect=lambda x, log_q: np.zeros(x.size)
     )
-    proposal.rng = MagicMock()
+    proposal.rng = MagicMock(wraps=rng)
     proposal.rng.random = MagicMock(side_effect=lambda n: np.full(n, 0.5))
     proposal.rng.permutation = MagicMock(side_effect=lambda n: np.arange(n))
     proposal.model = MagicMock()
@@ -42,6 +43,9 @@ def configure_population_test_proposal(proposal, samples):
     proposal._truncation_scheme = TruncationScheme()
     proposal.drawsize = 3
     proposal.flow = MagicMock()
+    proposal.sample_latent_distribution = MagicMock(
+        side_effect=proposal.flow.sample_latent_distribution
+    )
 
 
 def test_populate_applies_truncation_in_stages(proposal, rng, point, samples):
@@ -72,13 +76,13 @@ def test_populate_applies_truncation_in_stages(proposal, rng, point, samples):
         proposal, point(0.0, 0.0, logl=0.5), n_samples=1, plot=False
     )
 
-    proposal.flow.sample_latent_distribution.assert_called_once_with(3)
+    proposal.sample_latent_distribution.assert_called_once_with(3)
     proposal.backward_pass.assert_called_once()
     proposal.model.batch_evaluate_log_likelihood.assert_called_once()
     proposal.compute_weights.assert_called_once()
     assert proposal.x.size == 1
     assert proposal.samples.size == 1
-    assert proposal.get_truncation_rule("latent_radius").radius == 1.0
+    assert proposal._truncation_scheme.get_rule("latent_radius").radius == 1.0
     assert proposal.populated is True
 
 
@@ -106,7 +110,7 @@ def test_populate_continues_after_empty_latent_batch(
         proposal, point(0.0, 0.0, logl=0.5), n_samples=1, plot=False
     )
 
-    assert proposal.flow.sample_latent_distribution.call_count == 2
+    assert proposal.sample_latent_distribution.call_count == 2
     proposal.backward_pass.assert_called_once()
     proposal.model.batch_evaluate_log_likelihood.assert_called_once()
     assert proposal.x.size == 1

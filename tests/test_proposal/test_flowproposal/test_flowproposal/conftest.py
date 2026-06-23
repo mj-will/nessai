@@ -4,6 +4,7 @@ from unittest.mock import create_autospec
 import numpy as np
 import pytest
 
+from nessai.livepoint import empty_structured_array
 from nessai.proposal.flowproposal import FlowProposal
 from nessai.proposal.flowproposal.truncation import TruncationScheme
 
@@ -48,9 +49,7 @@ def point():
 @pytest.fixture
 def samples():
     def _samples(values):
-        out = np.zeros(
-            len(values), dtype=[("x", "f8"), ("y", "f8"), ("logL", "f8")]
-        )
+        out = empty_structured_array(len(values), names=["x", "y"])
         out["x"] = [v[0] for v in values]
         out["y"] = [v[1] for v in values]
         return out

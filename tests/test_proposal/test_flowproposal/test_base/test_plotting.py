@@ -44,7 +44,8 @@ def test_training_plots(proposal, tmp_path, plot):
     proposal.dims = 2
     proposal.prime_parameters = prime_names
     proposal.flow = MagicMock()
-    proposal.flow.sample_latent_distribution = MagicMock(return_value=z_gen)
+    # proposal.flow.sample_latent_distribution = MagicMock(return_value=z_gen)
+    proposal.sample_latent_distribution = MagicMock(return_value=z_gen)
 
     proposal.forward_pass = MagicMock(return_value=(z, None))
     proposal.backward_pass = MagicMock(return_value=(x_prime_gen, np.ones(10)))
@@ -54,6 +55,9 @@ def test_training_plots(proposal, tmp_path, plot):
     proposal.model.names = names
 
     FlowProposal._plot_training_data(proposal, output)
+    proposal.sample_latent_distribution.assert_called_once_with(
+        proposal.training_data.size
+    )
 
     assert os.path.exists(os.path.join(output, "x_samples.png")) is bool(plot)
     assert os.path.exists(os.path.join(output, "x_generated.png")) is bool(

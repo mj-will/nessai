@@ -29,5 +29,5 @@ def test_set_rescaling(proposal, expansion_fraction, fuzz):
     ) as mock_parent:
         FlowProposal.set_rescaling(proposal)
     mock_parent.assert_called_once()
-    rule = proposal.get_truncation_rule("latent_radius")
+    rule = proposal._truncation_scheme.get_rule("latent_radius")
     assert rule.fuzz == fuzz
