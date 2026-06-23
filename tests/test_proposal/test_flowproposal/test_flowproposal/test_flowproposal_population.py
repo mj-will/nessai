@@ -114,3 +114,93 @@ def test_populate_continues_after_empty_latent_batch(
     proposal.backward_pass.assert_called_once()
     proposal.model.batch_evaluate_log_likelihood.assert_called_once()
     assert proposal.x.size == 1
+
+
+def test_populate_accumulate_weights_recomputes_accept_on_max_samples(
+    proposal, rng, point, samples
+):
+    configure_population_test_proposal(proposal, rng, samples)
+    proposal.accumulate_weights = True
+    proposal.flow.sample_latent_distribution.return_value = np.zeros((3, 2))
+    proposal.backward_pass = MagicMock(
+        return_value=(
+            samples([(1.0, 1.0), (2.0, 2.0), (3.0, 3.0)]),
+            np.zeros(3),
+            np.zeros((3, 2)),
+        )
+    )
+    proposal.compute_weights.return_value = np.zeros(3)
+    proposal.model.batch_evaluate_log_likelihood.return_value = np.array(
+        [1.0, 2.0]
+    )
+
+    FlowProposal.populate(
+        proposal,
+        point(0.0, 0.0, logl=0.5),
+        n_samples=2,
+        plot=False,
+        max_samples=2,
+    )
+
+    assert proposal.x.size == 2
+    assert proposal.samples.size == 2
+    assert proposal.sample_latent_distribution.call_count == 1
+    assert proposal.rng.random.call_count == 1
+
+
+def test_populate_stops_at_max_samples_after_empty_latent_batches(
+    proposal, rng, point, samples
+):
+    configure_population_test_proposal(proposal, rng, samples)
+    proposal._truncation_scheme = TruncationScheme(
+        [LatentRadiusTruncation(fixed_radius=0.1, radius_mode="fixed")]
+    )
+    proposal.flow.sample_latent_distribution.return_value = np.array(
+        [[1.0, 0.0], [2.0, 0.0], [3.0, 0.0]]
+    )
+    proposal.model.batch_evaluate_log_likelihood.return_value = np.array([])
+
+    FlowProposal.populate(
+        proposal,
+        point(0.0, 0.0, logl=0.5),
+        n_samples=1,
+        plot=False,
+        max_samples=2,
+    )
+
+    proposal.sample_latent_distribution.assert_called_once_with(3)
+    assert proposal.backward_pass.call_count == 0
+    assert proposal.x.size == 0
+    assert proposal.population_acceptance == 0.0
+
+
+def test_populate_stops_at_max_samples_after_all_likelihood_rejected(
+    proposal, rng, point, samples
+):
+    configure_population_test_proposal(proposal, rng, samples)
+    proposal._truncation_scheme = TruncationScheme(
+        [LikelihoodThresholdTruncation()]
+    )
+    proposal.flow.sample_latent_distribution.return_value = np.zeros((3, 2))
+    proposal.backward_pass = MagicMock(
+        return_value=(
+            samples([(1.0, 1.0), (2.0, 2.0), (3.0, 3.0)]),
+            np.zeros(3),
+            np.zeros((3, 2)),
+        )
+    )
+    proposal.model.batch_evaluate_log_likelihood.return_value = np.zeros(3)
+
+    FlowProposal.populate(
+        proposal,
+        point(0.0, 0.0, logl=0.5),
+        n_samples=1,
+        plot=False,
+        max_samples=2,
+    )
+
+    proposal.sample_latent_distribution.assert_called_once_with(3)
+    proposal.backward_pass.assert_called_once()
+    proposal.compute_weights.assert_not_called()
+    assert proposal.x.size == 0
+    assert proposal.population_acceptance == 0.0
