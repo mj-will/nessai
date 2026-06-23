@@ -229,6 +229,17 @@ def test_latent_radius_compute_radius_with_adaptive_bounds(
     assert rule._compute_radius(proposal, point(0.0, 0.0)) == 7.0
 
 
+def test_latent_radius_compute_radius_with_all_requires_training_data(
+    proposal, point
+):
+    proposal.training_data = None
+    rule = LatentRadiusTruncation(compute_radius_with_all=True)
+    with pytest.raises(
+        RuntimeError, match="compute_radius_with_all requires training_data"
+    ):
+        rule._compute_radius(proposal, point(0.0, 0.0))
+
+
 def test_latent_radius_prepare_and_apply_latent(proposal):
     rule = LatentRadiusTruncation(
         fixed_radius=1.0, radius_mode="fixed", fuzz=2.0
@@ -250,6 +261,15 @@ def test_min_log_q_prepare(proposal, samples):
     rule = MinLogQTruncation()
     rule.prepare(proposal, None)
     assert rule.min_log_q == -1.5
+
+
+def test_min_log_q_prepare_requires_training_data(proposal):
+    proposal.training_data = None
+    rule = MinLogQTruncation()
+    with pytest.raises(
+        RuntimeError, match="min_log_q truncation requires training_data"
+    ):
+        rule.prepare(proposal, None)
 
 
 def test_min_log_q_filters_after_backward(proposal, samples):

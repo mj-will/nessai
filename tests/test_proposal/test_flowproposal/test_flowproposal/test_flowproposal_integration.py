@@ -61,7 +61,7 @@ def test_flowproposal_populate(
 
 @pytest.mark.parametrize(
     "truncation_methods",
-    [[], ["min_log_q"], ["likelihood_threshold"]],
+    [[], ["likelihood_threshold"]],
 )
 @pytest.mark.integration_test
 @pytest.mark.timeout(30)
@@ -91,6 +91,34 @@ def test_flowproposal_populate_edge_cases(
     fp.populate(worst, n_samples=n_draw)
 
     assert fp.x.size == n_draw
+
+
+@pytest.mark.integration_test
+def test_flowproposal_populate_min_log_q_requires_training_data(
+    tmp_path, model, flow_config
+):
+    """min_log_q truncation should fail without training data."""
+    output = tmp_path / "flowproposal"
+    output.mkdir()
+    fp = FlowProposal(
+        model,
+        output=output,
+        flow_config=flow_config,
+        plot=False,
+        poolsize=10,
+        expansion_fraction=None,
+        fixed_radius=0.1,
+        radius_mode="fixed",
+        truncation_methods=["min_log_q"],
+        fallback_reparameterisation=None,
+    )
+
+    fp.initialise()
+    worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.parameters)
+    with pytest.raises(
+        RuntimeError, match="min_log_q truncation requires training_data"
+    ):
+        fp.populate(worst, n_samples=2)
 
 
 @pytest.mark.parametrize("plot", [False, True])
