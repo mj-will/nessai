@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Standalone tests for truncation rules and helpers."""
 
+import logging
 from unittest.mock import patch
 
 import numpy as np
@@ -163,6 +164,10 @@ def test_apply_default_truncation_config_with_default_methods():
     assert kwargs == DEFAULT_TRUNCATION_KWARGS
 
 
+def test_normalise_truncation_kwargs_none():
+    assert normalise_truncation_kwargs() == {}
+
+
 def test_normalise_truncation_kwargs_wraps_flat_kwargs_for_single_method():
     kwargs = normalise_truncation_kwargs(
         truncation_method="latent_radius",
@@ -179,6 +184,14 @@ def test_normalise_truncation_kwargs_keeps_nested_kwargs():
     assert kwargs == {"latent_radius": {"constant_volume_mode": True}}
 
 
+def test_normalise_truncation_kwargs_keeps_flat_kwargs_with_methods_list():
+    kwargs = normalise_truncation_kwargs(
+        truncation_methods=["latent_radius"],
+        truncation_kwargs={"constant_volume_mode": True},
+    )
+    assert kwargs == {"constant_volume_mode": True}
+
+
 def test_base_truncation_rule_reset_and_getstate():
     rule = DummyTruncationRule()
     rule._value = 2.0
@@ -187,6 +200,20 @@ def test_base_truncation_rule_reset_and_getstate():
     rule._value = 3.0
     state = rule.__getstate__()
     assert np.isnan(state["_value"])
+
+
+def test_base_truncation_rule_defaults_passthrough():
+    rule = BaseTruncationRule()
+    x = np.array([1.0])
+    log_q = np.array([2.0])
+    z = np.array([[3.0]])
+    assert rule.configure(None) is None
+    assert rule.prepare(None, None) is None
+    np.testing.assert_array_equal(rule.apply_latent(None, z), z)
+    out = rule.apply_after_backward(None, x, log_q, z)
+    assert out == (x, log_q, z)
+    out = rule.apply_after_likelihood(None, x, log_q, z)
+    assert out == (x, log_q, z)
 
 
 def test_latent_radius_invalid_radius_mode():
@@ -309,6 +336,16 @@ def test_likelihood_threshold_properties_and_prepare(point):
     assert rule.threshold == 0.5
 
 
+def test_likelihood_threshold_prepare_with_nan_disables_threshold(
+    point, caplog
+):
+    rule = LikelihoodThresholdTruncation()
+    with caplog.at_level(logging.DEBUG):
+        rule.prepare(None, point(0.0, 0.0, logl=np.nan))
+    assert rule.threshold == -np.inf
+    assert "Disabling likelihood-threshold truncation" in caplog.text
+
+
 def test_likelihood_threshold_filters_after_likelihood(proposal, samples):
     x = samples([(0.0, 0.0), (1.0, 1.0)])
     x["logL"] = [0.0, 1.0]
@@ -348,6 +385,13 @@ def test_truncation_scheme_rule_names_and_has_rule():
     assert scheme.has_rule("dummy") is True
     assert scheme.has_rule("missing") is False
     assert scheme.requires_log_likelihood is True
+    assert scheme.get_rule("missing") is None
+
+
+def test_truncation_scheme_add_rule_with_index():
+    scheme = TruncationScheme([DummyTruncationRule()])
+    scheme.add_rule(LikelihoodThresholdTruncation(), index=0)
+    assert scheme.rule_names == ["likelihood_threshold", "dummy"]
 
 
 def test_truncation_scheme_configure_and_apply_stages(proposal, samples):
@@ -383,6 +427,12 @@ def test_truncation_scheme_configure_and_apply_stages(proposal, samples):
     assert out_x.size == 1
     np.testing.assert_array_equal(out_log_q, np.array([0.0]))
     np.testing.assert_array_equal(out_z, np.array([[0.0, 0.0]]))
+    out_x, out_log_q, out_z = scheme.apply_after_likelihood(
+        proposal, x, log_q, z
+    )
+    assert out_x is x
+    assert out_log_q is log_q
+    assert out_z is z
 
 
 def test_truncation_scheme_prepare_and_reset(proposal):

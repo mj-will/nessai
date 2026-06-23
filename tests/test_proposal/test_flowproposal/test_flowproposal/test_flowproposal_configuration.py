@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
 """Tests for FlowProposal truncation configuration."""
 
+import logging
+import warnings
 from unittest.mock import MagicMock
 
 import pytest
 
 from nessai.proposal import FlowProposal
 from nessai.proposal.flowproposal.truncation import (
+    BaseTruncationRule,
     LatentRadiusTruncation,
     LikelihoodThresholdTruncation,
     MinLogQTruncation,
+    TruncationScheme,
 )
 
 
@@ -59,6 +63,77 @@ def test_configure_population_rejects_invalid_latent_temperature_type(
         FlowProposal.configure_population(
             proposal, 1000, latent_temperature="bad"
         )
+
+
+def test_truncation_property_and_rule_helpers(proposal):
+    proposal._truncation_scheme = TruncationScheme(
+        [LatentRadiusTruncation(fixed_radius=1.0, radius_mode="fixed")]
+    )
+    proposal.truncation = proposal._truncation_scheme
+    assert (
+        FlowProposal.truncation.fget(proposal) is proposal._truncation_scheme
+    )
+    assert isinstance(
+        FlowProposal.get_truncation_rule(proposal, "latent_radius"),
+        LatentRadiusTruncation,
+    )
+    assert isinstance(
+        FlowProposal._get_latent_radius_rule(proposal),
+        LatentRadiusTruncation,
+    )
+
+
+def test_sync_truncation_state_updates_legacy_flags(proposal):
+    proposal._truncation_scheme = TruncationScheme(
+        [MinLogQTruncation(), LikelihoodThresholdTruncation()]
+    )
+    FlowProposal._sync_truncation_state(proposal)
+    assert proposal.truncation_methods == [
+        "min_log_q",
+        "likelihood_threshold",
+    ]
+    assert proposal.truncate_log_q is True
+    assert proposal.enforce_likelihood_threshold is True
+
+
+def test_warning_helpers_do_nothing_when_disabled():
+    with warnings.catch_warnings(record=True) as record:
+        FlowProposal._warn_for_deprecated_latent_prior(None)
+        FlowProposal._warn_for_deprecated_likelihood_threshold(False)
+        FlowProposal._warn_for_deprecated_truncation_arguments(
+            MagicMock(),
+            fixed_radius=None,
+            radius_mode=None,
+            min_radius=None,
+            max_radius=None,
+            compute_radius_with_all=None,
+            constant_volume_mode=None,
+            volume_fraction=None,
+            fuzz=None,
+            expansion_fraction=None,
+        )
+    assert not record
+
+
+def test_log_configuration_logs_rules(proposal, caplog):
+    class DummyRule(BaseTruncationRule):
+        name = "dummy"
+
+    proposal.drawsize = 10
+    proposal.latent_prior = "flow"
+    proposal.latent_temperature = None
+    proposal.truncation_methods = ["latent_radius", "dummy"]
+    proposal._truncation_scheme = TruncationScheme(
+        [
+            LatentRadiusTruncation(fixed_radius=1.0, radius_mode="fixed"),
+            DummyRule(),
+        ]
+    )
+    with caplog.at_level(logging.INFO):
+        FlowProposal._log_configuration(proposal)
+    assert "FlowProposal configuration" in caplog.text
+    assert "FlowProposal truncation rule latent_radius" in caplog.text
+    assert "FlowProposal truncation rule enabled: dummy" in caplog.text
 
 
 def test_configure_truncation_normalises_string(proposal):
