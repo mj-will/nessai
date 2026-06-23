@@ -309,6 +309,12 @@ class LatentRadiusTruncation(BaseTruncationRule):
             return float(self.fixed_radius)
 
         if self.compute_radius_with_all:
+            if proposal.training_data is None or not len(
+                proposal.training_data
+            ):
+                raise RuntimeError(
+                    "compute_radius_with_all requires training_data to be set"
+                )
             worst_point = proposal.training_data
 
         worst_z = proposal.forward_pass(
@@ -347,6 +353,11 @@ class MinLogQTruncation(BaseTruncationRule):
         return self._min_log_q
 
     def prepare(self, proposal, worst_point, radius=None):
+        if proposal.training_data is None or not len(proposal.training_data):
+            raise RuntimeError(
+                "min_log_q truncation requires training_data to be set"
+            )
+
         self._min_log_q = float(
             proposal.forward_pass(proposal.training_data)[1].min()
         )
@@ -376,7 +387,14 @@ class LikelihoodThresholdTruncation(BaseTruncationRule):
         return self._threshold
 
     def prepare(self, proposal, worst_point, radius=None):
-        self._threshold = float(worst_point["logL"])
+        threshold = np.asarray(worst_point["logL"], dtype=float).reshape(-1)[0]
+        if not np.isfinite(threshold):
+            logger.debug(
+                "Worst point does not have a finite log-likelihood. "
+                "Disabling likelihood-threshold truncation."
+            )
+            threshold = -np.inf
+        self._threshold = float(threshold)
 
     def apply_after_likelihood(self, proposal, x, log_q, z):
         keep = x["logL"] > self.threshold

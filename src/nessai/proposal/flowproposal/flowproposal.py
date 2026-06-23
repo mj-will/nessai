@@ -233,6 +233,17 @@ class FlowProposal(BaseFlowProposal):
             default_latent_radius=use_default_latent_radius,
         )
         self.truncation_method = truncation_method
+
+        truncation_kwargs = {
+            name: dict(value)
+            for name, value in (truncation_kwargs or {}).items()
+        }
+        if latent_radius_kwargs is not None and "latent_radius" in methods:
+            truncation_kwargs["latent_radius"] = {
+                **latent_radius_kwargs,
+                **truncation_kwargs.get("latent_radius", {}),
+            }
+
         methods, self.truncation_kwargs = apply_default_truncation_config(
             methods,
             truncation_kwargs=truncation_kwargs,
@@ -249,8 +260,6 @@ class FlowProposal(BaseFlowProposal):
                 )
 
             kwargs = dict(raw_kwargs)
-            if method == "latent_radius":
-                kwargs = {**(latent_radius_kwargs or {}), **kwargs}
             rules.append(rule_cls(**kwargs))
 
         self._truncation_scheme = TruncationScheme(rules)
@@ -410,6 +419,9 @@ class FlowProposal(BaseFlowProposal):
                 samples[n_accepted : n_accepted + m] = x[accept][:m]
                 n_accepted += n_accept_batch
                 logger.debug("n accepted: %s / %s", n_accepted, n_samples)
+                if n_proposed > max_samples:
+                    logger.warning("Reached max samples (%s)", max_samples)
+                    break
 
         if self.accumulate_weights:
             if accept is None or len(accept) != len(samples):
