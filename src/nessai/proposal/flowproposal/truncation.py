@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 
 import numpy as np
 
@@ -115,14 +116,14 @@ def apply_default_truncation_config(
     else:
         methods = list(methods)
 
-    kwargs = {
-        name: dict(value) for name, value in (truncation_kwargs or {}).items()
-    }
+    kwargs = deepcopy(truncation_kwargs or {})
 
     for name, default_kwargs in DEFAULT_TRUNCATION_KWARGS.items():
         if name not in methods:
             continue
         kwargs.setdefault(name, {})
+        if not isinstance(kwargs[name], dict):
+            continue
         for key, value in default_kwargs.items():
             kwargs[name].setdefault(key, value)
 
@@ -138,10 +139,7 @@ def normalise_truncation_kwargs(
     if truncation_kwargs is None:
         return {}
 
-    kwargs = {
-        name: dict(value) if isinstance(value, dict) else value
-        for name, value in truncation_kwargs.items()
-    }
+    kwargs = deepcopy(truncation_kwargs)
 
     if (
         isinstance(truncation_method, str)
