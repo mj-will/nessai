@@ -27,7 +27,77 @@ logger = logging.getLogger(__name__)
 
 
 class FlowProposal(BaseFlowProposal):
-    """Proposal that samples in latent space using the trained flow."""
+    """Proposal that samples in latent space using the trained flow.
+
+    Parameters
+    ----------
+    model : nessai.model.Model
+        The model to use for the proposal.
+    poolsize : int, optional
+        The number of samples to draw from the flow when populating the pool.
+    latent_prior : str, optional
+        The prior to use for the latent space. This argument is deprecated and
+        only 'flow' is supported.
+    latent_temperature : float, optional
+        The temperature to use for the latent space. If None, no scaling is
+        applied.
+    constant_volume_mode : bool, optional
+        Whether to use constant volume mode for the latent radius. This argument
+        is deprecated and should be configured via :code:`truncation_methods`
+        and :code:`truncation_kwargs` instead.
+    volume_fraction : float, optional
+        The volume fraction to use for the latent radius. This argument is
+        deprecated and should be configured via :code:`truncation_methods` and
+        :code:`truncation_kwargs` instead.
+    fuzz : float, optional
+        The fuzz to use for the latent radius. This argument is deprecated and
+        should be configured via :code:`truncation_methods` and
+        :code:`truncation_kwargs` instead.
+    fixed_radius : float, optional
+        The fixed radius to use for the latent radius. This argument is
+        deprecated and should be configured via :code:`truncation_methods` and
+        :code:`truncation_kwargs` instead.
+    radius_mode : str, optional
+        The radius mode to use for the latent radius. This argument is deprecated
+        and should be configured via :code:`truncation_methods` and
+        :code:`truncation_kwargs` instead.
+    drawsize : int, optional
+        The number of samples to draw from the flow when populating the pool.
+    truncate_log_q : bool, optional
+        Whether to truncate the log q values when populating the pool. This
+        argument is deprecated and should be configured via
+        :code:`truncation_methods` and :code:`truncation_kwargs` instead.
+    expansion_fraction : float, optional
+        The expansion fraction to use for the latent radius. This argument is
+        deprecated and should be configured via :code:`truncation_methods` and
+        :code:`truncation_kwargs` instead.
+    min_radius : float, optional
+        The minimum radius to use for the latent radius. This argument is
+        deprecated and should be configured via :code:`truncation_methods` and
+        :code:`truncation_kwargs` instead.
+    max_radius : float, optional
+        The maximum radius to use for the latent radius. This argument is
+        deprecated and should be configured via :code:`truncation_methods` and
+        :code:`truncation_kwargs` instead.
+    compute_radius_with_all : bool, optional
+        Whether to compute the latent radius using all samples. This argument is
+        deprecated and should be configured via :code:`truncation_methods` and
+        :code:`truncation_kwargs` instead.
+    enforce_likelihood_threshold : bool, optional
+        Whether to enforce a likelihood threshold when populating the pool. This
+        argument is deprecated and should be configured via
+        :code:`truncation_methods` and :code:`truncation_kwargs` instead.
+    truncation_method : str, optional
+        The truncation method to use when populating the pool.
+    truncation_methods : list of str, optional
+        The truncation methods to use when populating the pool.
+    truncation_kwargs : dict, optional
+        The keyword arguments to use for the truncation methods when populating
+        the pool. When using :code:`truncation_methods`, the keys of this
+        dictionary should match the names of the truncation methods.
+    **kwargs
+        Additional keyword arguments to pass to the base class.
+    """
 
     def __init__(
         self,
