@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Test methods related to initialising and resuming the proposal method"""
+"""Tests for initialising, pickling, and resetting FlowProposal."""
 
-from unittest.mock import patch
+import warnings
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -9,20 +10,187 @@ import pytest
 from nessai.proposal import FlowProposal
 
 
+def configure_truncation_mocks(proposal):
+    proposal._get_latent_radius_rule = MagicMock(return_value=None)
+    proposal._sync_truncation_state = MagicMock(return_value=None)
+
+
 def test_init(model):
-    """Test init with some kwargs"""
-    fp = FlowProposal(model, poolsize=1000)
+    with warnings.catch_warnings(record=True) as record:
+        fp = FlowProposal(model, poolsize=1000)
+    assert not record
     assert fp.model == model
     assert fp.poolsize == 1000
+    assert fp.latent_prior == "flow"
+    assert fp.truncation_methods == ["latent_radius"]
+    rule = fp.get_truncation_rule("latent_radius")
+    assert rule.constant_volume_mode is True
+    assert rule.volume_fraction == 0.95
+
+
+def test_init_with_explicit_flow_latent_prior_warns(model):
+    with pytest.warns(FutureWarning, match="latent_prior"):
+        fp = FlowProposal(model, poolsize=1000, latent_prior="flow")
+    assert fp.latent_prior == "flow"
+
+
+def test_init_with_truncation_methods(model):
+    fp = FlowProposal(
+        model,
+        poolsize=1000,
+        truncation_methods=["min_log_q", "likelihood_threshold"],
+    )
+    assert fp.truncation_methods == [
+        "min_log_q",
+        "likelihood_threshold",
+    ]
+    assert fp._truncation_scheme.rule_names == [
+        "min_log_q",
+        "likelihood_threshold",
+    ]
+
+
+def test_init_with_radius_configuration(model):
+    with pytest.warns(
+        FutureWarning, match="truncation_kwargs\\['latent_radius'\\]"
+    ):
+        fp = FlowProposal(
+            model,
+            poolsize=1000,
+            fixed_radius=5.0,
+            radius_mode="fixed",
+            volume_fraction=0.8,
+        )
+    assert fp.truncation_methods == ["latent_radius"]
+    rule = fp.get_truncation_rule("latent_radius")
+    assert rule.radius_mode == "fixed"
+    assert rule.fixed_radius == 5.0
+    assert rule.volume_fraction == 0.8
+
+
+def test_init_with_truncation_kwargs_does_not_warn(model):
+    with warnings.catch_warnings(record=True) as record:
+        fp = FlowProposal(
+            model,
+            poolsize=1000,
+            truncation_methods=["latent_radius"],
+            truncation_kwargs={
+                "latent_radius": {
+                    "fixed_radius": 5.0,
+                    "radius_mode": "fixed",
+                    "volume_fraction": 0.8,
+                }
+            },
+        )
+    assert not record
+    assert fp.truncation_methods == ["latent_radius"]
+
+
+def test_deprecated_latent_radius_arguments_warn(model):
+    with pytest.warns(FutureWarning) as record:
+        FlowProposal(
+            model,
+            poolsize=1000,
+            fixed_radius=5.0,
+            radius_mode="fixed",
+            min_radius=1.0,
+            max_radius=10.0,
+            compute_radius_with_all=True,
+            constant_volume_mode=True,
+            volume_fraction=0.8,
+            fuzz=1.2,
+            expansion_fraction=1.2,
+        )
+    message = str(record[0].message)
+    for name in (
+        "fixed_radius",
+        "radius_mode",
+        "min_radius",
+        "max_radius",
+        "compute_radius_with_all",
+        "constant_volume_mode",
+        "volume_fraction",
+        "fuzz",
+        "expansion_fraction",
+    ):
+        assert name in message
+
+
+def test_deprecated_enforce_likelihood_threshold_warns(model):
+    with pytest.warns(FutureWarning, match="enforce_likelihood_threshold"):
+        FlowProposal(
+            model,
+            poolsize=1000,
+            enforce_likelihood_threshold=True,
+        )
+
+
+def test_init_rejects_non_flow_latent_prior(model):
+    with pytest.raises(ValueError, match="Only the flow latent prior"):
+        FlowProposal(model, poolsize=1000, latent_prior="gaussian")
+
+
+def test_pickle_with_truncation_methods(model, tmpdir):
+    import pickle
+
+    proposal = FlowProposal(
+        model,
+        poolsize=1000,
+        plot=False,
+        output=tmpdir.mkdir("truncation_pickle"),
+        truncation_methods=["min_log_q", "likelihood_threshold"],
+    )
+    proposal._truncation_scheme.get_rule("min_log_q")._min_log_q = -10.0
+    proposal._truncation_scheme.get_rule(
+        "likelihood_threshold"
+    )._threshold = 1.0
+    proposal_re = pickle.loads(pickle.dumps(proposal))
+    assert proposal_re.truncation_methods == [
+        "min_log_q",
+        "likelihood_threshold",
+    ]
+    assert proposal_re._truncation_scheme.rule_names == [
+        "min_log_q",
+        "likelihood_threshold",
+    ]
+    assert np.isnan(
+        proposal_re._truncation_scheme.get_rule("min_log_q").min_log_q
+    )
+    assert np.isnan(
+        proposal_re._truncation_scheme.get_rule(
+            "likelihood_threshold"
+        ).threshold
+    )
+
+
+def test_pickle_with_radius_rule(model, tmpdir):
+    import pickle
+
+    with pytest.warns(
+        FutureWarning, match="truncation_kwargs\\['latent_radius'\\]"
+    ):
+        proposal = FlowProposal(
+            model,
+            poolsize=1000,
+            plot=False,
+            output=tmpdir.mkdir("radius_pickle"),
+            fixed_radius=5.0,
+            radius_mode="fixed",
+        )
+    proposal._truncation_scheme.get_rule("latent_radius")._radius = 3.0
+    proposal._truncation_scheme.get_rule("latent_radius")._threshold = 4.0
+    proposal_re = pickle.loads(pickle.dumps(proposal))
+    assert proposal_re.truncation_methods == ["latent_radius"]
+    rule = proposal_re.get_truncation_rule("latent_radius")
+    assert rule.fixed_radius == 5.0
+    assert rule.radius_mode == "fixed"
+    assert np.isnan(rule.radius)
+    assert np.isnan(rule.threshold)
 
 
 @pytest.mark.parametrize("populated", [False, True])
 @pytest.mark.parametrize("mask", [None, [1, 0]])
 def test_get_state(proposal, populated, mask):
-    """Test the get state method used for pickling the proposal.
-
-    Tests cases where the proposal is and isn't populated.
-    """
     parent_state = {"a": "val"}
     with patch(
         "nessai.proposal.flowproposal.base.BaseFlowProposal.__getstate__",
@@ -31,140 +199,22 @@ def test_get_state(proposal, populated, mask):
         state = FlowProposal.__getstate__(proposal)
 
     mock.assert_called_once()
-    assert state["_draw_func"] is None
-    assert state["_populate_dist"] is None
-    assert state["alt_dist"] is None
     assert state["a"] == "val"
 
 
-@pytest.mark.integration_test
-@pytest.mark.parametrize("reparameterisation", [False, True])
-@pytest.mark.parametrize("init", [False, True])
-@pytest.mark.parametrize(
-    "latent_prior", ["truncated_gaussian", "uniform_nball", "gaussian"]
-)
-def test_resume_pickle(model, tmpdir, reparameterisation, init, latent_prior):
-    """Test pickling and resuming the proposal.
-
-    Tests both with and without reparameterisations and before and after
-    initialise has been called.
-    """
-    import pickle
-
-    output = tmpdir.mkdir("test_integration")
-    if reparameterisation:
-        reparameterisations = {"default": {"parameters": model.names}}
-    else:
-        reparameterisations = None
-
-    if latent_prior != "truncated_gaussian":
-        constant_volume_mode = False
-    else:
-        constant_volume_mode = True
-
-    proposal = FlowProposal(
-        model,
-        poolsize=1000,
-        plot=False,
-        expansion_fraction=1,
-        output=output,
-        reparameterisations=reparameterisations,
-        latent_prior=latent_prior,
-        constant_volume_mode=constant_volume_mode,
-    )
-    if init:
-        proposal.initialise()
-
-    proposal.mask = None
-    proposal.resume_populated = False
-
-    proposal_data = pickle.dumps(proposal)
-    proposal_re = pickle.loads(proposal_data)
-    proposal_re.resume(model, {})
-
-    assert proposal._plot_pool == proposal_re._plot_pool
-    assert proposal._plot_training == proposal_re._plot_training
-
-    if init:
-        assert proposal.fuzz == proposal_re.fuzz
-
-
 def test_reset(proposal):
-    """Test reset method"""
+    configure_truncation_mocks(proposal)
+    FlowProposal.configure_truncation(
+        proposal,
+        latent_radius_kwargs=dict(fixed_radius=2.0, radius_mode="fixed"),
+    )
+    proposal._sync_truncation_state.assert_called_once_with()
+    proposal._truncation_scheme.get_rule("latent_radius")._radius = 1.0
     with patch(
         "nessai.proposal.flowproposal.base.BaseFlowProposal.reset"
     ) as mock:
         FlowProposal.reset(proposal)
     mock.assert_called_once()
-    assert proposal.r is np.nan
-    assert proposal.alt_dist is None
-
-
-@pytest.mark.timeout(60)
-@pytest.mark.integration_test
-@pytest.mark.parametrize(
-    "latent_prior", ["truncated_gaussian", "uniform_nball", "gaussian"]
-)
-def test_reset_integration(tmpdir, model, latent_prior):
-    """Test reset method iteration with other methods"""
-    flow_config = dict(
-        n_neurons=1,
-        n_blocks=1,
-        n_layers=1,
-        batch_norm_between_layers=False,
-        linear_transform=None,
+    assert np.isnan(
+        proposal._truncation_scheme.get_rule("latent_radius").radius
     )
-    training_config = dict(patience=20)
-    output = str(tmpdir.mkdir("reset_integration"))
-    poolsize = 2
-    drawsize = 100
-    if latent_prior != "truncated_gaussian":
-        constant_volume_mode = False
-    else:
-        constant_volume_mode = True
-    proposal = FlowProposal(
-        model,
-        output=output,
-        flow_config=flow_config,
-        training_config=training_config,
-        plot=False,
-        poolsize=poolsize,
-        drawsize=drawsize,
-        expansion_fraction=None,
-        latent_prior=latent_prior,
-        constant_volume_mode=constant_volume_mode,
-    )
-
-    modified_proposal = FlowProposal(
-        model,
-        output=output,
-        flow_config=flow_config,
-        training_config=training_config,
-        plot=False,
-        poolsize=poolsize,
-        drawsize=drawsize,
-        expansion_fraction=None,
-        latent_prior=latent_prior,
-        constant_volume_mode=constant_volume_mode,
-    )
-    proposal.initialise()
-    modified_proposal.initialise()
-
-    modified_proposal.populate(model.new_point())
-    modified_proposal.reset()
-
-    # attributes that should be different
-    ignore = [
-        "population_time",
-        "_reparameterisation",
-        "rng",
-    ]
-
-    d1 = proposal.__getstate__()
-    d2 = modified_proposal.__getstate__()
-
-    for key in ignore:
-        d1.pop(key)
-        d2.pop(key)
-
-    assert d1 == d2

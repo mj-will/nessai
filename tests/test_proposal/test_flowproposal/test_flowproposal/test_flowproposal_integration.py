@@ -12,7 +12,7 @@ from nessai.utils.testing import assert_structured_arrays_equal
 torch.set_num_threads(1)
 
 
-@pytest.mark.parametrize()
+@pytest.fixture()
 def flow_config():
     return dict(
         n_neurons=1,
@@ -45,11 +45,11 @@ def test_flowproposal_populate(
         flow_config=flow_config,
         plot=False,
         poolsize=10,
-        latent_prior="truncated_gaussian",
+        fixed_radius=1.0,
+        radius_mode="fixed",
         expansion_fraction=expansion_fraction,
         check_acceptance=check_acceptance,
         max_radius=1.0,
-        constant_volume_mode=False,
     )
 
     fp.initialise()
@@ -60,19 +60,13 @@ def test_flowproposal_populate(
 
 
 @pytest.mark.parametrize(
-    "latent_prior",
-    [
-        "gaussian",
-        "truncated_gaussian",
-        "uniform_nball",
-        "uniform_nsphere",
-        "uniform",
-    ],
+    "truncation_methods",
+    [[], ["likelihood_threshold"]],
 )
 @pytest.mark.integration_test
 @pytest.mark.timeout(30)
 def test_flowproposal_populate_edge_cases(
-    tmp_path, model, flow_config, latent_prior
+    tmp_path, model, flow_config, truncation_methods
 ):
     """Tests some less common settings for flowproposal"""
     output = tmp_path / "flowproposal"
@@ -84,10 +78,10 @@ def test_flowproposal_populate_edge_cases(
         flow_config=flow_config,
         plot=False,
         poolsize=10,
-        latent_prior=latent_prior,
         expansion_fraction=None,
-        max_radius=0.1,
-        constant_volume_mode=False,
+        fixed_radius=0.1,
+        radius_mode="fixed",
+        truncation_methods=truncation_methods,
         fallback_reparameterisation=None,
     )
 
@@ -97,6 +91,34 @@ def test_flowproposal_populate_edge_cases(
     fp.populate(worst, n_samples=n_draw)
 
     assert fp.x.size == n_draw
+
+
+@pytest.mark.integration_test
+def test_flowproposal_populate_min_log_q_requires_training_data(
+    tmp_path, model, flow_config
+):
+    """min_log_q truncation should fail without training data."""
+    output = tmp_path / "flowproposal"
+    output.mkdir()
+    fp = FlowProposal(
+        model,
+        output=output,
+        flow_config=flow_config,
+        plot=False,
+        poolsize=10,
+        expansion_fraction=None,
+        fixed_radius=0.1,
+        radius_mode="fixed",
+        truncation_methods=["min_log_q"],
+        fallback_reparameterisation=None,
+    )
+
+    fp.initialise()
+    worst = numpy_array_to_live_points(0.01 * np.ones(fp.dims), fp.parameters)
+    with pytest.raises(
+        RuntimeError, match="min_log_q truncation requires training_data"
+    ):
+        fp.populate(worst, n_samples=2)
 
 
 @pytest.mark.parametrize("plot", [False, True])
@@ -154,8 +176,9 @@ def test_constant_volume_mode(
     fp.populate(worst, n_samples=10)
     assert fp.x.size == 10
 
-    np.testing.assert_approx_equal(fp.r, expected_radius, 4)
-    np.testing.assert_approx_equal(fp.fixed_radius, expected_radius, 4)
+    rule = fp.get_truncation_rule("latent_radius")
+    np.testing.assert_approx_equal(rule.radius, expected_radius, 4)
+    np.testing.assert_approx_equal(rule.fixed_radius, expected_radius, 4)
 
 
 @pytest.mark.parametrize(

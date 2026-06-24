@@ -549,8 +549,8 @@ def test_numpy_array_to_tensor(model, n_samples):
     np.testing.assert_equal(x, out.numpy())
 
 
-def test_sample_log_prob_alt_dist(model):
-    """Assert the alternate distribution is used."""
+def test_sample_log_prob_with_latent_uses_base_distribution(model):
+    """Assert latent samples use the flow base distribution."""
     z = torch.randn(5, 2)
     x = torch.randn(5, 2)
     log_prob = torch.randn(5)
@@ -559,18 +559,13 @@ def test_sample_log_prob_alt_dist(model):
     model.model = MagicMock()
     model.model.device = "cpu"
     model.model.eval = MagicMock()
-    model.model.base_distribution_log_prob = MagicMock()
+    model.model.base_distribution_log_prob = MagicMock(return_value=log_prob)
     model.model.inverse = MagicMock(return_value=(x, log_j))
-    alt_dist = MagicMock()
-    alt_dist.log_prob = MagicMock(return_value=log_prob)
 
-    x_out, log_prob_out = FlowModel.sample_and_log_prob(
-        model, z=z, alt_dist=alt_dist
-    )
+    x_out, log_prob_out = FlowModel.sample_and_log_prob(model, z=z)
 
     model.model.inverse.assert_called_once_with(z, context=None)
-    model.model.base_distribution_log_prob.assert_not_called()
-    alt_dist.log_prob.assert_called_once_with(z)
+    model.model.base_distribution_log_prob.assert_called_once_with(z)
     np.testing.assert_equal(x_out, x.numpy())
     np.testing.assert_equal(log_prob_out, log_prob_expected)
 

@@ -903,9 +903,7 @@ class FlowModel:
             z = self.model.sample_latent_distribution(n)
         return z.cpu().numpy().astype(np.float64)
 
-    def sample_and_log_prob(
-        self, N=1, z=None, alt_dist=None, conditional=None
-    ):
+    def sample_and_log_prob(self, N=1, z=None, conditional=None):
         """
         Generate samples from samples drawn from the base distribution or
         and alternative distribution from provided latent samples
@@ -915,13 +913,8 @@ class FlowModel:
         N : int, optional
             Number of samples to draw if z is not specified
         z : ndarray, optional
-            Array of latent samples to map the the data space, if ``alt_dist``
-            is not specified they are assumed to be drawn from the base
-            distribution of the flow.
-        alt_dist : :obj:`glasflow.nflows.distribution.Distribution`
-            Distribution object from which the latent samples z were
-            drawn from. Must have a ``log_prob`` method that accepts an
-            instance of ``torch.Tensor``
+            Array of latent samples to map to the data space. They are assumed
+            to be drawn from the base distribution of the flow.
 
         Returns
         -------
@@ -943,15 +936,10 @@ class FlowModel:
                     int(N), context=conditional
                 )
         else:
-            if alt_dist is not None:
-                log_prob_fn = alt_dist.log_prob
-            else:
-                log_prob_fn = self.model.base_distribution_log_prob
-
             with torch.inference_mode():
                 if isinstance(z, np.ndarray):
                     z = self.numpy_array_to_tensor(z)
-                log_prob = log_prob_fn(z)
+                log_prob = self.model.base_distribution_log_prob(z)
                 x, log_J = self.model.inverse(z, context=conditional)
                 log_prob -= log_J
 

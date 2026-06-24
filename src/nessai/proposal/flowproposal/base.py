@@ -99,7 +99,6 @@ class BaseFlowProposal(RejectionProposal):
     behaviour to change without changing the keyword arguments.
     """
     _FlowModelClass = FlowModel
-    alt_dist = None
 
     def __init__(
         self,
@@ -390,6 +389,29 @@ class BaseFlowProposal(RejectionProposal):
         self.flow.initialise()
         self.populated = False
         self.initialised = True
+
+    def sample_latent_distribution(self, n):
+        """Sample from the flow latent distribution with optional temperature."""
+        z = self.flow.sample_latent_distribution(n)
+        temperature = getattr(self, "latent_temperature", None)
+        if temperature in (None, 1.0):
+            return z
+        return np.sqrt(temperature) * z
+
+    def latent_log_prob(self, z, temperature=None):
+        """Compute the latent log-probability under the effective density."""
+        z = np.asarray(z)
+        if temperature in (None, 1.0):
+            z_in = z
+            log_j = 0.0
+        else:
+            scale = np.sqrt(float(temperature))
+            z_in = z / scale
+            log_j = z.shape[-1] * np.log(scale)
+        with torch.inference_mode():
+            z_tensor = self.flow.numpy_array_to_tensor(z_in)
+            log_p = self.flow.model.base_distribution_log_prob(z_tensor)
+        return log_p.cpu().numpy().astype(np.float64) - log_j
 
     def update_poolsize_scale(self, acceptance):
         """
@@ -781,7 +803,7 @@ class BaseFlowProposal(RejectionProposal):
         z_training_data, _ = self.forward_pass(
             self.training_data, rescale=True
         )
-        z_gen = self.flow.sample_latent_distribution(self.training_data.size)
+        z_gen = self.sample_latent_distribution(self.training_data.size)
 
         fig = plt.figure()
         plt.hist(np.sqrt(np.sum(z_training_data**2, axis=1)), "auto")
@@ -1189,20 +1211,7 @@ class BaseFlowProposal(RejectionProposal):
             )
 
             z, log_q = self.forward_pass(x, compute_radius=False)
-            z_tensor = (
-                torch.from_numpy(z)
-                .type(torch.get_default_dtype())
-                .to(self.flow.device)
-            )
-            with torch.inference_mode():
-                if self.alt_dist is not None:
-                    log_p = self.alt_dist.log_prob(z_tensor).cpu().numpy()
-                else:
-                    log_p = (
-                        self.flow.model.base_distribution_log_prob(z_tensor)
-                        .cpu()
-                        .numpy()
-                    )
+            log_p = self.latent_log_prob(z, self.latent_temperature)
 
             fig, axs = plt.subplots(3, 1, figsize=(3, 9))
             axs = axs.ravel()
