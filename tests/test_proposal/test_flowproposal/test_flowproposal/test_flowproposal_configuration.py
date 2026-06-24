@@ -305,6 +305,33 @@ def test_configure_truncation_supports_flat_kwargs_for_single_method(proposal):
     assert rule.radius_mode == "constant_volume"
 
 
+def test_configure_truncation_reuses_existing_latent_radius_rule(proposal):
+    existing_rule = LatentRadiusTruncation(
+        fixed_radius=3.0,
+        radius_mode="fixed",
+        fuzz=1.2,
+    )
+    configure_truncation_mocks(proposal, latent_radius_rule=existing_rule)
+    FlowProposal.configure_truncation(proposal)
+    rule = proposal._truncation_scheme.get_rule("latent_radius")
+    assert rule.fixed_radius == 3.0
+    assert rule.radius_mode == "fixed"
+    assert rule.fuzz == 1.2
+
+
+def test_configure_truncation_rejects_non_dict_truncation_kwargs(proposal):
+    configure_truncation_mocks(proposal)
+    with pytest.raises(
+        TypeError,
+        match="Truncation kwargs for latent_radius must be a dictionary",
+    ):
+        FlowProposal.configure_truncation(
+            proposal,
+            truncation_method="latent_radius",
+            truncation_kwargs={"latent_radius": 1.0},
+        )
+
+
 def test_configure_truncation_rejects_invalid_fixed_radius(proposal):
     configure_truncation_mocks(proposal)
     with pytest.raises(
