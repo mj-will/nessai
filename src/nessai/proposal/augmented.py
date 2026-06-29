@@ -232,9 +232,7 @@ class AugmentedFlowProposal(FlowProposal):
             Jacobian)
         """
         try:
-            x, log_prob = self.flow.sample_and_log_prob(
-                z=z, alt_dist=self.alt_dist
-            )
+            x, log_prob = self.flow.sample_and_log_prob(z=z)
         except AssertionError as e:
             logger.warning(
                 "Assertion error raised when sampling from the flow."

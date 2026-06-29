@@ -218,7 +218,6 @@ def test_backward_pass(proposal, model, log_p, marg, rng, return_z):
         side_effect=lambda a, return_unit_hypercube: (a, np.ones(a.size))
     )
     proposal.prime_parameters = model.names
-    proposal.alt_dist = None
     proposal.check_prior_bounds = MagicMock(
         side_effect=lambda a, b, c: (a, b, c)
     )
@@ -236,9 +235,7 @@ def test_backward_pass(proposal, model, log_p, marg, rng, return_z):
 
     assert len(out[0]) == acc
     proposal.inverse_rescale.assert_called_once()
-    proposal.flow.sample_and_log_prob.assert_called_once_with(
-        z=z, alt_dist=None
-    )
+    proposal.flow.sample_and_log_prob.assert_called_once_with(z=z)
 
     assert proposal._marginalise_augment.called is marg
 
