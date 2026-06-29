@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from nessai.livepoint import numpy_array_to_live_points
-from nessai.proposal.base import Proposal
+from nessai.proposal.base import PopulationResult, Proposal
 
 
 class DummyProposal(Proposal):
@@ -33,6 +33,8 @@ def test_init(proposal):
     assert proposal.training_count == 0
     assert proposal._checked_population is True
     assert proposal.population_time.total_seconds() == 0
+    assert proposal.last_population_result is None
+    assert proposal._pending_model_reset is False
 
 
 def test_init_with_draw():
@@ -88,6 +90,32 @@ def test_evaluate_likelihoods(proposal):
     proposal.model.batch_evaluate_log_likelihood.assert_called_once_with(
         samples
     )
+
+
+def test_record_population_result(proposal):
+    """Test recording a population result."""
+    result = Proposal.record_population_result(
+        proposal,
+        completed=False,
+        n_requested=10,
+        n_proposed=8,
+        n_accepted=4,
+        hit_max_samples=True,
+        stats={"foo": 1, "bar": "baz"},
+        request_reset=True,
+    )
+
+    assert isinstance(result, PopulationResult)
+    assert result.completed is False
+    assert result.n_requested == 10
+    assert result.n_proposed == 8
+    assert result.n_accepted == 4
+    assert result.hit_max_samples is True
+    assert result.population_acceptance == 0.5
+    assert result.stats == {"foo": 1, "bar": "baz"}
+    assert proposal.last_population_result is result
+    assert proposal.population_acceptance == 0.5
+    assert proposal._pending_model_reset is True
 
 
 def test_draw(proposal):

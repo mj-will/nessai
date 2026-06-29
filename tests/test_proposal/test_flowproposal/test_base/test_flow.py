@@ -18,8 +18,24 @@ def test_reset_model_weights(proposal):
     """Test resetting model weights"""
     proposal.flow = MagicMock()
     proposal.flow.reset_model = MagicMock()
-    BaseFlowProposal.reset_model_weights(proposal, reset_permutations=True)
-    proposal.flow.reset_model.assert_called_once_with(reset_permutations=True)
+    BaseFlowProposal.reset_model_weights(proposal, permutations=True)
+    proposal.flow.reset_model.assert_called_once_with(permutations=True)
+
+
+def test_draw_returns_worst_point_if_population_fails(proposal, model):
+    """Test draw returns the current point if populate does not fill the pool."""
+    worst_point = model.new_point()
+    proposal.populated = False
+    proposal.populating = False
+    proposal.populate = MagicMock()
+    proposal.update_poolsize = False
+    proposal.poolsize = 10
+
+    out = BaseFlowProposal.draw(proposal, worst_point)
+
+    proposal.populate.assert_called_once_with(worst_point, n_samples=10)
+    assert out is worst_point
+    assert proposal.populating is False
 
 
 def test_train_not_initialised(proposal):

@@ -10,6 +10,7 @@ import pytest
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import RejectionProposal
+from nessai.proposal.base import PopulationResult
 from nessai.utils.testing import assert_structured_arrays_equal
 
 
@@ -104,13 +105,31 @@ def test_populate(proposal, N, rng):
     proposal.rng = MagicMock()
     proposal.rng.random = MagicMock(return_value=u)
     proposal.rng.permutation = rng.permutation
+    n_requested = N if N is not None else poolsize
+    expected_result = PopulationResult(
+        completed=True,
+        n_requested=n_requested,
+        n_proposed=n_requested,
+        n_accepted=samples.size,
+        population_acceptance=0.5,
+    )
+    proposal.record_population_result = MagicMock(return_value=expected_result)
 
-    RejectionProposal.populate(proposal, N=N)
+    result = RejectionProposal.populate(proposal, N=N)
 
     proposal.rng.random.assert_called_once_with(len(u))
     assert proposal.population_acceptance == 0.5
     assert proposal.populated is True
+    assert proposal._checked_population is False
     assert_structured_arrays_equal(proposal.samples, samples)
+    assert result is expected_result
+    proposal.record_population_result.assert_called_once_with(
+        completed=True,
+        n_requested=n_requested,
+        n_proposed=n_requested,
+        n_accepted=samples.size,
+        population_acceptance=0.5,
+    )
 
     if N is None:
         N = poolsize
@@ -128,6 +147,7 @@ def test_populate_integration(model):
     """Integration test for the populate method"""
     proposal = RejectionProposal(model)
     N = 500
-    proposal.populate(N=N)
+    result = proposal.populate(N=N)
     assert proposal.samples.size == N
     assert proposal.populated is True
+    assert isinstance(result, PopulationResult)

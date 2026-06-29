@@ -13,6 +13,12 @@ import pytest
 from nessai.samplers.nestedsampler import NestedSampler
 
 
+def get_proposal_mock():
+    proposal = MagicMock()
+    proposal._pending_model_reset = False
+    return proposal
+
+
 def test_configure_flow_reset_false(sampler):
     """Assert the attributes evaluate to false if the inputs are false"""
     NestedSampler.configure_flow_reset(sampler, False, False, False)
@@ -24,15 +30,18 @@ def test_configure_flow_reset_false(sampler):
 @pytest.mark.parametrize("weights", [10, 5.0])
 @pytest.mark.parametrize("permutations", [10, 5.0])
 def test_configure_flow_reset(sampler, weights, permutations):
-    """Assert the attributes evaluate to false if the inputs are false"""
-    NestedSampler.configure_flow_reset(sampler, weights, permutations, False)
+    """Assert the deprecated resets are recorded and warn."""
+    with pytest.warns(FutureWarning, match="deprecated"):
+        NestedSampler.configure_flow_reset(
+            sampler, weights, permutations, False
+        )
     assert sampler.reset_weights == float(weights)
     assert sampler.reset_permutations == float(permutations)
 
 
 @pytest.mark.parametrize("flow", [10, 5.0])
 def test_configure_flow_reset_flow(sampler, flow):
-    """Assert reset_flow overwrites the other values"""
+    """Assert reset_flow overwrites the other values."""
     NestedSampler.configure_flow_reset(sampler, 2, 4, flow)
     assert sampler.reset_flow == float(flow)
     assert sampler.reset_weights == float(flow)
@@ -79,12 +88,48 @@ def test_check_training_train_on_empty(sampler):
     """
     sampler.completed_training = True
     sampler.train_on_empty = True
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.populated = False
     sampler.proposal.populating = False
     train, force = NestedSampler.check_training(sampler)
     assert train is True
     assert force is True
+
+
+def test_check_training_pending_reset_on_empty(sampler):
+    """Assert a pending reset forces training as soon as the pool is empty."""
+    sampler.completed_training = True
+    sampler.train_on_empty = False
+    sampler.proposal = get_proposal_mock()
+    sampler.proposal._pending_model_reset = True
+    sampler.proposal.populated = False
+    sampler.proposal.populating = False
+
+    train, force = NestedSampler.check_training(sampler)
+
+    assert train is True
+    assert force is True
+
+
+def test_check_training_pending_reset_not_forced_while_populating(sampler):
+    """Assert a pending reset does not interrupt an in-progress population."""
+    sampler.completed_training = True
+    sampler.train_on_empty = False
+    sampler.proposal = get_proposal_mock()
+    sampler.proposal._pending_model_reset = True
+    sampler.proposal.populated = False
+    sampler.proposal.populating = True
+    sampler.acceptance_threshold = 0.1
+    sampler.mean_block_acceptance = 0.2
+    sampler.retrain_acceptance = False
+    sampler.iteration = 3000
+    sampler.last_updated = 2500
+    sampler.training_frequency = 1000
+
+    train, force = NestedSampler.check_training(sampler)
+
+    assert train is False
+    assert force is False
 
 
 def test_check_training_acceptance(sampler):
@@ -94,7 +139,7 @@ def test_check_training_acceptance(sampler):
     """
     sampler.completed_training = True
     sampler.train_on_empty = True
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.populated = True
     sampler.proposal.populating = False
     sampler.acceptance_threshold = 0.1
@@ -112,7 +157,7 @@ def test_check_training_iteration(sampler):
     """
     sampler.completed_training = True
     sampler.train_on_empty = True
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.populated = True
     sampler.proposal.populating = False
     sampler.acceptance_threshold = 0.1
@@ -151,7 +196,7 @@ def test_check_training_false(sampler, config):
     """
     sampler.completed_training = True
     sampler.train_on_empty = config.get("train_on_empty", False)
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.populated = config.get("populated", False)
     sampler.proposal.populating = config.get("populating", False)
     sampler.acceptance_threshold = config.get("acceptance_threshold", 0.1)
@@ -168,11 +213,12 @@ def test_check_training_false(sampler, config):
 @pytest.mark.parametrize("training_count", [10, 100])
 def test_check_flow_model_reset_weights(sampler, training_count):
     """Assert flow model only weights are reset"""
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.reset_model_weights = MagicMock()
     sampler.reset_acceptance = False
     sampler.reset_weights = 10
     sampler.reset_permutations = 0
+    sampler.reset_flow = 0
     sampler.proposal.training_count = training_count
 
     NestedSampler.check_flow_model_reset(sampler)
@@ -186,11 +232,12 @@ def test_check_flow_model_reset_weights(sampler, training_count):
 @pytest.mark.parametrize("training_count", [10, 100])
 def test_check_flow_model_reset_permutations(sampler, training_count):
     """Assert flow model only permutations are reset"""
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.reset_model_weights = MagicMock()
     sampler.reset_acceptance = False
     sampler.reset_weights = 0
     sampler.reset_permutations = 10
+    sampler.reset_flow = 0
     sampler.proposal.training_count = training_count
 
     NestedSampler.check_flow_model_reset(sampler)
@@ -202,12 +249,13 @@ def test_check_flow_model_reset_permutations(sampler, training_count):
 
 @pytest.mark.parametrize("training_count", [10, 100])
 def test_check_flow_model_reset_both(sampler, training_count):
-    """Assert flow model only permutations are reset"""
-    sampler.proposal = MagicMock()
+    """Assert reset_flow triggers a full reset."""
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.reset_model_weights = MagicMock()
     sampler.reset_acceptance = False
     sampler.reset_weights = 10
     sampler.reset_permutations = 10
+    sampler.reset_flow = 10
     sampler.proposal.training_count = training_count
 
     NestedSampler.check_flow_model_reset(sampler)
@@ -222,7 +270,7 @@ def test_check_flow_model_reset_acceptance(sampler):
     """
     Assert flow model is reset based on acceptance is reset_acceptance is True.
     """
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.reset_model_weights = MagicMock()
     sampler.reset_acceptance = True
     sampler.mean_block_acceptance = 0.1
@@ -240,7 +288,7 @@ def test_check_flow_model_reset_not_trained(sampler):
     """
     Verify that the flow model is not reset if it has never been trained.
     """
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.reset_model_weights = MagicMock()
     sampler.proposal.training_count = 0
 
@@ -249,9 +297,24 @@ def test_check_flow_model_reset_not_trained(sampler):
     sampler.proposal.reset_model_weights.assert_not_called()
 
 
+def test_check_flow_model_reset_pending_reset(sampler):
+    """Assert a pending population reset forces a full model reset."""
+    sampler.proposal = get_proposal_mock()
+    sampler.proposal.reset_model_weights = MagicMock()
+    sampler.proposal.training_count = 3
+    sampler.proposal._pending_model_reset = True
+
+    NestedSampler.check_flow_model_reset(sampler)
+
+    sampler.proposal.reset_model_weights.assert_called_once_with(
+        weights=True, permutations=True
+    )
+    assert sampler.proposal._pending_model_reset is False
+
+
 def test_train_proposal_not_training(sampler):
     """Verify the proposal is not trained it has not 'cooled down'"""
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.train = MagicMock()
     sampler.iteration = 100
     sampler.last_updated = 90
@@ -262,7 +325,7 @@ def test_train_proposal_not_training(sampler):
 
 def test_train_proposal(sampler, wait):
     """Verify the proposal is trained"""
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.train = MagicMock(side_effect=wait)
     sampler.check_flow_model_reset = MagicMock()
     sampler.checkpoint = MagicMock()
@@ -292,7 +355,7 @@ def test_train_proposal(sampler, wait):
 
 def test_train_proposal_memory(sampler, wait):
     """Verify the proposal is trained with memory"""
-    sampler.proposal = MagicMock()
+    sampler.proposal = get_proposal_mock()
     sampler.proposal.train = MagicMock(side_effect=wait)
     sampler.check_flow_model_reset = MagicMock()
     sampler.checkpoint = MagicMock()

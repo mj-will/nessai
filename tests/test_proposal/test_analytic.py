@@ -11,6 +11,7 @@ import pytest
 
 from nessai.livepoint import numpy_array_to_live_points
 from nessai.proposal import AnalyticProposal
+from nessai.proposal.base import PopulationResult
 
 
 @pytest.fixture
@@ -54,10 +55,18 @@ def test_populate(proposal, N, rng):
     proposal.model.batch_evaluate_log_likelihood = MagicMock(
         return_value=log_l
     )
-    AnalyticProposal.populate(proposal, N=N)
-
     if N is None:
         N = poolsize
+    expected_result = PopulationResult(
+        completed=True,
+        n_requested=N,
+        n_proposed=N,
+        n_accepted=N,
+        population_acceptance=1.0,
+    )
+    proposal.record_population_result = MagicMock(return_value=expected_result)
+    result = AnalyticProposal.populate(proposal, N=N)
+
     proposal.model.new_point.assert_called_once_with(N=N)
     proposal.model.batch_evaluate_log_prior.assert_called_once_with(samples)
     proposal.model.batch_evaluate_log_likelihood.assert_called_once_with(
@@ -67,7 +76,16 @@ def test_populate(proposal, N, rng):
     np.testing.assert_array_equal(proposal.samples["logP"], log_p)
     assert sorted(proposal.indices) == list(range(N))
     assert proposal.populated is True
+    assert proposal._checked_population is False
     np.testing.assert_array_equal(proposal.samples["logL"], log_l)
+    assert result is expected_result
+    proposal.record_population_result.assert_called_once_with(
+        completed=True,
+        n_requested=N,
+        n_proposed=N,
+        n_accepted=N,
+        population_acceptance=1.0,
+    )
 
 
 @pytest.mark.parametrize("populated", [True, False])
@@ -126,6 +144,7 @@ def test_populate_integration(model):
     """Integration test for the populate method"""
     proposal = AnalyticProposal(model)
     N = 500
-    proposal.populate(N=N)
+    result = proposal.populate(N=N)
     assert proposal.samples.size == N
     assert proposal.populated is True
+    assert result.n_requested == N
