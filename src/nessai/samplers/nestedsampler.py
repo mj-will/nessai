@@ -10,6 +10,7 @@ import os
 from collections import deque
 from copy import copy
 from typing import Union
+from warnings import warn
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -124,13 +125,13 @@ class NestedSampler(BaseNestedSampler):
         Number of old live points to use in training. If False only the current
         live points are used.
     reset_weights : bool, int, (False)
-        Boolean to toggle resetting the flow weights whenever re-training.
-        If an integer is specified the flow is reset every nth time it is
-        trained.
-    reset_permutations: bool, int, (False)
-        Boolean to toggle resetting the permutation layers in the flow whenever
+        Deprecated. Boolean to toggle resetting the flow weights whenever
         re-training. If an integer is specified the flow is reset every nth
-        time it is trained.
+        time it is trained. Use :code:`reset_flow` instead.
+    reset_permutations: bool, int, (False)
+        Deprecated. Boolean to toggle resetting the permutation layers in the
+        flow whenever re-training. If an integer is specified the flow is reset
+        every nth time it is trained. Use :code:`reset_flow` instead.
     reset_flow : bool, int
         Boolean to toggle resetting the entire flow whenever re-training. If
         an integer is specified the flow is reset every nth time it trains.
@@ -538,8 +539,7 @@ class NestedSampler(BaseNestedSampler):
         reset_permutations : int, float or bool
             Frequency with which the permutations will be reset.
         reset_flow : int, float or bool
-            Frequency with which the entire flow will be reset. Will overwrite
-            the value for the other resets.
+            Frequency with which the entire flow will be reset.
         """
         if isinstance(reset_weights, (int, float)):
             self.reset_weights = float(reset_weights)
@@ -555,6 +555,21 @@ class NestedSampler(BaseNestedSampler):
             self.reset_flow = float(reset_flow)
         else:
             raise TypeError("`reset_flow` must be a bool, int or float")
+
+        if self.reset_weights:
+            warn(
+                "`reset_weights` is deprecated and will be removed in a "
+                "future release. Use `reset_flow` instead.",
+                FutureWarning,
+                stacklevel=3,
+            )
+        if self.reset_permutations:
+            warn(
+                "`reset_permutations` is deprecated and will be removed in a "
+                "future release. Use `reset_flow` instead.",
+                FutureWarning,
+                stacklevel=3,
+            )
 
         if self.reset_flow:
             self.reset_weights = self.reset_flow
@@ -883,6 +898,15 @@ class NestedSampler(BaseNestedSampler):
             logger.debug("Training flow (resume)")
             return True, True
         elif (
+            getattr(self.proposal, "_pending_model_reset", False)
+            and not self.proposal.populated
+            and not self.proposal.populating
+        ):
+            logger.debug(
+                "Training flow (pending reset after proposal emptied)"
+            )
+            return True, True
+        elif (
             not self.proposal.populated
             and self.train_on_empty
             and not self.proposal.populating
@@ -911,12 +935,29 @@ class NestedSampler(BaseNestedSampler):
         Flow will not be reset if it has not been trained. To force a reset
         manually call `proposal.reset_model_weights`.
         """
+        if getattr(self.proposal, "_pending_model_reset", False):
+            if self.proposal.training_count:
+                logger.info(
+                    "Reset requested by proposal, resetting model weights and permutations"
+                )
+                self.proposal.reset_model_weights(
+                    weights=True, permutations=True
+                )
+            self.proposal._pending_model_reset = False
+            return
+
         if not self.proposal.training_count:
             return
 
         if (
             self.reset_acceptance
             and self.mean_block_acceptance < self.acceptance_threshold
+        ):
+            self.proposal.reset_model_weights(weights=True, permutations=True)
+            return
+
+        if self.reset_flow and not (
+            self.proposal.training_count % self.reset_flow
         ):
             self.proposal.reset_model_weights(weights=True, permutations=True)
             return
