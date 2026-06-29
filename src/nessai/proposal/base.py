@@ -7,11 +7,25 @@ import datetime
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Mapping, Optional
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PopulationResult:
+    """Summary of a population attempt."""
+
+    completed: bool
+    n_requested: int
+    n_proposed: int
+    n_accepted: int
+    population_acceptance: float
+    hit_max_samples: bool = False
+    stats: dict[str, Any] = field(default_factory=dict)
 
 
 class Proposal(ABC):
@@ -41,6 +55,8 @@ class Proposal(ABC):
         self.samples = []
         self.indices = []
         self._checked_population = True
+        self.last_population_result = None
+        self._pending_model_reset = False
 
     @property
     def initialised(self):
@@ -84,6 +100,39 @@ class Proposal(ABC):
         self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
             self.samples
         )
+
+    def record_population_result(
+        self,
+        *,
+        completed: bool,
+        n_requested: int,
+        n_proposed: int,
+        n_accepted: int,
+        population_acceptance: float | None = None,
+        hit_max_samples: bool = False,
+        stats: Mapping[str, Any] | None = None,
+        request_reset: bool = False,
+    ) -> PopulationResult:
+        """Record the result of a population attempt."""
+        if population_acceptance is None and n_proposed:
+            population_acceptance = n_accepted / n_proposed
+        elif population_acceptance is None:
+            population_acceptance = 0.0
+
+        result = PopulationResult(
+            completed=completed,
+            n_requested=n_requested,
+            n_proposed=n_proposed,
+            n_accepted=n_accepted,
+            population_acceptance=population_acceptance,
+            hit_max_samples=hit_max_samples,
+            stats=dict(stats or {}),
+        )
+        self.last_population_result = result
+        self.population_acceptance = population_acceptance
+        if request_reset:
+            self._pending_model_reset = True
+        return result
 
     @abstractmethod
     def draw(self, old_param):

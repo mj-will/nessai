@@ -456,6 +456,7 @@ class FlowProposal(BaseFlowProposal):
         log_weights = np.empty(0)
         n_accepted = 0
         accept = None
+        hit_max_samples = False
 
         while n_accepted < n_samples:
             z = self.sample_latent_distribution(self.drawsize)
@@ -518,6 +519,7 @@ class FlowProposal(BaseFlowProposal):
                     n_accepted = np.sum(accept)
                 if n_proposed > max_samples:
                     logger.warning("Reached max samples (%s)", max_samples)
+                    hit_max_samples = True
                     break
             else:
                 log_w = self._get_population_log_weights(log_w)
@@ -540,16 +542,35 @@ class FlowProposal(BaseFlowProposal):
                 log_u = np.log(self.rng.random(len(log_weights)))
                 accept = log_weights_rejection > log_u
             logger.debug("Total number of samples: %s", samples.size)
-            n_accepted = np.sum(accept)
             self.x = samples[accept][:n_samples]
+            n_accepted = self.x.size
         else:
-            self.x = samples[: min(n_accepted, n_samples)]
+            self.x = samples[: min(n_samples, n_accepted)]
+            n_accepted = self.x.size
+
+        self.population_time += datetime.datetime.now() - st
+        completed = n_accepted >= n_samples
+        result = self.record_population_result(
+            completed=completed,
+            n_requested=n_samples,
+            n_proposed=n_proposed,
+            n_accepted=n_accepted,
+            hit_max_samples=hit_max_samples,
+            request_reset=hit_max_samples and n_proposed > 0,
+        )
+
+        if n_accepted == 0:
+            self.x = None
+            self.samples = None
+            self.indices = []
+            self.populated = False
+            self._checked_population = True
+            return result
 
         self.samples = self.convert_to_samples(self.x, plot=plot)
         if self._plot_pool and plot:
             self.plot_pool(self.samples)
 
-        self.population_time += datetime.datetime.now() - st
         if not self._truncation_scheme.requires_log_likelihood:
             logger.debug("Evaluating log-likelihoods")
             self.samples["logL"] = self.model.batch_evaluate_log_likelihood(
@@ -562,10 +583,10 @@ class FlowProposal(BaseFlowProposal):
             logger.debug("Current acceptance %s", self.acceptance[-1])
 
         self.indices = self.rng.permutation(self.samples.size).tolist()
-        self.population_acceptance = n_accepted / n_proposed
         self.populated_count += 1
         self.populated = True
         self._checked_population = False
+        return result
 
     def reset(self) -> None:
         """Reset the proposal."""

@@ -118,3 +118,10 @@ class RejectionProposal(AnalyticProposal):
         )
         self.populated = True
         self._checked_population = False
+        return self.record_population_result(
+            completed=True,
+            n_requested=N,
+            n_proposed=N,
+            n_accepted=self.samples.size,
+            population_acceptance=self.samples.size / N,
+        )

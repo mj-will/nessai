@@ -209,7 +209,19 @@ class MCMCFlowProposal(BaseFlowProposal):
         self.population_time += datetime.datetime.now() - st
         if len(x_current) == 0:
             logger.warning("No samples accepted!")
-            return
+            self.record_population_result(
+                completed=False,
+                n_requested=n_walkers,
+                n_proposed=n_walkers * n_steps,
+                n_accepted=0,
+                population_acceptance=0.0,
+                request_reset=True,
+            )
+            self.samples = None
+            self.indices = []
+            self.populated = False
+            self._checked_population = True
+            return self.last_population_result
 
         self.samples = self.convert_to_samples(x_current)
         if self._plot_chain and plot:
@@ -223,10 +235,17 @@ class MCMCFlowProposal(BaseFlowProposal):
         if self._plot_history and plot:
             self.plot_history()
 
-        self.population_acceptance = self.mcmc_history["acceptance"][-1]
+        self.record_population_result(
+            completed=True,
+            n_requested=n_walkers,
+            n_proposed=n_walkers * n_steps,
+            n_accepted=self.samples.size,
+            population_acceptance=self.mcmc_history["acceptance"][-1],
+        )
 
         logger.debug(f"MCMC acceptance: {self.population_acceptance}")
         self.indices = self.rng.permutation(self.samples.size).tolist()
         self.populated_count += 1
         self.populated = True
         self._checked_population = False
+        return self.last_population_result

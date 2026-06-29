@@ -140,6 +140,8 @@ class BaseFlowProposal(RejectionProposal):
         self.save_training_data = save_training_data
         self.x = None
         self.samples = None
+        self.last_population_result = None
+        self._pending_model_reset = False
         self.prime_parameters = None
         self._prime_parameters_internal = None
         self.acceptance = []
@@ -1167,11 +1169,14 @@ class BaseFlowProposal(RejectionProposal):
         """
         if not self.populated:
             self.populating = True
-            if self.update_poolsize:
-                self.update_poolsize_scale(self.ns_acceptance)
-            while not self.populated:
+            try:
+                if self.update_poolsize:
+                    self.update_poolsize_scale(self.ns_acceptance)
                 self.populate(worst_point, n_samples=self.poolsize)
-            self.populating = False
+            finally:
+                self.populating = False
+            if not self.populated:
+                return worst_point
         # new sample is drawn randomly from proposed points
         # popping from right end is faster
         index = self.indices.pop()
@@ -1275,6 +1280,8 @@ class BaseFlowProposal(RejectionProposal):
         self.indices = []
         self.samples = None
         self.x = None
+        self.last_population_result = None
+        self._pending_model_reset = False
         self.populated = False
         self.populated_count = 0
         self.population_acceptance = None

@@ -59,6 +59,14 @@ class AnalyticProposal(Proposal):
             self.samples
         )
         self.populated = True
+        self._checked_population = False
+        return self.record_population_result(
+            completed=True,
+            n_requested=N,
+            n_proposed=N,
+            n_accepted=self.samples.size,
+            population_acceptance=1.0,
+        )
 
     def draw(self, old_sample, **kwargs):
         """
