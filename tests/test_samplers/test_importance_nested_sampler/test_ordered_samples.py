@@ -279,11 +279,21 @@ def test_finalise(ordered_samples, samples):
 def test_compute_importance(ordered_samples, log_q, samples, ratio):
     ordered_samples.samples = samples
     ordered_samples.log_q = log_q
+    ordered_samples.proposal = MagicMock()
+    ordered_samples.proposal.cast_qid = lambda qid: qid
     out = OrderedSamples.compute_importance(
         ordered_samples, importance_ratio=ratio
     )
-    assert len(set(out.keys()) - {"total", "posterior", "evidence"}) == 0
-    assert np.all(np.isfinite(list(out.values())))
+    assert (
+        len(
+            set(out.keys())
+            - {"total", "posterior", "posterior_indv", "evidence"}
+        )
+        == 0
+    )
+    assert np.isnan(out["total"])
+    assert np.isnan(out["evidence"])
+    assert np.all(np.isfinite(list(out["posterior"].values())))
 
 
 @pytest.mark.parametrize("threshold", [None, -10.0])
@@ -317,7 +327,9 @@ def test_computed_evidence_ratio(ordered_samples, samples, threshold):
 @pytest.mark.parametrize("save_log_q", [False, True])
 def test_getstate(ordered_samples, save_log_q):
     samples = np.random.randn(20, 4)
-    log_q = np.random.randn(2, 20)
+    log_q = np.empty(20, dtype=[("-1", "f8"), ("0", "f8")])
+    log_q["-1"] = np.random.randn(20)
+    log_q["0"] = np.random.randn(20)
     ordered_samples.save_log_q = save_log_q
     ordered_samples.log_q = log_q
     ordered_samples.samples = samples

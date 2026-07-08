@@ -5,7 +5,9 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from nessai.samplers.importancesampler import ImportanceNestedSampler as INS
+from nessai.samplers.importancesampler import (
+    ImportanceNestedSampler as INS,
+)
 
 
 def test_getstate_no_model(ins):

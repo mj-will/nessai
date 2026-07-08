@@ -35,8 +35,10 @@ def nested_samples(live_points):
 @pytest.fixture(autouse=True)
 def auto_close_figures():
     """Automatically close all figures after each test"""
-    yield
-    plt.close("all")
+    try:
+        yield
+    finally:
+        plt.close("all")
 
 
 @pytest.mark.parametrize("line_styles", [True, False])
