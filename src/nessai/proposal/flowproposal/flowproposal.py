@@ -301,7 +301,7 @@ class FlowProposal(BaseFlowProposal):
             return log_weights
 
         weights = _clip_weights(np.exp(log_weights))
-        return np.log(weights) - np.log(weights.max())
+        return np.log(weights) - np.log(np.nanmax(weights))
 
     def configure_truncation(
         self,
