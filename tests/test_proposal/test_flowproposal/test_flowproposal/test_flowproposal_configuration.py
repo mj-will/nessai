@@ -12,6 +12,7 @@ from nessai.proposal.flowproposal.truncation import (
     BaseTruncationRule,
     LatentRadiusTruncation,
     LikelihoodThresholdTruncation,
+    LogWeightThresholdTruncation,
     MinLogQTruncation,
     TruncationScheme,
 )
@@ -30,6 +31,22 @@ def test_configure_population_sets_defaults(proposal):
     assert proposal.drawsize == 2000
     assert proposal.latent_prior == "flow"
     assert proposal.latent_temperature is None
+
+
+def test_log_weight_threshold_configuration_round_trip(proposal):
+    FlowProposal.configure_truncation(
+        proposal, truncation_method="log_weight_threshold"
+    )
+    proposal.truncation = proposal._truncation_scheme
+    FlowProposal._sync_truncation_state(proposal)
+    assert proposal.truncation_methods == ["log_weight_threshold"]
+    assert isinstance(
+        FlowProposal.get_truncation_rule(proposal, "log_weight_threshold"),
+        LogWeightThresholdTruncation,
+    )
+    FlowProposal.configure_truncation(
+        proposal, truncation_methods=proposal.truncation_methods
+    )
 
 
 def test_configure_population_rejects_non_flow_prior(proposal):

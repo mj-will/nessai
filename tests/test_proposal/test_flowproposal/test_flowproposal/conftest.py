@@ -20,6 +20,10 @@ def proposal(rng):
     proposal._initialised = False
     proposal.initialised = False
     proposal.accumulate_weights = False
+    proposal.clip_population_weights = False
+    proposal._get_population_log_weights.side_effect = lambda weights: (
+        FlowProposal._get_population_log_weights(proposal, weights)
+    )
     proposal.truncate_log_q = False
     proposal.enforce_likelihood_threshold = False
     proposal.map_to_unit_hypercube = False

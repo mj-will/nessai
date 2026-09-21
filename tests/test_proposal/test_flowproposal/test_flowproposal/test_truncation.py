@@ -2,17 +2,20 @@
 """Standalone tests for truncation rules and helpers."""
 
 import logging
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
 import pytest
 
+from nessai.proposal import FlowProposal
 from nessai.proposal.flowproposal.truncation import (
     DEFAULT_TRUNCATION_KWARGS,
     DEFAULT_TRUNCATION_METHODS,
     BaseTruncationRule,
     LatentRadiusTruncation,
     LikelihoodThresholdTruncation,
+    LogWeightThresholdTruncation,
     MinLogQTruncation,
     TruncationScheme,
     apply_default_truncation_config,
@@ -56,6 +59,52 @@ class DummyTruncationRule(BaseTruncationRule):
 
     def prepare(self, proposal, worst_point, radius=None):
         self._value = 1.0
+
+
+@pytest.mark.parametrize("map_to_unit_hypercube", [False, True])
+def test_log_weight_threshold_uses_population_coordinates(
+    samples, map_to_unit_hypercube
+):
+    live_points = samples([(12.0, 14.0), (15.0, 16.0), (18.0, 19.0)])
+    original = live_points.copy()
+
+    def to_unit_hypercube(x):
+        x = x.copy()
+        for name in ("x", "y"):
+            x[name] = (x[name] - 10.0) / 10.0
+        return x
+
+    def unit_prior(x):
+        valid = (x["x"] >= 0.0) & (x["x"] < 1.0)
+        return np.where(valid, 0.0, -np.inf)
+
+    log_q = np.array([-3.0, -2.0, -1.0])
+    proposal = SimpleNamespace(
+        training_data=live_points,
+        map_to_unit_hypercube=map_to_unit_hypercube,
+        model=SimpleNamespace(to_unit_hypercube=to_unit_hypercube),
+        forward_pass=lambda x: (None, log_q),
+        unit_hypercube_log_prior=unit_prior,
+        log_prior=lambda x: np.full(x.size, -2.0),
+    )
+    proposal.compute_weights = lambda x, log_q: FlowProposal.compute_weights(
+        proposal, x, log_q
+    )
+    population = (
+        to_unit_hypercube(live_points)
+        if map_to_unit_hypercube
+        else live_points
+    )
+    rule = LogWeightThresholdTruncation(quantile=0.5)
+    rule.prepare(proposal, None)
+    expected = np.median(proposal.compute_weights(population, log_q))
+    assert np.isfinite(rule.threshold)
+    assert rule.threshold == expected
+    kept, _, _ = rule.apply_after_backward(
+        proposal, population, log_q, np.zeros((3, 2))
+    )
+    np.testing.assert_array_equal(kept, population[:1])
+    np.testing.assert_array_equal(live_points, original)
 
 
 def test_get_deprecated_latent_radius_arguments():

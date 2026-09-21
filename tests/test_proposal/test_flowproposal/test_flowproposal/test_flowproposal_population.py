@@ -5,6 +5,7 @@ import datetime
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 
 from nessai.livepoint import empty_structured_array
 from nessai.proposal import FlowProposal
@@ -148,10 +149,12 @@ def test_populate_accumulate_weights_recomputes_accept_on_max_samples(
     assert proposal.rng.random.call_count == 1
 
 
+@pytest.mark.parametrize("accumulate_weights", [False, True])
 def test_populate_stops_at_max_samples_after_empty_latent_batches(
-    proposal, rng, point, samples
+    proposal, rng, point, samples, accumulate_weights
 ):
     configure_population_test_proposal(proposal, rng, samples)
+    proposal.accumulate_weights = accumulate_weights
     proposal._truncation_scheme = TruncationScheme(
         [LatentRadiusTruncation(fixed_radius=0.1, radius_mode="fixed")]
     )
@@ -174,10 +177,12 @@ def test_populate_stops_at_max_samples_after_empty_latent_batches(
     assert proposal.population_acceptance == 0.0
 
 
+@pytest.mark.parametrize("accumulate_weights", [False, True])
 def test_populate_stops_at_max_samples_after_all_likelihood_rejected(
-    proposal, rng, point, samples
+    proposal, rng, point, samples, accumulate_weights
 ):
     configure_population_test_proposal(proposal, rng, samples)
+    proposal.accumulate_weights = accumulate_weights
     proposal._truncation_scheme = TruncationScheme(
         [LikelihoodThresholdTruncation()]
     )
