@@ -480,6 +480,8 @@ class LogWeightThresholdTruncation(BaseTruncationRule):
     def prepare(self, proposal, worst_point, radius=None):
         live_points = proposal.training_data.copy()
         log_q = proposal.forward_pass(live_points)[1]
+        if proposal.map_to_unit_hypercube:
+            live_points = proposal.model.to_unit_hypercube(live_points)
         log_w = proposal.compute_weights(
             live_points,
             log_q=log_q,
@@ -506,7 +508,7 @@ TRUNCATION_REGISTRY = {
     "min_log_q": MinLogQTruncation,
     "likelihood_threshold": LikelihoodThresholdTruncation,
     "log_proposal_threshold": LogProposalThresholdTruncation,
-    "weights_threshold": LogWeightThresholdTruncation,
+    "log_weight_threshold": LogWeightThresholdTruncation,
 }
 
 
