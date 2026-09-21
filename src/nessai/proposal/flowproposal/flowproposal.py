@@ -296,6 +296,8 @@ class FlowProposal(BaseFlowProposal):
     def _get_population_log_weights(self, log_weights) -> np.ndarray:
         """Return log-weights used in the rejection step during population."""
         log_weights = np.asarray(log_weights, dtype=float)
+        if not log_weights.size:
+            return log_weights
         log_weights = log_weights - np.nanmax(log_weights)
         if not self.clip_population_weights:
             return log_weights
