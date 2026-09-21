@@ -12,56 +12,25 @@ concurrency:
 
 jobs:
   integration-tests:
-    name: Integration tests - Python ${{ matrix.python-version }} (${{ matrix.os }})
+    name: Integration tests - ${{ matrix.environment }} (${{ matrix.os }})
 
     strategy:
       fail-fast: false
       matrix:
         os: [macOS, Ubuntu, Windows]
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        environment: [py39, py310, py311, py312, py313]
     runs-on: ${{ matrix.os }}-latest
 
     steps:
     - uses: actions/checkout@v6
-    - name: Configure environment with Python ${{ matrix.python-version}}
-      if: runner.os != 'Windows'
-      uses: mamba-org/setup-micromamba@v3
+    - uses: prefix-dev/setup-pixi@v0.10.0
       with:
-        micromamba-version: '1.5.8-0'
-        environment-file: ci_environment.yaml
-        create-args: >-
-          python=${{ matrix.python-version }}
-          lalsuite
-        init-shell: bash
-        cache-environment: true
-        post-cleanup: 'all'
-    - name: Configure environment with Python ${{ matrix.python-version}} (Windows)
-      if: runner.os == 'Windows'
-      uses: mamba-org/setup-micromamba@v3
-      with:
-        micromamba-version: '1.5.8-0'
-        environment-file: ci_environment.yaml
-        create-args: >-
-          python=${{ matrix.python-version }}
-        init-shell: bash
-        cache-environment: true
-        post-cleanup: 'all'
-    - name: Install nessai
-      run: |
-        pip install . --no-deps
-      shell: bash -el {0}
-    - name: Set MPL backend on Windows
-      if: runner.os == 'Windows'
-      run: |
-        echo "MPLBACKEND=agg" >> $env:GITHUB_ENV
-    - name: Print environment variables
-      run: |
-        env
+        pixi-version: v0.78.0
+        manifest-path: pyproject.toml
+        environments: ${{ matrix.environment }}
     - name: Run (quick) integration tests
       run: |
-        python -m pytest -v -m "integration_test"
-      shell: bash -el {0}
+        pixi run --locked -e ${{ matrix.environment }} test-integration
     - name: Run slow integration tests
       run: |
-        python -m pytest -v -m "slow_integration_test"
-      shell: bash -el {0}
+        pixi run --locked -e ${{ matrix.environment }} test-slow-integration
