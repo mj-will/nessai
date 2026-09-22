@@ -2,12 +2,25 @@
 
 ## Installation
 
-To install ``nessai`` and contribute clone the repo and install the additional dependencies with:
+Use [Pixi](https://pixi.prefix.dev/latest/installation/) for development.
+Environments and tasks are defined in `pyproject.toml`. Clone the repository,
+then run:
 
 ```console
 $ cd nessai
-$ pip install -e .[dev]
+$ pixi install
+$ pixi run pre-commit install
 ```
+
+The default environment uses Python 3.11, CPU PyTorch, an editable nessai install,
+and development, test, and gravitational-wave dependencies. Linux, macOS, and
+Windows are supported. Dependencies are resolved locally; do not commit
+`pixi.lock` or `.pixi/`. After changing dependencies, run `pixi install` again.
+
+Use `pixi run <command>` or `pixi shell` to work inside the environment.
+The `py39`, `py310`, `py311`, `py312`, and `py313` environments reproduce the CI
+Python matrix. The `bilby` environment tests the published nessai-bilby plugin,
+and `docs` builds the documentation.
 
 ## Format checking
 
@@ -16,12 +29,10 @@ We use [pre-commit](https://pre-commit.com/) to check the quality of code before
 This requires some setup:
 
 ```console
-$ pip install pre-commit # Should already be installed
-$ cd nessai
-$ pre-commit install
+$ pixi run pre-commit install
 ```
 
-Now we you run `$ git commit` `pre-commit` will run a series of checks. Some checks will automatically change the code and others will print warnings that you must address and re-commit.
+Now when you run `$ git commit` `pre-commit` will run a series of checks. Some checks will automatically change the code and others will print warnings that you must address and re-commit.
 
 ## Commit messages
 
@@ -61,3 +72,20 @@ REL: related to releasing nessai
 When contributing code to `nessai` please ensure that you also contribute corresponding unit tests and integration tests where applicable. We test `nessai` using `pytest` and strive to test all of the core functionality in `nessai`. Tests should be contained with the `tests` directory and follow the naming convention `test_<name>.py`. We also welcome improvements to the existing tests and testing infrastructure.
 
 See the `pytest` [documentation](https://docs.pytest.org/) for further details on how to write tests using `pytest`.
+
+Run the checks and tests with:
+
+```console
+$ pixi run lint
+$ pixi run format-check
+$ pixi run test
+$ pixi run test-integration
+$ pixi run test-slow-integration
+$ pixi run -e py39 test
+$ pixi run -e bilby test-bilby
+$ pixi run -e docs docs
+```
+
+Pass pytest arguments after the task, for example
+`pixi run test tests/test_model.py`. Unit tests exclude integration tests;
+run the two integration tasks separately when validating sampler changes.

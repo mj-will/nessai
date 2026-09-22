@@ -141,3 +141,10 @@ cython_debug/
 # Project specific
 outdir/
 autoapi/
+
+# Local environment state (as in sequince)
+.pixi/
+pixi.lock
+pixi.toml.local-backup
+pixi.lock.local-backup
+uv.lock
