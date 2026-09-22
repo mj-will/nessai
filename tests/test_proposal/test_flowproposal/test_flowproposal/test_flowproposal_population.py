@@ -49,6 +49,47 @@ def configure_population_test_proposal(proposal, rng, samples):
     )
 
 
+@pytest.mark.parametrize("accumulate_weights", [False, True])
+@pytest.mark.parametrize("clip", [False, True])
+@pytest.mark.parametrize("n_samples", [2, 4])
+def test_populate_weight_clipping(
+    proposal, rng, point, samples, accumulate_weights, clip, n_samples
+):
+    configure_population_test_proposal(proposal, rng, samples)
+    proposal.accumulate_weights = accumulate_weights
+    proposal.clip_population_weights = clip
+    proposal.drawsize = 4
+    x = samples([(1.0, 1.0), (2.0, 2.0), (3.0, 3.0), (4.0, 4.0)])
+    x["logP"] = 0.0
+    x["logL"] = 0.0
+    proposal.flow.sample_latent_distribution.return_value = np.zeros((4, 2))
+    proposal.backward_pass.return_value = (x, np.zeros(4), np.zeros((4, 2)))
+    proposal.compute_weights.side_effect = lambda x, log_q: np.log(
+        [1.0, 9.0, 3.0, 7.0]
+    )
+    proposal.rng.random.side_effect = lambda n: np.array(
+        [0.12, 0.5, 0.35, 0.9]
+    )
+    proposal.model.batch_evaluate_log_likelihood.side_effect = lambda x: (
+        np.zeros(x.size)
+    )
+
+    # Force final rejection sampling when accumulated expected counts are low.
+    FlowProposal.populate(
+        proposal,
+        point(0.0, 0.0),
+        n_samples=n_samples,
+        plot=False,
+        max_samples=3,
+    )
+
+    expected = x if clip else x[[1]]
+    np.testing.assert_array_equal(proposal.x, expected[:n_samples])
+    assert proposal.population_acceptance == len(expected) / 4
+    proposal.sample_latent_distribution.assert_called_once_with(4)
+    proposal.rng.random.assert_called_once_with(4)
+
+
 def test_populate_applies_truncation_in_stages(proposal, rng, point, samples):
     configure_population_test_proposal(proposal, rng, samples)
     proposal._truncation_scheme = TruncationScheme(

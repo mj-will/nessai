@@ -31,6 +31,15 @@ def test_configure_population_sets_defaults(proposal):
     assert proposal.drawsize == 2000
     assert proposal.latent_prior == "flow"
     assert proposal.latent_temperature is None
+    assert proposal.clip_population_weights is False
+
+
+@pytest.mark.parametrize("clip", [False, True])
+def test_configure_population_weight_clipping(proposal, clip):
+    FlowProposal.configure_population(
+        proposal, None, clip_population_weights=clip
+    )
+    assert proposal.clip_population_weights is clip
 
 
 def test_log_weight_threshold_configuration_round_trip(proposal):

@@ -15,6 +15,7 @@ from nessai.proposal.flowproposal.truncation import (
     BaseTruncationRule,
     LatentRadiusTruncation,
     LikelihoodThresholdTruncation,
+    LogProposalThresholdTruncation,
     LogWeightThresholdTruncation,
     MinLogQTruncation,
     TruncationScheme,
@@ -61,9 +62,64 @@ class DummyTruncationRule(BaseTruncationRule):
         self._value = 1.0
 
 
+@pytest.mark.parametrize(
+    "rule_class",
+    [LogProposalThresholdTruncation, LogWeightThresholdTruncation],
+)
+def test_quantile_threshold_initial_state_and_reset(rule_class):
+    rule = rule_class()
+    assert np.isnan(rule.threshold)
+    rule._threshold = 2.0
+    assert np.isnan(rule.__getstate__()["_threshold"])
+    assert rule.threshold == 2.0
+    rule.reset()
+    assert np.isnan(rule.threshold)
+
+
+@pytest.mark.parametrize(
+    "quantile, expected", [(0.0, -4.0), (0.25, -3.0), (1.0, 0.0)]
+)
+def test_log_proposal_threshold_prepare(samples, quantile, expected):
+    live_points = samples([(1.0, 2.0), (3.0, 4.0), (5.0, 6.0)])
+    original = live_points.copy()
+
+    def forward_pass(x):
+        np.testing.assert_array_equal(x, original)
+        x["x"] = 0.0
+        return None, np.array([-4.0, -2.0, 0.0])
+
+    proposal = SimpleNamespace(
+        training_data=live_points, forward_pass=forward_pass
+    )
+    rule = LogProposalThresholdTruncation(quantile=quantile)
+    rule.prepare(proposal, None)
+
+    assert rule.threshold == expected
+    np.testing.assert_array_equal(live_points, original)
+
+
+@pytest.mark.parametrize(
+    "threshold, indices", [(-4.0, [0, 1, 2]), (-2.0, [2]), (0.0, [])]
+)
+def test_log_proposal_threshold_filters_aligned_arrays(
+    samples, threshold, indices
+):
+    x = samples([(1.0, 2.0), (3.0, 4.0), (5.0, 6.0)])
+    log_q = np.array([-3.0, -2.0, -1.0])
+    z = np.arange(6).reshape(3, 2)
+    rule = LogProposalThresholdTruncation()
+    rule._threshold = threshold
+
+    result = rule.apply_after_backward(None, x, log_q, z)
+
+    for actual, original in zip(result, (x, log_q, z)):
+        np.testing.assert_array_equal(actual, original[indices])
+
+
+@pytest.mark.parametrize("enlargement", [0.0, 0.5])
 @pytest.mark.parametrize("map_to_unit_hypercube", [False, True])
 def test_log_weight_threshold_uses_population_coordinates(
-    samples, map_to_unit_hypercube
+    samples, map_to_unit_hypercube, enlargement
 ):
     live_points = samples([(12.0, 14.0), (15.0, 16.0), (18.0, 19.0)])
     original = live_points.copy()
@@ -95,15 +151,21 @@ def test_log_weight_threshold_uses_population_coordinates(
         if map_to_unit_hypercube
         else live_points
     )
-    rule = LogWeightThresholdTruncation(quantile=0.5)
+    rule = LogWeightThresholdTruncation(quantile=0.5, enlargement=enlargement)
     rule.prepare(proposal, None)
-    expected = np.median(proposal.compute_weights(population, log_q))
+    expected = (
+        np.median(proposal.compute_weights(population, log_q)) - enlargement
+    )
     assert np.isfinite(rule.threshold)
     assert rule.threshold == expected
-    kept, _, _ = rule.apply_after_backward(
-        proposal, population, log_q, np.zeros((3, 2))
+    z = np.arange(6).reshape(3, 2)
+    kept, kept_log_q, kept_z = rule.apply_after_backward(
+        proposal, population, log_q, z
     )
-    np.testing.assert_array_equal(kept, population[:1])
+    n_kept = 2 if enlargement else 1
+    np.testing.assert_array_equal(kept, population[:n_kept])
+    np.testing.assert_array_equal(kept_log_q, log_q[:n_kept])
+    np.testing.assert_array_equal(kept_z, z[:n_kept])
     np.testing.assert_array_equal(live_points, original)
 
 

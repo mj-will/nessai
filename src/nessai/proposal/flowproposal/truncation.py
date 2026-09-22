@@ -402,6 +402,7 @@ class LogProposalThresholdTruncation(BaseTruncationRule):
     _transient_defaults = {"_threshold": np.nan}
 
     def __init__(self, quantile: float = 0.05) -> None:
+        super().__init__()
         self.quantile = float(quantile)
 
     @property
