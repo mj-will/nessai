@@ -1,6 +1,8 @@
 #!/usr/bin/env python
+"""Example of using the MiniPCNFlowProposal with the Rosenbrock likelihood.
 
-# Example of using the experimental MCMCFlowProposal
+Note that this example requires the `minipcn` package to be installed.
+"""
 
 import numpy as np
 
@@ -8,7 +10,7 @@ from nessai.flowsampler import FlowSampler
 from nessai.model import Model
 from nessai.utils import configure_logger
 
-output = "./outdir/mcmc_example_cvm_8d_flow_act/"
+output = "./outdir/minipcn_mcmc_example/"
 logger = configure_logger(output=output)
 
 
@@ -41,33 +43,35 @@ class RosenbrockModel(Model):
         )
 
 
-# The MCMCFlowProposal class shares most of the configuration options with
-# FlowProposal but also has some specific options
-# Here we also set
-#  - n_accept : the number of accepted jumps required to stop
-#  - reset_flow : this is recommended with the MCMC proposal
-fs = FlowSampler(
-    RosenbrockModel(8),
-    output=output,
-    resume=False,
-    seed=1234,
-    flow_proposal_class="mcmcflowproposal",
-    plot_history=True,
-    plot_chain=False,
-    step_type="diff",
-    enforce_likelihood_threshold=True,
-    # constant_volume_fraction=0.98,
-    n_steps=5000,
-    reset_flow=16,
-    flow_config=dict(
-        n_neurons=32,
-        n_blocks=8,
-        n_layers=2,
-        batch_norm_between_layers=True,
-        linear_transform=None,
-        net="mlp",
-    ),
-)
+def main():
+    # The MCMCFlowProposal class shares most of the configuration options with
+    # FlowProposal but also has some specific options
+    # Here we also set
+    #  - reset_flow : this is recommended with the MCMC proposal
+    fs = FlowSampler(
+        RosenbrockModel(8),
+        output=output,
+        nlive=1000,
+        resume=False,
+        seed=1234,
+        flow_proposal_class="minipcnflowproposal",
+        step_fn="tpcn",
+        n_steps=70,
+        reset_flow=10,
+        plot_history=True,
+        flow_config=dict(
+            n_neurons=32,
+            n_blocks=6,
+            n_layers=2,
+            batch_norm_between_layers=True,
+            linear_transform=None,
+            net="mlp",
+        ),
+    )
 
-# And go!
-fs.run()
+    # And go!
+    fs.run()
+
+
+if __name__ == "__main__":
+    main()
